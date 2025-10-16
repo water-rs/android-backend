@@ -1,0 +1,57 @@
+name: Android Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build Android Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout android-backend repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Build with Gradle
+        run: ./gradlew build
+
+  e2e-test:
+    name: End-to-end Test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main waterui repository
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          path: waterui
+      - name: Checkout android-backend repository
+        uses: actions/checkout@v4
+        with:
+          path: waterui/backends/android
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install waterui-cli
+        working-directory: waterui
+        run: cargo install --path cli
+      - name: Create test app
+        working-directory: waterui
+        run: water create --name "E2E Test" --directory e2e-test-app --bundle-identifier com.waterui.e2etest --yes --backend android --dev
+      - name: Package Android app
+        working-directory: waterui
+        run: water package --platform android --project e2e-test-app
