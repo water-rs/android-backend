@@ -2,9 +2,9 @@ name: Android Backend CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   build:
@@ -28,11 +28,20 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main waterui repository
+      - name: Determine waterui branch
+        id: get_waterui_branch
+        run: |
+          if [ "${{ github.ref_name }}" = "dev" ] || [ "${{ github.base_ref }}" = "dev" ]; then
+            echo "branch=dev" >> $GITHUB_OUTPUT
+          else
+            echo "branch=main" >> $GITHUB_OUTPUT
+          fi
+      - name: Checkout waterui repository
         uses: actions/checkout@v4
         with:
           repository: water-rs/waterui
           path: waterui
+          ref: ${{ steps.get_waterui_branch.outputs.branch }}
       - name: Checkout android-backend repository
         uses: actions/checkout@v4
         with:
@@ -55,3 +64,16 @@ jobs:
       - name: Package Android app
         working-directory: waterui
         run: water package --platform android --project e2e-test-app
+
+  notify-waterui:
+    name: Notify waterui repo
+    runs-on: ubuntu-latest
+    needs: e2e-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Send repository_dispatch to waterui
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.SUBMODULE_UPDATE_PAT }}
+          repository: water-rs/waterui
+          event-type: update-android-backend
