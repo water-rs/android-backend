@@ -51,10 +51,6 @@ fun WaterUiView(
     root: WuiAnyView,
     modifier: Modifier = Modifier
 ) {
-    androidx.compose.runtime.DisposableEffect(root) {
-        onDispose { root.close() }
-    }
-
     val id = remember(root) { root.viewId() }
     val renderer = RenderRegistry.rendererFor(id)
     if (renderer != null) {
