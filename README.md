@@ -1,50 +1,71 @@
 # WaterUI Android Backend
 
-This module hosts the prototype Jetpack Compose renderer for WaterUI. The Kotlin sources compile today,
-but most components still contain placeholders — expect TODOs until the JNI layer and Compose UX are
-fully implemented.
+This Gradle project hosts the Android runtime glue that renders WaterUI view trees
+with Jetpack Compose. The design mirrors the Swift backend: Rust defines the UI,
+exports a C ABI via `waterui-ffi`, and the native platform renders that tree.
 
-## Prerequisites
+## Project layout
 
-Ensure the following tooling is available on your machine:
+- `settings.gradle.kts` – standalone Gradle settings so the module can be built
+  from the repository root with `./gradlew -p backends/android …`.
+- `runtime/` – Android library that ships the JNI bridge, Kotlin runtime wrappers,
+  and placeholder Compose renderers.
+  - `src/main/cpp/waterui_jni.cpp` – translates between the C ABI from
+    `waterui.h` and JVM-friendly types (`String`, Kotlin data classes, etc.).
+  - `src/main/java/dev/waterui/android/runtime/` – Kotlin wrappers (`WuiAnyView`,
+    `WuiEnvironment`, layout structs) plus the render registry and entry points.
+- `TASKS.md` – living checklist tracking the remaining backend work.
 
-- **Java 17 or newer.** (The gradle wrapper runs on the JDK on `PATH`; we tested with Temurin 22.)
-- **Android SDK** with at least:
-  - Platform `android-34` (Android 14)
-  - Build tools `34.0.0`
-- **Gradle wrapper** generated in the repo (`./gradlew`).
-
-> ⚠️ For local builds we rely on `local.properties` to point at the Android SDK. The repo already contains
->   `sdk.dir=/Users/lexo/Library/Android/sdk`; update this path if your SDK lives elsewhere.
-
-## Compile the Kotlin sources
-
-```bash
-./gradlew :backends:android:compileDebugKotlin
-```
-
-This resolves dependencies, generates the Compose runtime stubs, and confirms that every source file
-compiles. The task succeeds today with Kotlin `1.9.22` and Compose compiler `1.5.10` (see
-`backends/android/build.gradle.kts`).
-
-If you upgrade Kotlin/Compose, adjust both the Kotlin plugin version in `settings.gradle.kts` and the
-`kotlinCompilerExtensionVersion` inside the module build script to keep them compatible.
-
-## Build an AAR
+## Building the runtime
 
 ```bash
-./gradlew :backends:android:assembleDebug
+./gradlew -p backends/android runtime:assembleDebug
 ```
 
-This produces `backends/android/build/outputs/aar/android-debug.aar`. There is no consumer yet, but
-shipping the artefact lets you integrate with sample apps when JNI bindings are ready.
+This produces an AAR under `backends/android/runtime/build/outputs/aar/`.
 
-## Run tests
+The JNI target is compiled with CMake. During development you can place the Rust
+cdylib produced by the CLI under `runtime/src/main/jniLibs/<abi>/` so Gradle picks
+it up automatically.
 
-No unit or instrumentation tests exist yet. To add them:
+## Native libraries
 
-1. Place JVM unit tests under `src/test/java` and run `./gradlew :backends:android:testDebugUnitTest`.
-2. Add instrumentation tests under `src/androidTest/java` and run
-   `./gradlew :backends:android:connectedDebugAndroidTest` (requires an emulator or device).
+Two shared libraries must be available at runtime:
 
-Please update this document as the backend matures (e.g., once JNI glue works or when we add CI targets).
+1. **Application library** – produced by the WaterUI CLI (`cargo ndk` build).
+   It statically links `waterui-ffi` and exports the symbols declared in
+   `ffi/waterui.h`. When loading from Kotlin, omit the `lib` prefix and `.so`
+   suffix (e.g. `configureWaterUiNativeLibrary("waterui_sample")` loads
+   `libwaterui_sample.so`).
+2. **`libwaterui_android.so`** – the JNI shim provided by this module.
+   It is linked with unresolved WaterUI symbols; make sure the application
+   library is loaded first so the dynamic linker can resolve them.
+
+## Configuring the runtime
+
+Before using any WaterUI APIs on Android, initialise the runtime once, ideally
+from your `Application` class:
+
+```kotlin
+class SampleApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        configureWaterUiNativeLibrary("waterui_sample")
+    }
+}
+```
+
+This call stores the library name; the first access to `NativeBindings` will load
+both the application library and `libwaterui_android.so`.
+
+After configuration you can render the root view via `WaterUiRoot()` or build
+your own renderer by looking up component IDs with `WuiAnyView.viewId()`.
+
+## Current status
+
+- Kotlin wrappers exist for `WuiEnv`, `WuiAnyView`, and layout negotiation structs.
+- JNI bindings convert `WuiStr`, proposal/size/rect arrays, and child metadata.
+- Compose rendering currently falls back to a placeholder that prints identifiers
+  until component adapters land.
+
+See `TASKS.md` for the remaining milestones.

@@ -13,11 +13,6 @@ android {
         minSdk = 24
         targetSdk = 34
         consumerProguardFiles("consumer-rules.pro")
-        externalNativeBuild {
-            cmake {
-                arguments += listOf("-DWATERUI_FFI_LIB_DIR=\${projectDir}/src/main/jniLibs")
-            }
-        }
     }
 
     buildFeatures {
