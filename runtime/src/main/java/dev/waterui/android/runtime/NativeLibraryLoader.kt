@@ -20,7 +20,11 @@ internal object NativeLibraryLoader {
     private const val TAG = "WaterUI.NativeLoader"
 
     fun configure(libraryName: String) {
-        nativeLibName.set(libraryName)
+        require(libraryName.isNotBlank()) { "WaterUI native library name must not be blank" }
+        val previous = nativeLibName.getAndSet(libraryName)
+        if (loaded.get() && previous != null && previous != libraryName) {
+            Log.w(TAG, "WaterUI native library already loaded with '$previous'; ignoring reconfiguration to '$libraryName'.")
+        }
     }
 
     fun ensureLoaded() {

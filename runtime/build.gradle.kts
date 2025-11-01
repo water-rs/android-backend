@@ -4,6 +4,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+group = "dev.waterui.android"
+version = "0.1.0-SNAPSHOT"
+
 android {
     namespace = "dev.waterui.android.runtime"
     compileSdk = 34
