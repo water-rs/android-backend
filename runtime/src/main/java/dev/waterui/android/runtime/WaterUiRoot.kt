@@ -23,3 +23,8 @@ fun WaterUiRoot(modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Mod
 
     WaterUiView(env = environment, root = rootView, modifier = modifier)
 }
+
+@Composable
+fun WaterUIApplication(modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
+    WaterUiRoot(modifier)
+}
