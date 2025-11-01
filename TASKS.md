@@ -1,0 +1,7 @@
+- [x] Generate Kotlin bindings directly from `waterui.h` (cinterop or manual JNI) and wrap them in idiomatic Kotlin types (`WuiStr`, `WuiArray`, pointer handles).
+- [ ] Build a Compose `@Composable` registry that mirrors the Swift renderer: decode `waterui_view_id`, dispatch to per-component adapters, and fall back to `waterui_view_body` for structural views.
+- [ ] Implement layout negotiation against Compose’s `MeasurePolicy`, translating `Constraints` to `ProposalStruct` and vice versa so `LayoutContainer`/`RawView` interop works.
+- [ ] Provide lifecycle management for `WuiEnv` and `WuiAnyView` (init, clone, drop, hot reload) inside an Android `ViewModel`/`remember` scope.
+- [ ] Wire up event/gesture plumbing (actions, bindings, watchers) through the FFI callbacks.
+- [ ] Create a reference Android app module that exercises the backend end-to-end and document build/run steps.
+- [ ] Add automated tests or integration checks (e.g., Robolectric/instrumentation) to catch regressions in ID mapping, layout, and resource cleanup.
