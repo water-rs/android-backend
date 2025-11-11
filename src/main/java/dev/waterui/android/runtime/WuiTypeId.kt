@@ -1,18 +1,13 @@
 package dev.waterui.android.runtime
 
 /**
- * Kotlin representation of `WuiTypeId` (`[u64; 2]` on the Rust side).
+ * Kotlin representation of `WuiTypeId` (string identifiers exposed by the Rust backend).
  */
-data class WuiTypeId(
-    val high: Long,
-    val low: Long
-) {
+@JvmInline
+value class WuiTypeId(val raw: String) {
     companion object {
-        val ANY_VIEW: WuiTypeId = WuiTypeId(-1L, -1L) // TODO replace with real ID via JNI helper
+        val ANY_VIEW: WuiTypeId = WuiTypeId("waterui.AnyView")
     }
 }
 
-fun LongArray.toTypeId(): WuiTypeId {
-    require(size == 2) { "TypeId arrays must contain exactly two elements." }
-    return WuiTypeId(get(0), get(1))
-}
+fun String.toTypeId(): WuiTypeId = WuiTypeId(this)

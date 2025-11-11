@@ -10,7 +10,7 @@ add_library(
 target_include_directories(
         waterui_android
         PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../ffi
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../ffi
 )
 
 find_library(LOG_LIB log)
@@ -19,6 +19,7 @@ target_link_options(
         waterui_android
         PRIVATE
         "-Wl,--allow-shlib-undefined"
+        "-Wl,--unresolved-symbols=ignore-all"
 )
 
 target_link_libraries(
