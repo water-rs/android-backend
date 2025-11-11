@@ -1,8 +1,8 @@
-import org.gradle.api.artifacts.dsl.RepositoriesMode
+import org.gradle.api.initialization.resolve.RepositoriesMode
 
 pluginManagement {
     plugins {
-        id("com.android.library") version "8.5.0"
+        id("com.android.library") version "8.4.1"
         id("org.jetbrains.kotlin.android") version "1.9.25"
         id("org.jetbrains.kotlin.plugin.compose") version "1.9.25"
     }

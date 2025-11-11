@@ -1,30 +1,32 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.reactive.WatcherCallback
+
 /**
  * Centralised access to native WaterUI FFI functions. Actual JNI bindings live in the
  * native Rust/C layer; this object exposes type-safe Kotlin entry points.
  */
 internal object NativeBindings {
     external fun waterui_init(): Long
-    external fun waterui_main(envPtr: Long): Long
-    external fun waterui_view_id(anyViewPtr: Long): LongArray
+    external fun waterui_main(): Long
+    external fun waterui_view_id(anyViewPtr: Long): String
     external fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long
 
     // Type identifiers
-    external fun waterui_empty_id(): LongArray
-    external fun waterui_text_id(): LongArray
-    external fun waterui_label_id(): LongArray
-    external fun waterui_button_id(): LongArray
-    external fun waterui_color_id(): LongArray
-    external fun waterui_text_field_id(): LongArray
-    external fun waterui_stepper_id(): LongArray
-    external fun waterui_progress_id(): LongArray
-    external fun waterui_dynamic_id(): LongArray
-    external fun waterui_scroll_view_id(): LongArray
-    external fun waterui_spacer_id(): LongArray
-    external fun waterui_toggle_id(): LongArray
-    external fun waterui_slider_id(): LongArray
-    external fun waterui_renderer_view_id(): LongArray
+    external fun waterui_empty_id(): String
+    external fun waterui_text_id(): String
+    external fun waterui_plain_id(): String
+    external fun waterui_button_id(): String
+    external fun waterui_color_id(): String
+    external fun waterui_text_field_id(): String
+    external fun waterui_stepper_id(): String
+    external fun waterui_progress_id(): String
+    external fun waterui_dynamic_id(): String
+    external fun waterui_scroll_view_id(): String
+    external fun waterui_spacer_id(): String
+    external fun waterui_toggle_id(): String
+    external fun waterui_slider_id(): String
+    external fun waterui_renderer_view_id(): String
 
     external fun waterui_env_clone(envPtr: Long): Long
     external fun waterui_env_drop(envPtr: Long)
@@ -32,7 +34,7 @@ internal object NativeBindings {
     external fun waterui_anyview_drop(viewPtr: Long)
 
     // Layout bridging
-    external fun waterui_container_id(): LongArray
+    external fun waterui_container_id(): String
     external fun waterui_force_as_container(viewPtr: Long): ContainerStruct
     external fun waterui_layout_propose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<ProposalStruct>
     external fun waterui_layout_size(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): SizeStruct
@@ -48,6 +50,12 @@ internal object NativeBindings {
     external fun waterui_watch_binding_int(bindingPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_watch_binding_double(bindingPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_watch_binding_str(bindingPtr: Long, watcher: WatcherStruct): Long
+
+    external fun waterui_create_bool_watcher(callback: WatcherCallback<Boolean>): WatcherStruct
+    external fun waterui_create_int_watcher(callback: WatcherCallback<Int>): WatcherStruct
+    external fun waterui_create_double_watcher(callback: WatcherCallback<Double>): WatcherStruct
+    external fun waterui_create_string_watcher(callback: WatcherCallback<String>): WatcherStruct
+    external fun waterui_create_any_view_watcher(callback: WatcherCallback<Long>): WatcherStruct
 
     external fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean)
     external fun waterui_set_binding_int(bindingPtr: Long, value: Int)
@@ -66,15 +74,17 @@ internal object NativeBindings {
 
     external fun waterui_drop_watcher_guard(guardPtr: Long)
     external fun waterui_get_animation(metadataPtr: Long): Int
+    external fun waterui_dynamic_connect(dynamicPtr: Long, watcher: WatcherStruct)
 
     external fun waterui_drop_layout(layoutPtr: Long)
 
     external fun waterui_drop_action(actionPtr: Long)
     external fun waterui_call_action(actionPtr: Long, envPtr: Long)
+    external fun waterui_drop_dynamic(dynamicPtr: Long)
 
     external fun waterui_force_as_button(anyViewPtr: Long): ButtonStruct
     external fun waterui_force_as_text(anyViewPtr: Long): TextStruct
-    external fun waterui_force_as_label(anyViewPtr: Long): LabelStruct
+    external fun waterui_force_as_plain(anyViewPtr: Long): PlainStruct
     external fun waterui_force_as_color(anyViewPtr: Long): ColorStruct
     external fun waterui_force_as_text_field(anyViewPtr: Long): TextFieldStruct
     external fun waterui_force_as_toggle(anyViewPtr: Long): ToggleStruct
@@ -83,7 +93,6 @@ internal object NativeBindings {
     external fun waterui_force_as_progress(anyViewPtr: Long): ProgressStruct
     external fun waterui_force_as_scroll(anyViewPtr: Long): ScrollStruct
     external fun waterui_force_as_dynamic(anyViewPtr: Long): DynamicStruct
-    external fun waterui_force_as_spacer(anyViewPtr: Long): SpacerStruct
     external fun waterui_force_as_renderer_view(anyViewPtr: Long): Long
 
     external fun waterui_renderer_view_width(handle: Long): Float
@@ -150,7 +159,7 @@ data class TextStruct(
     val contentPtr: Long
 )
 
-data class LabelStruct(
+data class PlainStruct(
     val textBytes: ByteArray
 )
 
@@ -202,5 +211,3 @@ data class ScrollStruct(
 data class DynamicStruct(
     val dynamicPtr: Long
 )
-
-data class SpacerStruct(val ignored: Int = 0)

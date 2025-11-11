@@ -1,7 +1,6 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 group = "dev.waterui.android"
@@ -10,7 +9,7 @@ version = "0.1.0-SNAPSHOT"
 android {
     namespace = "dev.waterui.android.runtime"
     compileSdk = 34
-    ndkVersion = "26.3.11579264"
+    ndkVersion = "29.0.14206865"
 
     defaultConfig {
         minSdk = 24
@@ -29,6 +28,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
+            version = "4.1.2"
         }
     }
 

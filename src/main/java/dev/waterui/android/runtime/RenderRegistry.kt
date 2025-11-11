@@ -36,7 +36,7 @@ private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
     buildMap {
         registerWuiEmptyView()
         registerWuiText()
-        registerWuiLabel()
+        registerWuiPlain()
         registerWuiButton()
         registerWuiColor()
         registerWuiTextField()
