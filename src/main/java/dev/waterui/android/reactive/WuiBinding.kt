@@ -111,19 +111,22 @@ class WuiBinding<T>(
  */
 object WatcherStructFactory {
     fun bool(callback: WatcherCallback<Boolean>): WatcherStruct {
-        // TODO: Build native watcher trampoline and return pointer trio.
-        return WatcherStruct(0, 0, 0)
+        return NativeBindings.waterui_create_bool_watcher(callback)
     }
 
     fun int(callback: WatcherCallback<Int>): WatcherStruct {
-        return WatcherStruct(0, 0, 0)
+        return NativeBindings.waterui_create_int_watcher(callback)
     }
 
     fun double(callback: WatcherCallback<Double>): WatcherStruct {
-        return WatcherStruct(0, 0, 0)
+        return NativeBindings.waterui_create_double_watcher(callback)
     }
 
     fun string(callback: WatcherCallback<String>): WatcherStruct {
-        return WatcherStruct(0, 0, 0)
+        return NativeBindings.waterui_create_string_watcher(callback)
+    }
+
+    fun anyView(callback: WatcherCallback<Long>): WatcherStruct {
+        return NativeBindings.waterui_create_any_view_watcher(callback)
     }
 }

@@ -20,9 +20,7 @@ fun WaterUIApplication(registry: RenderRegistry = RenderRegistry.default()) {
         onDispose { environment.close() }
     }
 
-    val rootPtr = remember(environment) {
-        NativeBindings.waterui_main(environment.raw())
-    }
+    val rootPtr = remember { NativeBindings.waterui_main() }
 
     WuiAnyView(pointer = rootPtr, environment = environment, registry = currentRegistry.value)
 }

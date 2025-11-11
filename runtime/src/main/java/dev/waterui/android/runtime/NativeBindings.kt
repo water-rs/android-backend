@@ -7,7 +7,6 @@ internal object NativeBindings {
 
     external fun waterui_init(): Long
     external fun waterui_main(): Long
-    external fun waterui_main_reloadble(): Long
     external fun waterui_view_id(anyViewPtr: Long): String
     external fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long
     external fun waterui_clone_env(envPtr: Long): Long
