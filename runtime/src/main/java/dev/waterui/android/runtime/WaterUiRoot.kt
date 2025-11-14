@@ -1,30 +1,13 @@
 package dev.waterui.android.runtime
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 
 /**
- * Convenience composable that mirrors the Swift `App` entry point.
- *
- * Consumers should provide their own lifecycle-aware environment management; this helper is
- * mainly intended for quick integration tests and the sample application.
+ * Legacy entry point retained for backwards compatibility. Prefer calling [WaterUIApplication]
+ * directly so you can supply a custom render registry if needed.
  */
 @Composable
-fun WaterUiRoot(modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
-    val environment = remember { WuiEnvironment.create() }
-    val rootView = remember(environment) { WuiAnyView.fromRaw(NativeBindings.waterui_main()) }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            rootView.close()
-            environment.close()
-        }
-    }
-
-    WaterUiView(env = environment, root = rootView, modifier = modifier)
-}
-
-@Composable
-fun WaterUIApplication(modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
-    WaterUiRoot(modifier)
+fun WaterUiRoot(@Suppress("UNUSED_PARAMETER") modifier: Modifier = Modifier) {
+    WaterUIApplication()
 }
