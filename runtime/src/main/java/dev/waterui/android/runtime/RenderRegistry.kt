@@ -1,74 +1,53 @@
 package dev.waterui.android.runtime
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Immutable
+import dev.waterui.android.components.*
 
-typealias ComponentRenderer = @Composable (view: WuiAnyView, env: WuiEnvironment, modifier: Modifier) -> Unit
+/**
+ * Registry of known view types. Compose components register themselves via [defaultComponents].
+ */
+@Immutable
+class RenderRegistry private constructor(
+    private val entries: Map<WuiTypeId, WuiRenderer>
+) {
+    fun resolve(typeId: WuiTypeId): WuiRenderer? = entries[typeId]
 
-object RenderRegistry {
-    private val renderers = linkedMapOf<String, ComponentRenderer>()
+    fun with(typeId: WuiTypeId, renderer: WuiRenderer): RenderRegistry =
+        RenderRegistry(entries + (typeId to renderer))
 
-    fun register(id: String, renderer: ComponentRenderer) {
-        renderers[id] = renderer
+    companion object {
+        fun default(): RenderRegistry = RenderRegistry(defaultComponents)
     }
-
-    fun rendererFor(id: String): ComponentRenderer? = renderers[id]
 }
 
 /**
- * Placeholder renderer that simply walks the view tree and dumps identifiers.
- * This gives the Android backend a usable baseline while individual components
- * are still being implemented.
+ * Simple node descriptor that wraps the native pointer and metadata we receive via JNI.
  */
-@Composable
-fun PlaceholderRenderer(view: WuiAnyView, env: WuiEnvironment, modifier: Modifier = Modifier) {
-    val id = remember(view) { view.viewId() }
-    Card(
-        modifier = modifier.padding(4.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = id, style = MaterialTheme.typography.bodyMedium)
-            val body = remember(view, env) { view.body(env) }
-            body?.let { child ->
-                DisposableAnyView(anyView = child) {
-                    PlaceholderRenderer(view = it, env = env)
-                }
-            }
-        }
-    }
-}
+data class WuiNode(
+    val rawPtr: Long,
+    val typeId: WuiTypeId
+)
 
-@Composable
-fun WaterUiView(
-    env: WuiEnvironment,
-    root: WuiAnyView,
-    modifier: Modifier = Modifier
-) {
-    val id = remember(root) { root.viewId() }
-    val renderer = RenderRegistry.rendererFor(id)
-    if (renderer != null) {
-        renderer(root, env, modifier)
-    } else {
-        PlaceholderRenderer(root, env, modifier)
+/**
+ * Populated lazily to avoid referencing components before they are defined. Each component contributes
+ * its ID provider via `registerX` functions (see the bottom of the file).
+ */
+private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
+    buildMap {
+        registerWuiEmptyView()
+        registerWuiText()
+        registerWuiPlain()
+        registerWuiButton()
+        registerWuiColor()
+        registerWuiTextField()
+        registerWuiStepper()
+        registerWuiProgress()
+        registerWuiDynamic()
+        registerWuiScroll()
+        registerWuiContainer()
+        registerWuiToggle()
+        registerWuiSpacer()
+        registerWuiSlider()
+        registerWuiRendererView()
     }
-}
-
-@Composable
-fun DisposableAnyView(
-    anyView: WuiAnyView,
-    content: @Composable (WuiAnyView) -> Unit
-) {
-    androidx.compose.runtime.DisposableEffect(anyView) {
-        onDispose {
-            anyView.close()
-        }
-    }
-    content(anyView)
 }
