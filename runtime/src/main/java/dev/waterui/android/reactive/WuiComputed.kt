@@ -7,6 +7,8 @@ import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
+import dev.waterui.android.runtime.WuiStyledStr
+import dev.waterui.android.runtime.toModel
 
 /**
  * Read-only reactive wrapper that mirrors WaterUI computed signals.
@@ -17,10 +19,12 @@ class WuiComputed<T>(
     private val watcherFactory: (Long, WatcherCallback<T>) -> WatcherStruct,
     private val watcherRegistrar: (Long, WatcherStruct) -> Long,
     private val dropper: (Long) -> Unit,
-    private val env: WuiEnvironment
+    private val env: WuiEnvironment,
+    private val valueReleaser: (T) -> Unit = {}
 ) : NativePointer(computedPtr) {
 
-    private val stateDelegate = mutableStateOf(reader(computedPtr))
+    private var currentValue: T = reader(computedPtr)
+    private val stateDelegate = mutableStateOf(currentValue)
     private var watcherGuard: WatcherGuard? = null
 
     val state: State<T> get() = stateDelegate
@@ -28,13 +32,19 @@ class WuiComputed<T>(
     fun watch() {
         if (watcherGuard != null || isReleased) return
         val watcher = watcherFactory(raw()) { value, metadata ->
+            val previous = currentValue
+            currentValue = value
             stateDelegate.value = value
+            valueReleaser(previous)
             // TODO: Handle animation metadata (metadata.animation)
         }
         watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
     }
 
     override fun close() {
+        if (!isReleased) {
+            valueReleaser(currentValue)
+        }
         super.close()
         watcherGuard?.close()
         watcherGuard = null
@@ -55,16 +65,21 @@ class WuiComputed<T>(
                 env = env
             )
 
-        fun styledString(ptr: Long, env: WuiEnvironment): WuiComputed<String> =
+        fun styledString(ptr: Long, env: WuiEnvironment): WuiComputed<WuiStyledStr> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { computed ->
-                    NativeBindings.waterui_read_computed_styled_str(computed).decodeToString()
+                    NativeBindings.waterui_read_computed_styled_str(computed).toModel()
                 },
-                watcherFactory = { _, callback -> WatcherStructFactory.styledString(callback) },
+                watcherFactory = { _, callback ->
+                    WatcherStructFactory.styledString { struct, metadata ->
+                        callback.onChanged(struct.toModel(), metadata)
+                    }
+                },
                 watcherRegistrar = NativeBindings::waterui_watch_computed_styled_str,
                 dropper = NativeBindings::waterui_drop_computed_styled_str,
-                env = env
+                env = env,
+                valueReleaser = { it.close() }
             )
 
         fun resolvedColor(colorPtr: Long, env: WuiEnvironment): WuiComputed<ResolvedColorStruct> {
