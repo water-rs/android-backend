@@ -631,7 +631,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1view_1body(
     JNIEnv *, jclass, jlong any_view_ptr, jlong env_ptr) {
     WuiAnyView *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
     WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);
-    return ptr_to_jlong(waterui_view_body_with_env(view, env));
+    return ptr_to_jlong(waterui_view_body(view, env));
 }
 
 JNIEXPORT jlong JNICALL
