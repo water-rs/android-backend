@@ -8,6 +8,8 @@ import dev.waterui.android.reactive.WatcherCallback
  */
 internal object NativeBindings {
 
+    external fun bootstrapNativeBindings(libraryName: String)
+
     external fun waterui_init(): Long
     external fun waterui_main(): Long
     external fun waterui_view_id(anyViewPtr: Long): String
@@ -129,6 +131,10 @@ internal object NativeBindings {
         format: Int,
     ): Boolean
     external fun waterui_drop_renderer_view(handle: Long)
+}
+
+fun bootstrapWaterUiRuntime(libraryName: String) {
+    NativeBindings.bootstrapNativeBindings(libraryName)
 }
 
 // --- Native struct mirrors (data-only skeletons) ---

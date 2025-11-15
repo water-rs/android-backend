@@ -1,9 +1,111 @@
 #include <jni.h>
+#include <android/log.h>
+#include <dlfcn.h>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 
 #include "waterui.h"
+
+namespace {
+
+constexpr char LOG_TAG[] = "WaterUI.JNI";
+
+#define WATERUI_SYMBOL_LIST(X)                                                                 \
+    X(waterui_anyviews_get_id)                                                                 \
+    X(waterui_anyviews_get_view)                                                               \
+    X(waterui_anyviews_len)                                                                    \
+    X(waterui_button_id)                                                                       \
+    X(waterui_call_action)                                                                     \
+    X(waterui_clone_env)                                                                       \
+    X(waterui_color_id)                                                                        \
+    X(waterui_drop_action)                                                                     \
+    X(waterui_drop_anyview)                                                                    \
+    X(waterui_drop_anyviews)                                                                   \
+    X(waterui_drop_binding_bool)                                                               \
+    X(waterui_drop_binding_f64)                                                                \
+    X(waterui_drop_binding_i32)                                                                \
+    X(waterui_drop_binding_str)                                                                \
+    X(waterui_drop_box_watcher_guard)                                                          \
+    X(waterui_drop_computed_f64)                                                               \
+    X(waterui_drop_computed_i32)                                                               \
+    X(waterui_drop_computed_resolved_color)                                                    \
+    X(waterui_drop_computed_styled_str)                                                        \
+    X(waterui_drop_dynamic)                                                                    \
+    X(waterui_drop_env)                                                                        \
+    X(waterui_drop_layout)                                                                     \
+    X(waterui_drop_renderer_view)                                                              \
+    X(waterui_drop_watcher_metadata)                                                           \
+    X(waterui_dynamic_connect)                                                                 \
+    X(waterui_dynamic_id)                                                                      \
+    X(waterui_empty_id)                                                                        \
+    X(waterui_fixed_container_id)                                                              \
+    X(waterui_force_as_button)                                                                 \
+    X(waterui_force_as_color)                                                                  \
+    X(waterui_force_as_dynamic)                                                                \
+    X(waterui_force_as_layout_container)                                                       \
+    X(waterui_force_as_plain)                                                                  \
+    X(waterui_force_as_progress)                                                               \
+    X(waterui_force_as_renderer_view)                                                          \
+    X(waterui_force_as_scroll_view)                                                            \
+    X(waterui_force_as_slider)                                                                 \
+    X(waterui_force_as_stepper)                                                                \
+    X(waterui_force_as_text)                                                                   \
+    X(waterui_force_as_text_field)                                                             \
+    X(waterui_force_as_toggle)                                                                 \
+    X(waterui_get_animation)                                                                   \
+    X(waterui_init)                                                                            \
+    X(waterui_layout_container_id)                                                             \
+    X(waterui_layout_place)                                                                    \
+    X(waterui_layout_propose)                                                                  \
+    X(waterui_layout_size)                                                                     \
+    X(waterui_main)                                                                            \
+    X(waterui_plain_id)                                                                        \
+    X(waterui_progress_id)                                                                     \
+    X(waterui_read_binding_bool)                                                               \
+    X(waterui_read_binding_f64)                                                                \
+    X(waterui_read_binding_i32)                                                                \
+    X(waterui_read_binding_str)                                                                \
+    X(waterui_read_computed_f64)                                                               \
+    X(waterui_read_computed_i32)                                                               \
+    X(waterui_read_computed_resolved_color)                                                    \
+    X(waterui_read_computed_styled_str)                                                        \
+    X(waterui_renderer_view_height)                                                            \
+    X(waterui_renderer_view_id)                                                                \
+    X(waterui_renderer_view_preferred_format)                                                  \
+    X(waterui_renderer_view_render_cpu)                                                        \
+    X(waterui_renderer_view_width)                                                             \
+    X(waterui_resolve_color)                                                                   \
+    X(waterui_scroll_view_id)                                                                  \
+    X(waterui_set_binding_bool)                                                                \
+    X(waterui_set_binding_f64)                                                                 \
+    X(waterui_set_binding_i32)                                                                 \
+    X(waterui_set_binding_str)                                                                 \
+    X(waterui_slider_id)                                                                       \
+    X(waterui_spacer_id)                                                                       \
+    X(waterui_stepper_id)                                                                      \
+    X(waterui_text_field_id)                                                                   \
+    X(waterui_text_id)                                                                         \
+    X(waterui_toggle_id)                                                                       \
+    X(waterui_view_body)                                                                       \
+    X(waterui_view_id)                                                                         \
+    X(waterui_watch_binding_bool)                                                              \
+    X(waterui_watch_binding_f64)                                                               \
+    X(waterui_watch_binding_i32)                                                               \
+    X(waterui_watch_binding_str)                                                               \
+    X(waterui_watch_computed_f64)                                                              \
+    X(waterui_watch_computed_i32)                                                              \
+    X(waterui_watch_computed_resolved_color)                                                   \
+    X(waterui_watch_computed_styled_str)
+
+struct WaterUiSymbols {
+#define DECLARE_WATERUI_SYMBOL(name) decltype(&::name) name = nullptr;
+    WATERUI_SYMBOL_LIST(DECLARE_WATERUI_SYMBOL)
+#undef DECLARE_WATERUI_SYMBOL
+};
+
+WaterUiSymbols g_wui{};
+bool g_symbols_ready = false;
 
 static JavaVM *g_vm = nullptr;
 static jclass gBooleanClass = nullptr;
@@ -19,7 +121,61 @@ static jmethodID gMetadataCtor = nullptr;
 static jclass gWatcherStructClass = nullptr;
 static jmethodID gWatcherStructCtor = nullptr;
 
-namespace {
+void throw_unsatisfied(JNIEnv *env, const std::string &message) {
+    jclass errorClass = env->FindClass("java/lang/UnsatisfiedLinkError");
+    if (errorClass == nullptr) {
+        env->FatalError(message.c_str());
+        return;
+    }
+    env->ThrowNew(errorClass, message.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_bootstrapNativeBindings(
+    JNIEnv *env,
+    jclass,
+    jstring library_name) {
+    if (library_name == nullptr) {
+        throw_unsatisfied(env, "Native library name must not be null");
+        return;
+    }
+
+    const char *raw_name = env->GetStringUTFChars(library_name, nullptr);
+    if (raw_name == nullptr) {
+        return;
+    }
+    std::string so_name = "lib";
+    so_name += raw_name;
+    so_name += ".so";
+    env->ReleaseStringUTFChars(library_name, raw_name);
+
+    void *handle = dlopen(so_name.c_str(), RTLD_NOW | RTLD_GLOBAL);
+    if (handle == nullptr) {
+        std::string message = "dlopen failed for ";
+        message += so_name;
+        message += ": ";
+        message += dlerror();
+        throw_unsatisfied(env, message);
+        return;
+    }
+
+    dlerror();
+#define LOAD_SYMBOL(name)                                                                     \
+    g_wui.name = reinterpret_cast<decltype(&::name)>(dlsym(handle, #name));                   \
+    if (g_wui.name == nullptr) {                                                              \
+        std::string error = "Unable to resolve symbol ";                                      \
+        error += #name;                                                                       \
+        error += ": ";                                                                        \
+        error += dlerror();                                                                   \
+        throw_unsatisfied(env, error);                                                        \
+        return;                                                                               \
+    }
+    WATERUI_SYMBOL_LIST(LOAD_SYMBOL)
+#undef LOAD_SYMBOL
+
+    g_symbols_ready = true;
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Bound WaterUI symbols from %s", so_name.c_str());
+}
 
 class ScopedEnv {
 public:
@@ -403,19 +559,19 @@ WatcherStructFields watcher_struct_from_java(JNIEnv *env, jobject watcher_obj) {
 
 void invoke_watcher(JNIEnv *env, WatcherCallbackState *state, jobject value_obj, WuiWatcherMetadata *metadata) {
     if (env == nullptr || state == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     jobject metadata_obj = new_metadata(env, metadata);
     env->CallVoidMethod(state->callback, state->method, value_obj, metadata_obj);
     env->DeleteLocalRef(metadata_obj);
-    waterui_drop_watcher_metadata(metadata);
+    g_wui.waterui_drop_watcher_metadata(metadata);
 }
 
 void watcher_bool_call(const void *data, bool value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -432,7 +588,7 @@ void watcher_bool_drop(void *data) {
 void watcher_int_call(const void *data, int32_t value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -449,7 +605,7 @@ void watcher_int_drop(void *data) {
 void watcher_double_call(const void *data, double value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -466,7 +622,7 @@ void watcher_double_drop(void *data) {
 void watcher_str_call(const void *data, WuiStr value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -483,7 +639,7 @@ void watcher_str_drop(void *data) {
 void watcher_styled_str_call(const void *data, WuiStyledStr value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -501,7 +657,7 @@ void watcher_styled_str_drop(void *data) {
 void watcher_resolved_color_call(const void *data, WuiResolvedColor value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -518,7 +674,7 @@ void watcher_resolved_color_drop(void *data) {
 void watcher_anyview_call(const void *data, WuiAnyView *value, WuiWatcherMetadata *metadata) {
     ScopedEnv scoped;
     if (scoped.env == nullptr) {
-        waterui_drop_watcher_metadata(metadata);
+        g_wui.waterui_drop_watcher_metadata(metadata);
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
@@ -609,20 +765,20 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1init(
     JNIEnv *, jclass) {
-    return ptr_to_jlong(waterui_init());
+    return ptr_to_jlong(g_wui.waterui_init());
 }
 
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1main(
     JNIEnv *, jclass) {
-    return ptr_to_jlong(waterui_main());
+    return ptr_to_jlong(g_wui.waterui_main());
 }
 
 JNIEXPORT jstring JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1view_1id(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     WuiAnyView *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiStr id = waterui_view_id(view);
+    WuiStr id = g_wui.waterui_view_id(view);
     return wui_str_to_jstring(env, id);
 }
 
@@ -631,28 +787,28 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1view_1body(
     JNIEnv *, jclass, jlong any_view_ptr, jlong env_ptr) {
     WuiAnyView *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
     WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);
-    return ptr_to_jlong(waterui_view_body(view, env));
+    return ptr_to_jlong(g_wui.waterui_view_body(view, env));
 }
 
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1clone_1env(
     JNIEnv *, jclass, jlong env_ptr) {
     WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);
-    return ptr_to_jlong(waterui_clone_env(env));
+    return ptr_to_jlong(g_wui.waterui_clone_env(env));
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1env(
     JNIEnv *, jclass, jlong env_ptr) {
     WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);
-    waterui_drop_env(env);
+    g_wui.waterui_drop_env(env);
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1anyview(
     JNIEnv *, jclass, jlong any_view_ptr) {
     WuiAnyView *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    waterui_drop_anyview(view);
+    g_wui.waterui_drop_anyview(view);
 }
 
 #define WATERUI_ID_EXPORT(javaName, ffiFunc)                                             \
@@ -691,7 +847,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1layout_1propose(
     WuiProposalSize parent = proposal_from_java(env, parent_obj);
     WuiArray_WuiChildMetadata children = children_from_java(env, children_array);
 
-    WuiArray_WuiProposalSize result = waterui_layout_propose(layout, parent, children);
+    WuiArray_WuiProposalSize result = g_wui.waterui_layout_propose(layout, parent, children);
     return proposal_array_to_java(env, result);
 }
 
@@ -706,7 +862,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1layout_1size(
     WuiProposalSize parent = proposal_from_java(env, parent_obj);
     WuiArray_WuiChildMetadata children = children_from_java(env, children_array);
 
-    WuiSize size = waterui_layout_size(layout, parent, children);
+    WuiSize size = g_wui.waterui_layout_size(layout, parent, children);
     return size_to_java(env, size);
 }
 
@@ -723,7 +879,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1layout_1place(
     WuiProposalSize proposal = proposal_from_java(env, proposal_obj);
     WuiArray_WuiChildMetadata children = children_from_java(env, children_array);
 
-    WuiArray_WuiRect placed = waterui_layout_place(layout, bounds, proposal, children);
+    WuiArray_WuiRect placed = g_wui.waterui_layout_place(layout, bounds, proposal, children);
     return rect_array_to_java(env, placed);
 }
 
@@ -808,21 +964,21 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1set_1binding_1bool(
     JNIEnv *, jclass, jlong binding_ptr, jboolean value) {
     auto *binding = jlong_to_ptr<WuiBinding_bool>(binding_ptr);
-    waterui_set_binding_bool(binding, value == JNI_TRUE);
+    g_wui.waterui_set_binding_bool(binding, value == JNI_TRUE);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1binding_1bool(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_bool>(binding_ptr);
-    return waterui_read_binding_bool(binding) ? JNI_TRUE : JNI_FALSE;
+    return g_wui.waterui_read_binding_bool(binding) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1binding_1bool(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_bool>(binding_ptr);
-    waterui_drop_binding_bool(binding);
+    g_wui.waterui_drop_binding_bool(binding);
 }
 
 JNIEXPORT jlong JNICALL
@@ -835,7 +991,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1bool(
     watcher.call = reinterpret_cast<void (*)(const void *, bool, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_binding_bool(
+        g_wui.waterui_watch_binding_bool(
             reinterpret_cast<const Binding_bool *>(binding),
             watcher));
 }
@@ -844,21 +1000,21 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1set_1binding_1int(
     JNIEnv *, jclass, jlong binding_ptr, jint value) {
     auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    waterui_set_binding_i32(binding, static_cast<int32_t>(value));
+    g_wui.waterui_set_binding_i32(binding, static_cast<int32_t>(value));
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1binding_1int(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    return static_cast<jint>(waterui_read_binding_i32(binding));
+    return static_cast<jint>(g_wui.waterui_read_binding_i32(binding));
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1binding_1int(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    waterui_drop_binding_i32(binding);
+    g_wui.waterui_drop_binding_i32(binding);
 }
 
 JNIEXPORT jlong JNICALL
@@ -871,7 +1027,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1int(
     watcher.call = reinterpret_cast<void (*)(const void *, int32_t, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_binding_i32(
+        g_wui.waterui_watch_binding_i32(
             reinterpret_cast<const Binding_i32 *>(binding),
             watcher));
 }
@@ -880,21 +1036,21 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1set_1binding_1double(
     JNIEnv *, jclass, jlong binding_ptr, jdouble value) {
     auto *binding = jlong_to_ptr<WuiBinding_f64>(binding_ptr);
-    waterui_set_binding_f64(binding, static_cast<double>(value));
+    g_wui.waterui_set_binding_f64(binding, static_cast<double>(value));
 }
 
 JNIEXPORT jdouble JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1binding_1double(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_f64>(binding_ptr);
-    return static_cast<jdouble>(waterui_read_binding_f64(binding));
+    return static_cast<jdouble>(g_wui.waterui_read_binding_f64(binding));
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1binding_1double(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_f64>(binding_ptr);
-    waterui_drop_binding_f64(binding);
+    g_wui.waterui_drop_binding_f64(binding);
 }
 
 JNIEXPORT jlong JNICALL
@@ -907,7 +1063,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1double(
     watcher.call = reinterpret_cast<void (*)(const void *, double, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_binding_f64(
+        g_wui.waterui_watch_binding_f64(
             reinterpret_cast<const Binding_f64 *>(binding),
             watcher));
 }
@@ -917,7 +1073,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1set_1binding_1str(
     JNIEnv *env, jclass, jlong binding_ptr, jbyteArray value) {
     auto *binding = jlong_to_ptr<WuiBinding_Str>(binding_ptr);
     WuiStr str = str_from_byte_array(env, value);
-    waterui_set_binding_str(binding, str);
+    g_wui.waterui_set_binding_str(binding, str);
     str._0.vtable.drop(str._0.data);
 }
 
@@ -925,7 +1081,7 @@ JNIEXPORT jbyteArray JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1binding_1str(
     JNIEnv *env, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_Str>(binding_ptr);
-    WuiStr value = waterui_read_binding_str(binding);
+    WuiStr value = g_wui.waterui_read_binding_str(binding);
     return wui_str_to_byte_array(env, value);
 }
 
@@ -933,7 +1089,7 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1binding_1str(
     JNIEnv *, jclass, jlong binding_ptr) {
     auto *binding = jlong_to_ptr<WuiBinding_Str>(binding_ptr);
-    waterui_drop_binding_str(binding);
+    g_wui.waterui_drop_binding_str(binding);
 }
 
 JNIEXPORT jlong JNICALL
@@ -946,7 +1102,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1str(
     watcher.call = reinterpret_cast<void (*)(const void *, WuiStr, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_binding_str(
+        g_wui.waterui_watch_binding_str(
             reinterpret_cast<const Binding_Str *>(binding),
             watcher));
 }
@@ -955,7 +1111,7 @@ JNIEXPORT jdouble JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1f64(
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_f64>(computed_ptr);
-    return waterui_read_computed_f64(computed);
+    return g_wui.waterui_read_computed_f64(computed);
 }
 
 JNIEXPORT jlong JNICALL
@@ -968,7 +1124,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1f64(
     watcher.call = reinterpret_cast<void (*)(const void *, double, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_computed_f64(
+        g_wui.waterui_watch_computed_f64(
             reinterpret_cast<const Computed_f64 *>(computed),
             watcher));
 }
@@ -977,14 +1133,14 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1f64(
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_f64>(computed_ptr);
-    waterui_drop_computed_f64(computed);
+    g_wui.waterui_drop_computed_f64(computed);
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1i32(
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_i32>(computed_ptr);
-    return static_cast<jint>(waterui_read_computed_i32(computed));
+    return static_cast<jint>(g_wui.waterui_read_computed_i32(computed));
 }
 
 JNIEXPORT jlong JNICALL
@@ -997,7 +1153,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1i32(
     watcher.call = reinterpret_cast<void (*)(const void *, int32_t, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_computed_i32(
+        g_wui.waterui_watch_computed_i32(
             reinterpret_cast<const Computed_i32 *>(computed),
             watcher));
 }
@@ -1006,14 +1162,14 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1i32(
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_i32>(computed_ptr);
-    waterui_drop_computed_i32(computed);
+    g_wui.waterui_drop_computed_i32(computed);
 }
 
 JNIEXPORT jbyteArray JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1styled_1str(
     JNIEnv *env, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computed_ptr);
-    WuiStyledStr styled = waterui_read_computed_styled_str(computed);
+    WuiStyledStr styled = g_wui.waterui_read_computed_styled_str(computed);
     std::string utf8 = wui_styled_str_to_string(styled);
     jbyteArray array = env->NewByteArray(static_cast<jsize>(utf8.size()));
     if (array != nullptr && !utf8.empty()) {
@@ -1036,7 +1192,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1styled
     watcher.call = reinterpret_cast<void (*)(const void *, WuiStyledStr, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_computed_styled_str(
+        g_wui.waterui_watch_computed_styled_str(
             reinterpret_cast<const Computed_StyledStr *>(computed),
             watcher));
 }
@@ -1045,7 +1201,7 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1styled_1str(
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computed_ptr);
-    waterui_drop_computed_styled_str(computed);
+    g_wui.waterui_drop_computed_styled_str(computed);
 }
 
 JNIEXPORT jlong JNICALL
@@ -1053,14 +1209,14 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1resolve_1color(
     JNIEnv *, jclass, jlong color_ptr, jlong env_ptr) {
     auto *color = jlong_to_ptr<WuiColor>(color_ptr);
     auto *env = jlong_to_ptr<WuiEnv>(env_ptr);
-    return ptr_to_jlong(waterui_resolve_color(color, env));
+    return ptr_to_jlong(g_wui.waterui_resolve_color(color, env));
 }
 
 JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1resolved_1color(
     JNIEnv *env, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_ResolvedColor>(computed_ptr);
-    WuiResolvedColor color = waterui_read_computed_resolved_color(computed);
+    WuiResolvedColor color = g_wui.waterui_read_computed_resolved_color(computed);
     return new_resolved_color(env, color);
 }
 
@@ -1074,7 +1230,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolv
     watcher.call = reinterpret_cast<void (*)(const void *, WuiResolvedColor, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
     return ptr_to_jlong(
-        waterui_watch_computed_resolved_color(
+        g_wui.waterui_watch_computed_resolved_color(
             reinterpret_cast<const Computed_ResolvedColor *>(computed),
             watcher));
 }
@@ -1083,42 +1239,42 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1resolved_1color(
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_ResolvedColor>(computed_ptr);
-    waterui_drop_computed_resolved_color(computed);
+    g_wui.waterui_drop_computed_resolved_color(computed);
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1watcher_1guard(
     JNIEnv *, jclass, jlong guard_ptr) {
     auto *guard = jlong_to_ptr<WuiWatcherGuard>(guard_ptr);
-    waterui_drop_box_watcher_guard(guard);
+    g_wui.waterui_drop_box_watcher_guard(guard);
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1get_1animation(
     JNIEnv *, jclass, jlong metadata_ptr) {
     auto *metadata = jlong_to_ptr<WuiWatcherMetadata>(metadata_ptr);
-    return static_cast<jint>(waterui_get_animation(metadata));
+    return static_cast<jint>(g_wui.waterui_get_animation(metadata));
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1any_1views_1len(
     JNIEnv *, jclass, jlong handle) {
     auto *views = jlong_to_ptr<WuiAnyViews>(handle);
-    return static_cast<jint>(waterui_anyviews_len(views));
+    return static_cast<jint>(g_wui.waterui_anyviews_len(views));
 }
 
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1any_1views_1get_1view(
     JNIEnv *, jclass, jlong handle, jint index) {
     auto *views = jlong_to_ptr<WuiAnyViews>(handle);
-    return ptr_to_jlong(waterui_anyviews_get_view(views, static_cast<uintptr_t>(index)));
+    return ptr_to_jlong(g_wui.waterui_anyviews_get_view(views, static_cast<uintptr_t>(index)));
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1any_1views_1get_1id(
     JNIEnv *, jclass, jlong handle, jint index) {
     auto *views = jlong_to_ptr<WuiAnyViews>(handle);
-    WuiId id = waterui_anyviews_get_id(views, static_cast<uintptr_t>(index));
+    WuiId id = g_wui.waterui_anyviews_get_id(views, static_cast<uintptr_t>(index));
     return static_cast<jint>(id.inner);
 }
 
@@ -1126,21 +1282,21 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1any_1views(
     JNIEnv *, jclass, jlong handle) {
     auto *views = jlong_to_ptr<WuiAnyViews>(handle);
-    waterui_drop_anyviews(views);
+    g_wui.waterui_drop_anyviews(views);
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1layout(
     JNIEnv *, jclass, jlong layout_ptr) {
     auto *layout = jlong_to_ptr<WuiLayout>(layout_ptr);
-    waterui_drop_layout(layout);
+    g_wui.waterui_drop_layout(layout);
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1action(
     JNIEnv *, jclass, jlong action_ptr) {
     auto *action = jlong_to_ptr<WuiAction>(action_ptr);
-    waterui_drop_action(action);
+    g_wui.waterui_drop_action(action);
 }
 
 JNIEXPORT void JNICALL
@@ -1148,14 +1304,14 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1call_1action(
     JNIEnv *, jclass, jlong action_ptr, jlong env_ptr) {
     auto *action = jlong_to_ptr<WuiAction>(action_ptr);
     auto *env = jlong_to_ptr<WuiEnv>(env_ptr);
-    waterui_call_action(action, env);
+    g_wui.waterui_call_action(action, env);
 }
 
 JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1plain(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiStr str = waterui_force_as_plain(view);
+    WuiStr str = g_wui.waterui_force_as_plain(view);
     jbyteArray bytes = wui_str_to_byte_array(env, str);
     jclass cls = env->FindClass("dev/waterui/android/runtime/PlainStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "([B)V");
@@ -1169,7 +1325,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1text(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiText text = waterui_force_as_text(view);
+    WuiText text = g_wui.waterui_force_as_text(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/TextStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
     jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(text.content));
@@ -1181,7 +1337,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1button(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiButton button = waterui_force_as_button(view);
+    WuiButton button = g_wui.waterui_force_as_button(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/ButtonStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
     jobject obj = env->NewObject(
@@ -1197,7 +1353,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1color(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiColor *color = waterui_force_as_color(view);
+    WuiColor *color = g_wui.waterui_force_as_color(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/ColorStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
     jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(color));
@@ -1209,7 +1365,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1text_1field(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiTextField field = waterui_force_as_text_field(view);
+    WuiTextField field = g_wui.waterui_force_as_text_field(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/TextFieldStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJI)V");
     jobject obj = env->NewObject(
@@ -1227,7 +1383,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1toggle(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiToggle toggle = waterui_force_as_toggle(view);
+    WuiToggle toggle = g_wui.waterui_force_as_toggle(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/ToggleStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
     jobject obj = env->NewObject(
@@ -1243,7 +1399,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1slider(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiSlider slider = waterui_force_as_slider(view);
+    WuiSlider slider = g_wui.waterui_force_as_slider(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/SliderStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJDDJ)V");
     jobject obj = env->NewObject(
@@ -1263,7 +1419,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1stepper(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiStepper stepper = waterui_force_as_stepper(view);
+    WuiStepper stepper = g_wui.waterui_force_as_stepper(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/StepperStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJII)V");
     jobject obj = env->NewObject(
@@ -1282,7 +1438,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1progress(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiProgress progress = waterui_force_as_progress(view);
+    WuiProgress progress = g_wui.waterui_force_as_progress(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/ProgressStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJI)V");
     jobject obj = env->NewObject(
@@ -1300,7 +1456,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1scroll(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiScrollView scroll = waterui_force_as_scroll_view(view);
+    WuiScrollView scroll = g_wui.waterui_force_as_scroll_view(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/ScrollStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(IJ)V");
     jobject obj = env->NewObject(
@@ -1316,7 +1472,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1container(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiContainer container = waterui_force_as_layout_container(view);
+    WuiContainer container = g_wui.waterui_force_as_layout_container(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/ContainerStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
     jobject obj = env->NewObject(
@@ -1332,7 +1488,7 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1dynamic(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    WuiDynamic *dynamic = waterui_force_as_dynamic(view);
+    WuiDynamic *dynamic = g_wui.waterui_force_as_dynamic(view);
     jclass cls = env->FindClass("dev/waterui/android/runtime/DynamicStruct");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
     jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(dynamic));
@@ -1344,7 +1500,7 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1dynamic(
     JNIEnv *, jclass, jlong dynamic_ptr) {
     auto *dynamic = jlong_to_ptr<WuiDynamic>(dynamic_ptr);
-    waterui_drop_dynamic(dynamic);
+    g_wui.waterui_drop_dynamic(dynamic);
 }
 
 JNIEXPORT void JNICALL
@@ -1356,35 +1512,35 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1dynamic_1connect(
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiAnyView *, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
-    waterui_dynamic_connect(dynamic, watcher);
+    g_wui.waterui_dynamic_connect(dynamic, watcher);
 }
 
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1renderer_1view(
     JNIEnv *, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
-    return ptr_to_jlong(waterui_force_as_renderer_view(view));
+    return ptr_to_jlong(g_wui.waterui_force_as_renderer_view(view));
 }
 
 JNIEXPORT jfloat JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1renderer_1view_1width(
     JNIEnv *, jclass, jlong handle) {
     auto *renderer = jlong_to_ptr<WuiRendererView>(handle);
-    return waterui_renderer_view_width(renderer);
+    return g_wui.waterui_renderer_view_width(renderer);
 }
 
 JNIEXPORT jfloat JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1renderer_1view_1height(
     JNIEnv *, jclass, jlong handle) {
     auto *renderer = jlong_to_ptr<WuiRendererView>(handle);
-    return waterui_renderer_view_height(renderer);
+    return g_wui.waterui_renderer_view_height(renderer);
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1renderer_1view_1preferred_1format(
     JNIEnv *, jclass, jlong handle) {
     auto *renderer = jlong_to_ptr<WuiRendererView>(handle);
-    return static_cast<jint>(waterui_renderer_view_preferred_format(renderer));
+    return static_cast<jint>(g_wui.waterui_renderer_view_preferred_format(renderer));
 }
 
 JNIEXPORT jboolean JNICALL
@@ -1400,7 +1556,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1renderer_1view_1render_
     auto *renderer = jlong_to_ptr<WuiRendererView>(handle);
     jboolean is_copy = JNI_FALSE;
     jbyte *pixels = env->GetByteArrayElements(pixel_array, &is_copy);
-    bool ok = waterui_renderer_view_render_cpu(
+    bool ok = g_wui.waterui_renderer_view_render_cpu(
         renderer,
         reinterpret_cast<uint8_t *>(pixels),
         static_cast<uint32_t>(width),
@@ -1415,7 +1571,7 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1renderer_1view(
     JNIEnv *, jclass, jlong handle) {
     auto *renderer = jlong_to_ptr<WuiRendererView>(handle);
-    waterui_drop_renderer_view(renderer);
+    g_wui.waterui_drop_renderer_view(renderer);
 }
 
 } // extern "C"
