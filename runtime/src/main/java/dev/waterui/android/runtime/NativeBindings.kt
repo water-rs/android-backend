@@ -7,9 +7,6 @@ import dev.waterui.android.reactive.WatcherCallback
  * native Rust/C layer; this object exposes type-safe Kotlin entry points.
  */
 internal object NativeBindings {
-    init {
-        NativeLibraryLoader.ensureLoaded()
-    }
 
     external fun waterui_init(): Long
     external fun waterui_main(): Long
