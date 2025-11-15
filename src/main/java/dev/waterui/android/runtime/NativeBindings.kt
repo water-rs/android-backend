@@ -34,8 +34,10 @@ internal object NativeBindings {
     external fun waterui_anyview_drop(viewPtr: Long)
 
     // Layout bridging
-    external fun waterui_container_id(): String
-    external fun waterui_force_as_container(viewPtr: Long): ContainerStruct
+    external fun waterui_layout_container_id(): String
+    external fun waterui_fixed_container_id(): String
+    external fun waterui_force_as_layout_container(viewPtr: Long): LayoutContainerStruct
+    external fun waterui_force_as_fixed_container(viewPtr: Long): FixedContainerStruct
     external fun waterui_layout_propose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<ProposalStruct>
     external fun waterui_layout_size(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): SizeStruct
     external fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, proposal: ProposalStruct, children: Array<ChildMetadataStruct>): Array<RectStruct>
@@ -113,9 +115,14 @@ internal object NativeBindings {
 
 const val RENDERER_BUFFER_FORMAT_RGBA8888: Int = 0
 
-data class ContainerStruct(
+data class LayoutContainerStruct(
     val layoutPtr: Long,
     val childrenPtr: Long
+)
+
+data class FixedContainerStruct(
+    val layoutPtr: Long,
+    val childPointers: LongArray
 )
 
 data class ProposalStruct(
