@@ -12,6 +12,8 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.toTypeId
 
 private val progressTypeId: WuiTypeId by lazy { NativeBindings.waterui_progress_id().toTypeId() }
+private const val PROGRESS_STYLE_LINEAR = 0
+private const val PROGRESS_STYLE_CIRCULAR = 1
 
 private val progressRenderer = WuiRenderer { node, env ->
     val struct = remember(node) { NativeBindings.waterui_force_as_progress(node.rawPtr) }
@@ -26,28 +28,30 @@ private val progressRenderer = WuiRenderer { node, env ->
     }
 
     val progressValue = valueState?.value?.toFloat()
+    val isDeterminate = progressValue?.isFinite() == true
+    val shouldShowValueLabel = struct.valueLabelPtr != 0L && isDeterminate
 
     Column {
         if (struct.labelPtr != 0L) {
             WuiAnyView(pointer = struct.labelPtr, environment = env)
         }
         when (struct.style) {
-            1 -> {
-                if (progressValue != null && !progressValue.isInfinite()) {
-                    CircularProgressIndicator(progress = progressValue)
+            PROGRESS_STYLE_CIRCULAR -> {
+                if (isDeterminate) {
+                    CircularProgressIndicator(progress = progressValue!!)
                 } else {
                     CircularProgressIndicator()
                 }
             }
             else -> {
-                if (progressValue != null && !progressValue.isInfinite()) {
-                    LinearProgressIndicator(progress = progressValue)
+                if (isDeterminate) {
+                    LinearProgressIndicator(progress = progressValue!!)
                 } else {
                     LinearProgressIndicator()
                 }
             }
         }
-        if (struct.valueLabelPtr != 0L) {
+        if (shouldShowValueLabel) {
             WuiAnyView(pointer = struct.valueLabelPtr, environment = env)
         }
     }

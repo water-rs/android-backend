@@ -27,9 +27,12 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_drop_binding_f64)                                                                \
     X(waterui_drop_binding_i32)                                                                \
     X(waterui_drop_binding_str)                                                                \
+    X(waterui_drop_color)                                                                      \
     X(waterui_drop_box_watcher_guard)                                                          \
+    X(waterui_drop_font)                                                                       \
     X(waterui_drop_computed_f64)                                                               \
     X(waterui_drop_computed_i32)                                                               \
+    X(waterui_drop_computed_resolved_font)                                                     \
     X(waterui_drop_computed_resolved_color)                                                    \
     X(waterui_drop_computed_styled_str)                                                        \
     X(waterui_drop_dynamic)                                                                    \
@@ -70,6 +73,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_read_binding_str)                                                                \
     X(waterui_read_computed_f64)                                                               \
     X(waterui_read_computed_i32)                                                               \
+    X(waterui_read_computed_resolved_font)                                                     \
     X(waterui_read_computed_resolved_color)                                                    \
     X(waterui_read_computed_styled_str)                                                        \
     X(waterui_renderer_view_height)                                                            \
@@ -78,6 +82,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_renderer_view_render_cpu)                                                        \
     X(waterui_renderer_view_width)                                                             \
     X(waterui_resolve_color)                                                                   \
+    X(waterui_resolve_font)                                                                    \
     X(waterui_scroll_view_id)                                                                  \
     X(waterui_set_binding_bool)                                                                \
     X(waterui_set_binding_f64)                                                                 \
