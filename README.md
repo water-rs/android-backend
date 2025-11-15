@@ -37,32 +37,37 @@ Two shared libraries must be available at runtime:
 
 1. **Application library** – produced by the WaterUI CLI (`cargo ndk` build).
    It statically links `waterui-ffi` and exports the symbols declared in
-   `ffi/waterui.h`. When loading from Kotlin, omit the `lib` prefix and `.so`
-   suffix (e.g. `configureWaterUiNativeLibrary("waterui_sample")` loads
-   `libwaterui_sample.so`).
+   `ffi/waterui.h`. Load it with `System.loadLibrary("waterui_sample")`
+   (omit the `lib` prefix and `.so` suffix).
 2. **`libwaterui_android.so`** – the JNI shim provided by this module.
-   It is linked with unresolved WaterUI symbols; make sure the application
-   library is loaded first so the dynamic linker can resolve them.
+   It references the symbols exported by the application library, so make sure
+   the application library is loaded first.
 
 ## Configuring the runtime
 
-Before using any WaterUI APIs on Android, initialise the runtime once, ideally
-from your `Application` class:
+The host app is now responsible for loading both shared libraries. The CLI's
+template wires this up inside `MainActivity` so Kotlin/JNI code can assume the
+symbols exist before Compose starts rendering:
 
 ```kotlin
-class SampleApp : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        configureWaterUiNativeLibrary("waterui_sample")
+class MainActivity : ComponentActivity() {
+    companion object {
+        init {
+            System.loadLibrary("waterui_sample")
+            System.loadLibrary("waterui_android")
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { WaterUiRoot() }
     }
 }
 ```
 
-This call stores the library name; the first access to `NativeBindings` will load
-both the application library and `libwaterui_android.so`.
-
-After configuration you can render the root view via `WaterUiRoot()` or build
-your own renderer by looking up component IDs with `WuiAnyView.viewId()`.
+`WaterUiRoot()` (or the lower-level `WaterUIApplication`) still takes care of
+initialising/dropping the Rust environment and rendering the view hierarchy via
+Jetpack Compose once the libraries are present.
 
 ## Current status
 
