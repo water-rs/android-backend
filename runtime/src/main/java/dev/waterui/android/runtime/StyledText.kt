@@ -11,7 +11,7 @@ import java.io.Closeable
 
 internal fun StyledStrStruct.toModel(): WuiStyledStr {
     val chunkModels = chunks.map { chunk ->
-        WuiStyledChunk(
+        StyledChunk(
             text = chunk.text,
             style = chunk.style.toModel()
         )
@@ -19,8 +19,8 @@ internal fun StyledStrStruct.toModel(): WuiStyledStr {
     return WuiStyledStr(chunkModels)
 }
 
-internal class WuiStyledStr(
-    val chunks: List<WuiStyledChunk>
+class WuiStyledStr internal constructor(
+    private val chunks: List<StyledChunk>
 ) : Closeable {
 
     fun toAnnotatedString(env: WuiEnvironment): AnnotatedString {
@@ -41,16 +41,16 @@ internal class WuiStyledStr(
     }
 }
 
-internal class WuiStyledChunk(
+private class StyledChunk(
     val text: String,
-    val style: WuiTextStyle
+    val style: StyledTextStyle
 ) : Closeable {
     override fun close() {
         style.close()
     }
 }
 
-internal class WuiTextStyle(
+private class StyledTextStyle(
     private val font: WuiFont,
     private val italic: Boolean,
     private val underline: Boolean,
@@ -94,7 +94,7 @@ internal class WuiTextStyle(
     }
 }
 
-internal class WuiFont(
+private class WuiFont(
     handle: Long
 ) : NativePointer(handle) {
 
@@ -113,7 +113,7 @@ internal class WuiFont(
     }
 }
 
-internal class WuiColor(
+private class WuiColor(
     handle: Long
 ) : NativePointer(handle) {
 
@@ -132,14 +132,14 @@ internal class WuiColor(
     }
 }
 
-private fun TextStyleStruct.toModel(): WuiTextStyle {
+private fun TextStyleStruct.toModel(): StyledTextStyle {
     val foregroundColor = foregroundPtr.takeIf { it != 0L }?.let(::WuiColor)
     val backgroundColor = when {
         backgroundPtr == 0L -> null
         backgroundPtr == foregroundPtr && foregroundColor != null -> foregroundColor
         else -> WuiColor(backgroundPtr)
     }
-    return WuiTextStyle(
+    return StyledTextStyle(
         font = WuiFont(fontPtr),
         italic = italic,
         underline = underline,
