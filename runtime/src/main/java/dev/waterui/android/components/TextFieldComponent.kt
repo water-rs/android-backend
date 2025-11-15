@@ -1,6 +1,5 @@
 package dev.waterui.android.components
 
-import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -11,6 +10,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.WuiAnyView
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.toTypeId
+import androidx.compose.material3.Text
 
 private val textFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_text_field_id().toTypeId() }
 
@@ -43,9 +43,12 @@ private val textFieldRenderer = WuiRenderer { node, env ->
             WuiAnyView(pointer = labelNode, environment = currentEnv.value)
         },
         placeholder = {
-            val prompt = promptState?.value
-            if (prompt != null) {
-                Text(prompt)
+            val promptValue = promptState?.value
+            if (promptValue != null) {
+                val annotated = remember(promptValue, env) {
+                    promptValue.toAnnotatedString(env)
+                }
+                Text(text = annotated)
             }
         }
     )
