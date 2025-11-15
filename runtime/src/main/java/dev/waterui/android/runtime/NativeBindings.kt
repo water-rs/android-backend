@@ -61,7 +61,7 @@ internal object NativeBindings {
     external fun waterui_create_double_watcher(callback: WatcherCallback<Double>): WatcherStruct
     external fun waterui_create_string_watcher(callback: WatcherCallback<String>): WatcherStruct
     external fun waterui_create_any_view_watcher(callback: WatcherCallback<Long>): WatcherStruct
-    external fun waterui_create_styled_str_watcher(callback: WatcherCallback<String>): WatcherStruct
+    external fun waterui_create_styled_str_watcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
     external fun waterui_create_resolved_color_watcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
 
     external fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean)
@@ -92,10 +92,16 @@ internal object NativeBindings {
     external fun waterui_watch_computed_i32(computedPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_drop_computed_i32(computedPtr: Long)
 
-    external fun waterui_read_computed_styled_str(computedPtr: Long): ByteArray
+    external fun waterui_read_computed_styled_str(computedPtr: Long): StyledStrStruct
     external fun waterui_watch_computed_styled_str(computedPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_drop_computed_styled_str(computedPtr: Long)
 
+    external fun waterui_drop_font(fontPtr: Long)
+    external fun waterui_resolve_font(fontPtr: Long, envPtr: Long): Long
+    external fun waterui_read_computed_resolved_font(computedPtr: Long): ResolvedFontStruct
+    external fun waterui_drop_computed_resolved_font(computedPtr: Long)
+
+    external fun waterui_drop_color(colorPtr: Long)
     external fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long
     external fun waterui_read_computed_resolved_color(computedPtr: Long): ResolvedColorStruct
     external fun waterui_watch_computed_resolved_color(computedPtr: Long, watcher: WatcherStruct): Long
@@ -203,6 +209,24 @@ data class ColorStruct(
     val colorPtr: Long
 )
 
+data class StyledStrStruct(
+    val chunks: Array<StyledChunkStruct>
+)
+
+data class StyledChunkStruct(
+    val text: String,
+    val style: TextStyleStruct
+)
+
+data class TextStyleStruct(
+    val fontPtr: Long,
+    val italic: Boolean,
+    val underline: Boolean,
+    val strikethrough: Boolean,
+    val foregroundPtr: Long,
+    val backgroundPtr: Long
+)
+
 data class TextFieldStruct(
     val labelPtr: Long,
     val valuePtr: Long,
@@ -253,4 +277,9 @@ data class ResolvedColorStruct(
     val green: Float,
     val blue: Float,
     val opacity: Float
+)
+
+data class ResolvedFontStruct(
+    val size: Float,
+    val weight: Int
 )

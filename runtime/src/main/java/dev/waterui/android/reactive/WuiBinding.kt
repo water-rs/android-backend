@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.ResolvedColorStruct
+import dev.waterui.android.runtime.StyledStrStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 
@@ -131,7 +132,7 @@ object WatcherStructFactory {
         return NativeBindings.waterui_create_any_view_watcher(callback)
     }
 
-    fun styledString(callback: WatcherCallback<String>): WatcherStruct {
+    fun styledString(callback: WatcherCallback<StyledStrStruct>): WatcherStruct {
         return NativeBindings.waterui_create_styled_str_watcher(callback)
     }
 
