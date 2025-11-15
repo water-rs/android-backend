@@ -94,7 +94,7 @@ internal class StyledTextStyle(
     }
 }
 
-private class WuiFont(
+internal class WuiFont(
     handle: Long
 ) : NativePointer(handle) {
 
@@ -113,7 +113,7 @@ private class WuiFont(
     }
 }
 
-private class WuiColor(
+internal class WuiColor(
     handle: Long
 ) : NativePointer(handle) {
 
