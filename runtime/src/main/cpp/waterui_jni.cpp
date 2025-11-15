@@ -547,6 +547,74 @@ jobject new_resolved_color(JNIEnv *env, const WuiResolvedColor &color) {
     return obj;
 }
 
+jobject new_text_style(JNIEnv *env, const WuiTextStyle &style, jclass cls, jmethodID ctor) {
+    return env->NewObject(
+        cls,
+        ctor,
+        ptr_to_jlong(style.font),
+        style.italic ? JNI_TRUE : JNI_FALSE,
+        style.underline ? JNI_TRUE : JNI_FALSE,
+        style.strikethrough ? JNI_TRUE : JNI_FALSE,
+        ptr_to_jlong(style.foreground),
+        ptr_to_jlong(style.background)
+    );
+}
+
+jobject new_styled_chunk(
+    JNIEnv *env,
+    const WuiStyledChunk &chunk,
+    jclass chunkCls,
+    jmethodID chunkCtor,
+    jclass styleCls,
+    jmethodID styleCtor) {
+    jstring text = wui_str_to_jstring(env, chunk.text);
+    jobject styleObj = new_text_style(env, chunk.style, styleCls, styleCtor);
+    jobject chunkObj = env->NewObject(chunkCls, chunkCtor, text, styleObj);
+    env->DeleteLocalRef(text);
+    env->DeleteLocalRef(styleObj);
+    return chunkObj;
+}
+
+jobject new_styled_str(JNIEnv *env, WuiStyledStr styled) {
+    WuiArray_WuiStyledChunk chunks = styled.chunks;
+    WuiArraySlice_WuiStyledChunk slice = chunks.vtable.slice(chunks.data);
+
+    jclass styleCls = env->FindClass("dev/waterui/android/runtime/TextStyleStruct");
+    jmethodID styleCtor = env->GetMethodID(styleCls, "<init>", "(JZZZJJ)V");
+    jclass chunkCls = env->FindClass("dev/waterui/android/runtime/StyledChunkStruct");
+    jmethodID chunkCtor = env->GetMethodID(
+        chunkCls,
+        "<init>",
+        "(Ljava/lang/String;Ldev/waterui/android/runtime/TextStyleStruct;)V");
+    jclass strCls = env->FindClass("dev/waterui/android/runtime/StyledStrStruct");
+    jmethodID strCtor = env->GetMethodID(
+        strCls,
+        "<init>",
+        "([Ldev/waterui/android/runtime/StyledChunkStruct;)V");
+
+    jobjectArray chunkArray = env->NewObjectArray(
+        static_cast<jsize>(slice.len),
+        chunkCls,
+        nullptr
+    );
+
+    for (uintptr_t i = 0; i < slice.len; ++i) {
+        jobject chunkObj = new_styled_chunk(env, slice.head[i], chunkCls, chunkCtor, styleCls, styleCtor);
+        env->SetObjectArrayElement(chunkArray, static_cast<jsize>(i), chunkObj);
+        env->DeleteLocalRef(chunkObj);
+    }
+
+    jobject result = env->NewObject(strCls, strCtor, chunkArray);
+
+    env->DeleteLocalRef(chunkArray);
+    env->DeleteLocalRef(strCls);
+    env->DeleteLocalRef(chunkCls);
+    env->DeleteLocalRef(styleCls);
+
+    chunks.vtable.drop(chunks.data);
+    return result;
+}
+
 jobject box_boolean(JNIEnv *env, bool value) {
     return env->CallStaticObjectMethod(gBooleanClass, gBooleanValueOf, value ? JNI_TRUE : JNI_FALSE);
 }
@@ -671,10 +739,9 @@ void watcher_styled_str_call(const void *data, WuiStyledStr value, WuiWatcherMet
         return;
     }
     auto *state = static_cast<WatcherCallbackState const *>(data);
-    std::string utf8 = wui_styled_str_to_string(value);
-    jstring str = scoped.env->NewStringUTF(utf8.c_str());
-    invoke_watcher(scoped.env, const_cast<WatcherCallbackState *>(state), str, metadata);
-    scoped.env->DeleteLocalRef(str);
+    jobject styled = new_styled_str(scoped.env, value);
+    invoke_watcher(scoped.env, const_cast<WatcherCallbackState *>(state), styled, metadata);
+    scoped.env->DeleteLocalRef(styled);
 }
 
 void watcher_styled_str_drop(void *data) {
@@ -1193,21 +1260,12 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1i32(
     g_wui.waterui_drop_computed_i32(computed);
 }
 
-JNIEXPORT jbyteArray JNICALL
+JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1styled_1str(
     JNIEnv *env, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computed_ptr);
     WuiStyledStr styled = g_wui.waterui_read_computed_styled_str(computed);
-    std::string utf8 = wui_styled_str_to_string(styled);
-    jbyteArray array = env->NewByteArray(static_cast<jsize>(utf8.size()));
-    if (array != nullptr && !utf8.empty()) {
-        env->SetByteArrayRegion(
-            array,
-            0,
-            static_cast<jsize>(utf8.size()),
-            reinterpret_cast<const jbyte *>(utf8.data()));
-    }
-    return array;
+    return new_styled_str(env, styled);
 }
 
 JNIEXPORT jlong JNICALL
@@ -1230,6 +1288,47 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1styled_
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computed_ptr);
     g_wui.waterui_drop_computed_styled_str(computed);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1font(
+    JNIEnv *, jclass, jlong font_ptr) {
+    auto *font = jlong_to_ptr<WuiFont>(font_ptr);
+    g_wui.waterui_drop_font(font);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1color(
+    JNIEnv *, jclass, jlong color_ptr) {
+    auto *color = jlong_to_ptr<WuiColor>(color_ptr);
+    g_wui.waterui_drop_color(color);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1resolve_1font(
+    JNIEnv *, jclass, jlong font_ptr, jlong env_ptr) {
+    auto *font = jlong_to_ptr<WuiFont>(font_ptr);
+    auto *env = jlong_to_ptr<WuiEnv>(env_ptr);
+    return ptr_to_jlong(g_wui.waterui_resolve_font(font, env));
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1resolved_1font(
+    JNIEnv *env, jclass, jlong computed_ptr) {
+    auto *computed = jlong_to_ptr<WuiComputed_ResolvedFont>(computed_ptr);
+    WuiResolvedFont font = g_wui.waterui_read_computed_resolved_font(computed);
+    jclass cls = env->FindClass("dev/waterui/android/runtime/ResolvedFontStruct");
+    jmethodID ctor = env->GetMethodID(cls, "<init>", "(FI)V");
+    jobject obj = env->NewObject(cls, ctor, font.size, static_cast<jint>(font.weight));
+    env->DeleteLocalRef(cls);
+    return obj;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1resolved_1font(
+    JNIEnv *, jclass, jlong computed_ptr) {
+    auto *computed = jlong_to_ptr<WuiComputed_ResolvedFont>(computed_ptr);
+    g_wui.waterui_drop_computed_resolved_font(computed);
 }
 
 JNIEXPORT jlong JNICALL

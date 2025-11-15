@@ -23,7 +23,11 @@ private val textRenderer = WuiRenderer { node, env ->
         onDispose { computed.close() }
     }
 
-    Text(text = textState.value)
+    val annotated = remember(textState.value, env) {
+        textState.value.toAnnotatedString(env)
+    }
+
+    Text(text = annotated)
 }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiText() {
