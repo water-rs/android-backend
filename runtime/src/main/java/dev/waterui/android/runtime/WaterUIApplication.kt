@@ -39,23 +39,28 @@ private fun CenteredRoot(content: @Composable () -> Unit) {
         val childConstraints = Constraints(
             minWidth = 0,
             minHeight = 0,
-            maxWidth = Constraints.Infinity,
-            maxHeight = Constraints.Infinity
+            maxWidth = constraints.maxWidth,
+            maxHeight = constraints.maxHeight
         )
 
         val placeable = measurables.first().measure(childConstraints)
         val hasBoundedWidth = constraints.maxWidth != Constraints.Infinity
         val hasBoundedHeight = constraints.maxHeight != Constraints.Infinity
 
-        val desiredWidth = if (hasBoundedWidth) constraints.maxWidth else placeable.width
-        val desiredHeight = if (hasBoundedHeight) constraints.maxHeight else placeable.height
-
-        val finalWidth = desiredWidth
-            .coerceAtLeast(constraints.minWidth)
-            .coerceAtLeast(placeable.width)
-        val finalHeight = desiredHeight
-            .coerceAtLeast(constraints.minHeight)
-            .coerceAtLeast(placeable.height)
+        val finalWidth = if (hasBoundedWidth) {
+            constraints.maxWidth
+                .coerceAtLeast(constraints.minWidth)
+                .coerceAtLeast(placeable.width)
+        } else {
+            placeable.width.coerceAtLeast(constraints.minWidth)
+        }
+        val finalHeight = if (hasBoundedHeight) {
+            constraints.maxHeight
+                .coerceAtLeast(constraints.minHeight)
+                .coerceAtLeast(placeable.height)
+        } else {
+            placeable.height.coerceAtLeast(constraints.minHeight)
+        }
 
         val offsetX = ((finalWidth - placeable.width) / 2).coerceAtLeast(0)
         val offsetY = ((finalHeight - placeable.height) / 2).coerceAtLeast(0)
