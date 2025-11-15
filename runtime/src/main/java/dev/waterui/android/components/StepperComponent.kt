@@ -56,7 +56,7 @@ private val stepperRenderer = WuiRenderer { node, env ->
         }) {
             Text("-")
         }
-        Text("${'$'}{valueState.value}")
+        Text(valueState.value.toString())
         TextButton(onClick = {
             val newValue = (valueState.value + stepValue).coerceAtMost(rangeEnd)
             binding.set(newValue)
