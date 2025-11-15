@@ -95,6 +95,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_text_id)                                                                         \
     X(waterui_toggle_id)                                                                       \
     X(waterui_view_body)                                                                       \
+    X(waterui_configure_hot_reload_endpoint)                                                   \
     X(waterui_view_id)                                                                         \
     X(waterui_watch_binding_bool)                                                              \
     X(waterui_watch_binding_f64)                                                               \
@@ -888,6 +889,21 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1view_1body(
     WuiAnyView *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
     WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);
     return ptr_to_jlong(g_wui.waterui_view_body(view, env));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1configure_1hot_1reload_1endpoint(
+    JNIEnv *env, jclass, jstring host, jint port) {
+    if (!g_symbols_ready || host == nullptr) {
+        return;
+    }
+
+    const char *raw_host = env->GetStringUTFChars(host, nullptr);
+    if (raw_host == nullptr) {
+        return;
+    }
+    g_wui.waterui_configure_hot_reload_endpoint(raw_host, static_cast<uint16_t>(port));
+    env->ReleaseStringUTFChars(host, raw_host);
 }
 
 JNIEXPORT jlong JNICALL
