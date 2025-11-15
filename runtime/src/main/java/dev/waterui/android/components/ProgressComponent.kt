@@ -33,14 +33,14 @@ private val progressRenderer = WuiRenderer { node, env ->
         }
         when (struct.style) {
             1 -> {
-                if (progressValue != null && !progressValue.isNaN()) {
+                if (progressValue != null && !progressValue.isInfinite()) {
                     CircularProgressIndicator(progress = progressValue)
                 } else {
                     CircularProgressIndicator()
                 }
             }
             else -> {
-                if (progressValue != null && !progressValue.isNaN()) {
+                if (progressValue != null && !progressValue.isInfinite()) {
                     LinearProgressIndicator(progress = progressValue)
                 } else {
                     LinearProgressIndicator()

@@ -103,3 +103,12 @@ If Gradle complains that `project :backends:android` has no variants, double-che
 that the copied folder still contains both the root `build.gradle.kts` and the
 `runtime/` module. Missing either file leaves the consumer project with an empty
 Android library module, which causes the variant error observed during builds.
+
+## Troubleshooting
+
+- **`JNI DETECTED ERROR … ChildMetadataStruct;.isStretch()`** – the JNI shim calls
+  `ChildMetadataStruct.isStretch()` when marshaling layout metadata. If the Kotlin
+  runtime you vendored doesn't expose that method (older backends relied on the
+  auto-generated getter), Compose will crash as soon as a spacer participates in
+  layout negotiation. Build and copy a fresh backend (`./gradlew -p backends/android runtime:assembleDebug`)
+  so the updated data class with the explicit `isStretch()` method ships with your app.
