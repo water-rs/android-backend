@@ -15,6 +15,7 @@ internal object NativeBindings {
     external fun waterui_view_id(anyViewPtr: Long): String
     external fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long
     external fun waterui_configure_hot_reload_endpoint(host: String, port: Int)
+    external fun waterui_configure_hot_reload_directory(path: String)
 
     // Type identifiers
     external fun waterui_empty_id(): String
@@ -147,6 +148,10 @@ fun bootstrapWaterUiRuntime(libraryName: String) {
 
 fun configureHotReloadEndpoint(host: String, port: Int) {
     NativeBindings.waterui_configure_hot_reload_endpoint(host, port)
+}
+
+fun configureHotReloadDirectory(path: String) {
+    NativeBindings.waterui_configure_hot_reload_directory(path)
 }
 
 // --- Native struct mirrors (data-only skeletons) ---
