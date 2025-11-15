@@ -44,7 +44,7 @@ private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
         registerWuiProgress()
         registerWuiDynamic()
         registerWuiScroll()
-        registerWuiContainer()
+        registerWuiContainers()
         registerWuiToggle()
         registerWuiSpacer()
         registerWuiSlider()

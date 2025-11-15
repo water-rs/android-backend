@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "waterui.h"
 
@@ -42,6 +43,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_fixed_container_id)                                                              \
     X(waterui_force_as_button)                                                                 \
     X(waterui_force_as_color)                                                                  \
+    X(waterui_force_as_fixed_container)                                                        \
     X(waterui_force_as_dynamic)                                                                \
     X(waterui_force_as_layout_container)                                                       \
     X(waterui_force_as_plain)                                                                  \
@@ -429,6 +431,32 @@ jobjectArray rect_array_to_java(JNIEnv *env, const WuiArray_WuiRect &array) {
 
     env->DeleteLocalRef(cls);
     array.vtable.drop(array.data);
+    return result;
+}
+
+jlongArray any_view_array_to_java(JNIEnv *env, WuiArray_____WuiAnyView array) {
+    WuiArraySlice_____WuiAnyView slice = array.vtable.slice(array.data);
+    jsize len = static_cast<jsize>(slice.len);
+    jlongArray result = env->NewLongArray(len);
+    if (result == nullptr) {
+        if (array.vtable.drop != nullptr) {
+            array.vtable.drop(array.data);
+        }
+        return nullptr;
+    }
+
+    if (len > 0 && slice.head != nullptr) {
+        std::vector<jlong> values(static_cast<size_t>(len));
+        for (jsize i = 0; i < len; ++i) {
+            values[i] = ptr_to_jlong(slice.head[i]);
+        }
+        env->SetLongArrayRegion(result, 0, len, values.data());
+    }
+
+    if (array.vtable.drop != nullptr) {
+        array.vtable.drop(array.data);
+    }
+
     return result;
 }
 
@@ -1469,7 +1497,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1scroll(
 }
 
 JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1container(
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1layout_1container(
     JNIEnv *env, jclass, jlong any_view_ptr) {
     auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
     WuiContainer container = g_wui.waterui_force_as_layout_container(view);
@@ -1480,6 +1508,27 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1container(
         ctor,
         ptr_to_jlong(container.layout),
         ptr_to_jlong(container.contents));
+    env->DeleteLocalRef(cls);
+    return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1fixed_1container(
+    JNIEnv *env, jclass, jlong any_view_ptr) {
+    auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
+    WuiFixedContainer container = g_wui.waterui_force_as_fixed_container(view);
+    jlongArray children = any_view_array_to_java(env, container.contents);
+    if (children == nullptr) {
+        return nullptr;
+    }
+    jclass cls = env->FindClass("dev/waterui/android/runtime/FixedContainerStruct");
+    jmethodID ctor = env->GetMethodID(cls, "<init>", "(J[J)V");
+    jobject obj = env->NewObject(
+        cls,
+        ctor,
+        ptr_to_jlong(container.layout),
+        children);
+    env->DeleteLocalRef(children);
     env->DeleteLocalRef(cls);
     return obj;
 }
