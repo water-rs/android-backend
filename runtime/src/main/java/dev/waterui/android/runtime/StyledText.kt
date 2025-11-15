@@ -41,7 +41,7 @@ class WuiStyledStr internal constructor(
     }
 }
 
-private class StyledChunk(
+internal class StyledChunk(
     val text: String,
     val style: StyledTextStyle
 ) : Closeable {
@@ -50,7 +50,7 @@ private class StyledChunk(
     }
 }
 
-private class StyledTextStyle(
+internal class StyledTextStyle(
     private val font: WuiFont,
     private val italic: Boolean,
     private val underline: Boolean,
