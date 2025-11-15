@@ -815,7 +815,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1anyview(
 JNIEXPORT jstring JNICALL                                                                \
 Java_dev_waterui_android_runtime_NativeBindings_##javaName(                              \
     JNIEnv *env, jclass) {                                                               \
-    WuiStr id = ffiFunc();                                                               \
+    WuiStr id = g_wui.ffiFunc();                                                         \
     return wui_str_to_jstring(env, id);                                                  \
 }
 
