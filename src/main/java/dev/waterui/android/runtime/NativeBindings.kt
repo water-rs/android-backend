@@ -146,7 +146,9 @@ data class ChildMetadataStruct(
     val proposal: ProposalStruct,
     val priority: Int,
     val stretch: Boolean
-)
+) {
+    fun isStretch(): Boolean = stretch
+}
 
 /**
  * Common watcher envelope for bindings/computed values. Concrete shapes will be marshalled via JNI.
