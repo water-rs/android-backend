@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
         init {
             System.loadLibrary("waterui_sample")
             System.loadLibrary("waterui_android")
+            NativeBindings.bootstrapNativeBindings("waterui_sample")
         }
     }
 
