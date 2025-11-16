@@ -4,6 +4,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
+import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.StyledStrStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
@@ -152,6 +153,10 @@ object WatcherStructFactory {
 
     fun resolvedColor(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct {
         return NativeBindings.waterui_create_resolved_color_watcher(callback)
+    }
+
+    fun resolvedFont(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct {
+        return NativeBindings.waterui_create_resolved_font_watcher(callback)
     }
 
     fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
