@@ -1,12 +1,15 @@
 package dev.waterui.android.components
 
-import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
-import dev.waterui.android.layout.ChildDescriptor
-import dev.waterui.android.layout.RustLayout
+import dev.waterui.android.layout.RustLayoutViewGroup
 import dev.waterui.android.layout.toChildDescriptors
+import dev.waterui.android.runtime.NativeAnyViews
 import dev.waterui.android.runtime.NativeBindings
-import dev.waterui.android.runtime.*
+import dev.waterui.android.runtime.WuiRenderer
+import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.register
+import dev.waterui.android.runtime.toTypeId
+import dev.waterui.android.runtime.usePointer
 
 private val layoutContainerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_layout_container_id().toTypeId()
@@ -16,46 +19,32 @@ private val fixedContainerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_fixed_container_id().toTypeId()
 }
 
-private val layoutContainerRenderer = WuiRenderer { node, env ->
-    val struct = remember(node) { NativeBindings.waterui_force_as_layout_container(node.rawPtr) }
-    val childPointers = remember(struct.childrenPtr) {
-        if (struct.childrenPtr == 0L) {
-            emptyList()
-        } else {
-            NativeAnyViews(struct.childrenPtr).usePointer { pointer ->
-                pointer.toList()
-            }
-        }
+private val layoutContainerRenderer = WuiRenderer { context, node, env, registry ->
+    val struct = NativeBindings.waterui_force_as_layout_container(node.rawPtr)
+    val childPointers = if (struct.childrenPtr == 0L) {
+        emptyList()
+    } else {
+        NativeAnyViews(struct.childrenPtr).usePointer { it.toList() }
     }
-    val descriptors: List<ChildDescriptor> = remember(childPointers) {
-        childPointers.toChildDescriptors()
+    val descriptors = childPointers.toChildDescriptors()
+    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
+    childPointers.forEach { childPtr ->
+        val child = inflateAnyView(context, childPtr, env, registry)
+        group.addView(child)
     }
-
-    RustLayout(layoutPtr = struct.layoutPtr, descriptors = descriptors, environment = env) {
-        childPointers.forEach { childPtr ->
-            key(childPtr) {
-                WuiAnyView(pointer = childPtr, environment = env)
-            }
-        }
-    }
+    group
 }
 
-private val fixedContainerRenderer = WuiRenderer { node, env ->
-    val struct = remember(node) { NativeBindings.waterui_force_as_fixed_container(node.rawPtr) }
-    val childPointers = remember(struct.childPointers) {
-        if (struct.childPointers.isEmpty()) emptyList() else struct.childPointers.toList()
+private val fixedContainerRenderer = WuiRenderer { context, node, env, registry ->
+    val struct = NativeBindings.waterui_force_as_fixed_container(node.rawPtr)
+    val childPointers = struct.childPointers.toList()
+    val descriptors = childPointers.toChildDescriptors()
+    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
+    childPointers.forEach { childPtr ->
+        val child = inflateAnyView(context, childPtr, env, registry)
+        group.addView(child)
     }
-    val descriptors: List<ChildDescriptor> = remember(childPointers) {
-        childPointers.toChildDescriptors()
-    }
-
-    RustLayout(layoutPtr = struct.layoutPtr, descriptors = descriptors, environment = env) {
-        childPointers.forEach { childPtr ->
-            key(childPtr) {
-                WuiAnyView(pointer = childPtr, environment = env)
-            }
-        }
-    }
+    group
 }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiContainers() {

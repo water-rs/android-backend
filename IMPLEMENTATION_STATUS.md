@@ -1,6 +1,7 @@
 # Android Backend Implementation Status
 
-This document compares the Jetpack Compose backend with the functionality exported by the WaterUI Rust crates. Status codes:
+This document compares the Android View backend with the functionality exported
+by the WaterUI Rust crates. Status codes:
 
 - **✅ complete** – Feature behaves equivalently to the Swift/Rust implementation.
 - **⚠️ partial** – Implemented but missing behaviour or polish.
@@ -10,26 +11,26 @@ This document compares the Jetpack Compose backend with the functionality export
 
 | Rust Feature | Android Status | Notes |
 | --- | --- | --- |
-| `waterui_init` / environment lifecycle | ✅ complete | `WaterUIApplication` initialises/drops `WuiEnvironment`; Gradle toolchain set to JDK 17 for Kotlin compatibility. |
+| `waterui_init` / environment lifecycle | ✅ complete | `WaterUiRootView` initialises/drops `WuiEnvironment`; Gradle toolchain set to JDK 17 for Kotlin compatibility. |
 | `WuiAnyView` render loop | ⚠️ partial | Registry-driven renderers exist; fallback body traversal still lacks diagnostics for invalid nodes. |
 | `RenderRegistry` overrides | ✅ complete | Functional renderer map replaces Swift-style class tree. |
 | `NativePointer` lifecycle helpers | ✅ complete | Guard classes drop native handles safely. |
-| Dynamic view (`waterui_dynamic_*`) | ✅ complete | JNI watcher plumbing notifies Compose when the Rust view invalidates. |
+| Dynamic view (`waterui_dynamic_*`) | ✅ complete | JNI watcher plumbing replaces child views when the Rust node invalidates. |
 
 ## Layout
 
 | Rust Feature | Android Status | Notes |
 | --- | --- | --- |
-| Container layout (`waterui_container`) | ⚠️ partial | Rust propose/measure/place is hooked up; child iteration uses raw pointers but lacks diffing/priorities. |
-| Spacer (`waterui_spacer`) | ✅ complete | Renders Compose `Spacer`. |
-| Scroll view | ✅ complete | Single-child scroll supports horizontal, vertical, or both axes via Compose scroll states. |
-| Stack/overlay/padding helpers | ❌ missing | No Compose counterparts yet. |
+| Container layout (`waterui_container`) | ⚠️ partial | Rust propose/measure/place is hooked up inside a custom ViewGroup; child diffing/priorities remain TODO. |
+| Spacer (`waterui_spacer`) | ✅ complete | Renders a zero-sized `Space` view. |
+| Scroll view | ✅ complete | Single-child scroll supports horizontal, vertical, or both axes using nested `ScrollView`/`HorizontalScrollView`. |
+| Stack/overlay/padding helpers | ❌ missing | No dedicated View implementations yet. |
 
 ## Text & Styling
 
 | Rust Feature | Android Status | Notes |
 | --- | --- | --- |
-| Styled text (`waterui_text`) | ⚠️ partial | Styled strings flow through JNI and re-render, but spans are flattened to plain Compose `Text`. |
+| Styled text (`waterui_text`) | ⚠️ partial | Styled strings flow through JNI and re-render, but spans still map to basic Android text spans (no custom fonts yet). |
 | Label (`waterui_label`) | ✅ complete | Decodes UTF-8 label bytes. |
 | Colour view (`waterui_color`) | ✅ complete | Colours are resolved in the receiving environment and update reactively. |
 
@@ -49,9 +50,9 @@ This document compares the Jetpack Compose backend with the functionality export
 
 | Rust Feature | Android Status | Notes |
 | --- | --- | --- |
-| Bindings (bool/int/double/string) | ✅ complete | JNI watcher factories stream updates into Compose `State`. |
+| Bindings (bool/int/double/string) | ✅ complete | JNI watcher factories stream updates into View callbacks. |
 | Computed values | ⚠️ partial | Common types (i32/f64/styled text/resolved colour) implemented; remaining computed families TBD. |
-| Animation metadata (`waterui_get_animation`) | ❌ missing | JNI function declared but not wired to Compose animation APIs. |
+| Animation metadata (`waterui_get_animation`) | ❌ missing | JNI function declared but not wired to any Android animations. |
 
 ## Navigation, Media & Advanced Components
 
@@ -68,8 +69,12 @@ This document compares the Jetpack Compose backend with the functionality export
 | --- | --- | --- |
 | Gradle module | ✅ complete | `settings.gradle.kts` includes `:backends:android`; wrapper pinned to Gradle 8.7. |
 | Android SDK integration | ✅ complete | `local.properties` expected to point at SDK; `.gitignore` updated accordingly. |
-| Compose compiler alignment | ✅ complete | Uses Kotlin 1.9.22 with compiler extension 1.5.10. |
+| Kotlin/JVM toolchain | ✅ complete | Uses Kotlin 1.9.25 targeting Java 17 with coroutines. |
 
 ## Summary
 
-The Android backend now mirrors the Swift renderer for the core UI primitives: text/labels, colours, form controls, dynamic views, and scroll/layout containers. Remaining work focuses on richer components (pickers, navigation, media), span-level text styling, and platform polish such as keyboard configuration and animation metadata.
+The Android backend now mirrors the Swift renderer for the core UI primitives:
+text/labels, colours, form controls, dynamic views, and scroll/layout
+containers. Remaining work focuses on richer components (pickers, navigation,
+media), span-level text styling, and platform polish such as keyboard
+configuration and animation metadata.

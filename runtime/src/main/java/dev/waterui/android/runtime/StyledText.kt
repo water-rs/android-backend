@@ -1,13 +1,16 @@
 package dev.waterui.android.runtime
 
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.sp
+import android.graphics.Typeface
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.StrikethroughSpan
+import android.text.style.StyleSpan
+import android.text.style.UnderlineSpan
 import java.io.Closeable
+import kotlin.math.roundToInt
 
 internal fun StyledStrStruct.toModel(): WuiStyledStr {
     val chunkModels = chunks.map { chunk ->
@@ -23,17 +26,17 @@ class WuiStyledStr internal constructor(
     private val chunks: List<StyledChunk>
 ) : Closeable {
 
-    fun toAnnotatedString(env: WuiEnvironment): AnnotatedString {
-        val builder = AnnotatedString.Builder()
+    fun toCharSequence(env: WuiEnvironment): CharSequence {
+        val builder = SpannableStringBuilder()
         chunks.forEach { chunk ->
             val start = builder.length
             builder.append(chunk.text)
             val end = builder.length
             if (start != end) {
-                builder.addStyle(chunk.style.spanStyle(env), start, end)
+                chunk.style.applySpans(env, builder, start, end)
             }
         }
-        return builder.toAnnotatedString()
+        return builder
     }
 
     override fun close() {
@@ -59,30 +62,40 @@ internal class StyledTextStyle(
     private val background: WuiColor?
 ) : Closeable {
 
-    fun spanStyle(env: WuiEnvironment): SpanStyle {
+    fun applySpans(env: WuiEnvironment, builder: SpannableStringBuilder, start: Int, end: Int) {
         val resolvedFont = font.resolveOnce(env)
-        val fontWeight = resolvedFont.toFontWeight()
-        val fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal
-        val textDecoration = when {
-            underline && strikethrough -> TextDecoration.combine(
-                listOf(TextDecoration.Underline, TextDecoration.LineThrough)
-            )
-            underline -> TextDecoration.Underline
-            strikethrough -> TextDecoration.LineThrough
-            else -> TextDecoration.None
+        val typefaceStyle = resolveTypefaceStyle(resolvedFont.weight, italic)
+        if (typefaceStyle != Typeface.NORMAL) {
+            builder.setSpan(StyleSpan(typefaceStyle), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        builder.setSpan(AbsoluteSizeSpan(resolvedFont.size.roundToInt(), true), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+        val foregroundColor = foreground?.resolveOnce(env)?.toColorInt()
+        if (foregroundColor != null) {
+            builder.setSpan(ForegroundColorSpan(foregroundColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
-        val foregroundColor = foreground?.resolveOnce(env)?.toComposeColor() ?: Color.Unspecified
-        val backgroundColor = background?.resolveOnce(env)?.toComposeColor() ?: Color.Unspecified
+        val backgroundColor = background?.resolveOnce(env)?.toColorInt()
+        if (backgroundColor != null) {
+            builder.setSpan(BackgroundColorSpan(backgroundColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
 
-        return SpanStyle(
-            color = foregroundColor,
-            background = backgroundColor,
-            fontSize = resolvedFont.size.sp,
-            fontWeight = fontWeight,
-            fontStyle = fontStyle,
-            textDecoration = textDecoration
-        )
+        if (underline) {
+            builder.setSpan(UnderlineSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        if (strikethrough) {
+            builder.setSpan(StrikethroughSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun resolveTypefaceStyle(weight: Int, italic: Boolean): Int {
+        val isBold = weight >= 5
+        return when {
+            isBold && italic -> Typeface.BOLD_ITALIC
+            isBold -> Typeface.BOLD
+            italic -> Typeface.ITALIC
+            else -> Typeface.NORMAL
+        }
     }
 
     override fun close() {
@@ -147,22 +160,4 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
         foreground = foregroundColor,
         background = backgroundColor
     )
-}
-
-private fun ResolvedColorStruct.toComposeColor(): Color =
-    Color(red = red, green = green, blue = blue, alpha = opacity)
-
-private fun ResolvedFontStruct.toFontWeight(): FontWeight {
-    return when (weight) {
-        0 -> FontWeight.Thin
-        1 -> FontWeight.ExtraLight
-        2 -> FontWeight.Light
-        3 -> FontWeight.Normal
-        4 -> FontWeight.Medium
-        5 -> FontWeight.SemiBold
-        6 -> FontWeight.Bold
-        7 -> FontWeight.ExtraBold
-        8 -> FontWeight.Black
-        else -> FontWeight.Normal
-    }
 }

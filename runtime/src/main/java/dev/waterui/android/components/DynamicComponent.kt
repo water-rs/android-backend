@@ -1,41 +1,43 @@
 package dev.waterui.android.components
 
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import dev.waterui.android.runtime.NativeBindings
-import dev.waterui.android.runtime.WuiAnyView
-import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.toTypeId
+import android.widget.FrameLayout
 import dev.waterui.android.reactive.WatcherStructFactory
+import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.WuiRenderer
+import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.register
+import dev.waterui.android.runtime.toTypeId
 
 private val dynamicTypeId: WuiTypeId by lazy { NativeBindings.waterui_dynamic_id().toTypeId() }
 
-private val dynamicRenderer = WuiRenderer { node, env ->
-    val dynamic = remember(node) { NativeBindings.waterui_force_as_dynamic(node.rawPtr) }
-    val currentEnv = rememberUpdatedState(env)
-    val childState = remember { mutableStateOf<Long?>(null) }
+private val dynamicRenderer = WuiRenderer { context, node, env, registry ->
+    val dynamic = NativeBindings.waterui_force_as_dynamic(node.rawPtr)
+    val container = FrameLayout(context)
+    var currentPtr: Long? = null
 
-    DisposableEffect(dynamic) {
-        val watcher = WatcherStructFactory.anyView { pointer, _ ->
-            val previous = childState.value
-            childState.value = pointer
-            if (previous != null && previous != pointer) {
-                NativeBindings.waterui_drop_anyview(previous)
+    val watcher = WatcherStructFactory.anyView { pointer, _ ->
+        container.post {
+            if (currentPtr != pointer) {
+                currentPtr?.let { NativeBindings.waterui_drop_anyview(it) }
+                container.removeAllViews()
+                currentPtr = pointer
+                if (pointer != 0L) {
+                    val child = inflateAnyView(context, pointer, env, registry)
+                    container.addView(child)
+                }
             }
         }
-        NativeBindings.waterui_dynamic_connect(dynamic.dynamicPtr, watcher)
-        onDispose {
-            childState.value?.let { NativeBindings.waterui_drop_anyview(it) }
-            NativeBindings.waterui_drop_dynamic(dynamic.dynamicPtr)
-        }
+    }
+    NativeBindings.waterui_dynamic_connect(dynamic.dynamicPtr, watcher)
+
+    container.disposeWith {
+        currentPtr?.let { NativeBindings.waterui_drop_anyview(it) }
+        NativeBindings.waterui_drop_dynamic(dynamic.dynamicPtr)
     }
 
-    val childPtr = childState.value
-    if (childPtr != null) {
-        WuiAnyView(pointer = childPtr, environment = currentEnv.value)
-    }
+    container
 }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiDynamic() {

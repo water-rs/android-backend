@@ -1,7 +1,5 @@
 package dev.waterui.android.reactive
 
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -10,7 +8,8 @@ import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 
 /**
- * Generic binding wrapper translated from the Swift implementation. Uses Compose state for observation.
+ * Generic binding wrapper translated from the Swift implementation. Exposes
+ * callback-based observation for Android views.
  */
 class WuiBinding<T>(
     bindingPtr: Long,
@@ -19,28 +18,36 @@ class WuiBinding<T>(
     private val watcherFactory: (Long, WatcherCallback<T>) -> WatcherStruct,
     private val watcherRegistrar: (Long, WatcherStruct) -> Long,
     private val dropper: (Long) -> Unit,
-    private val env: WuiEnvironment
+    @Suppress("unused") private val env: WuiEnvironment
 ) : NativePointer(bindingPtr) {
 
-    private val stateDelegate = mutableStateOf(reader(bindingPtr))
     private var watcherGuard: WatcherGuard? = null
     private var syncingFromRust = false
+    private var observer: ((T) -> Unit)? = null
+    private var currentValue: T = reader(bindingPtr)
 
-    val state: State<T> get() = stateDelegate
+    fun current(): T = currentValue
 
-    fun watch() {
+    fun observe(onValue: (T) -> Unit) {
+        observer = onValue
+        onValue(currentValue)
+        ensureWatcher()
+    }
+
+    private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
-        val watcher = watcherFactory(raw()) { value, metadata ->
+        val watcher = watcherFactory(raw()) { value, _ ->
             syncingFromRust = true
-            stateDelegate.value = value
+            currentValue = value
+            observer?.invoke(value)
             syncingFromRust = false
-            // TODO: Handle animation metadata from metadata.animation
         }
         watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
     }
 
     fun set(value: T) {
-        stateDelegate.value = value
+        currentValue = value
+        observer?.invoke(value)
         if (!syncingFromRust) {
             writer(raw(), value)
         }
@@ -50,6 +57,7 @@ class WuiBinding<T>(
         super.close()
         watcherGuard?.close()
         watcherGuard = null
+        observer = null
     }
 
     override fun release(ptr: Long) {
@@ -109,7 +117,7 @@ class WuiBinding<T>(
 }
 
 /**
- * Produces placeholder watcher struct handles. Actual JNI trampoline implementation is pending.
+ * Produces watcher struct handles backed by JNI trampolines.
  */
 object WatcherStructFactory {
     fun bool(callback: WatcherCallback<Boolean>): WatcherStruct {

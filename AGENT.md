@@ -57,7 +57,13 @@ Notes:
 3. **Missing JNI symbols** – After adding font/color resolution helpers we forgot to update
    `WATERUI_SYMBOL_LIST`, so the native build failed with
    `no member named 'waterui_drop_font' in WaterUiSymbols`. Always extend the macro when introducing
-   new FFI functions.
+   new FFI functions. Follow the “fast fail” rule: if the Rust cdylib is missing a required symbol
+   (e.g., `waterui_configure_hot_reload_endpoint`), let JNI throw and rebuild the Rust side instead
+   of adding best-effort fallbacks. This keeps CI honest and prevents silent runtime regressions.
+4. **Don’t hand-edit `waterui.h`** – Regenerate the header via
+   `cargo run -p waterui-ffi --bin generate_header --features cbindgen`. The script writes
+   `ffi/waterui.h` and copies it into this backend’s `runtime/src/main/cpp/waterui.h` as well as the
+   Apple Swift package. Avoid diverging copies; Android CI assumes the header and Rust exports match.
 
 Keep this file up to date so future LLM agents understand the environment, common commands, and
 avoid repeating the same build/debug issues.
