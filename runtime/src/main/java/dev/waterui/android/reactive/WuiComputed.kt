@@ -2,9 +2,11 @@ package dev.waterui.android.reactive
 
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
+import dev.waterui.android.runtime.WuiAnimation
 import dev.waterui.android.runtime.WuiStyledStr
 import dev.waterui.android.runtime.toModel
 
@@ -23,22 +25,26 @@ class WuiComputed<T>(
 
     private var currentValue: T = reader(computedPtr)
     private var watcherGuard: WatcherGuard? = null
-    private var observer: ((T) -> Unit)? = null
+    private var observer: ((T, WuiAnimation) -> Unit)? = null
 
     fun current(): T = currentValue
 
     fun observe(onValue: (T) -> Unit) {
+        observeWithAnimation { value, _ -> onValue(value) }
+    }
+
+    fun observeWithAnimation(onValue: (T, WuiAnimation) -> Unit) {
         observer = onValue
-        onValue(currentValue)
+        onValue(currentValue, WuiAnimation.NONE)
         ensureWatcher()
     }
 
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
-        val watcher = watcherFactory(raw()) { value, _ ->
+        val watcher = watcherFactory(raw()) { value, metadata ->
             val previous = currentValue
             currentValue = value
-            observer?.invoke(value)
+            observer?.invoke(value, metadata.animation)
             valueReleaser(previous)
         }
         watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
@@ -97,6 +103,22 @@ class WuiComputed<T>(
                 env = env
             )
         }
+
+        fun pickerItems(ptr: Long, env: WuiEnvironment): WuiComputed<List<PickerItemStruct>> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { computed ->
+                    NativeBindings.waterui_read_computed_picker_items(computed).toList()
+                },
+                watcherFactory = { _, callback ->
+                    WatcherStructFactory.pickerItems { array, metadata ->
+                        callback.onChanged(array.toList(), metadata)
+                    }
+                },
+                watcherRegistrar = NativeBindings::waterui_watch_computed_picker_items,
+                dropper = NativeBindings::waterui_drop_computed_picker_items,
+                env = env
+            )
 
         fun int(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(

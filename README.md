@@ -81,6 +81,11 @@ renders the view hierarchy once the libraries are present.
   Android UI renders the same content as Swift.
 - Dynamic views, container layout negotiation, and progress bindings mirror the
   logic in `backends/apple`.
+- Text fields respect the keyboard type requested in Rust (secure/email/url/number/phone),
+  and animation metadata now drives default fade transitions for textual/colour
+  updates.
+- Generic picker views render WaterUI `picker()` controls via Android `Spinner`,
+  keeping selections bound to the Rust environment.
 
 See `IMPLEMENTATION_STATUS.md` for the remaining platform gaps.
 
