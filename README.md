@@ -1,21 +1,22 @@
 # WaterUI Android Backend
 
 This Gradle project hosts the Android runtime glue that renders WaterUI view trees
-with Jetpack Compose. The design mirrors the Swift backend: Rust defines the UI,
-exports a C ABI via `waterui-ffi`, and the native platform renders that tree.
+with the platform View system. The design mirrors the Swift backend: Rust
+defines the UI, exports a C ABI via `waterui-ffi`, and the native platform
+renders that tree.
 
 ## Project layout
 
 - `settings.gradle.kts` – standalone Gradle settings so the module can be built
   from the repository root with `./gradlew -p backends/android …`.
-- `runtime/` – Android library that ships the JNI bridge, Kotlin runtime wrappers,
-  and the production Compose renderer set.
+- `runtime/` – Android library that ships the JNI bridge, Kotlin runtime
+  wrappers, and the production Android View renderer set.
   - `src/main/cpp/waterui_jni.cpp` – translates between the C ABI from
     `waterui.h` and JVM-friendly types (`String`, Kotlin data classes, etc.).
   - `src/main/java/dev/waterui/android/runtime/` – Kotlin wrappers (`WuiAnyView`,
     `WuiEnvironment`, layout structs) plus the render registry and entry points.
-  - `src/main/java/dev/waterui/android/components/` – Jetpack Compose renderers
-    for each WaterUI component (text, buttons, sliders, dynamic views, etc.).
+  - `src/main/java/dev/waterui/android/components/` – View-based renderers for
+    each WaterUI component (text, buttons, sliders, dynamic views, etc.).
   - `src/main/java/dev/waterui/android/reactive/` – binding/computed helpers that
     mirror the Swift `Binding`/`Computed` wrappers.
 
@@ -61,54 +62,59 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { WaterUiRoot() }
+        setContentView(WaterUiRootView(this))
     }
 }
 ```
 
-`WaterUiRoot()` (or the lower-level `WaterUIApplication`) still takes care of
-initialising/dropping the Rust environment and rendering the view hierarchy via
-Jetpack Compose once the libraries are present.
+`WaterUiRootView` owns the Rust environment, centres the content by default, and
+renders the view hierarchy once the libraries are present.
 
 ## Current status
 
-- All primitives rendered by the Swift backend now have Compose counterparts:
+- All primitives rendered by the Swift backend now have Android View counterparts:
   text/label views, buttons, toggles, sliders, steppers, scroll views, colours,
   progress indicators, renderer views, spacers, and layout containers.
-- `WuiBinding`/`WuiComputed` Kotlin wrappers watch Rust bindings via JNI so UI
-  stays in sync with the environment without manual polling.
-- Styled text, prompts, and resolved colours flow through the JNI layer so
-  Compose can render the same content as Swift (styling metadata is still
-  flattened to plain `Text` for now).
+- `WuiBinding`/`WuiComputed` Kotlin wrappers watch Rust bindings via JNI so the
+  view tree stays in sync with the environment without manual polling.
+- Styled text, prompts, and resolved colours flow through the JNI layer so the
+  Android UI renders the same content as Swift.
 - Dynamic views, container layout negotiation, and progress bindings mirror the
   logic in `backends/apple`.
 
 See `IMPLEMENTATION_STATUS.md` for the remaining platform gaps.
 
-## Developing alongside the CLI
+## Implementing a new native view (example: Picker)
 
-`water run --platform android` vendors this Gradle project into newly created
-apps. When you change the backend you must regenerate the artifacts so the CLI
-can consume the updated Kotlin/JNI layer:
+1. **Model the view in Rust** – add the Picker to the appropriate crate (for
+   example `components/form`). Conform to `waterui_core::View`, update the view
+   registry, and ensure the Picker can be instantiated from the demo app.
+2. **Expose the type via `waterui-ffi`** – add the Picker struct to
+   `ffi/src/views.rs`, update `ffi/Cargo.toml`, and run `cargo run -p waterui-ffi`
+   to regenerate `ffi/waterui.h`. The exported struct should match the data the
+   Android renderer needs (labels, bindings, ranges, etc.).
+3. **Extend the JNI bridge** – in `backends/android/runtime/src/main/cpp/waterui_jni.cpp`
+   add functions that mirror the new FFI symbols (e.g. `waterui_picker_id`,
+   `waterui_force_as_picker`). Regenerate/commit the corresponding Kotlin data
+   class and type identifiers inside `NativeBindings.kt`.
+4. **Add Kotlin interoperability helpers** – if the Picker uses new pointer types
+   (bindings, computed values, colours), implement the necessary wrappers under
+   `dev.waterui.android.runtime` or `dev.waterui.android.reactive` so the Android
+   View layer can observe or mutate state.
+5. **Create the Android renderer** – add `PickerComponent.kt` under
+   `runtime/src/main/java/dev/waterui/android/components/`. Implement
+   `WuiRenderer` by inflating Android widgets (e.g. `Spinner`, `NumberPicker`)
+   and wiring them to the bindings/computed values you exposed earlier. Remember
+   to call `disposeWith` or `Closeable` helpers so JNI resources are dropped when
+   the view leaves the hierarchy.
+6. **Register the renderer** – call `registerWuiPicker()` from
+   `RenderRegistry.defaultComponents`. The registry resolves type IDs obtained
+   from the Rust tree and instantiates the corresponding View hierarchy.
+7. **Test end-to-end** – rebuild the runtime
+   (`./gradlew -p backends/android runtime:assembleDebug`), copy the backend into
+   your sample WaterUI app, and run `water run --platform android` to verify the
+   Picker appears and syncs with the Rust environment.
 
-1. Build the updated runtime (both Kotlin and C++) with:
-   ```bash
-   ./gradlew -p backends/android runtime:assembleDebug
-   ```
-2. Copy or rsync the refreshed `backends/android` directory into your test
-   project (e.g. replace `<app>/backends/android`).
-3. Re-run the CLI (`water run --platform android`) so it reuses the new backend.
-
-If Gradle complains that `project :backends:android` has no variants, double-check
-that the copied folder still contains both the root `build.gradle.kts` and the
-`runtime/` module. Missing either file leaves the consumer project with an empty
-Android library module, which causes the variant error observed during builds.
-
-## Troubleshooting
-
-- **`JNI DETECTED ERROR … ChildMetadataStruct;.isStretch()`** – the JNI shim calls
-  `ChildMetadataStruct.isStretch()` when marshaling layout metadata. If the Kotlin
-  runtime you vendored doesn't expose that method (older backends relied on the
-  auto-generated getter), Compose will crash as soon as a spacer participates in
-  layout negotiation. Build and copy a fresh backend (`./gradlew -p backends/android runtime:assembleDebug`)
-  so the updated data class with the explicit `isStretch()` method ships with your app.
+`waterui-ffi` acts as the contract between Rust and Kotlin. Any time you add or
+change a native view you must update the FFI struct, regenerate `waterui.h`, and
+keep the JNI/Kotlin mirrors in lockstep to avoid crashes.

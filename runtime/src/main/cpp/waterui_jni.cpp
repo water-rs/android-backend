@@ -94,9 +94,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_text_field_id)                                                                   \
     X(waterui_text_id)                                                                         \
     X(waterui_toggle_id)                                                                       \
-    X(waterui_view_body)                                                                       \
     X(waterui_configure_hot_reload_directory)                                                  \
     X(waterui_configure_hot_reload_endpoint)                                                   \
+    X(waterui_view_body)                                                                       \
     X(waterui_view_id)                                                                         \
     X(waterui_watch_binding_bool)                                                              \
     X(waterui_watch_binding_f64)                                                               \
@@ -181,7 +181,6 @@ Java_dev_waterui_android_runtime_NativeBindings_bootstrapNativeBindings(
     }
     WATERUI_SYMBOL_LIST(LOAD_SYMBOL)
 #undef LOAD_SYMBOL
-
     g_symbols_ready = true;
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Bound WaterUI symbols from %s", so_name.c_str());
 }

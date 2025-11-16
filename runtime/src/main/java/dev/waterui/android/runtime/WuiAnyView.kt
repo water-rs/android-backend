@@ -1,42 +1,39 @@
 package dev.waterui.android.runtime
 
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import dev.waterui.android.components.WuiRenderer
+import android.content.Context
+import android.widget.TextView
 
 /**
- * Compose entry point that renders an opaque `AnyView` from the Rust view tree.
+ * Entry point that inflates an opaque `AnyView` from the Rust view tree into a
+ * concrete Android [android.view.View].
  */
-@Composable
-fun WuiAnyView(
+fun inflateAnyView(
+    context: Context,
     pointer: Long,
     environment: WuiEnvironment,
-    registry: RenderRegistry = remember { RenderRegistry.default() }
-) {
-    val typeId = remember(pointer) { NativeBindings.waterui_view_id(pointer).toTypeId() }
-    val node = remember(pointer, typeId) { WuiNode(pointer, typeId) }
-    val currentRegistry = rememberUpdatedState(registry)
-    val renderer: WuiRenderer? = remember(typeId, currentRegistry.value) {
-        currentRegistry.value.resolve(typeId)
-    }
+    registry: RenderRegistry = RenderRegistry.default()
+): android.view.View {
+    val typeId = NativeBindings.waterui_view_id(pointer).toTypeId()
+    val node = WuiNode(pointer, typeId)
+    val renderer = registry.resolve(typeId)
 
     if (renderer != null) {
-        renderer(node, environment)
-    } else {
-        val fallbackPtr = remember(pointer) {
-            NativeBindings.waterui_view_body(pointer, environment.raw()).takeIf { it != 0L }
-        }
-        if (fallbackPtr != null) {
-            WuiAnyView(pointer = fallbackPtr, environment = environment, registry = registry)
-        } else {
-            MissingComponent(typeId)
-        }
+        return renderer.createView(context, node, environment, registry)
     }
+
+    val fallbackPtr = NativeBindings.waterui_view_body(pointer, environment.raw())
+    if (fallbackPtr != 0L) {
+        return inflateAnyView(context, fallbackPtr, environment, registry)
+    }
+
+    return MissingComponentView(context, typeId)
 }
 
-@Composable
-private fun MissingComponent(typeId: WuiTypeId) {
-    Text("TODO: Missing component for typeId=${'$'}typeId")
+private class MissingComponentView(
+    context: Context,
+    typeId: WuiTypeId
+) : TextView(context) {
+    init {
+        text = "Missing component for typeId=${'$'}typeId"
+    }
 }

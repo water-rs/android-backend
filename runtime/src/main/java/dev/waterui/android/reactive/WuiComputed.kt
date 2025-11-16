@@ -1,7 +1,5 @@
 package dev.waterui.android.reactive
 
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -24,19 +22,24 @@ class WuiComputed<T>(
 ) : NativePointer(computedPtr) {
 
     private var currentValue: T = reader(computedPtr)
-    private val stateDelegate = mutableStateOf(currentValue)
     private var watcherGuard: WatcherGuard? = null
+    private var observer: ((T) -> Unit)? = null
 
-    val state: State<T> get() = stateDelegate
+    fun current(): T = currentValue
 
-    fun watch() {
+    fun observe(onValue: (T) -> Unit) {
+        observer = onValue
+        onValue(currentValue)
+        ensureWatcher()
+    }
+
+    private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
-        val watcher = watcherFactory(raw()) { value, metadata ->
+        val watcher = watcherFactory(raw()) { value, _ ->
             val previous = currentValue
             currentValue = value
-            stateDelegate.value = value
+            observer?.invoke(value)
             valueReleaser(previous)
-            // TODO: Handle animation metadata (metadata.animation)
         }
         watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
     }
@@ -48,6 +51,7 @@ class WuiComputed<T>(
         super.close()
         watcherGuard?.close()
         watcherGuard = null
+        observer = null
     }
 
     override fun release(ptr: Long) {
