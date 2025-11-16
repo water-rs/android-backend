@@ -1,12 +1,13 @@
 package dev.waterui.android.runtime
 
-import androidx.compose.runtime.Immutable
+import android.content.Context
+import android.view.View
 import dev.waterui.android.components.*
 
 /**
- * Registry of known view types. Compose components register themselves via [defaultComponents].
+ * Registry of known view renderers. Each renderer creates a concrete Android [View]
+ * for a WaterUI node.
  */
-@Immutable
 class RenderRegistry private constructor(
     private val entries: Map<WuiTypeId, WuiRenderer>
 ) {
@@ -21,7 +22,15 @@ class RenderRegistry private constructor(
 }
 
 /**
- * Simple node descriptor that wraps the native pointer and metadata we receive via JNI.
+ * Functional renderer for a WaterUI node. Implementations must return a fully
+ * configured [View] hierarchy rooted at a platform widget.
+ */
+fun interface WuiRenderer {
+    fun createView(context: Context, node: WuiNode, env: WuiEnvironment, registry: RenderRegistry): View
+}
+
+/**
+ * Simple node descriptor that wraps the native pointer and metadata received via JNI.
  */
 data class WuiNode(
     val rawPtr: Long,
@@ -29,8 +38,7 @@ data class WuiNode(
 )
 
 /**
- * Populated lazily to avoid referencing components before they are defined. Each component contributes
- * its ID provider via `registerX` functions (see the bottom of the file).
+ * Populated lazily to avoid referencing components before they are defined.
  */
 private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
     buildMap {
@@ -50,4 +58,14 @@ private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
         registerWuiSlider()
         registerWuiRendererView()
     }
+}
+
+/**
+ * Convenience extension for populating a registry map.
+ */
+fun MutableMap<WuiTypeId, WuiRenderer>.register(
+    idProvider: () -> WuiTypeId,
+    renderer: WuiRenderer
+) {
+    put(idProvider(), renderer)
 }

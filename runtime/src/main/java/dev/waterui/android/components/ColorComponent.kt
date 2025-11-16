@@ -1,39 +1,26 @@
 package dev.waterui.android.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
+import android.view.View
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
 
 private val colorTypeId: WuiTypeId by lazy { NativeBindings.waterui_color_id().toTypeId() }
 
-private val colorRenderer = WuiRenderer { node, env ->
-    val struct = remember(node) { NativeBindings.waterui_force_as_color(node.rawPtr) }
-    val computed = remember(struct.colorPtr, env) {
-        WuiComputed.resolvedColor(struct.colorPtr, env).also { it.watch() }
+private val colorRenderer = WuiRenderer { context, node, env, _ ->
+    val struct = NativeBindings.waterui_force_as_color(node.rawPtr)
+    val computed = WuiComputed.resolvedColor(struct.colorPtr, env)
+    val view = View(context)
+    computed.observe { color ->
+        view.setBackgroundColor(color.toColorInt())
     }
-    val colorState = computed.state
-
-    DisposableEffect(computed) {
-        onDispose { computed.close() }
-    }
-
-    val color = androidx.compose.ui.graphics.Color(
-        red = colorState.value.red,
-        green = colorState.value.green,
-        blue = colorState.value.blue,
-        alpha = colorState.value.opacity
-    )
-    Box(
-        modifier = androidx.compose.ui.Modifier
-            .fillMaxSize()
-            .background(color)
-    )
+    view.disposeWith(computed)
+    view
 }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiColor() {

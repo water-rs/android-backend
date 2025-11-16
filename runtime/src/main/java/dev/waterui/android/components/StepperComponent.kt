@@ -1,69 +1,66 @@
 package dev.waterui.android.components
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import android.view.Gravity
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
-import dev.waterui.android.runtime.WuiAnyView
+import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
 
 private val stepperTypeId: WuiTypeId by lazy { NativeBindings.waterui_stepper_id().toTypeId() }
 
-private val stepperRenderer = WuiRenderer { node, env ->
-    val struct = remember(node) { NativeBindings.waterui_force_as_stepper(node.rawPtr) }
-    val binding = remember(struct.bindingPtr) {
-        WuiBinding.int(struct.bindingPtr, env).also { it.watch() }
-    }
-    val stepComputed = remember(struct.stepPtr, env) {
-        struct.stepPtr.takeIf { it != 0L }?.let {
-            WuiComputed.int(it, env).also { computed -> computed.watch() }
-        }
-    }
-    val valueState = binding.state
-    val stepValue = stepComputed?.state?.value ?: 1
+private val stepperRenderer = WuiRenderer { context, node, env, registry ->
+    val struct = NativeBindings.waterui_force_as_stepper(node.rawPtr)
+    val binding = WuiBinding.int(struct.bindingPtr, env)
+    val stepComputed = struct.stepPtr.takeIf { it != 0L }?.let { WuiComputed.int(it, env) }
     val rangeStart = struct.rangeStart
     val rangeEnd = struct.rangeEnd
 
-    DisposableEffect(binding) {
-        onDispose { binding.close() }
-    }
-    DisposableEffect(stepComputed) {
-        onDispose { stepComputed?.close() }
+    val container = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
     }
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (struct.labelPtr != 0L) {
-            WuiAnyView(pointer = struct.labelPtr, environment = env)
-            Spacer(modifier = Modifier.width(8.dp))
-        }
-        TextButton(onClick = {
-            val newValue = (valueState.value - stepValue).coerceAtLeast(rangeStart)
-            binding.set(newValue)
-        }) {
-            Text("-")
-        }
-        Text(valueState.value.toString())
-        TextButton(onClick = {
-            val newValue = (valueState.value + stepValue).coerceAtMost(rangeEnd)
-            binding.set(newValue)
-        }) {
-            Text("+")
-        }
+    if (struct.labelPtr != 0L) {
+        val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
+        container.addView(labelView)
     }
+
+    val decrement = Button(context).apply { text = "-" }
+    val increment = Button(context).apply { text = "+" }
+    val valueView = TextView(context)
+
+    container.addView(decrement)
+    container.addView(valueView)
+    container.addView(increment)
+
+    var stepValue = 1
+    stepComputed?.observe { value -> stepValue = value }
+
+    binding.observe { value ->
+        valueView.text = value.toString()
+    }
+
+    decrement.setOnClickListener {
+        val newValue = (binding.current() - stepValue).coerceAtLeast(rangeStart)
+        binding.set(newValue)
+    }
+
+    increment.setOnClickListener {
+        val newValue = (binding.current() + stepValue).coerceAtMost(rangeEnd)
+        binding.set(newValue)
+    }
+
+    container.disposeWith(binding)
+    stepComputed?.let { container.disposeWith(it) }
+    container
 }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiStepper() {
