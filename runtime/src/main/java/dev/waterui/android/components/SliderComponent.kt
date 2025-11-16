@@ -1,15 +1,19 @@
 package dev.waterui.android.components
 
+import android.content.res.ColorStateList
 import android.view.Gravity
 import android.widget.LinearLayout
 import com.google.android.material.slider.Slider
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.register
+import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeId
 
 private val sliderTypeId: WuiTypeId by lazy { NativeBindings.waterui_slider_id().toTypeId() }
@@ -67,6 +71,19 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
             binding.set(newValue.toDouble())
         }
     }
+    val accent = ThemeBridge.accent(env)
+    accent.observe { color ->
+        val tint = ColorStateList.valueOf(color.toColorInt())
+        slider.thumbTintList = tint
+        slider.trackActiveTintList = tint
+        slider.haloTintList = tint
+    }
+    accent.attachTo(slider)
+    val border = ThemeBridge.border(env)
+    border.observe { color ->
+        slider.trackInactiveTintList = ColorStateList.valueOf(color.toColorInt())
+    }
+    border.attachTo(slider)
 
     container.disposeWith(binding)
     container

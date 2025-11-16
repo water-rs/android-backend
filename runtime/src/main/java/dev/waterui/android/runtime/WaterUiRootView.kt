@@ -3,6 +3,7 @@ package dev.waterui.android.runtime
 import android.content.Context
 import android.util.AttributeSet
 import android.view.ViewGroup
+import dev.waterui.android.reactive.WuiComputed
 
 /**
  * Root view that owns the WaterUI environment and inflates the Rust-driven
@@ -16,6 +17,7 @@ class WaterUiRootView @JvmOverloads constructor(
     private var registry: RenderRegistry = RenderRegistry.default()
     private var environment: WuiEnvironment? = null
     private val rootPtr: Long = NativeBindings.waterui_main()
+    private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
         registry = renderRegistry
@@ -46,10 +48,13 @@ class WaterUiRootView @JvmOverloads constructor(
         removeAllViews()
         environment?.close()
         environment = null
+        backgroundTheme?.close()
+        backgroundTheme = null
     }
 
     private fun renderRoot() {
         val env = environment ?: return
+        ensureTheme(env)
         removeAllViews()
         if (rootPtr == 0L) {
             return
@@ -57,5 +62,18 @@ class WaterUiRootView @JvmOverloads constructor(
         val child = inflateAnyView(context, rootPtr, env, registry)
         val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         addView(child, params)
+    }
+
+    private fun ensureTheme(env: WuiEnvironment) {
+        if (backgroundTheme != null) return
+        val theme = ThemeBridge.background(env)
+        theme.observeWithAnimation { color, animation ->
+            val colorInt = color.toColorInt()
+            this@WaterUiRootView.applyRustAnimation(animation) {
+                setBackgroundColor(colorInt)
+            }
+        }
+        theme.attachTo(this)
+        backgroundTheme = theme
     }
 }

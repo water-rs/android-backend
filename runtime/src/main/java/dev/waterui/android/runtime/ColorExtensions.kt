@@ -10,3 +10,9 @@ fun ResolvedColorStruct.toColorInt(): Int {
     val b = (blue.coerceIn(0f, 1f) * 255f).roundToInt()
     return Color.argb(a, r, g, b)
 }
+
+fun Int.withAlpha(alpha: Float): Int {
+    val clamped = alpha.coerceIn(0f, 1f)
+    val a = (Color.alpha(this) * clamped).roundToInt()
+    return Color.argb(a, Color.red(this), Color.green(this), Color.blue(this))
+}

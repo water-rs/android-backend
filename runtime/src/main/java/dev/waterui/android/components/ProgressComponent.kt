@@ -1,15 +1,19 @@
 package dev.waterui.android.components
 
+import android.content.res.ColorStateList
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.register
+import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeId
 import kotlin.math.roundToInt
 
@@ -60,6 +64,18 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     computed?.let { container.disposeWith(it) }
+    val accent = ThemeBridge.accent(env)
+    accent.observe { color ->
+        val tint = ColorStateList.valueOf(color.toColorInt())
+        progressBar.progressTintList = tint
+        progressBar.indeterminateTintList = tint
+    }
+    accent.attachTo(progressBar)
+    val border = ThemeBridge.border(env)
+    border.observe { color ->
+        progressBar.secondaryProgressTintList = ColorStateList.valueOf(color.toColorInt())
+    }
+    border.attachTo(progressBar)
     container
 }
 

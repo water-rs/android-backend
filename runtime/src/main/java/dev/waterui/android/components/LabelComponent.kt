@@ -1,19 +1,34 @@
 package dev.waterui.android.components
 
+import android.util.TypedValue
 import android.widget.TextView
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.register
+import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.toTypeface
 import dev.waterui.android.runtime.toTypeId
 
 private val labelTypeId: WuiTypeId by lazy { NativeBindings.waterui_plain_id().toTypeId() }
 
-private val labelRenderer = WuiRenderer { context, node, _, _ ->
+private val labelRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_plain(node.rawPtr)
-    TextView(context).apply {
+    val textView = TextView(context).apply {
         text = struct.textBytes.decodeToString()
     }
+    val color = ThemeBridge.foreground(env)
+    color.observe { resolved -> textView.setTextColor(resolved.toColorInt()) }
+    color.attachTo(textView)
+    val font = ThemeBridge.bodyFont(env)
+    font.observe { resolved ->
+        textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, resolved.size)
+        textView.typeface = resolved.toTypeface()
+    }
+    font.attachTo(textView)
+    textView
 }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiPlain() {
