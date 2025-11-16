@@ -1,0 +1,35 @@
+name: Prepare Android Release PR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backends/android/**'
+      - 'backends/android/release-please-config.json'
+      - 'backends/android/release-please-manifest.json'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: android-release-pr
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    name: Open release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create or update release PR
+        uses: google-github-actions/release-please-action@v4
+        with:
+          command: release-pr
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: backends/android/release-please-config.json
+          manifest-file: backends/android/release-please-manifest.json
