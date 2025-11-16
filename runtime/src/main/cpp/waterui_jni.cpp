@@ -79,6 +79,20 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_read_computed_resolved_color)                                                    \
     X(waterui_read_computed_styled_str)                                                        \
     X(waterui_read_computed_picker_items)                                                      \
+    X(waterui_theme_color_background)                                                          \
+    X(waterui_theme_color_surface)                                                             \
+    X(waterui_theme_color_surface_variant)                                                     \
+    X(waterui_theme_color_border)                                                              \
+    X(waterui_theme_color_foreground)                                                          \
+    X(waterui_theme_color_muted_foreground)                                                    \
+    X(waterui_theme_color_accent)                                                              \
+    X(waterui_theme_color_accent_foreground)                                                   \
+    X(waterui_theme_font_body)                                                                 \
+    X(waterui_theme_font_title)                                                                \
+    X(waterui_theme_font_headline)                                                             \
+    X(waterui_theme_font_subheadline)                                                          \
+    X(waterui_theme_font_caption)                                                              \
+    X(waterui_theme_font_footnote)                                                             \
     X(waterui_renderer_view_height)                                                            \
     X(waterui_renderer_view_id)                                                                \
     X(waterui_renderer_view_preferred_format)                                                  \
@@ -984,6 +998,38 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1env(
     WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);
     g_wui.waterui_drop_env(env);
 }
+
+#define DEFINE_THEME_COLOR_FN(javaName, symbol)                                               \
+JNIEXPORT jlong JNICALL                                                                         \
+Java_dev_waterui_android_runtime_NativeBindings_##javaName(                                    \
+    JNIEnv *, jclass, jlong env_ptr) {                                                         \
+    WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);                                               \
+    return ptr_to_jlong(g_wui.symbol(env));                                                    \
+}
+
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1background, waterui_theme_color_background)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1surface, waterui_theme_color_surface)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1surface_1variant, waterui_theme_color_surface_variant)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1border, waterui_theme_color_border)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1foreground, waterui_theme_color_foreground)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1muted_1foreground, waterui_theme_color_muted_foreground)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1accent, waterui_theme_color_accent)
+DEFINE_THEME_COLOR_FN(waterui_1theme_1color_1accent_1foreground, waterui_theme_color_accent_foreground)
+
+#define DEFINE_THEME_FONT_FN(javaName, symbol)                                                \
+JNIEXPORT jlong JNICALL                                                                         \
+Java_dev_waterui_android_runtime_NativeBindings_##javaName(                                    \
+    JNIEnv *, jclass, jlong env_ptr) {                                                         \
+    WuiEnv *env = jlong_to_ptr<WuiEnv>(env_ptr);                                               \
+    return ptr_to_jlong(g_wui.symbol(env));                                                    \
+}
+
+DEFINE_THEME_FONT_FN(waterui_1theme_1font_1body, waterui_theme_font_body)
+DEFINE_THEME_FONT_FN(waterui_1theme_1font_1title, waterui_theme_font_title)
+DEFINE_THEME_FONT_FN(waterui_1theme_1font_1headline, waterui_theme_font_headline)
+DEFINE_THEME_FONT_FN(waterui_1theme_1font_1subheadline, waterui_theme_font_subheadline)
+DEFINE_THEME_FONT_FN(waterui_1theme_1font_1caption, waterui_theme_font_caption)
+DEFINE_THEME_FONT_FN(waterui_1theme_1font_1footnote, waterui_theme_font_footnote)
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1anyview(

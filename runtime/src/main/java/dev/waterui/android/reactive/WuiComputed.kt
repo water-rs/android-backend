@@ -129,5 +129,27 @@ class WuiComputed<T>(
                 dropper = NativeBindings::waterui_drop_computed_i32,
                 env = env
             )
+
+        fun colorFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = NativeBindings::waterui_read_computed_resolved_color,
+                watcherFactory = { _, callback -> WatcherStructFactory.resolvedColor(callback) },
+                watcherRegistrar = NativeBindings::waterui_watch_computed_resolved_color,
+                dropper = NativeBindings::waterui_drop_computed_resolved_color,
+                env = env
+            )
+
+        fun fontFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = NativeBindings::waterui_read_computed_resolved_font,
+                watcherFactory = { _, callback -> WatcherStructFactory.int { value, metadata ->
+                    callback.onChanged(ResolvedFontStruct(value.toFloat(), 3), metadata) // placeholder
+                } },
+                watcherRegistrar = NativeBindings::waterui_watch_computed_resolved_font,
+                dropper = NativeBindings::waterui_drop_computed_resolved_font,
+                env = env
+            )
     }
 }
