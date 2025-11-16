@@ -80,6 +80,7 @@ internal object NativeBindings {
     external fun waterui_create_any_view_watcher(callback: WatcherCallback<Long>): WatcherStruct
     external fun waterui_create_styled_str_watcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
     external fun waterui_create_resolved_color_watcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
+    external fun waterui_create_resolved_font_watcher(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
     external fun waterui_create_picker_items_watcher(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct
 
     external fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean)
@@ -113,6 +114,7 @@ internal object NativeBindings {
     external fun waterui_read_computed_styled_str(computedPtr: Long): StyledStrStruct
     external fun waterui_watch_computed_styled_str(computedPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_drop_computed_styled_str(computedPtr: Long)
+    external fun waterui_watch_computed_resolved_font(computedPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_read_computed_picker_items(computedPtr: Long): Array<PickerItemStruct>
     external fun waterui_watch_computed_picker_items(computedPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_drop_computed_picker_items(computedPtr: Long)

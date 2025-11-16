@@ -122,6 +122,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_watch_binding_str)                                                               \
     X(waterui_watch_computed_f64)                                                              \
     X(waterui_watch_computed_i32)                                                              \
+    X(waterui_watch_computed_resolved_font)                                                    \
     X(waterui_watch_computed_resolved_color)                                                   \
     X(waterui_watch_computed_styled_str)                                                       \
     X(waterui_watch_computed_picker_items)
@@ -572,6 +573,14 @@ jobject new_resolved_color(JNIEnv *env, const WuiResolvedColor &color) {
     return obj;
 }
 
+jobject new_resolved_font(JNIEnv *env, const WuiResolvedFont &font) {
+    jclass cls = env->FindClass("dev/waterui/android/runtime/ResolvedFontStruct");
+    jmethodID ctor = env->GetMethodID(cls, "<init>", "(FI)V");
+    jobject obj = env->NewObject(cls, ctor, font.size, static_cast<jint>(font.weight));
+    env->DeleteLocalRef(cls);
+    return obj;
+}
+
 jobject new_text_style(JNIEnv *env, const WuiTextStyle &style, jclass cls, jmethodID ctor) {
     return env->NewObject(
         cls,
@@ -816,6 +825,23 @@ void watcher_resolved_color_call(const void *data, WuiResolvedColor value, WuiWa
 }
 
 void watcher_resolved_color_drop(void *data) {
+    ScopedEnv scoped;
+    drop_watcher_state(scoped.env, static_cast<WatcherCallbackState *>(data));
+}
+
+void watcher_resolved_font_call(const void *data, WuiResolvedFont value, WuiWatcherMetadata *metadata) {
+    ScopedEnv scoped;
+    if (scoped.env == nullptr) {
+        g_wui.waterui_drop_watcher_metadata(metadata);
+        return;
+    }
+    auto *state = static_cast<WatcherCallbackState const *>(data);
+    jobject font_obj = new_resolved_font(scoped.env, value);
+    invoke_watcher(scoped.env, const_cast<WatcherCallbackState *>(state), font_obj, metadata);
+    scoped.env->DeleteLocalRef(font_obj);
+}
+
+void watcher_resolved_font_drop(void *data) {
     ScopedEnv scoped;
     drop_watcher_state(scoped.env, static_cast<WatcherCallbackState *>(data));
 }
@@ -1189,6 +1215,17 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1resolved_1color
 }
 
 JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1resolved_1font_1watcher(
+    JNIEnv *env, jclass, jobject callback) {
+    auto *state = create_watcher_state(env, callback);
+    return new_watcher_struct(
+        env,
+        ptr_to_jlong(state),
+        ptr_to_jlong(reinterpret_cast<void *>(watcher_resolved_font_call)),
+        ptr_to_jlong(reinterpret_cast<void *>(watcher_resolved_font_drop)));
+}
+
+JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1picker_1items_1watcher(
     JNIEnv *env, jclass, jobject callback) {
     auto *state = create_watcher_state(env, callback);
@@ -1496,6 +1533,21 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1resolve
     jobject obj = env->NewObject(cls, ctor, font.size, static_cast<jint>(font.weight));
     env->DeleteLocalRef(cls);
     return obj;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolved_1font(
+    JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
+    auto *computed = jlong_to_ptr<WuiComputed_ResolvedFont>(computed_ptr);
+    WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
+    WuiWatcher_WuiResolvedFont watcher{};
+    watcher.data = jlong_to_ptr<void>(fields.data);
+    watcher.call = reinterpret_cast<void (*)(const void *, WuiResolvedFont, WuiWatcherMetadata *)>(fields.call);
+    watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
+    return ptr_to_jlong(
+        g_wui.waterui_watch_computed_resolved_font(
+            reinterpret_cast<const Computed_ResolvedFont *>(computed),
+            watcher));
 }
 
 JNIEXPORT void JNICALL

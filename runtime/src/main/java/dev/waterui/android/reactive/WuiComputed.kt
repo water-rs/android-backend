@@ -4,6 +4,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
+import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
@@ -144,9 +145,7 @@ class WuiComputed<T>(
             WuiComputed(
                 computedPtr = ptr,
                 reader = NativeBindings::waterui_read_computed_resolved_font,
-                watcherFactory = { _, callback -> WatcherStructFactory.int { value, metadata ->
-                    callback.onChanged(ResolvedFontStruct(value.toFloat(), 3), metadata) // placeholder
-                } },
+                watcherFactory = { _, callback -> WatcherStructFactory.resolvedFont(callback) },
                 watcherRegistrar = NativeBindings::waterui_watch_computed_resolved_font,
                 dropper = NativeBindings::waterui_drop_computed_resolved_font,
                 env = env

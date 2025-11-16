@@ -1,6 +1,7 @@
 package dev.waterui.android.runtime
 
 import android.graphics.Typeface
+import android.os.Build
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
@@ -160,4 +161,25 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
         foreground = foregroundColor,
         background = backgroundColor
     )
+}
+
+fun ResolvedFontStruct.toTypeface(): Typeface {
+    val weightValue = when (weight) {
+        0 -> 100
+        1 -> 200
+        2 -> 300
+        3 -> 400
+        4 -> 500
+        5 -> 600
+        6 -> 700
+        7 -> 800
+        8 -> 900
+        else -> 400
+    }
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        Typeface.create(Typeface.DEFAULT, weightValue, false)
+    } else {
+        val style = if (weightValue >= 600) Typeface.BOLD else Typeface.NORMAL
+        Typeface.create(Typeface.DEFAULT, style)
+    }
 }

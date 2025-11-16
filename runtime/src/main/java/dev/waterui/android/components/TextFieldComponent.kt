@@ -1,19 +1,26 @@
 package dev.waterui.android.components
 
+import android.content.res.ColorStateList
 import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
 import androidx.appcompat.widget.AppCompatEditText
+import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
+import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.register
+import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeId
+import dev.waterui.android.runtime.dp
 
 private val textFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_text_field_id().toTypeId() }
 
@@ -49,6 +56,13 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         )
     }
     container.addView(editText)
+    val shape = MaterialShapeDrawable().apply {
+        val radius = 12f.dp(context)
+        val strokeWidth = 1f.dp(context)
+        setCornerSize(radius)
+        this.strokeWidth = strokeWidth
+    }
+    ViewCompat.setBackground(editText, shape)
 
     var updating = false
     binding.observe { value ->
@@ -70,6 +84,26 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     promptComputed?.observe { prompt ->
         editText.hint = prompt.toCharSequence(env)
     }
+
+    val surfaceColor = ThemeBridge.surface(env)
+    surfaceColor.observe { color ->
+        shape.fillColor = ColorStateList.valueOf(color.toColorInt())
+    }
+    surfaceColor.attachTo(editText)
+
+    val borderColor = ThemeBridge.border(env)
+    borderColor.observe { color ->
+        shape.setStroke(shape.strokeWidth, color.toColorInt())
+    }
+    borderColor.attachTo(editText)
+
+    val foreground = ThemeBridge.foreground(env)
+    foreground.observe { color -> editText.setTextColor(color.toColorInt()) }
+    foreground.attachTo(editText)
+
+    val hintColor = ThemeBridge.mutedForeground(env)
+    hintColor.observe { color -> editText.setHintTextColor(color.toColorInt()) }
+    hintColor.attachTo(editText)
 
     container.disposeWith(binding)
     promptComputed?.let { container.disposeWith(it) }
