@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.text.InputType
+import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.widget.addTextChangedListener
@@ -16,6 +17,13 @@ import dev.waterui.android.runtime.toTypeId
 
 private val textFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_text_field_id().toTypeId() }
 
+private const val KEYBOARD_TEXT = 0
+private const val KEYBOARD_SECURE = 1
+private const val KEYBOARD_EMAIL = 2
+private const val KEYBOARD_URL = 3
+private const val KEYBOARD_NUMBER = 4
+private const val KEYBOARD_PHONE = 5
+
 private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_text_field(node.rawPtr)
     val binding = WuiBinding.str(struct.valuePtr, env)
@@ -29,7 +37,12 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     container.addView(labelView)
 
     val editText = AppCompatEditText(context).apply {
-        inputType = InputType.TYPE_CLASS_TEXT
+        inputType = resolveInputType(struct.keyboardType)
+        if (struct.keyboardType == KEYBOARD_SECURE) {
+            transformationMethod = PasswordTransformationMethod.getInstance()
+        } else {
+            transformationMethod = null
+        }
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -62,6 +75,16 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     promptComputed?.let { container.disposeWith(it) }
     container
 }
+
+private fun resolveInputType(keyboardType: Int): Int =
+    when (keyboardType) {
+        KEYBOARD_SECURE -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        KEYBOARD_EMAIL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        KEYBOARD_URL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        KEYBOARD_NUMBER -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        KEYBOARD_PHONE -> InputType.TYPE_CLASS_PHONE
+        else -> InputType.TYPE_CLASS_TEXT
+    }
 
 internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiTextField() {
     register({ textFieldTypeId }, textFieldRenderer)

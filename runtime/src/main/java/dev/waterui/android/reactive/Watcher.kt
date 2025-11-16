@@ -2,6 +2,7 @@ package dev.waterui.android.reactive
 
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.WuiAnimation
 
 /**
  * Holder around native watcher metadata. Manages drop semantics.
@@ -13,7 +14,7 @@ class WatcherGuard(pointer: Long) : NativePointer(pointer) {
 }
 
 data class WuiWatcherMetadata(val pointer: Long) {
-    val animation: Int get() = NativeBindings.waterui_get_animation(pointer)
+    val animation: WuiAnimation get() = WuiAnimation.fromNative(NativeBindings.waterui_get_animation(pointer))
 }
 
 fun interface WatcherCallback<T> {

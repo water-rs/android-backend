@@ -5,6 +5,7 @@ import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.register
@@ -16,8 +17,11 @@ private val colorRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_color(node.rawPtr)
     val computed = WuiComputed.resolvedColor(struct.colorPtr, env)
     val view = View(context)
-    computed.observe { color ->
-        view.setBackgroundColor(color.toColorInt())
+    computed.observeWithAnimation { color, animation ->
+        val colorInt = color.toColorInt()
+        view.applyRustAnimation(animation) {
+            view.setBackgroundColor(colorInt)
+        }
     }
     view.disposeWith(computed)
     view

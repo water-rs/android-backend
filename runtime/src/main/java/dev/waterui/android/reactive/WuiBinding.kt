@@ -2,10 +2,12 @@ package dev.waterui.android.reactive
 
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.StyledStrStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
+import dev.waterui.android.runtime.WuiAnimation
 
 /**
  * Generic binding wrapper translated from the Swift implementation. Exposes
@@ -23,23 +25,27 @@ class WuiBinding<T>(
 
     private var watcherGuard: WatcherGuard? = null
     private var syncingFromRust = false
-    private var observer: ((T) -> Unit)? = null
+    private var observer: ((T, WuiAnimation) -> Unit)? = null
     private var currentValue: T = reader(bindingPtr)
 
     fun current(): T = currentValue
 
     fun observe(onValue: (T) -> Unit) {
+        observeWithAnimation { value, _ -> onValue(value) }
+    }
+
+    fun observeWithAnimation(onValue: (T, WuiAnimation) -> Unit) {
         observer = onValue
-        onValue(currentValue)
+        onValue(currentValue, WuiAnimation.NONE)
         ensureWatcher()
     }
 
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
-        val watcher = watcherFactory(raw()) { value, _ ->
+        val watcher = watcherFactory(raw()) { value, metadata ->
             syncingFromRust = true
             currentValue = value
-            observer?.invoke(value)
+            observer?.invoke(value, metadata.animation)
             syncingFromRust = false
         }
         watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
@@ -47,7 +53,7 @@ class WuiBinding<T>(
 
     fun set(value: T) {
         currentValue = value
-        observer?.invoke(value)
+        observer?.invoke(value, WuiAnimation.NONE)
         if (!syncingFromRust) {
             writer(raw(), value)
         }
@@ -146,5 +152,9 @@ object WatcherStructFactory {
 
     fun resolvedColor(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct {
         return NativeBindings.waterui_create_resolved_color_watcher(callback)
+    }
+
+    fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
+        return NativeBindings.waterui_create_picker_items_watcher(callback)
     }
 }

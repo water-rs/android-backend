@@ -40,11 +40,12 @@ by the WaterUI Rust crates. Status codes:
 | --- | --- | --- |
 | Button (`waterui_button`) | ✅ complete | Calls native action on click and drops the action handle when disposed. |
 | Progress view (`waterui_progress`) | ✅ complete | Binds to computed progress value and renders label/value-label children. |
-| Text field (`waterui_text_field`) | ⚠️ partial | Two-way binding and prompt text work; keyboard types still TODO. |
+| Text field (`waterui_text_field`) | ✅ complete | Two-way binding, prompt text, and keyboard type mappings (text/secure/email/url/number/phone) are implemented. |
 | Toggle (`waterui_toggle`) | ✅ complete | Boolean binding stays in sync with native state. |
 | Slider (`waterui_slider`) | ✅ complete | Double binding with live updates + labels. |
 | Stepper (`waterui_stepper`) | ⚠️ partial | Value binding + range hooked up; visual treatment still placeholder. |
-| Picker / colour picker | ❌ missing | No JNI bindings or Compose UI yet. |
+| Picker (`waterui_picker`) | ✅ complete | Android `Spinner` renders dynamic item lists and keeps the selection binding in sync. |
+| Colour picker (`waterui_color_picker`) | ❌ missing | JNI support is wired up, but the platform UI control is still pending. |
 
 ## Reactive System
 
@@ -52,7 +53,7 @@ by the WaterUI Rust crates. Status codes:
 | --- | --- | --- |
 | Bindings (bool/int/double/string) | ✅ complete | JNI watcher factories stream updates into View callbacks. |
 | Computed values | ⚠️ partial | Common types (i32/f64/styled text/resolved colour) implemented; remaining computed families TBD. |
-| Animation metadata (`waterui_get_animation`) | ❌ missing | JNI function declared but not wired to any Android animations. |
+| Animation metadata (`waterui_get_animation`) | ✅ complete | Watchers surface animation hints so renderers can perform default fade transitions. |
 
 ## Navigation, Media & Advanced Components
 
@@ -74,7 +75,6 @@ by the WaterUI Rust crates. Status codes:
 ## Summary
 
 The Android backend now mirrors the Swift renderer for the core UI primitives:
-text/labels, colours, form controls, dynamic views, and scroll/layout
-containers. Remaining work focuses on richer components (pickers, navigation,
-media), span-level text styling, and platform polish such as keyboard
-configuration and animation metadata.
+text/labels, colours, form controls (including pickers), dynamic views, and
+scroll/layout containers. Remaining work focuses on colour picker UX,
+navigation/media components, and richer styling options.

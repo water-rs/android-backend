@@ -5,6 +5,7 @@ import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
@@ -17,8 +18,11 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
     val computed = WuiComputed.styledString(struct.contentPtr, env)
     val textView = TextView(context)
-    computed.observe { styled ->
-        textView.text = styled.toCharSequence(env)
+    computed.observeWithAnimation { styled, animation ->
+        val resolved = styled.toCharSequence(env)
+        textView.applyRustAnimation(animation) {
+            textView.text = resolved
+        }
     }
     textView.disposeWith(computed)
     textView
