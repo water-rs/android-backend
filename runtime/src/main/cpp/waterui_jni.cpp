@@ -35,6 +35,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_drop_computed_resolved_font)                                                     \
     X(waterui_drop_computed_resolved_color)                                                    \
     X(waterui_drop_computed_styled_str)                                                        \
+    X(waterui_drop_computed_picker_items)                                                      \
     X(waterui_drop_dynamic)                                                                    \
     X(waterui_drop_env)                                                                        \
     X(waterui_drop_layout)                                                                     \
@@ -54,6 +55,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_force_as_renderer_view)                                                          \
     X(waterui_force_as_scroll_view)                                                            \
     X(waterui_force_as_slider)                                                                 \
+    X(waterui_force_as_picker)                                                                 \
     X(waterui_force_as_stepper)                                                                \
     X(waterui_force_as_text)                                                                   \
     X(waterui_force_as_text_field)                                                             \
@@ -76,6 +78,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_read_computed_resolved_font)                                                     \
     X(waterui_read_computed_resolved_color)                                                    \
     X(waterui_read_computed_styled_str)                                                        \
+    X(waterui_read_computed_picker_items)                                                      \
     X(waterui_renderer_view_height)                                                            \
     X(waterui_renderer_view_id)                                                                \
     X(waterui_renderer_view_preferred_format)                                                  \
@@ -89,6 +92,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_set_binding_i32)                                                                 \
     X(waterui_set_binding_str)                                                                 \
     X(waterui_slider_id)                                                                       \
+    X(waterui_picker_id)                                                                       \
     X(waterui_spacer_id)                                                                       \
     X(waterui_stepper_id)                                                                      \
     X(waterui_text_field_id)                                                                   \
@@ -105,7 +109,8 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_watch_computed_f64)                                                              \
     X(waterui_watch_computed_i32)                                                              \
     X(waterui_watch_computed_resolved_color)                                                   \
-    X(waterui_watch_computed_styled_str)
+    X(waterui_watch_computed_styled_str)                                                       \
+    X(waterui_watch_computed_picker_items)
 
 struct WaterUiSymbols {
 #define DECLARE_WATERUI_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -621,6 +626,35 @@ jobject new_styled_str(JNIEnv *env, WuiStyledStr styled) {
     return result;
 }
 
+jobjectArray picker_items_to_java(JNIEnv *env, WuiArray_WuiPickerItem items) {
+    WuiArraySlice_WuiPickerItem slice = items.vtable.slice(items.data);
+    jclass itemCls = env->FindClass("dev/waterui/android/runtime/PickerItemStruct");
+    jmethodID itemCtor = env->GetMethodID(
+        itemCls,
+        "<init>",
+        "(ILdev/waterui/android/runtime/StyledStrStruct;)V");
+
+    jobjectArray array = env->NewObjectArray(static_cast<jsize>(slice.len), itemCls, nullptr);
+    for (uintptr_t i = 0; i < slice.len; ++i) {
+        const WuiPickerItem &item = slice.head[i];
+        WuiStyledStr styled = g_wui.waterui_read_computed_styled_str(item.content.content);
+        jobject label = new_styled_str(env, styled);
+        jobject pickerItem = env->NewObject(
+            itemCls,
+            itemCtor,
+            static_cast<jint>(item.tag.inner),
+            label
+        );
+        env->SetObjectArrayElement(array, static_cast<jsize>(i), pickerItem);
+        env->DeleteLocalRef(label);
+        env->DeleteLocalRef(pickerItem);
+    }
+
+    env->DeleteLocalRef(itemCls);
+    items.vtable.drop(items.data);
+    return array;
+}
+
 jobject box_boolean(JNIEnv *env, bool value) {
     return env->CallStaticObjectMethod(gBooleanClass, gBooleanValueOf, value ? JNI_TRUE : JNI_FALSE);
 }
@@ -768,6 +802,23 @@ void watcher_resolved_color_call(const void *data, WuiResolvedColor value, WuiWa
 }
 
 void watcher_resolved_color_drop(void *data) {
+    ScopedEnv scoped;
+    drop_watcher_state(scoped.env, static_cast<WatcherCallbackState *>(data));
+}
+
+void watcher_picker_items_call(const void *data, WuiArray_WuiPickerItem value, WuiWatcherMetadata *metadata) {
+    ScopedEnv scoped;
+    if (scoped.env == nullptr) {
+        g_wui.waterui_drop_watcher_metadata(metadata);
+        return;
+    }
+    auto *state = static_cast<WatcherCallbackState const *>(data);
+    jobject array = picker_items_to_java(scoped.env, value);
+    invoke_watcher(scoped.env, const_cast<WatcherCallbackState *>(state), array, metadata);
+    scoped.env->DeleteLocalRef(array);
+}
+
+void watcher_picker_items_drop(void *data) {
     ScopedEnv scoped;
     drop_watcher_state(scoped.env, static_cast<WatcherCallbackState *>(data));
 }
@@ -965,6 +1016,7 @@ WATERUI_ID_EXPORT(waterui_1slider_1id, waterui_slider_id)
 WATERUI_ID_EXPORT(waterui_1renderer_1view_1id, waterui_renderer_view_id)
 WATERUI_ID_EXPORT(waterui_1layout_1container_1id, waterui_layout_container_id)
 WATERUI_ID_EXPORT(waterui_1fixed_1container_1id, waterui_fixed_container_id)
+WATERUI_ID_EXPORT(waterui_1picker_1id, waterui_picker_id)
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1layout_1propose(
@@ -1088,6 +1140,17 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1resolved_1color
         ptr_to_jlong(state),
         ptr_to_jlong(reinterpret_cast<void *>(watcher_resolved_color_call)),
         ptr_to_jlong(reinterpret_cast<void *>(watcher_resolved_color_drop)));
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1picker_1items_1watcher(
+    JNIEnv *env, jclass, jobject callback) {
+    auto *state = create_watcher_state(env, callback);
+    return new_watcher_struct(
+        env,
+        ptr_to_jlong(state),
+        ptr_to_jlong(reinterpret_cast<void *>(watcher_picker_items_call)),
+        ptr_to_jlong(reinterpret_cast<void *>(watcher_picker_items_drop)));
 }
 
 JNIEXPORT void JNICALL
@@ -1323,6 +1386,36 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1styled_
     JNIEnv *, jclass, jlong computed_ptr) {
     auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computed_ptr);
     g_wui.waterui_drop_computed_styled_str(computed);
+}
+
+JNIEXPORT jobjectArray JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1picker_1items(
+    JNIEnv *env, jclass, jlong computed_ptr) {
+    auto *computed = jlong_to_ptr<WuiComputed_Vec_PickerItem_Id>(computed_ptr);
+    WuiArray_WuiPickerItem items = g_wui.waterui_read_computed_picker_items(computed);
+    return picker_items_to_java(env, items);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1picker_1items(
+    JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
+    auto *computed = jlong_to_ptr<WuiComputed_Vec_PickerItem_Id>(computed_ptr);
+    WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
+    WuiWatcher_WuiArray_WuiPickerItem watcher{};
+    watcher.data = jlong_to_ptr<void>(fields.data);
+    watcher.call = reinterpret_cast<void (*)(const void *, WuiArray_WuiPickerItem, WuiWatcherMetadata *)>(fields.call);
+    watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
+    return ptr_to_jlong(
+        g_wui.waterui_watch_computed_picker_items(
+            reinterpret_cast<const Computed_Vec_PickerItem_Id *>(computed),
+            watcher));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1computed_1picker_1items(
+    JNIEnv *, jclass, jlong computed_ptr) {
+    auto *computed = jlong_to_ptr<WuiComputed_Vec_PickerItem_Id>(computed_ptr);
+    g_wui.waterui_drop_computed_picker_items(computed);
 }
 
 JNIEXPORT void JNICALL
@@ -1626,6 +1719,22 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1scroll(
         ctor,
         static_cast<jint>(scroll.axis),
         ptr_to_jlong(scroll.content));
+    env->DeleteLocalRef(cls);
+    return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1force_1as_1picker(
+    JNIEnv *env, jclass, jlong any_view_ptr) {
+    auto *view = jlong_to_ptr<WuiAnyView>(any_view_ptr);
+    WuiPicker picker = g_wui.waterui_force_as_picker(view);
+    jclass cls = env->FindClass("dev/waterui/android/runtime/PickerStruct");
+    jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+    jobject obj = env->NewObject(
+        cls,
+        ctor,
+        ptr_to_jlong(picker.items),
+        ptr_to_jlong(picker.selection));
     env->DeleteLocalRef(cls);
     return obj;
 }

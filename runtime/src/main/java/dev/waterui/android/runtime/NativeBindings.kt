@@ -33,6 +33,7 @@ internal object NativeBindings {
     external fun waterui_slider_id(): String
     external fun waterui_renderer_view_id(): String
     external fun waterui_fixed_container_id(): String
+    external fun waterui_picker_id(): String
 
     external fun waterui_clone_env(envPtr: Long): Long
     external fun waterui_env_drop(envPtr: Long)
@@ -65,6 +66,7 @@ internal object NativeBindings {
     external fun waterui_create_any_view_watcher(callback: WatcherCallback<Long>): WatcherStruct
     external fun waterui_create_styled_str_watcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
     external fun waterui_create_resolved_color_watcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
+    external fun waterui_create_picker_items_watcher(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct
 
     external fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean)
     external fun waterui_set_binding_int(bindingPtr: Long, value: Int)
@@ -97,6 +99,9 @@ internal object NativeBindings {
     external fun waterui_read_computed_styled_str(computedPtr: Long): StyledStrStruct
     external fun waterui_watch_computed_styled_str(computedPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_drop_computed_styled_str(computedPtr: Long)
+    external fun waterui_read_computed_picker_items(computedPtr: Long): Array<PickerItemStruct>
+    external fun waterui_watch_computed_picker_items(computedPtr: Long, watcher: WatcherStruct): Long
+    external fun waterui_drop_computed_picker_items(computedPtr: Long)
 
     external fun waterui_drop_font(fontPtr: Long)
     external fun waterui_resolve_font(fontPtr: Long, envPtr: Long): Long
@@ -127,6 +132,7 @@ internal object NativeBindings {
     external fun waterui_force_as_scroll(anyViewPtr: Long): ScrollStruct
     external fun waterui_force_as_dynamic(anyViewPtr: Long): DynamicStruct
     external fun waterui_force_as_renderer_view(anyViewPtr: Long): Long
+    external fun waterui_force_as_picker(anyViewPtr: Long): PickerStruct
 
     external fun waterui_renderer_view_width(handle: Long): Float
     external fun waterui_renderer_view_height(handle: Long): Float
@@ -280,6 +286,16 @@ data class ScrollStruct(
 
 data class DynamicStruct(
     val dynamicPtr: Long
+)
+
+data class PickerStruct(
+    val itemsPtr: Long,
+    val selectionPtr: Long
+)
+
+data class PickerItemStruct(
+    val tag: Int,
+    val label: StyledStrStruct
 )
 
 data class ResolvedColorStruct(
