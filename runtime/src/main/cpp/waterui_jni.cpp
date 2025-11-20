@@ -1373,7 +1373,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1str(
     JNIEnv *env, jclass, jlong binding_ptr, jobject watcher_obj) {
     auto *binding = jlong_to_ptr<WuiBinding_Str>(binding_ptr);
     WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_WuiStr watcher{};
+    WuiWatcher_Str watcher{};
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiStr, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
@@ -1454,7 +1454,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1styled
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
     auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computed_ptr);
     WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_WuiStyledStr watcher{};
+    WuiWatcher_StyledStr watcher{};
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiStyledStr, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
@@ -1484,7 +1484,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1picker
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
     auto *computed = jlong_to_ptr<WuiComputed_Vec_PickerItem_Id>(computed_ptr);
     WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_WuiArray_WuiPickerItem watcher{};
+    WuiWatcher_Vec_PickerItem_Id watcher{};
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiArray_WuiPickerItem, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
@@ -1540,7 +1540,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolv
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
     auto *computed = jlong_to_ptr<WuiComputed_ResolvedFont>(computed_ptr);
     WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_WuiResolvedFont watcher{};
+    WuiWatcher_ResolvedFont watcher{};
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiResolvedFont, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
@@ -1578,7 +1578,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolv
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
     auto *computed = jlong_to_ptr<WuiComputed_ResolvedColor>(computed_ptr);
     WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_WuiResolvedColor watcher{};
+    WuiWatcher_ResolvedColor watcher{};
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiResolvedColor, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
@@ -1898,7 +1898,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1dynamic_1connect(
     JNIEnv *env, jclass, jlong dynamic_ptr, jobject watcher_obj) {
     auto *dynamic = jlong_to_ptr<WuiDynamic>(dynamic_ptr);
     WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_____WuiAnyView watcher{};
+    WuiWatcher_AnyView watcher{};
     watcher.data = jlong_to_ptr<void>(fields.data);
     watcher.call = reinterpret_cast<void (*)(const void *, WuiAnyView *, WuiWatcherMetadata *)>(fields.call);
     watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
