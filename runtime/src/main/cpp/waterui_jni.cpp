@@ -1257,57 +1257,6 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1binding_1bool(
     g_wui.waterui_drop_binding_bool(binding);
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1bool(
-    JNIEnv *env, jclass, jlong binding_ptr, jobject watcher_obj) {
-    auto *binding = jlong_to_ptr<WuiBinding_bool>(binding_ptr);
-    WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_bool watcher{};
-    watcher.data = jlong_to_ptr<void>(fields.data);
-    watcher.call = reinterpret_cast<void (*)(const void *, bool, WuiWatcherMetadata *)>(fields.call);
-    watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
-    return ptr_to_jlong(
-        g_wui.waterui_watch_binding_bool(
-            reinterpret_cast<const Binding_bool *>(binding),
-            watcher));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_runtime_NativeBindings_waterui_1set_1binding_1int(
-    JNIEnv *, jclass, jlong binding_ptr, jint value) {
-    auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    g_wui.waterui_set_binding_i32(binding, static_cast<int32_t>(value));
-}
-
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1binding_1int(
-    JNIEnv *, jclass, jlong binding_ptr) {
-    auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    return static_cast<jint>(g_wui.waterui_read_binding_i32(binding));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1binding_1int(
-    JNIEnv *, jclass, jlong binding_ptr) {
-    auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    g_wui.waterui_drop_binding_i32(binding);
-}
-
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1binding_1int(
-    JNIEnv *env, jclass, jlong binding_ptr, jobject watcher_obj) {
-    auto *binding = jlong_to_ptr<WuiBinding_i32>(binding_ptr);
-    WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-    WuiWatcher_i32 watcher{};
-    watcher.data = jlong_to_ptr<void>(fields.data);
-    watcher.call = reinterpret_cast<void (*)(const void *, int32_t, WuiWatcherMetadata *)>(fields.call);
-    watcher.drop = reinterpret_cast<void (*)(void *)>(fields.drop);
-    return ptr_to_jlong(
-        g_wui.waterui_watch_binding_i32(
-            reinterpret_cast<const Binding_i32 *>(binding),
-            watcher));
-}
-
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1set_1binding_1double(
     JNIEnv *, jclass, jlong binding_ptr, jdouble value) {
@@ -1965,3 +1914,4 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1drop_1renderer_1view(
 }
 
 } // extern "C"
+#include "waterui.h"
