@@ -49,7 +49,10 @@ class WuiBinding<T>(
             observer?.invoke(value, metadata.animation)
             syncingFromRust = false
         }
-        watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
+        val guardHandle = watcherRegistrar(raw(), watcher)
+        if (guardHandle != 0L) {
+            watcherGuard = WatcherGuard(guardHandle)
+        }
     }
 
     fun set(value: T) {
