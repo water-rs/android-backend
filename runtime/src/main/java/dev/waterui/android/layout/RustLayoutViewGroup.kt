@@ -27,10 +27,8 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     private var lastParentProposal: ProposalStruct = UnspecifiedProposal
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        if (layoutPtr == 0L || childCount == 0) {
-            measureFallback(widthMeasureSpec, heightMeasureSpec)
-            return
-        }
+        require(layoutPtr != 0L) { "onMeasure called with null layout pointer" }
+        require(childCount > 0) { "onMeasure called with no children" }
 
         val constraints = LayoutConstraints.fromMeasureSpecs(widthMeasureSpec, heightMeasureSpec)
         val parentProposal = constraints.toProposalStruct()
@@ -47,7 +45,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
         for (index in 0 until childCount) {
             val child = getChildAt(index)
-            val proposal = childProposals.getOrNull(index) ?: UnspecifiedProposal
+            val proposal = childProposals[index]
             val childConstraints = proposal.toConstraints(constraints)
             val childWidthSpec = childConstraints.toMeasureSpec(isWidth = true)
             val childHeightSpec = childConstraints.toMeasureSpec(isWidth = false)
@@ -75,15 +73,10 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        if (layoutPtr == 0L || childCount == 0) {
-            layoutFallback()
-            return
-        }
+        require(layoutPtr != 0L) { "onLayout called with null layout pointer" }
+        require(childCount > 0) { "onLayout called with no children" }
 
-        val metadata = lastMetadata ?: run {
-            layoutFallback()
-            return
-        }
+        val metadata = checkNotNull(lastMetadata) { "onLayout called before onMeasure" }
 
         val bounds = RectStruct(
             x = 0f,
@@ -94,7 +87,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
         val rects = NativeBindings.waterui_layout_place(layoutPtr, bounds, lastParentProposal, metadata)
         for (index in 0 until childCount) {
-            val rect = rects.getOrNull(index) ?: continue
+            val rect = rects[index]
             val child = getChildAt(index)
             val childLeft = rect.x.roundToInt()
             val childTop = rect.y.roundToInt()
@@ -107,29 +100,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         }
     }
 
-    private fun measureFallback(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        var totalHeight = 0
-        var maxWidth = 0
-        for (index in 0 until childCount) {
-            val child = getChildAt(index)
-            measureChild(child, widthMeasureSpec, heightMeasureSpec)
-            totalHeight += child.measuredHeight
-            maxWidth = maxOf(maxWidth, child.measuredWidth)
-        }
-        val resolvedWidth = View.resolveSize(maxWidth, widthMeasureSpec)
-        val resolvedHeight = View.resolveSize(totalHeight, heightMeasureSpec)
-        setMeasuredDimension(resolvedWidth, resolvedHeight)
-    }
 
-    private fun layoutFallback() {
-        var y = 0
-        for (index in 0 until childCount) {
-            val child = getChildAt(index)
-            val childHeight = child.measuredHeight
-            child.layout(0, y, child.measuredWidth, y + childHeight)
-            y += childHeight
-        }
-    }
 }
 
 data class ChildDescriptor(

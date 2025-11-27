@@ -58,7 +58,7 @@ open class CenteringHostLayout @JvmOverloads constructor(
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        val child = getChildAt(0) ?: return
+        val child = requireNotNull(getChildAt(0)) { "onLayout called with no child" }
         val width = right - left
         val height = bottom - top
         val childWidth = child.measuredWidth
