@@ -16,6 +16,7 @@ import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeId
 import dev.waterui.android.runtime.withAlpha
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val toggleTypeId: WuiTypeId by lazy { NativeBindings.waterui_toggle_id().toTypeId() }
 
@@ -59,16 +60,16 @@ private val toggleRenderer = WuiRenderer { context, node, env, registry ->
     }
     border.attachTo(switch)
 
-    var updating = false
+    val updating = AtomicBoolean(false)
     binding.observe { value ->
-        if (switch.isChecked != value) {
-            updating = true
+        if (switch.isChecked != value && !updating.get()) {
+            updating.set(true)
             switch.isChecked = value
-            updating = false
+            updating.set(false)
         }
     }
     switch.setOnCheckedChangeListener { _, isChecked ->
-        if (!updating) {
+        if (!updating.get()) {
             binding.set(isChecked)
         }
     }

@@ -15,6 +15,7 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeId
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val sliderTypeId: WuiTypeId by lazy { NativeBindings.waterui_slider_id().toTypeId() }
 
@@ -56,18 +57,18 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
         container.addView(minMaxRow)
     }
 
-    var updating = false
+    val updating = AtomicBoolean(false)
     binding.observe { value ->
         val floatValue = value.toFloat()
-        if (slider.value != floatValue) {
-            updating = true
+        if (slider.value != floatValue && !updating.get()) {
+            updating.set(true)
             slider.value = floatValue.coerceIn(slider.valueFrom, slider.valueTo)
-            updating = false
+            updating.set(false)
         }
     }
 
     slider.addOnChangeListener { _, newValue, fromUser ->
-        if (fromUser && !updating) {
+        if (fromUser && !updating.get()) {
             binding.set(newValue.toDouble())
         }
     }
