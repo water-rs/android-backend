@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <dlfcn.h>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -100,6 +101,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_renderer_view_width)                                                             \
     X(waterui_resolve_color)                                                                   \
     X(waterui_resolve_font)                                                                    \
+    X(waterui_env_install_theme)                                                               \
     X(waterui_scroll_view_id)                                                                  \
     X(waterui_set_binding_bool)                                                                \
     X(waterui_set_binding_f64)                                                                 \
@@ -126,6 +128,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_watch_computed_resolved_color)                                                   \
     X(waterui_watch_computed_styled_str)                                                       \
     X(waterui_watch_computed_picker_items)                                                     \
+    X(waterui_new_computed_resolved_color)                                                     \
     X(waterui_new_watcher_any_view)                                                            \
     X(waterui_new_watcher_bool)                                                                \
     X(waterui_new_watcher_f64)                                                                 \
@@ -290,6 +293,47 @@ std::string wui_styled_str_to_string(WuiStyledStr styled) {
     }
     chunks.vtable.drop(chunks.data);
     return result;
+}
+
+WuiResolvedColor argb_to_resolved_color(jint color) {
+    const uint32_t argb = static_cast<uint32_t>(color);
+    const float a = ((argb >> 24) & 0xFFu) / 255.0f;
+    const float r = ((argb >> 16) & 0xFFu) / 255.0f;
+    const float g = ((argb >> 8) & 0xFFu) / 255.0f;
+    const float b = (argb & 0xFFu) / 255.0f;
+    WuiResolvedColor resolved{};
+    resolved.red = r;
+    resolved.green = g;
+    resolved.blue = b;
+    resolved.opacity = a;
+    resolved.headroom = 0.0f;
+    return resolved;
+}
+
+struct StaticColorState {
+    WuiResolvedColor color;
+};
+
+WuiResolvedColor static_color_get(const void *data) {
+    auto *state = static_cast<const StaticColorState *>(data);
+    return state->color;
+}
+
+WuiWatcherGuard *static_color_watch(const void *, WuiWatcher_ResolvedColor *) {
+    return nullptr;
+}
+
+void static_color_drop(void *data) {
+    delete static_cast<StaticColorState *>(data);
+}
+
+WuiComputed_ResolvedColor *make_static_color_computed(jint color) {
+    auto *state = new StaticColorState{argb_to_resolved_color(color)};
+    return g_wui.waterui_new_computed_resolved_color(
+        state,
+        static_color_get,
+        static_color_watch,
+        static_color_drop);
 }
 
 WuiProposalSize proposal_from_java(JNIEnv *env, jobject proposal_obj) {
@@ -1942,6 +1986,49 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1renderer_1view_1preferr
     JNIEnv *, jclass, jlong handle) {
     auto *renderer = jlong_to_ptr<WuiRendererView>(handle);
     return static_cast<jint>(g_wui.waterui_renderer_view_preferred_format(renderer));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1install_1static_1theme(
+    JNIEnv *,
+    jclass,
+    jlong env_ptr,
+    jint background,
+    jint surface,
+    jint surface_variant,
+    jint border,
+    jint foreground,
+    jint muted_foreground,
+    jint accent,
+    jint accent_foreground) {
+    if (!g_symbols_ready) {
+        return;
+    }
+
+    WuiComputed_ResolvedColor *background_ptr = make_static_color_computed(background);
+    WuiComputed_ResolvedColor *surface_ptr = make_static_color_computed(surface);
+    WuiComputed_ResolvedColor *surface_variant_ptr = make_static_color_computed(surface_variant);
+    WuiComputed_ResolvedColor *border_ptr = make_static_color_computed(border);
+    WuiComputed_ResolvedColor *foreground_ptr = make_static_color_computed(foreground);
+    WuiComputed_ResolvedColor *muted_ptr = make_static_color_computed(muted_foreground);
+    WuiComputed_ResolvedColor *accent_ptr = make_static_color_computed(accent);
+    WuiComputed_ResolvedColor *accent_foreground_ptr = make_static_color_computed(accent_foreground);
+
+    g_wui.waterui_env_install_theme(
+        jlong_to_ptr<WuiEnv>(env_ptr),
+        background_ptr,
+        surface_ptr,
+        surface_variant_ptr,
+        border_ptr,
+        foreground_ptr,
+        muted_ptr,
+        accent_ptr,
+        accent_foreground_ptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr);
 }
 
 JNIEXPORT jboolean JNICALL

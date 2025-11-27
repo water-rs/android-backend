@@ -1,8 +1,12 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
+import android.graphics.Color
 import android.util.AttributeSet
 import android.view.ViewGroup
+import android.view.ContextThemeWrapper
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.color.MaterialColors
 import dev.waterui.android.reactive.WuiComputed
 
 /**
@@ -10,14 +14,15 @@ import dev.waterui.android.reactive.WuiComputed
  * view hierarchy into Android's View system.
  */
 class WaterUiRootView @JvmOverloads constructor(
-    context: Context,
+    baseContext: Context,
     attrs: AttributeSet? = null
-) : CenteringHostLayout(context, attrs) {
+) : CenteringHostLayout(createMaterialContext(baseContext), attrs) {
 
     private var registry: RenderRegistry = RenderRegistry.default()
     private var environment: WuiEnvironment? = null
     private val rootPtr: Long = NativeBindings.waterui_main()
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
+    private var materialThemeInstalled = false
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
         registry = renderRegistry
@@ -50,6 +55,7 @@ class WaterUiRootView @JvmOverloads constructor(
         environment = null
         backgroundTheme?.close()
         backgroundTheme = null
+        materialThemeInstalled = false
     }
 
     private fun renderRoot() {
@@ -65,6 +71,21 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     private fun ensureTheme(env: WuiEnvironment) {
+        if (!materialThemeInstalled) {
+            val palette = MaterialThemePalette.from(context)
+            NativeBindings.waterui_install_static_theme(
+                env.raw(),
+                palette.background,
+                palette.surface,
+                palette.surfaceVariant,
+                palette.border,
+                palette.foreground,
+                palette.mutedForeground,
+                palette.accent,
+                palette.accentForeground
+            )
+            materialThemeInstalled = true
+        }
         if (backgroundTheme != null) return
         val theme = ThemeBridge.background(env)
         theme.observeWithAnimation { color, animation ->
@@ -75,5 +96,44 @@ class WaterUiRootView @JvmOverloads constructor(
         }
         theme.attachTo(this)
         backgroundTheme = theme
+    }
+}
+
+private fun createMaterialContext(base: Context): Context {
+    val themed = ContextThemeWrapper(base, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar)
+    return DynamicColors.wrapContextIfAvailable(themed)
+}
+
+private data class MaterialThemePalette(
+    val background: Int,
+    val surface: Int,
+    val surfaceVariant: Int,
+    val border: Int,
+    val foreground: Int,
+    val mutedForeground: Int,
+    val accent: Int,
+    val accentForeground: Int
+) {
+    companion object {
+        fun from(context: Context): MaterialThemePalette {
+            val surface = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurface, Color.WHITE)
+            val background = MaterialColors.getColor(context, android.R.attr.colorBackground, surface)
+            val surfaceVariant = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurfaceVariant, surface)
+            val border = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOutline, surfaceVariant)
+            val foreground = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurface, Color.BLACK)
+            val mutedForeground = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, foreground)
+            val accent = MaterialColors.getColor(context, com.google.android.material.R.attr.colorPrimary, foreground)
+            val accentForeground = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnPrimary, background)
+            return MaterialThemePalette(
+                background = background,
+                surface = surface,
+                surfaceVariant = surfaceVariant,
+                border = border,
+                foreground = foreground,
+                mutedForeground = mutedForeground,
+                accent = accent,
+                accentForeground = accentForeground
+            )
+        }
     }
 }
