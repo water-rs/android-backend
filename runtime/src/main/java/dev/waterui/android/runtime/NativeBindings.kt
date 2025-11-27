@@ -34,6 +34,22 @@ internal object NativeBindings {
     external fun waterui_renderer_view_id(): String
     external fun waterui_fixed_container_id(): String
     external fun waterui_picker_id(): String
+    // ========== Theme: Color Scheme ==========
+    external fun waterui_computed_color_scheme_constant(scheme: Int): Long
+    external fun waterui_read_computed_color_scheme(ptr: Long): Int
+    external fun waterui_drop_computed_color_scheme(ptr: Long)
+    external fun waterui_theme_install_color_scheme(envPtr: Long, signalPtr: Long)
+    external fun waterui_theme_color_scheme(envPtr: Long): Long
+
+    // ========== Theme: Slot-based Color API ==========
+    external fun waterui_theme_install_color(envPtr: Long, slot: Int, signalPtr: Long)
+    external fun waterui_theme_color(envPtr: Long, slot: Int): Long
+
+    // ========== Theme: Slot-based Font API ==========
+    external fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long)
+    external fun waterui_theme_font(envPtr: Long, slot: Int): Long
+
+    // ========== Theme: Legacy per-token APIs (backward compat) ==========
     external fun waterui_theme_color_background(envPtr: Long): Long
     external fun waterui_theme_color_surface(envPtr: Long): Long
     external fun waterui_theme_color_surface_variant(envPtr: Long): Long
@@ -42,17 +58,6 @@ internal object NativeBindings {
     external fun waterui_theme_color_muted_foreground(envPtr: Long): Long
     external fun waterui_theme_color_accent(envPtr: Long): Long
     external fun waterui_theme_color_accent_foreground(envPtr: Long): Long
-    external fun waterui_install_static_theme(
-        envPtr: Long,
-        background: Int,
-        surface: Int,
-        surfaceVariant: Int,
-        border: Int,
-        foreground: Int,
-        mutedForeground: Int,
-        accent: Int,
-        accentForeground: Int
-    )
     external fun waterui_theme_font_body(envPtr: Long): Long
     external fun waterui_theme_font_title(envPtr: Long): Long
     external fun waterui_theme_font_headline(envPtr: Long): Long

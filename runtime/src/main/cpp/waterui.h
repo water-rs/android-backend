@@ -74,6 +74,94 @@ typedef enum WuiRendererBufferFormat {
 } WuiRendererBufferFormat;
 
 /**
+ * Color scheme enum for FFI.
+ *
+ * Maps directly to `waterui::theme::ColorScheme`.
+ */
+typedef enum WuiColorScheme {
+  /**
+   * Light appearance.
+   */
+  WuiColorScheme_Light = 0,
+  /**
+   * Dark appearance.
+   */
+  WuiColorScheme_Dark = 1,
+} WuiColorScheme;
+
+/**
+ * Color slot enum for FFI.
+ *
+ * Each variant corresponds to a color token in `waterui::theme::color`.
+ */
+typedef enum WuiColorSlot {
+  /**
+   * Primary background color.
+   */
+  WuiColorSlot_Background = 0,
+  /**
+   * Elevated surface color (cards, sheets).
+   */
+  WuiColorSlot_Surface = 1,
+  /**
+   * Alternate surface color.
+   */
+  WuiColorSlot_SurfaceVariant = 2,
+  /**
+   * Border and divider color.
+   */
+  WuiColorSlot_Border = 3,
+  /**
+   * Primary text and icon color.
+   */
+  WuiColorSlot_Foreground = 4,
+  /**
+   * Secondary/dimmed text color.
+   */
+  WuiColorSlot_MutedForeground = 5,
+  /**
+   * Accent color for interactive elements.
+   */
+  WuiColorSlot_Accent = 6,
+  /**
+   * Foreground color on accent backgrounds.
+   */
+  WuiColorSlot_AccentForeground = 7,
+} WuiColorSlot;
+
+/**
+ * Font slot enum for FFI.
+ *
+ * Each variant corresponds to a font token in `waterui::text::font`.
+ */
+typedef enum WuiFontSlot {
+  /**
+   * Body text font.
+   */
+  WuiFontSlot_Body = 0,
+  /**
+   * Title font.
+   */
+  WuiFontSlot_Title = 1,
+  /**
+   * Headline font.
+   */
+  WuiFontSlot_Headline = 2,
+  /**
+   * Subheadline font.
+   */
+  WuiFontSlot_Subheadline = 3,
+  /**
+   * Caption font.
+   */
+  WuiFontSlot_Caption = 4,
+  /**
+   * Footnote font.
+   */
+  WuiFontSlot_Footnote = 5,
+} WuiFontSlot;
+
+/**
  * A `Binding<T>` represents a mutable value of type `T` that can be observed.
  *
  * Bindings provide a reactive way to work with values. When a binding's value
@@ -314,6 +402,8 @@ typedef struct WuiComputed_AnyView WuiComputed_AnyView;
 typedef struct WuiComputed_AnyViews_AnyView WuiComputed_AnyViews_AnyView;
 
 typedef struct WuiComputed_Color WuiComputed_Color;
+
+typedef struct WuiComputed_ColorScheme WuiComputed_ColorScheme;
 
 typedef struct WuiComputed_Font WuiComputed_Font;
 
@@ -2247,6 +2337,73 @@ struct WuiWatcher_LivePhotoSource *waterui_new_watcher_live_photo_source(void *d
  */
 struct WuiWatcherGuard *waterui_new_watcher_guard(void *data, void (*drop)(void*));
 
+/**
+ * Creates a constant color scheme signal.
+ */
+struct WuiComputed_ColorScheme *waterui_computed_color_scheme_constant(enum WuiColorScheme scheme);
+
+/**
+ * Reads the current value from a color scheme signal.
+ */
+enum WuiColorScheme waterui_read_computed_color_scheme(const struct WuiComputed_ColorScheme *ptr);
+
+/**
+ * Drops a color scheme computed signal.
+ */
+void waterui_drop_computed_color_scheme(struct WuiComputed_ColorScheme *ptr);
+
+/**
+ * Installs a color scheme signal into the environment.
+ */
+void waterui_theme_install_color_scheme(struct WuiEnv *env, struct WuiComputed_ColorScheme *signal);
+
+/**
+ * Returns the current color scheme signal from the environment.
+ */
+struct WuiComputed_ColorScheme *waterui_theme_color_scheme(const struct WuiEnv *env);
+
+/**
+ * Installs a color signal for a specific slot.
+ *
+ * Takes ownership of the signal pointer.
+ */
+void waterui_theme_install_color(struct WuiEnv *env,
+                                 enum WuiColorSlot slot,
+                                 struct WuiComputed_ResolvedColor *signal);
+
+/**
+ * Returns the color signal for a specific slot.
+ *
+ * Returns a new reference to the signal. Caller must drop it when done.
+ */
+struct WuiComputed_ResolvedColor *waterui_theme_color(const struct WuiEnv *env,
+                                                      enum WuiColorSlot slot);
+
+/**
+ * Installs a font signal for a specific slot.
+ *
+ * Takes ownership of the signal pointer.
+ */
+void waterui_theme_install_font(struct WuiEnv *env,
+                                enum WuiFontSlot slot,
+                                struct WuiComputed_ResolvedFont *signal);
+
+/**
+ * Returns the font signal for a specific slot.
+ *
+ * Returns a new reference to the signal. Caller must drop it when done.
+ */
+struct WuiComputed_ResolvedFont *waterui_theme_font(const struct WuiEnv *env,
+                                                    enum WuiFontSlot slot);
+
+/**
+ * Legacy function to install all theme values at once.
+ *
+ * **Deprecated**: Use the new slot-based API instead:
+ * - `waterui_theme_install_color_scheme()`
+ * - `waterui_theme_install_color()`
+ * - `waterui_theme_install_font()`
+ */
 void waterui_env_install_theme(struct WuiEnv *env,
                                struct WuiComputed_ResolvedColor *background,
                                struct WuiComputed_ResolvedColor *surface,
