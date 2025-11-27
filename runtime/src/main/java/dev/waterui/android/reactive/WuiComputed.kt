@@ -48,7 +48,10 @@ class WuiComputed<T>(
             observer?.invoke(value, metadata.animation)
             valueReleaser(previous)
         }
-        watcherGuard = WatcherGuard(watcherRegistrar(raw(), watcher))
+        val guardHandle = watcherRegistrar(raw(), watcher)
+        if (guardHandle != 0L) {
+            watcherGuard = WatcherGuard(guardHandle)
+        }
     }
 
     override fun close() {
