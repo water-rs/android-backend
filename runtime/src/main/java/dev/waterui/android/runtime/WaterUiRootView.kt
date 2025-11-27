@@ -20,7 +20,7 @@ class WaterUiRootView @JvmOverloads constructor(
 
     private var registry: RenderRegistry = RenderRegistry.default()
     private var environment: WuiEnvironment? = null
-    private val rootPtr: Long = NativeBindings.waterui_main()
+    private var rootPtr: Long = 0L
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
     private var materialThemeInstalled = false
 
@@ -56,11 +56,18 @@ class WaterUiRootView @JvmOverloads constructor(
         backgroundTheme?.close()
         backgroundTheme = null
         materialThemeInstalled = false
+        rootPtr = 0L
     }
 
     private fun renderRoot() {
         val env = checkNotNull(environment) { "renderRoot called without environment" }
         ensureTheme(env)
+        // Create the root view AFTER environment and theme are initialized.
+        // waterui_main() may create reactive signals that depend on the executor
+        // initialized by waterui_init() (called in WuiEnvironment.create()).
+        if (rootPtr == 0L) {
+            rootPtr = NativeBindings.waterui_main()
+        }
         removeAllViews()
         if (rootPtr == 0L) {
             return
