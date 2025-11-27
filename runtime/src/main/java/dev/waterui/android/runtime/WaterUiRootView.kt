@@ -138,6 +138,19 @@ private data class MaterialThemePalette(
             val mutedForeground = resolveColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, DEFAULT_ON_SURFACE_VARIANT)
             val accent = resolveColor(context, com.google.android.material.R.attr.colorPrimary, DEFAULT_PRIMARY)
             val accentForeground = resolveColor(context, com.google.android.material.R.attr.colorOnPrimary, DEFAULT_ON_PRIMARY)
+            android.util.Log.d(
+                "WaterUI.Theme",
+                "palette bg=%08X surface=%08X surfaceVar=%08X border=%08X fg=%08X muted=%08X accent=%08X accentFg=%08X".format(
+                    background,
+                    surface,
+                    surfaceVariant,
+                    border,
+                    foreground,
+                    mutedForeground,
+                    accent,
+                    accentForeground
+                )
+            )
             return MaterialThemePalette(
                 background = background,
                 surface = surface,
