@@ -115,15 +115,29 @@ private data class MaterialThemePalette(
     val accentForeground: Int
 ) {
     companion object {
+        private const val DEFAULT_BACKGROUND = 0xFFFEF7FF.toInt()
+        private const val DEFAULT_SURFACE = 0xFFFEF7FF.toInt()
+        private const val DEFAULT_SURFACE_VARIANT = 0xFFE7E0EC.toInt()
+        private const val DEFAULT_OUTLINE = 0xFF79747E.toInt()
+        private const val DEFAULT_ON_SURFACE = 0xFF1D1B20.toInt()
+        private const val DEFAULT_ON_SURFACE_VARIANT = 0xFF49454F.toInt()
+        private const val DEFAULT_PRIMARY = 0xFF6750A4.toInt()
+        private const val DEFAULT_ON_PRIMARY = 0xFFFFFFFF.toInt()
+
+        private fun resolveColor(context: Context, attr: Int, fallback: Int): Int {
+            val color = MaterialColors.getColor(context, attr, fallback)
+            return if (Color.alpha(color) == 0) fallback else color
+        }
+
         fun from(context: Context): MaterialThemePalette {
-            val surface = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurface, Color.WHITE)
-            val background = MaterialColors.getColor(context, android.R.attr.colorBackground, surface)
-            val surfaceVariant = MaterialColors.getColor(context, com.google.android.material.R.attr.colorSurfaceVariant, surface)
-            val border = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOutline, surfaceVariant)
-            val foreground = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurface, Color.BLACK)
-            val mutedForeground = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, foreground)
-            val accent = MaterialColors.getColor(context, com.google.android.material.R.attr.colorPrimary, foreground)
-            val accentForeground = MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnPrimary, background)
+            val surface = resolveColor(context, com.google.android.material.R.attr.colorSurface, DEFAULT_SURFACE)
+            val background = resolveColor(context, android.R.attr.colorBackground, DEFAULT_BACKGROUND)
+            val surfaceVariant = resolveColor(context, com.google.android.material.R.attr.colorSurfaceVariant, DEFAULT_SURFACE_VARIANT)
+            val border = resolveColor(context, com.google.android.material.R.attr.colorOutline, DEFAULT_OUTLINE)
+            val foreground = resolveColor(context, com.google.android.material.R.attr.colorOnSurface, DEFAULT_ON_SURFACE)
+            val mutedForeground = resolveColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, DEFAULT_ON_SURFACE_VARIANT)
+            val accent = resolveColor(context, com.google.android.material.R.attr.colorPrimary, DEFAULT_PRIMARY)
+            val accentForeground = resolveColor(context, com.google.android.material.R.attr.colorOnPrimary, DEFAULT_ON_PRIMARY)
             return MaterialThemePalette(
                 background = background,
                 surface = surface,
