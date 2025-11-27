@@ -42,6 +42,17 @@ internal object NativeBindings {
     external fun waterui_theme_color_muted_foreground(envPtr: Long): Long
     external fun waterui_theme_color_accent(envPtr: Long): Long
     external fun waterui_theme_color_accent_foreground(envPtr: Long): Long
+    external fun waterui_install_static_theme(
+        envPtr: Long,
+        background: Int,
+        surface: Int,
+        surfaceVariant: Int,
+        border: Int,
+        foreground: Int,
+        mutedForeground: Int,
+        accent: Int,
+        accentForeground: Int
+    )
     external fun waterui_theme_font_body(envPtr: Long): Long
     external fun waterui_theme_font_title(envPtr: Long): Long
     external fun waterui_theme_font_headline(envPtr: Long): Long
