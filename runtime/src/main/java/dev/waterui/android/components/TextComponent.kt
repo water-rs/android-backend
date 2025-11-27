@@ -14,6 +14,7 @@ import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeface
 import dev.waterui.android.runtime.toTypeId
+import android.util.Log
 
 private val textTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_text_id().toTypeId()
@@ -36,6 +37,7 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     bodyFont.attachTo(textView)
     computed.observeWithAnimation { styled, animation ->
         val resolved = styled.toCharSequence(env)
+        Log.d("WaterUI.Text", "render text len=${resolved.length} color=${textView.currentTextColor}")
         textView.applyRustAnimation(animation) {
             textView.text = resolved
         }
