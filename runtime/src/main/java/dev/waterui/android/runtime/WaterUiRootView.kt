@@ -59,7 +59,7 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     private fun renderRoot() {
-        val env = environment ?: return
+        val env = checkNotNull(environment) { "renderRoot called without environment" }
         ensureTheme(env)
         removeAllViews()
         if (rootPtr == 0L) {
@@ -125,8 +125,7 @@ private data class MaterialThemePalette(
         private const val DEFAULT_ON_PRIMARY = 0xFFFFFFFF.toInt()
 
         private fun resolveColor(context: Context, attr: Int, fallback: Int): Int {
-            val color = MaterialColors.getColor(context, attr, fallback)
-            return if (Color.alpha(color) == 0) fallback else color
+            return MaterialColors.getColor(context, attr, fallback)
         }
 
         fun from(context: Context): MaterialThemePalette {
