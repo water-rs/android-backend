@@ -129,6 +129,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
     X(waterui_watch_computed_styled_str)                                                       \
     X(waterui_watch_computed_picker_items)                                                     \
     X(waterui_new_computed_resolved_color)                                                     \
+    X(waterui_new_watcher_guard)                                                               \
     X(waterui_new_watcher_any_view)                                                            \
     X(waterui_new_watcher_bool)                                                                \
     X(waterui_new_watcher_f64)                                                                 \
@@ -295,6 +296,8 @@ std::string wui_styled_str_to_string(WuiStyledStr styled) {
     return result;
 }
 
+WuiWatcherGuard *make_noop_guard();
+
 WuiResolvedColor argb_to_resolved_color(jint color) {
     const uint32_t argb = static_cast<uint32_t>(color);
     const float a = ((argb >> 24) & 0xFFu) / 255.0f;
@@ -320,11 +323,19 @@ WuiResolvedColor static_color_get(const void *data) {
 }
 
 WuiWatcherGuard *static_color_watch(const void *, WuiWatcher_ResolvedColor *) {
-    return nullptr;
+    return make_noop_guard();
 }
 
 void static_color_drop(void *data) {
     delete static_cast<StaticColorState *>(data);
+}
+
+void static_guard_drop(void *) {
+    // No-op guard drop for static colors.
+}
+
+WuiWatcherGuard *make_noop_guard() {
+    return g_wui.waterui_new_watcher_guard(nullptr, static_guard_drop);
 }
 
 WuiComputed_ResolvedColor *make_static_color_computed(jint color) {
