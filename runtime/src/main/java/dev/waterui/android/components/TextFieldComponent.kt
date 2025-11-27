@@ -21,6 +21,7 @@ import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeId
 import dev.waterui.android.runtime.dp
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val textFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_text_field_id().toTypeId() }
 
@@ -64,19 +65,19 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     }
     ViewCompat.setBackground(editText, shape)
 
-    var updating = false
+    val updating = AtomicBoolean(false)
     binding.observe { value ->
         val current = editText.text?.toString().orEmpty()
-        if (current != value) {
-            updating = true
+        if (current != value && !updating.get()) {
+            updating.set(true)
             editText.setText(value)
             editText.setSelection(value.length)
-            updating = false
+            updating.set(false)
         }
     }
 
     editText.addTextChangedListener { text ->
-        if (!updating) {
+        if (!updating.get()) {
             binding.set(text?.toString().orEmpty())
         }
     }
