@@ -1577,7 +1577,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1styled
   WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
   auto *watcher = create_watcher<WuiWatcher_StyledStr, WuiStyledStr>(
       fields, g_wui.waterui_new_watcher_styled_str);
-  return ptr_to_jlong(g_wui.waterui_watch_computed_styled_str(computed, watcher));
+  return ptr_to_jlong(
+      g_wui.waterui_watch_computed_styled_str(computed, watcher));
 }
 
 JNIEXPORT void JNICALL
@@ -1604,7 +1605,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1picker
   auto *watcher =
       create_watcher<WuiWatcher_Vec_PickerItem_Id, WuiArray_WuiPickerItem>(
           fields, g_wui.waterui_new_watcher_picker_items);
-  return ptr_to_jlong(g_wui.waterui_watch_computed_picker_items(computed, watcher));
+  return ptr_to_jlong(
+      g_wui.waterui_watch_computed_picker_items(computed, watcher));
 }
 
 JNIEXPORT void JNICALL
@@ -1649,7 +1651,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolv
   WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
   auto *watcher = create_watcher<WuiWatcher_ResolvedFont, WuiResolvedFont>(
       fields, g_wui.waterui_new_watcher_resolved_font);
-  return ptr_to_jlong(g_wui.waterui_watch_computed_resolved_font(computed, watcher));
+  return ptr_to_jlong(
+      g_wui.waterui_watch_computed_resolved_font(computed, watcher));
 }
 
 JNIEXPORT void JNICALL
@@ -1689,7 +1692,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolv
   WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
   auto *watcher = create_watcher<WuiWatcher_ResolvedColor, WuiResolvedColor>(
       fields, g_wui.waterui_new_watcher_resolved_color);
-  return ptr_to_jlong(g_wui.waterui_watch_computed_resolved_color(computed, watcher));
+  return ptr_to_jlong(
+      g_wui.waterui_watch_computed_resolved_color(computed, watcher));
 }
 
 JNIEXPORT void JNICALL

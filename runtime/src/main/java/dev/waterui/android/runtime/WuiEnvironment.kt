@@ -17,7 +17,9 @@ class WuiEnvironment(
     }
 
     /** Coroutine scope tied to the environment lifetime for asynchronous watchers. */
-    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Use Dispatchers.Main (not .immediate) to avoid deadlocks when JNI callbacks
+    // arrive on background threads - .immediate blocks if not on main thread
+    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     fun clone(): WuiEnvironment {
         val cloned = NativeBindings.waterui_clone_env(raw())
