@@ -43,17 +43,23 @@ class WuiComputed<T>(
 
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
+        android.util.Log.d("WaterUI.Computed", "ensureWatcher: creating watcher for ${this::class.simpleName}")
         val watcher = watcherFactory(raw()) { value, metadata ->
+            android.util.Log.d("WaterUI.Computed", "ensureWatcher: watcher callback invoked on thread ${Thread.currentThread().name}")
             // Dispatch to the main thread using the environment's lifecycle-aware scope
             // This prevents CalledFromWrongThreadException when JNI callbacks arrive on bg threads
             env.scope.launch {
+                android.util.Log.d("WaterUI.Computed", "ensureWatcher: dispatching to coroutine scope")
                 val previous = currentValue
                 currentValue = value
                 observer?.invoke(value, metadata.animation)
                 valueReleaser(previous)
+                android.util.Log.d("WaterUI.Computed", "ensureWatcher: observer invoked")
             }
         }
+        android.util.Log.d("WaterUI.Computed", "ensureWatcher: calling watcherRegistrar")
         val guardHandle = watcherRegistrar(raw(), watcher)
+        android.util.Log.d("WaterUI.Computed", "ensureWatcher: watcherRegistrar returned $guardHandle")
         if (guardHandle != 0L) {
             watcherGuard = WatcherGuard(guardHandle)
         }
