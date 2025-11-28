@@ -8,6 +8,7 @@ import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
+import kotlinx.coroutines.launch
 import dev.waterui.android.runtime.WuiStyledStr
 import dev.waterui.android.runtime.toModel
 
@@ -43,10 +44,14 @@ class WuiComputed<T>(
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
         val watcher = watcherFactory(raw()) { value, metadata ->
-            val previous = currentValue
-            currentValue = value
-            observer?.invoke(value, metadata.animation)
-            valueReleaser(previous)
+            // Dispatch to the main thread using the environment's lifecycle-aware scope
+            // This prevents CalledFromWrongThreadException when JNI callbacks arrive on bg threads
+            env.scope.launch {
+                val previous = currentValue
+                currentValue = value
+                observer?.invoke(value, metadata.animation)
+                valueReleaser(previous)
+            }
         }
         val guardHandle = watcherRegistrar(raw(), watcher)
         if (guardHandle != 0L) {

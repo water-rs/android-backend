@@ -9,6 +9,7 @@ import dev.waterui.android.runtime.StyledStrStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
+import kotlinx.coroutines.launch
 
 /**
  * Generic binding wrapper translated from the Swift implementation. Exposes
@@ -21,7 +22,7 @@ class WuiBinding<T>(
     private val watcherFactory: (Long, WatcherCallback<T>) -> WatcherStruct,
     private val watcherRegistrar: (Long, WatcherStruct) -> Long,
     private val dropper: (Long) -> Unit,
-    @Suppress("unused") private val env: WuiEnvironment
+    private val env: WuiEnvironment
 ) : NativePointer(bindingPtr) {
 
     private var watcherGuard: WatcherGuard? = null
@@ -44,10 +45,14 @@ class WuiBinding<T>(
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
         val watcher = watcherFactory(raw()) { value, metadata ->
-            syncingFromRust = true
-            currentValue = value
-            observer?.invoke(value, metadata.animation)
-            syncingFromRust = false
+            // Dispatch to the main thread using the environment's lifecycle-aware scope
+            // This prevents CalledFromWrongThreadException when JNI callbacks arrive on bg threads
+            env.scope.launch {
+                syncingFromRust = true
+                currentValue = value
+                observer?.invoke(value, metadata.animation)
+                syncingFromRust = false
+            }
         }
         val guardHandle = watcherRegistrar(raw(), watcher)
         if (guardHandle != 0L) {
