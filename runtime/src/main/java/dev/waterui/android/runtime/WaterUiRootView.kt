@@ -73,20 +73,28 @@ class WaterUiRootView @JvmOverloads constructor(
 
     private fun renderRoot() {
         val env = checkNotNull(environment) { "renderRoot called without environment" }
+        android.util.Log.d("WaterUI.RootView", "renderRoot: ensureTheme start")
         ensureTheme(env)
+        android.util.Log.d("WaterUI.RootView", "renderRoot: ensureTheme done")
         // Create the root view AFTER environment and theme are initialized.
         // waterui_main() may create reactive signals that depend on the executor
         // initialized by waterui_init() (called in WuiEnvironment.create()).
         if (rootPtr == 0L) {
+            android.util.Log.d("WaterUI.RootView", "renderRoot: calling waterui_main()")
             rootPtr = NativeBindings.waterui_main()
+            android.util.Log.d("WaterUI.RootView", "renderRoot: waterui_main() returned $rootPtr")
         }
         removeAllViews()
         if (rootPtr == 0L) {
+            android.util.Log.w("WaterUI.RootView", "renderRoot: rootPtr is null, skipping")
             return
         }
+        android.util.Log.d("WaterUI.RootView", "renderRoot: inflating view")
         val child = inflateAnyView(context, rootPtr, env, registry)
+        android.util.Log.d("WaterUI.RootView", "renderRoot: view inflated, adding to layout")
         val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         addView(child, params)
+        android.util.Log.d("WaterUI.RootView", "renderRoot: done")
     }
 
     private fun ensureTheme(env: WuiEnvironment) {
