@@ -112,7 +112,7 @@ private val spacerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_spacer_id().toTypeId()
 }
 
-private fun List<ChildDescriptor>.getPriority(@Suppress("UNUSED_PARAMETER") index: Int): Int = 0
+private fun List<ChildDescriptor>.getPriority(_index: Int): Int = 0
 
 fun List<Long>.toChildDescriptors(): List<ChildDescriptor> {
     if (isEmpty()) return emptyList()
