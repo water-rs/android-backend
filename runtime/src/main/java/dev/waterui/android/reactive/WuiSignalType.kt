@@ -33,7 +33,7 @@ sealed class WuiSignalType<T>(val id: Int) {
     /** Drop a binding pointer (null for read-only types) */
     abstract val dropBinding: ((Long) -> Unit)?
     
-    object Bool : WuiSignalType<Boolean>(0) {
+    object WuiBool : WuiSignalType<Boolean>(0) {
         override val read: (Long) -> Boolean = NativeBindings::waterui_read_binding_bool
         override val write: (Long, Boolean) -> Unit = NativeBindings::waterui_set_binding_bool
         override val createWatcher = { cb: WatcherCallback<Boolean> -> 
@@ -45,10 +45,10 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_bool
     }
     
-    object Int : WuiSignalType<kotlin.Int>(1) {
-        override val read: (Long) -> kotlin.Int = NativeBindings::waterui_read_binding_int
-        override val write: (Long, kotlin.Int) -> Unit = NativeBindings::waterui_set_binding_int
-        override val createWatcher = { cb: WatcherCallback<kotlin.Int> -> 
+    object WuiInt : WuiSignalType<Int>(1) {
+        override val read: (Long) -> Int = NativeBindings::waterui_read_binding_int
+        override val write: (Long, Int) -> Unit = NativeBindings::waterui_set_binding_int
+        override val createWatcher = { cb: WatcherCallback<Int> -> 
             NativeBindings.waterui_create_int_watcher(cb)
         }
         override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_i32
@@ -57,10 +57,10 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_int
     }
     
-    object Double : WuiSignalType<kotlin.Double>(2) {
-        override val read: (Long) -> kotlin.Double = NativeBindings::waterui_read_binding_double
-        override val write: (Long, kotlin.Double) -> Unit = NativeBindings::waterui_set_binding_double
-        override val createWatcher = { cb: WatcherCallback<kotlin.Double> -> 
+    object WuiDouble : WuiSignalType<Double>(2) {
+        override val read: (Long) -> Double = NativeBindings::waterui_read_binding_double
+        override val write: (Long, Double) -> Unit = NativeBindings::waterui_set_binding_double
+        override val createWatcher = { cb: WatcherCallback<Double> -> 
             NativeBindings.waterui_create_double_watcher(cb)
         }
         override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_f64
@@ -69,7 +69,7 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_double
     }
     
-    object Str : WuiSignalType<String>(3) {
+    object WuiStr : WuiSignalType<String>(3) {
         override val read: (Long) -> String = { ptr ->
             NativeBindings.waterui_read_binding_str(ptr).decodeToString()
         }
@@ -85,7 +85,7 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_str
     }
     
-    object Color : WuiSignalType<ResolvedColorStruct>(4) {
+    object WuiColor : WuiSignalType<ResolvedColorStruct>(4) {
         override val read: (Long) -> ResolvedColorStruct = NativeBindings::waterui_read_computed_resolved_color
         override val write: ((Long, ResolvedColorStruct) -> Unit)? = null // Read-only
         override val createWatcher = { cb: WatcherCallback<ResolvedColorStruct> -> 
@@ -97,7 +97,7 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: ((Long) -> Unit)? = null
     }
     
-    object Font : WuiSignalType<ResolvedFontStruct>(5) {
+    object WuiFont : WuiSignalType<ResolvedFontStruct>(5) {
         override val read: (Long) -> ResolvedFontStruct = NativeBindings::waterui_read_computed_resolved_font
         override val write: ((Long, ResolvedFontStruct) -> Unit)? = null // Read-only
         override val createWatcher = { cb: WatcherCallback<ResolvedFontStruct> -> 
@@ -109,11 +109,11 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: ((Long) -> Unit)? = null
     }
     
-    object ColorScheme : WuiSignalType<kotlin.Int>(6) {
+    object WuiColorScheme : WuiSignalType<Int>(6) {
         // ColorScheme is represented as int (0=Light, 1=Dark)
-        override val read: (Long) -> kotlin.Int = NativeBindings::waterui_read_computed_color_scheme
-        override val write: ((Long, kotlin.Int) -> Unit)? = null // Read-only
-        override val createWatcher = { cb: WatcherCallback<kotlin.Int> -> 
+        override val read: (Long) -> Int = NativeBindings::waterui_read_computed_color_scheme
+        override val write: ((Long, Int) -> Unit)? = null // Read-only
+        override val createWatcher = { cb: WatcherCallback<Int> -> 
             // Use int watcher for color scheme
             NativeBindings.waterui_create_int_watcher(cb)
         }
