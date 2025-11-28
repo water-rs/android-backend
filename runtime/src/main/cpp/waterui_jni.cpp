@@ -454,14 +454,20 @@ struct ReactiveColorState {
   std::mutex mutex;
 
   void set_color(const WuiResolvedColor &new_color) {
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: acquiring mutex (this=%p)", this);
     std::lock_guard<std::mutex> lock(mutex);
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: mutex acquired");
     color = new_color;
     // Notify all active watchers using the FFI function
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: notifying %zu watchers", watchers.size());
     for (auto &entry : watchers) {
       if (entry.active && entry.watcher != nullptr) {
+        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: calling watcher");
         g_wui.waterui_call_watcher_resolved_color(entry.watcher, color);
+        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: watcher returned");
       }
     }
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: done");
   }
 
   size_t add_watcher(WuiWatcher_ResolvedColor *watcher) {
