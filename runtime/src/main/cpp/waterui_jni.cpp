@@ -105,6 +105,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_theme_install_color)                                               \
   X(waterui_theme_install_font)                                                \
   X(waterui_theme_install_color_scheme)                                        \
+  X(waterui_theme_color)                                                       \
+  X(waterui_theme_font)                                                        \
+  X(waterui_theme_color_scheme)                                                \
   X(waterui_scroll_view_id)                                                    \
   X(waterui_set_binding_bool)                                                  \
   X(waterui_set_binding_f64)                                                   \
@@ -1963,6 +1966,36 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1install_1font(
       jlong_to_ptr<WuiEnv>(env_ptr),
       static_cast<WuiFontSlot>(slot),
       jlong_to_ptr<WuiComputed_ResolvedFont>(signal_ptr));
+}
+
+// Slot-based theme query functions
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1color_1scheme(
+    JNIEnv *, jclass, jlong env_ptr) {
+  if (!g_symbols_ready || env_ptr == 0)
+    return 0;
+  return ptr_to_jlong(g_wui.waterui_theme_color_scheme(
+      jlong_to_ptr<WuiEnv>(env_ptr)));
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1color(
+    JNIEnv *, jclass, jlong env_ptr, jint slot) {
+  if (!g_symbols_ready || env_ptr == 0)
+    return 0;
+  return ptr_to_jlong(g_wui.waterui_theme_color(
+      jlong_to_ptr<WuiEnv>(env_ptr),
+      static_cast<WuiColorSlot>(slot)));
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1font(
+    JNIEnv *, jclass, jlong env_ptr, jint slot) {
+  if (!g_symbols_ready || env_ptr == 0)
+    return 0;
+  return ptr_to_jlong(g_wui.waterui_theme_font(
+      jlong_to_ptr<WuiEnv>(env_ptr),
+      static_cast<WuiFontSlot>(slot)));
 }
 
 // ============================================================================
