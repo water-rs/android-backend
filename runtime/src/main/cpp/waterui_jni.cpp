@@ -523,10 +523,10 @@ void reactive_guard_drop(void *data) {
 
 WuiWatcherGuard *reactive_color_watch(const void *data,
                                       WuiWatcher_ResolvedColor *watcher) {
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: entering");
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: entering, data=%p", data);
   auto *state = const_cast<ReactiveColorState *>(
       static_cast<const ReactiveColorState *>(data));
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: adding watcher");
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: state=%p, adding watcher", state);
   size_t index = state->add_watcher(watcher);
   __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: watcher added at index %zu", index);
 
