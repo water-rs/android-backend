@@ -37,7 +37,7 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     bodyFont.attachTo(textView)
     computed.observeWithAnimation { styled, animation ->
         val resolved = styled.toCharSequence(env)
-        Log.d("WaterUI.Text", "render text len=${resolved.length} color=${textView.currentTextColor}")
+        Log.d("WaterUI.Text", "TEXT UPDATE: len=${resolved.length} text='${resolved.take(50)}' color=${textView.currentTextColor}")
         textView.applyRustAnimation(animation) {
             textView.text = resolved
         }
