@@ -5,6 +5,7 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <jni.h>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -128,6 +129,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_watch_computed_styled_str)                                         \
   X(waterui_watch_computed_picker_items)                                       \
   X(waterui_new_computed_resolved_color)                                       \
+  X(waterui_new_computed_resolved_font)                                        \
   X(waterui_new_watcher_guard)                                                 \
   X(waterui_new_watcher_any_view)                                              \
   X(waterui_new_watcher_bool)                                                  \
@@ -137,7 +139,13 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_new_watcher_resolved_color)                                        \
   X(waterui_new_watcher_resolved_font)                                         \
   X(waterui_new_watcher_str)                                                   \
-  X(waterui_new_watcher_styled_str)
+  X(waterui_new_watcher_styled_str)                                            \
+  X(waterui_call_watcher_resolved_color)                                       \
+  X(waterui_call_watcher_resolved_font)                                        \
+  X(waterui_call_watcher_color_scheme)                                         \
+  X(waterui_drop_watcher_resolved_color)                                       \
+  X(waterui_drop_watcher_resolved_font)                                        \
+  X(waterui_drop_watcher_color_scheme)
 
 // --- Macros for JNI boilerplate reduction ---
 
@@ -424,6 +432,176 @@ WuiComputed_ResolvedColor *make_static_color_computed(jint color) {
   auto *state = new StaticColorState{argb_to_resolved_color(color)};
   return g_wui.waterui_new_computed_resolved_color(
       state, static_color_get, static_color_watch, static_color_drop);
+}
+
+// ============================================================================
+// Reactive Color State - allows updating from Kotlin and notifies watchers
+// ============================================================================
+
+struct WatcherEntry {
+  WuiWatcher_ResolvedColor *watcher;
+  bool active;
+};
+
+struct ReactiveColorState {
+  WuiResolvedColor color;
+  std::vector<WatcherEntry> watchers;
+  std::mutex mutex;
+
+  void set_color(const WuiResolvedColor &new_color) {
+    std::lock_guard<std::mutex> lock(mutex);
+    color = new_color;
+    // Notify all active watchers using the FFI function
+    for (auto &entry : watchers) {
+      if (entry.active && entry.watcher != nullptr) {
+        g_wui.waterui_call_watcher_resolved_color(entry.watcher, color);
+      }
+    }
+  }
+
+  size_t add_watcher(WuiWatcher_ResolvedColor *watcher) {
+    std::lock_guard<std::mutex> lock(mutex);
+    size_t index = watchers.size();
+    watchers.push_back({watcher, true});
+    return index;
+  }
+
+  void remove_watcher(size_t index) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (index < watchers.size()) {
+      watchers[index].active = false;
+      // Drop the watcher using FFI function
+      if (watchers[index].watcher != nullptr) {
+        g_wui.waterui_drop_watcher_resolved_color(watchers[index].watcher);
+      }
+      watchers[index].watcher = nullptr;
+    }
+  }
+};
+
+struct ReactiveGuardState {
+  ReactiveColorState *color_state;
+  size_t watcher_index;
+};
+
+WuiResolvedColor reactive_color_get(const void *data) {
+  auto *state = static_cast<const ReactiveColorState *>(data);
+  return state->color;
+}
+
+void reactive_guard_drop(void *data) {
+  auto *guard_state = static_cast<ReactiveGuardState *>(data);
+  if (guard_state->color_state) {
+    guard_state->color_state->remove_watcher(guard_state->watcher_index);
+  }
+  delete guard_state;
+}
+
+WuiWatcherGuard *reactive_color_watch(const void *data,
+                                      WuiWatcher_ResolvedColor *watcher) {
+  auto *state = const_cast<ReactiveColorState *>(
+      static_cast<const ReactiveColorState *>(data));
+  size_t index = state->add_watcher(watcher);
+
+  auto *guard_state = new ReactiveGuardState{state, index};
+  return g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
+}
+
+void reactive_color_drop(void *data) {
+  delete static_cast<ReactiveColorState *>(data);
+}
+
+WuiComputed_ResolvedColor *
+make_reactive_color_computed(const WuiResolvedColor &color) {
+  auto *state = new ReactiveColorState{};
+  state->color = color;
+  return g_wui.waterui_new_computed_resolved_color(
+      state, reactive_color_get, reactive_color_watch, reactive_color_drop);
+}
+
+// ============================================================================
+// Reactive Font State
+// ============================================================================
+
+struct WatcherEntryFont {
+  WuiWatcher_ResolvedFont *watcher;
+  bool active;
+};
+
+struct ReactiveFontState {
+  WuiResolvedFont font;
+  std::vector<WatcherEntryFont> watchers;
+  std::mutex mutex;
+
+  void set_font(const WuiResolvedFont &new_font) {
+    std::lock_guard<std::mutex> lock(mutex);
+    font = new_font;
+    // Notify all active watchers using the FFI function
+    for (auto &entry : watchers) {
+      if (entry.active && entry.watcher != nullptr) {
+        g_wui.waterui_call_watcher_resolved_font(entry.watcher, font);
+      }
+    }
+  }
+
+  size_t add_watcher(WuiWatcher_ResolvedFont *watcher) {
+    std::lock_guard<std::mutex> lock(mutex);
+    size_t index = watchers.size();
+    watchers.push_back({watcher, true});
+    return index;
+  }
+
+  void remove_watcher(size_t index) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (index < watchers.size()) {
+      watchers[index].active = false;
+      // Drop the watcher using FFI function
+      if (watchers[index].watcher != nullptr) {
+        g_wui.waterui_drop_watcher_resolved_font(watchers[index].watcher);
+      }
+      watchers[index].watcher = nullptr;
+    }
+  }
+};
+
+struct ReactiveGuardStateFont {
+  ReactiveFontState *font_state;
+  size_t watcher_index;
+};
+
+WuiResolvedFont reactive_font_get(const void *data) {
+  auto *state = static_cast<const ReactiveFontState *>(data);
+  return state->font;
+}
+
+void reactive_font_guard_drop(void *data) {
+  auto *guard_state = static_cast<ReactiveGuardStateFont *>(data);
+  if (guard_state->font_state) {
+    guard_state->font_state->remove_watcher(guard_state->watcher_index);
+  }
+  delete guard_state;
+}
+
+WuiWatcherGuard *reactive_font_watch(const void *data,
+                                     WuiWatcher_ResolvedFont *watcher) {
+  auto *state = const_cast<ReactiveFontState *>(
+      static_cast<const ReactiveFontState *>(data));
+  size_t index = state->add_watcher(watcher);
+
+  auto *guard_state = new ReactiveGuardStateFont{state, index};
+  return g_wui.waterui_new_watcher_guard(guard_state, reactive_font_guard_drop);
+}
+
+void reactive_font_drop(void *data) {
+  delete static_cast<ReactiveFontState *>(data);
+}
+
+WuiComputed_ResolvedFont *
+make_reactive_font_computed(const WuiResolvedFont &font) {
+  auto *state = new ReactiveFontState{};
+  state->font = font;
+  return g_wui.waterui_new_computed_resolved_font(
+      state, reactive_font_get, reactive_font_watch, reactive_font_drop);
 }
 
 WuiProposalSize proposal_from_java(JNIEnv *env, jobject proposal_obj) {
@@ -1746,6 +1924,73 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1install_1static_1theme(
       jlong_to_ptr<WuiEnv>(env_ptr), background_ptr, surface_ptr,
       surface_variant_ptr, border_ptr, foreground_ptr, muted_ptr, accent_ptr,
       accent_foreground_ptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+}
+
+// ============================================================================
+// Reactive Theme Signal JNI Methods
+// ============================================================================
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1reactive_1color_1state(
+    JNIEnv *, jclass, jint argb) {
+  if (!g_symbols_ready)
+    return 0;
+  WuiResolvedColor color = argb_to_resolved_color(argb);
+  auto *state = new ReactiveColorState{};
+  state->color = color;
+  return ptr_to_jlong(state);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1color_1state_1to_1computed(
+    JNIEnv *, jclass, jlong state_ptr) {
+  if (!g_symbols_ready || state_ptr == 0)
+    return 0;
+  auto *state = jlong_to_ptr<ReactiveColorState>(state_ptr);
+  return ptr_to_jlong(g_wui.waterui_new_computed_resolved_color(
+      state, reactive_color_get, reactive_color_watch, reactive_color_drop));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1color_1state_1set(
+    JNIEnv *, jclass, jlong state_ptr, jint argb) {
+  if (state_ptr == 0)
+    return;
+  auto *state = jlong_to_ptr<ReactiveColorState>(state_ptr);
+  state->set_color(argb_to_resolved_color(argb));
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1reactive_1font_1state(
+    JNIEnv *env, jclass, jfloat size, jint weight) {
+  if (!g_symbols_ready)
+    return 0;
+  auto *state = new ReactiveFontState{};
+  state->font.size = size;
+  state->font.weight = static_cast<WuiFontWeight>(weight);
+  return ptr_to_jlong(state);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1font_1state_1to_1computed(
+    JNIEnv *, jclass, jlong state_ptr) {
+  if (!g_symbols_ready || state_ptr == 0)
+    return 0;
+  auto *state = jlong_to_ptr<ReactiveFontState>(state_ptr);
+  return ptr_to_jlong(g_wui.waterui_new_computed_resolved_font(
+      state, reactive_font_get, reactive_font_watch, reactive_font_drop));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1font_1state_1set(
+    JNIEnv *env, jclass, jlong state_ptr, jfloat size, jint weight) {
+  if (state_ptr == 0)
+    return;
+  auto *state = jlong_to_ptr<ReactiveFontState>(state_ptr);
+  WuiResolvedFont new_font{};
+  new_font.size = size;
+  new_font.weight = static_cast<WuiFontWeight>(weight);
+  state->set_font(new_font);
 }
 
 JNIEXPORT jboolean JNICALL
