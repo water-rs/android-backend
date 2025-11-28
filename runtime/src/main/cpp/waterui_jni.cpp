@@ -1952,8 +1952,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1install_1color(
   if (!g_symbols_ready || env_ptr == 0 || signal_ptr == 0)
     return;
   g_wui.waterui_theme_install_color(
-      jlong_to_ptr<WuiEnv>(env_ptr),
-      static_cast<WuiColorSlot>(slot),
+      jlong_to_ptr<WuiEnv>(env_ptr), static_cast<WuiColorSlot>(slot),
       jlong_to_ptr<WuiComputed_ResolvedColor>(signal_ptr));
 }
 
@@ -1963,8 +1962,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1install_1font(
   if (!g_symbols_ready || env_ptr == 0 || signal_ptr == 0)
     return;
   g_wui.waterui_theme_install_font(
-      jlong_to_ptr<WuiEnv>(env_ptr),
-      static_cast<WuiFontSlot>(slot),
+      jlong_to_ptr<WuiEnv>(env_ptr), static_cast<WuiFontSlot>(slot),
       jlong_to_ptr<WuiComputed_ResolvedFont>(signal_ptr));
 }
 
@@ -1974,8 +1972,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1color_1scheme(
     JNIEnv *, jclass, jlong env_ptr) {
   if (!g_symbols_ready || env_ptr == 0)
     return 0;
-  return ptr_to_jlong(g_wui.waterui_theme_color_scheme(
-      jlong_to_ptr<WuiEnv>(env_ptr)));
+  return ptr_to_jlong(
+      g_wui.waterui_theme_color_scheme(jlong_to_ptr<WuiEnv>(env_ptr)));
 }
 
 JNIEXPORT jlong JNICALL
@@ -1984,8 +1982,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1color(
   if (!g_symbols_ready || env_ptr == 0)
     return 0;
   return ptr_to_jlong(g_wui.waterui_theme_color(
-      jlong_to_ptr<WuiEnv>(env_ptr),
-      static_cast<WuiColorSlot>(slot)));
+      jlong_to_ptr<WuiEnv>(env_ptr), static_cast<WuiColorSlot>(slot)));
 }
 
 JNIEXPORT jlong JNICALL
@@ -1993,9 +1990,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1theme_1font(
     JNIEnv *, jclass, jlong env_ptr, jint slot) {
   if (!g_symbols_ready || env_ptr == 0)
     return 0;
-  return ptr_to_jlong(g_wui.waterui_theme_font(
-      jlong_to_ptr<WuiEnv>(env_ptr),
-      static_cast<WuiFontSlot>(slot)));
+  return ptr_to_jlong(g_wui.waterui_theme_font(jlong_to_ptr<WuiEnv>(env_ptr),
+                                               static_cast<WuiFontSlot>(slot)));
 }
 
 // ============================================================================
