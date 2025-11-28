@@ -52,10 +52,16 @@ class WuiBinding<T>(
             // Post to main thread using Handler - this queues the message and returns immediately
             // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
             mainHandler.post {
+                // Skip if value hasn't changed (prevents unnecessary UI updates)
+                if (currentValue == value) return@post
+                
                 syncingFromRust = true
-                currentValue = value
-                observer?.invoke(value, metadata.animation)
-                syncingFromRust = false
+                try {
+                    currentValue = value
+                    observer?.invoke(value, metadata.animation)
+                } finally {
+                    syncingFromRust = false
+                }
             }
         }
         val guardHandle = watcherRegistrar(raw(), watcher)
@@ -64,14 +70,22 @@ class WuiBinding<T>(
         }
     }
 
+    private var isSettingValue = false
+    
     fun set(value: T) {
-        // Prevent feedback loops from UI listeners - if value hasn't changed, skip
-        if (currentValue == value) return
+        // Prevent feedback loops:
+        // 1. If we're currently syncing from Rust, don't write back
+        // 2. If we're already in the middle of a set() call, don't recurse
+        // 3. If value hasn't changed, skip
+        if (syncingFromRust || isSettingValue || currentValue == value) return
         
-        currentValue = value
-        observer?.invoke(value, WuiAnimation.NONE)
-        if (!syncingFromRust) {
+        isSettingValue = true
+        try {
+            currentValue = value
+            // Write to Rust - this will trigger the watcher which will call observer
             writer(raw(), value)
+        } finally {
+            isSettingValue = false
         }
     }
 
