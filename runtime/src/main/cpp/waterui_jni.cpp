@@ -504,12 +504,18 @@ void reactive_guard_drop(void *data) {
 
 WuiWatcherGuard *reactive_color_watch(const void *data,
                                       WuiWatcher_ResolvedColor *watcher) {
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: entering");
   auto *state = const_cast<ReactiveColorState *>(
       static_cast<const ReactiveColorState *>(data));
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: adding watcher");
   size_t index = state->add_watcher(watcher);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: watcher added at index %zu", index);
 
   auto *guard_state = new ReactiveGuardState{state, index};
-  return g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: calling waterui_new_watcher_guard");
+  auto *result = g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: returning guard %p", result);
+  return result;
 }
 
 void reactive_color_drop(void *data) {
@@ -1688,12 +1694,17 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1resolve
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolved_1color(
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: entering, computed_ptr=%ld", computed_ptr);
   auto *computed = jlong_to_ptr<WuiComputed_ResolvedColor>(computed_ptr);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: getting watcher struct");
   WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: creating watcher");
   auto *watcher = create_watcher<WuiWatcher_ResolvedColor, WuiResolvedColor>(
       fields, g_wui.waterui_new_watcher_resolved_color);
-  return ptr_to_jlong(
-      g_wui.waterui_watch_computed_resolved_color(computed, watcher));
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: calling Rust waterui_watch_computed_resolved_color");
+  auto *result = g_wui.waterui_watch_computed_resolved_color(computed, watcher);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: Rust returned %p", result);
+  return ptr_to_jlong(result);
 }
 
 JNIEXPORT void JNICALL
