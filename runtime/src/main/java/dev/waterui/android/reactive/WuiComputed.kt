@@ -1,5 +1,7 @@
 package dev.waterui.android.reactive
 
+import android.os.Handler
+import android.os.Looper
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
@@ -44,12 +46,15 @@ class WuiComputed<T>(
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
         android.util.Log.d("WaterUI.Computed", "ensureWatcher: creating watcher for ${this::class.simpleName}")
+        // Use Handler to post to main thread - this ensures the callback returns immediately
+        // even if called synchronously from Rust, preventing deadlocks
+        val mainHandler = Handler(Looper.getMainLooper())
         val watcher = watcherFactory(raw()) { value, metadata ->
             android.util.Log.d("WaterUI.Computed", "ensureWatcher: watcher callback invoked on thread ${Thread.currentThread().name}")
-            // Dispatch to the main thread using the environment's lifecycle-aware scope
-            // This prevents CalledFromWrongThreadException when JNI callbacks arrive on bg threads
-            env.scope.launch {
-                android.util.Log.d("WaterUI.Computed", "ensureWatcher: dispatching to coroutine scope")
+            // Post to main thread using Handler - this queues the message and returns immediately
+            // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
+            mainHandler.post {
+                android.util.Log.d("WaterUI.Computed", "ensureWatcher: handler posted, executing on main thread")
                 val previous = currentValue
                 currentValue = value
                 observer?.invoke(value, metadata.animation)
