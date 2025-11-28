@@ -38,6 +38,8 @@ internal object NativeBindings {
     external fun waterui_computed_color_scheme_constant(scheme: Int): Long
     external fun waterui_read_computed_color_scheme(ptr: Long): Int
     external fun waterui_drop_computed_color_scheme(ptr: Long)
+    external fun waterui_watch_computed_color_scheme(computed: Long, watcher: WatcherStruct): Long
+    external fun waterui_new_watcher_color_scheme(data: Long, call: Long, drop: Long): Long
     external fun waterui_theme_install_color_scheme(envPtr: Long, signalPtr: Long)
     external fun waterui_theme_color_scheme(envPtr: Long): Long
 
@@ -178,6 +180,41 @@ internal object NativeBindings {
         format: Int,
     ): Boolean
     external fun waterui_drop_renderer_view(handle: Long)
+
+    // ========== Reactive Theme Signals ==========
+    // These allow native code to create and update reactive signals
+    // that notify WaterUI when theme values change
+    
+    /**
+     * Creates a reactive color state that can be updated and notify watchers.
+     * Returns a state handle that must be converted to computed for use.
+     */
+    external fun waterui_create_reactive_color_state(argb: Int): Long
+    
+    /**
+     * Converts a reactive color state to a WuiComputed pointer for installation.
+     */
+    external fun waterui_reactive_color_state_to_computed(statePtr: Long): Long
+    
+    /**
+     * Updates a reactive color state with new ARGB value, notifying all watchers.
+     */
+    external fun waterui_reactive_color_state_set(statePtr: Long, argb: Int)
+    
+    /**
+     * Creates a reactive font state.
+     */
+    external fun waterui_create_reactive_font_state(size: Float, weight: Int): Long
+    
+    /**
+     * Converts a reactive font state to a WuiComputed pointer for installation.
+     */
+    external fun waterui_reactive_font_state_to_computed(statePtr: Long): Long
+    
+    /**
+     * Updates a reactive font state, notifying all watchers.
+     */
+    external fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int)
 }
 
 fun bootstrapWaterUiRuntime(libraryName: String) {
