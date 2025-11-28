@@ -53,12 +53,22 @@ class WaterUiRootView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         removeAllViews()
-        environment?.close()
-        environment = null
+        
+        // 1. Close the theme watcher first (depends on environment)
         backgroundTheme?.close()
         backgroundTheme = null
+        
+        // 2. Drop the native root view (depends on environment/runtime)
+        if (rootPtr != 0L) {
+            NativeBindings.waterui_drop_anyview(rootPtr)
+            rootPtr = 0L
+        }
+
+        // 3. Finally, close the environment itself
+        environment?.close()
+        environment = null
+        
         materialThemeInstalled = false
-        rootPtr = 0L
     }
 
     private fun renderRoot() {

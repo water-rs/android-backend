@@ -21,18 +21,23 @@ private val fixedContainerTypeId: WuiTypeId by lazy {
 
 private val layoutContainerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_layout_container(node.rawPtr)
-    val childPointers = if (struct.childrenPtr == 0L) {
-        emptyList()
+    
+    if (struct.childrenPtr == 0L) {
+        RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = emptyList())
     } else {
-        NativeAnyViews(struct.childrenPtr).usePointer { it.toList() }
+        // IMPORTANT: All operations using child pointers must happen inside usePointer
+        // to prevent use-after-free when NativeAnyViews is closed
+        NativeAnyViews(struct.childrenPtr).usePointer { nativeViews ->
+            val childPointers = nativeViews.toList()
+            val descriptors = childPointers.toChildDescriptors()
+            val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
+            childPointers.forEach { childPtr ->
+                val child = inflateAnyView(context, childPtr, env, registry)
+                group.addView(child)
+            }
+            group
+        }
     }
-    val descriptors = childPointers.toChildDescriptors()
-    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
-    childPointers.forEach { childPtr ->
-        val child = inflateAnyView(context, childPtr, env, registry)
-        group.addView(child)
-    }
-    group
 }
 
 private val fixedContainerRenderer = WuiRenderer { context, node, env, registry ->
