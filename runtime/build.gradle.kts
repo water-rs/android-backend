@@ -41,6 +41,8 @@ android {
     sourceSets {
         getByName("main") {
             jniLibs.srcDir("src/main/jniLibs")
+            // Include SWIG-generated Java files if they exist
+            java.srcDir("${buildDir}/generated/swig/java")
         }
     }
 
