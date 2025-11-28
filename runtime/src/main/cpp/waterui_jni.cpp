@@ -465,14 +465,23 @@ struct ReactiveColorState {
   }
 
   size_t add_watcher(WuiWatcher_ResolvedColor *watcher) {
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: acquiring mutex");
-    std::lock_guard<std::mutex> lock(mutex);
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: mutex acquired, getting size");
-    size_t index = watchers.size();
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: size=%zu, pushing", index);
-    watchers.push_back({watcher, true});
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: pushed, returning index %zu", index);
-    return index;
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: trying lock (this=%p)", this);
+    if (mutex.try_lock()) {
+      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: try_lock succeeded");
+      size_t index = watchers.size();
+      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: size=%zu, pushing", index);
+      watchers.push_back({watcher, true});
+      mutex.unlock();
+      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: returning index %zu", index);
+      return index;
+    } else {
+      __android_log_print(ANDROID_LOG_ERROR, "WaterUI.JNI", "add_watcher: MUTEX ALREADY LOCKED! Deadlock detected.");
+      // Return anyway to avoid infinite hang - this is a bug
+      std::lock_guard<std::mutex> lock(mutex);
+      size_t index = watchers.size();
+      watchers.push_back({watcher, true});
+      return index;
+    }
   }
 
   void remove_watcher(size_t index) {
