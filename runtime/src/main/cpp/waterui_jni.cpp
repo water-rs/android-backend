@@ -465,9 +465,12 @@ struct ReactiveColorState {
   }
 
   size_t add_watcher(WuiWatcher_ResolvedColor *watcher) {
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: acquiring mutex");
     std::lock_guard<std::mutex> lock(mutex);
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: mutex acquired");
     size_t index = watchers.size();
     watchers.push_back({watcher, true});
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: returning index %zu", index);
     return index;
   }
 
