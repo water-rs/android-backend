@@ -86,7 +86,9 @@ class WuiBinding<T>(
         isSettingValue = true
         try {
             currentValue = value
-            // Write to Rust - this will trigger the watcher which will call observer
+            // Notify observer immediately so UI updates
+            observer?.invoke(value, WuiAnimation.NONE)
+            // Write to Rust
             writer(raw(), value)
         } finally {
             isSettingValue = false
