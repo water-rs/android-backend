@@ -1,5 +1,7 @@
 package dev.waterui.android.reactive
 
+import android.os.Handler
+import android.os.Looper
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
@@ -9,7 +11,6 @@ import dev.waterui.android.runtime.StyledStrStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
-import kotlinx.coroutines.launch
 
 /**
  * Generic binding wrapper translated from the Swift implementation. Exposes
@@ -44,10 +45,13 @@ class WuiBinding<T>(
 
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
+        // Use Handler to post to main thread - this ensures the callback returns immediately
+        // even if called synchronously from Rust, preventing deadlocks
+        val mainHandler = Handler(Looper.getMainLooper())
         val watcher = watcherFactory(raw()) { value, metadata ->
-            // Dispatch to the main thread using the environment's lifecycle-aware scope
-            // This prevents CalledFromWrongThreadException when JNI callbacks arrive on bg threads
-            env.scope.launch {
+            // Post to main thread using Handler - this queues the message and returns immediately
+            // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
+            mainHandler.post {
                 syncingFromRust = true
                 currentValue = value
                 observer?.invoke(value, metadata.animation)
