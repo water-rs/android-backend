@@ -112,21 +112,11 @@ class WaterUiRootView @JvmOverloads constructor(
             installColorSlot(env, ColorSlot.AccentForeground, palette.accentForeground)
             android.util.Log.d("WaterUI.RootView", "ensureTheme: color slots installed")
             materialThemeInstalled = true
+            
+            // Set static background color for now (skip reactive observation to debug hang)
+            android.util.Log.d("WaterUI.RootView", "ensureTheme: setting static background to ${palette.background}")
+            setBackgroundColor(palette.background)
         }
-        if (backgroundTheme != null) return
-        android.util.Log.d("WaterUI.RootView", "ensureTheme: getting background theme")
-        val theme = ThemeBridge.background(env)
-        android.util.Log.d("WaterUI.RootView", "ensureTheme: got background theme, observing")
-        theme.observeWithAnimation { color, animation ->
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: background color changed to ${color.toColorInt()}")
-            val colorInt = color.toColorInt()
-            this@WaterUiRootView.applyRustAnimation(animation) {
-                setBackgroundColor(colorInt)
-            }
-        }
-        android.util.Log.d("WaterUI.RootView", "ensureTheme: attaching theme")
-        theme.attachTo(this)
-        backgroundTheme = theme
         android.util.Log.d("WaterUI.RootView", "ensureTheme: done")
     }
 
