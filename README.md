@@ -36,10 +36,10 @@ it up automatically.
 
 Two shared libraries must be available at runtime:
 
-1. **Application library** – produced by the WaterUI CLI (`cargo ndk` build).
-   It statically links `waterui-ffi` and exports the symbols declared in
-   `ffi/waterui.h`. Load it with `System.loadLibrary("waterui_sample")`
-   (omit the `lib` prefix and `.so` suffix).
+1. **`libwaterui_app.so`** – produced by the WaterUI CLI (`water run android`).
+   The CLI handles cross-compilation, NDK configuration, and automatically renames
+   the output to this standardized name regardless of the crate name. It statically
+   links `waterui-ffi` and exports the symbols declared in `ffi/waterui.h`.
 2. **`libwaterui_android.so`** – the JNI shim provided by this module.
    It references the symbols exported by the application library, so make sure
    the application library is loaded first.
@@ -54,9 +54,9 @@ symbols exist before Compose starts rendering:
 class MainActivity : ComponentActivity() {
     companion object {
         init {
-            System.loadLibrary("waterui_sample")
+            System.loadLibrary("waterui_app")  // Standardized name
             System.loadLibrary("waterui_android")
-            NativeBindings.bootstrapNativeBindings("waterui_sample")
+            bootstrapWaterUiRuntime()
         }
     }
 
