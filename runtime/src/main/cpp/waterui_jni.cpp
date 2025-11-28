@@ -2035,6 +2035,7 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1reactive_1color
   WuiResolvedColor color = argb_to_resolved_color(argb);
   auto *state = new ReactiveColorState{};
   state->color = color;
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "create_reactive_color_state: created state=%p, watchers.size()=%zu", state, state->watchers.size());
   return ptr_to_jlong(state);
 }
 
@@ -2044,8 +2045,11 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1color_1state_
   if (!g_symbols_ready || state_ptr == 0)
     return 0;
   auto *state = jlong_to_ptr<ReactiveColorState>(state_ptr);
-  return ptr_to_jlong(g_wui.waterui_new_computed_resolved_color(
-      state, reactive_color_get, reactive_color_watch, reactive_color_drop));
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "state_to_computed: state=%p, watchers.size()=%zu", state, state->watchers.size());
+  auto *computed = g_wui.waterui_new_computed_resolved_color(
+      state, reactive_color_get, reactive_color_watch, reactive_color_drop);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "state_to_computed: computed=%p", computed);
+  return ptr_to_jlong(computed);
 }
 
 JNIEXPORT void JNICALL
