@@ -454,34 +454,45 @@ struct ReactiveColorState {
   std::mutex mutex;
 
   void set_color(const WuiResolvedColor &new_color) {
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: acquiring mutex (this=%p)", this);
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                        "set_color: acquiring mutex (this=%p)", this);
     std::lock_guard<std::mutex> lock(mutex);
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: mutex acquired");
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                        "set_color: mutex acquired");
     color = new_color;
     // Notify all active watchers using the FFI function
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: notifying %zu watchers", watchers.size());
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                        "set_color: notifying %zu watchers", watchers.size());
     for (auto &entry : watchers) {
       if (entry.active && entry.watcher != nullptr) {
-        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: calling watcher");
+        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                            "set_color: calling watcher");
         g_wui.waterui_call_watcher_resolved_color(entry.watcher, color);
-        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: watcher returned");
+        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                            "set_color: watcher returned");
       }
     }
     __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: done");
   }
 
   size_t add_watcher(WuiWatcher_ResolvedColor *watcher) {
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: trying lock (this=%p)", this);
+    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                        "add_watcher: trying lock (this=%p)", this);
     if (mutex.try_lock()) {
-      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: try_lock succeeded");
+      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                          "add_watcher: try_lock succeeded");
       size_t index = watchers.size();
-      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: size=%zu, pushing", index);
+      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                          "add_watcher: size=%zu, pushing", index);
       watchers.push_back({watcher, true});
       mutex.unlock();
-      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "add_watcher: returning index %zu", index);
+      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                          "add_watcher: returning index %zu", index);
       return index;
     } else {
-      __android_log_print(ANDROID_LOG_ERROR, "WaterUI.JNI", "add_watcher: MUTEX ALREADY LOCKED! Deadlock detected.");
+      __android_log_print(
+          ANDROID_LOG_ERROR, "WaterUI.JNI",
+          "add_watcher: MUTEX ALREADY LOCKED! Deadlock detected.");
       // Return anyway to avoid infinite hang - this is a bug
       std::lock_guard<std::mutex> lock(mutex);
       size_t index = watchers.size();
@@ -523,17 +534,25 @@ void reactive_guard_drop(void *data) {
 
 WuiWatcherGuard *reactive_color_watch(const void *data,
                                       WuiWatcher_ResolvedColor *watcher) {
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: entering, data=%p", data);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "reactive_color_watch: entering, data=%p", data);
   auto *state = const_cast<ReactiveColorState *>(
       static_cast<const ReactiveColorState *>(data));
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: state=%p, adding watcher", state);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "reactive_color_watch: state=%p, adding watcher", state);
   size_t index = state->add_watcher(watcher);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: watcher added at index %zu", index);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "reactive_color_watch: watcher added at index %zu",
+                      index);
 
   auto *guard_state = new ReactiveGuardState{state, index};
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: calling waterui_new_watcher_guard");
-  auto *result = g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "reactive_color_watch: returning guard %p", result);
+  __android_log_print(
+      ANDROID_LOG_DEBUG, "WaterUI.JNI",
+      "reactive_color_watch: calling waterui_new_watcher_guard");
+  auto *result =
+      g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "reactive_color_watch: returning guard %p", result);
   return result;
 }
 
@@ -1713,16 +1732,25 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1resolve
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolved_1color(
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: entering, computed_ptr=%ld", computed_ptr);
+  __android_log_print(
+      ANDROID_LOG_DEBUG, "WaterUI.JNI",
+      "watch_computed_resolved_color: entering, computed_ptr=%ld",
+      computed_ptr);
   auto *computed = jlong_to_ptr<WuiComputed_ResolvedColor>(computed_ptr);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: getting watcher struct");
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "watch_computed_resolved_color: getting watcher struct");
   WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: creating watcher");
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "watch_computed_resolved_color: creating watcher");
   auto *watcher = create_watcher<WuiWatcher_ResolvedColor, WuiResolvedColor>(
       fields, g_wui.waterui_new_watcher_resolved_color);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: calling Rust waterui_watch_computed_resolved_color");
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "watch_computed_resolved_color: calling Rust "
+                      "waterui_watch_computed_resolved_color");
   auto *result = g_wui.waterui_watch_computed_resolved_color(computed, watcher);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "watch_computed_resolved_color: Rust returned %p", result);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "watch_computed_resolved_color: Rust returned %p",
+                      result);
   return ptr_to_jlong(result);
 }
 
@@ -2035,7 +2063,10 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1reactive_1color
   WuiResolvedColor color = argb_to_resolved_color(argb);
   auto *state = new ReactiveColorState{};
   state->color = color;
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "create_reactive_color_state: created state=%p, watchers.size()=%zu", state, state->watchers.size());
+  __android_log_print(
+      ANDROID_LOG_DEBUG, "WaterUI.JNI",
+      "create_reactive_color_state: created state=%p, watchers.size()=%zu",
+      state, state->watchers.size());
   return ptr_to_jlong(state);
 }
 
@@ -2045,10 +2076,13 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1color_1state_
   if (!g_symbols_ready || state_ptr == 0)
     return 0;
   auto *state = jlong_to_ptr<ReactiveColorState>(state_ptr);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "state_to_computed: state=%p, watchers.size()=%zu", state, state->watchers.size());
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "state_to_computed: state=%p, watchers.size()=%zu", state,
+                      state->watchers.size());
   auto *computed = g_wui.waterui_new_computed_resolved_color(
       state, reactive_color_get, reactive_color_watch, reactive_color_drop);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "state_to_computed: computed=%p", computed);
+  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
+                      "state_to_computed: computed=%p", computed);
   return ptr_to_jlong(computed);
 }
 
