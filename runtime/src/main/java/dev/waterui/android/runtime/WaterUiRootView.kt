@@ -8,6 +8,8 @@ import android.view.ContextThemeWrapper
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.ColorSlot
+import dev.waterui.android.runtime.ReactiveColorSignal
 
 /**
  * Root view that owns the WaterUI environment and inflates the Rust-driven
@@ -80,17 +82,15 @@ class WaterUiRootView @JvmOverloads constructor(
     private fun ensureTheme(env: WuiEnvironment) {
         if (!materialThemeInstalled) {
             val palette = MaterialThemePalette.from(context)
-            NativeBindings.waterui_install_static_theme(
-                env.raw(),
-                palette.background,
-                palette.surface,
-                palette.surfaceVariant,
-                palette.border,
-                palette.foreground,
-                palette.mutedForeground,
-                palette.accent,
-                palette.accentForeground
-            )
+            // Install color slots using the new reactive signal API
+            installColorSlot(env, ColorSlot.Background, palette.background)
+            installColorSlot(env, ColorSlot.Surface, palette.surface)
+            installColorSlot(env, ColorSlot.SurfaceVariant, palette.surfaceVariant)
+            installColorSlot(env, ColorSlot.Border, palette.border)
+            installColorSlot(env, ColorSlot.Foreground, palette.foreground)
+            installColorSlot(env, ColorSlot.MutedForeground, palette.mutedForeground)
+            installColorSlot(env, ColorSlot.Accent, palette.accent)
+            installColorSlot(env, ColorSlot.AccentForeground, palette.accentForeground)
             materialThemeInstalled = true
         }
         if (backgroundTheme != null) return
@@ -103,6 +103,11 @@ class WaterUiRootView @JvmOverloads constructor(
         }
         theme.attachTo(this)
         backgroundTheme = theme
+    }
+
+    private fun installColorSlot(env: WuiEnvironment, slot: ColorSlot, argb: Int) {
+        val signal = ReactiveColorSignal(argb)
+        ThemeBridge.installColor(env, slot, signal.toComputed())
     }
 }
 
