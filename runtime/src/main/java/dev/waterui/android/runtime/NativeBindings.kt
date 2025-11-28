@@ -8,7 +8,7 @@ import dev.waterui.android.reactive.WatcherCallback
  */
 internal object NativeBindings {
 
-    external fun bootstrapNativeBindings(libraryName: String)
+    external fun bootstrapNativeBindings()
 
     external fun waterui_init(): Long
     external fun waterui_main(): Long
@@ -217,8 +217,8 @@ internal object NativeBindings {
     external fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int)
 }
 
-fun bootstrapWaterUiRuntime(libraryName: String) {
-    NativeBindings.bootstrapNativeBindings(libraryName)
+fun bootstrapWaterUiRuntime() {
+    NativeBindings.bootstrapNativeBindings()
 }
 
 fun configureHotReloadEndpoint(host: String, port: Int) {

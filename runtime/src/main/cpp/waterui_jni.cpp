@@ -271,22 +271,11 @@ void throw_unsatisfied(JNIEnv *env, const std::string &message) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_bootstrapNativeBindings(
-    JNIEnv *env, jclass, jstring library_name) {
-  if (library_name == nullptr) {
-    throw_unsatisfied(env, "Native library name must not be null");
-    return;
-  }
+    JNIEnv *env, jclass) {
+  // Use standardized library name - CLI always renames to libwaterui_app.so
+  constexpr const char *so_name = "libwaterui_app.so";
 
-  const char *raw_name = env->GetStringUTFChars(library_name, nullptr);
-  if (raw_name == nullptr) {
-    return;
-  }
-  std::string so_name = "lib";
-  so_name += raw_name;
-  so_name += ".so";
-  env->ReleaseStringUTFChars(library_name, raw_name);
-
-  void *handle = dlopen(so_name.c_str(), RTLD_NOW | RTLD_GLOBAL);
+  void *handle = dlopen(so_name, RTLD_NOW | RTLD_GLOBAL);
   if (handle == nullptr) {
     std::string message = "dlopen failed for ";
     message += so_name;
@@ -311,7 +300,7 @@ Java_dev_waterui_android_runtime_NativeBindings_bootstrapNativeBindings(
 #undef LOAD_SYMBOL
   g_symbols_ready = true;
   __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
-                      "Bound WaterUI symbols from %s", so_name.c_str());
+                      "Bound WaterUI symbols from %s", so_name);
 }
 
 class ScopedEnv {
@@ -448,61 +437,30 @@ struct WatcherEntry {
   bool active;
 };
 
+// ReactiveColorState - stores a color value and notifies watchers when it
+// changes. Note: No mutex needed - WaterUI is single-threaded (all operations
+// on main thread).
 struct ReactiveColorState {
   WuiResolvedColor color;
   std::vector<WatcherEntry> watchers;
-  std::mutex mutex;
 
   void set_color(const WuiResolvedColor &new_color) {
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                        "set_color: acquiring mutex (this=%p)", this);
-    std::lock_guard<std::mutex> lock(mutex);
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                        "set_color: mutex acquired");
     color = new_color;
-    // Notify all active watchers using the FFI function
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                        "set_color: notifying %zu watchers", watchers.size());
+    // Notify all active watchers
     for (auto &entry : watchers) {
       if (entry.active && entry.watcher != nullptr) {
-        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                            "set_color: calling watcher");
         g_wui.waterui_call_watcher_resolved_color(entry.watcher, color);
-        __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                            "set_color: watcher returned");
       }
     }
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI", "set_color: done");
   }
 
   size_t add_watcher(WuiWatcher_ResolvedColor *watcher) {
-    __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                        "add_watcher: trying lock (this=%p)", this);
-    if (mutex.try_lock()) {
-      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                          "add_watcher: try_lock succeeded");
-      size_t index = watchers.size();
-      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                          "add_watcher: size=%zu, pushing", index);
-      watchers.push_back({watcher, true});
-      mutex.unlock();
-      __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                          "add_watcher: returning index %zu", index);
-      return index;
-    } else {
-      __android_log_print(
-          ANDROID_LOG_ERROR, "WaterUI.JNI",
-          "add_watcher: MUTEX ALREADY LOCKED! Deadlock detected.");
-      // Return anyway to avoid infinite hang - this is a bug
-      std::lock_guard<std::mutex> lock(mutex);
-      size_t index = watchers.size();
-      watchers.push_back({watcher, true});
-      return index;
-    }
+    size_t index = watchers.size();
+    watchers.push_back({watcher, true});
+    return index;
   }
 
   void remove_watcher(size_t index) {
-    std::lock_guard<std::mutex> lock(mutex);
     if (index < watchers.size()) {
       watchers[index].active = false;
       // Drop the watcher using FFI function
@@ -534,26 +492,11 @@ void reactive_guard_drop(void *data) {
 
 WuiWatcherGuard *reactive_color_watch(const void *data,
                                       WuiWatcher_ResolvedColor *watcher) {
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "reactive_color_watch: entering, data=%p", data);
   auto *state = const_cast<ReactiveColorState *>(
       static_cast<const ReactiveColorState *>(data));
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "reactive_color_watch: state=%p, adding watcher", state);
   size_t index = state->add_watcher(watcher);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "reactive_color_watch: watcher added at index %zu",
-                      index);
-
   auto *guard_state = new ReactiveGuardState{state, index};
-  __android_log_print(
-      ANDROID_LOG_DEBUG, "WaterUI.JNI",
-      "reactive_color_watch: calling waterui_new_watcher_guard");
-  auto *result =
-      g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "reactive_color_watch: returning guard %p", result);
-  return result;
+  return g_wui.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
 }
 
 void reactive_color_drop(void *data) {
@@ -577,15 +520,16 @@ struct WatcherEntryFont {
   bool active;
 };
 
+// ReactiveFontState - stores a font value and notifies watchers when it
+// changes. Note: No mutex needed - WaterUI is single-threaded (all operations
+// on main thread).
 struct ReactiveFontState {
   WuiResolvedFont font;
   std::vector<WatcherEntryFont> watchers;
-  std::mutex mutex;
 
   void set_font(const WuiResolvedFont &new_font) {
-    std::lock_guard<std::mutex> lock(mutex);
     font = new_font;
-    // Notify all active watchers using the FFI function
+    // Notify all active watchers
     for (auto &entry : watchers) {
       if (entry.active && entry.watcher != nullptr) {
         g_wui.waterui_call_watcher_resolved_font(entry.watcher, font);
@@ -594,14 +538,12 @@ struct ReactiveFontState {
   }
 
   size_t add_watcher(WuiWatcher_ResolvedFont *watcher) {
-    std::lock_guard<std::mutex> lock(mutex);
     size_t index = watchers.size();
     watchers.push_back({watcher, true});
     return index;
   }
 
   void remove_watcher(size_t index) {
-    std::lock_guard<std::mutex> lock(mutex);
     if (index < watchers.size()) {
       watchers[index].active = false;
       // Drop the watcher using FFI function
@@ -1732,26 +1674,12 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1read_1computed_1resolve
 JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_waterui_1watch_1computed_1resolved_1color(
     JNIEnv *env, jclass, jlong computed_ptr, jobject watcher_obj) {
-  __android_log_print(
-      ANDROID_LOG_DEBUG, "WaterUI.JNI",
-      "watch_computed_resolved_color: entering, computed_ptr=%ld",
-      computed_ptr);
   auto *computed = jlong_to_ptr<WuiComputed_ResolvedColor>(computed_ptr);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "watch_computed_resolved_color: getting watcher struct");
   WatcherStructFields fields = watcher_struct_from_java(env, watcher_obj);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "watch_computed_resolved_color: creating watcher");
   auto *watcher = create_watcher<WuiWatcher_ResolvedColor, WuiResolvedColor>(
       fields, g_wui.waterui_new_watcher_resolved_color);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "watch_computed_resolved_color: calling Rust "
-                      "waterui_watch_computed_resolved_color");
-  auto *result = g_wui.waterui_watch_computed_resolved_color(computed, watcher);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "watch_computed_resolved_color: Rust returned %p",
-                      result);
-  return ptr_to_jlong(result);
+  return ptr_to_jlong(
+      g_wui.waterui_watch_computed_resolved_color(computed, watcher));
 }
 
 JNIEXPORT void JNICALL
@@ -2063,10 +1991,6 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1create_1reactive_1color
   WuiResolvedColor color = argb_to_resolved_color(argb);
   auto *state = new ReactiveColorState{};
   state->color = color;
-  __android_log_print(
-      ANDROID_LOG_DEBUG, "WaterUI.JNI",
-      "create_reactive_color_state: created state=%p, watchers.size()=%zu",
-      state, state->watchers.size());
   return ptr_to_jlong(state);
 }
 
@@ -2076,14 +2000,8 @@ Java_dev_waterui_android_runtime_NativeBindings_waterui_1reactive_1color_1state_
   if (!g_symbols_ready || state_ptr == 0)
     return 0;
   auto *state = jlong_to_ptr<ReactiveColorState>(state_ptr);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "state_to_computed: state=%p, watchers.size()=%zu", state,
-                      state->watchers.size());
-  auto *computed = g_wui.waterui_new_computed_resolved_color(
-      state, reactive_color_get, reactive_color_watch, reactive_color_drop);
-  __android_log_print(ANDROID_LOG_DEBUG, "WaterUI.JNI",
-                      "state_to_computed: computed=%p", computed);
-  return ptr_to_jlong(computed);
+  return ptr_to_jlong(g_wui.waterui_new_computed_resolved_color(
+      state, reactive_color_get, reactive_color_watch, reactive_color_drop));
 }
 
 JNIEXPORT void JNICALL
