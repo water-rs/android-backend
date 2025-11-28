@@ -65,6 +65,9 @@ class WuiBinding<T>(
     }
 
     fun set(value: T) {
+        // Prevent feedback loops from UI listeners - if value hasn't changed, skip
+        if (currentValue == value) return
+        
         currentValue = value
         observer?.invoke(value, WuiAnimation.NONE)
         if (!syncingFromRust) {
