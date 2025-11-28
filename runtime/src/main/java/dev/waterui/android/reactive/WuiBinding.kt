@@ -49,6 +49,10 @@ class WuiBinding<T>(
         // even if called synchronously from Rust, preventing deadlocks
         val mainHandler = Handler(Looper.getMainLooper())
         val watcher = watcherFactory(raw()) { value, metadata ->
+            // IMPORTANT: Extract animation IMMEDIATELY before posting, because the metadata
+            // pointer may become invalid after this callback returns to Rust
+            val animation = metadata.animation
+            
             // Post to main thread using Handler - this queues the message and returns immediately
             // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
             mainHandler.post {
@@ -58,7 +62,7 @@ class WuiBinding<T>(
                 syncingFromRust = true
                 try {
                     currentValue = value
-                    observer?.invoke(value, metadata.animation)
+                    observer?.invoke(value, animation)
                 } finally {
                     syncingFromRust = false
                 }
