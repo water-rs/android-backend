@@ -29,7 +29,9 @@ class WuiStyledStr internal constructor(
 
     fun toCharSequence(env: WuiEnvironment): CharSequence {
         val builder = SpannableStringBuilder()
-        chunks.forEach { chunk ->
+        android.util.Log.d("WaterUI.StyledStr", "toCharSequence: ${chunks.size} chunks")
+        chunks.forEachIndexed { index, chunk ->
+            android.util.Log.d("WaterUI.StyledStr", "  chunk[$index]: text='${chunk.text}' len=${chunk.text.length}")
             val start = builder.length
             builder.append(chunk.text)
             val end = builder.length
@@ -37,6 +39,7 @@ class WuiStyledStr internal constructor(
                 chunk.style.applySpans(env, builder, start, end)
             }
         }
+        android.util.Log.d("WaterUI.StyledStr", "toCharSequence result: '${builder}' len=${builder.length}")
         return builder
     }
 
@@ -72,6 +75,7 @@ internal class StyledTextStyle(
         builder.setSpan(AbsoluteSizeSpan(resolvedFont.size.roundToInt(), true), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
         val foregroundColor = foreground?.resolveOnce(env)?.toColorInt()
+        android.util.Log.d("WaterUI.StyledStr", "applySpans: foreground=$foreground foregroundColor=${foregroundColor?.let { Integer.toHexString(it) }}")
         if (foregroundColor != null) {
             builder.setSpan(ForegroundColorSpan(foregroundColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }

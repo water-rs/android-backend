@@ -5,9 +5,12 @@ import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
 import dev.waterui.android.runtime.ChildMetadataStruct
+import dev.waterui.android.runtime.ChildPlacementStruct
+import dev.waterui.android.runtime.LayoutContextStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
+import dev.waterui.android.runtime.SafeAreaInsetsStruct
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.toTypeId
 import kotlin.math.roundToInt
@@ -20,11 +23,31 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     private val layoutPtr: Long = 0L,
-    private val descriptors: List<ChildDescriptor> = emptyList()
+    private val descriptors: List<ChildDescriptor> = emptyList(),
+    private var layoutContext: LayoutContextStruct = LayoutContextStruct.EMPTY
 ) : ViewGroup(context, attrs) {
 
     private var lastMetadata: Array<ChildMetadataStruct>? = null
     private var lastParentProposal: ProposalStruct = UnspecifiedProposal
+    private var lastChildContexts: Array<LayoutContextStruct>? = null
+    
+    /**
+     * Update the layout context (safe area insets) for this view group.
+     * This should be called when safe area changes (e.g., keyboard appears).
+     */
+    fun updateLayoutContext(context: LayoutContextStruct) {
+        if (layoutContext != context) {
+            layoutContext = context
+            requestLayout()
+        }
+    }
+    
+    /**
+     * Update safe area insets directly.
+     */
+    fun updateSafeArea(safeArea: SafeAreaInsetsStruct) {
+        updateLayoutContext(layoutContext.copy(safeArea = safeArea))
+    }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         require(layoutPtr != 0L) { "onMeasure called with null layout pointer" }
@@ -41,7 +64,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
             )
         }
 
-        val childProposals = NativeBindings.waterui_layout_propose(layoutPtr, parentProposal, initialMetadata)
+        val childProposals = NativeBindings.waterui_layout_propose(layoutPtr, parentProposal, initialMetadata, layoutContext)
 
         for (index in 0 until childCount) {
             val child = getChildAt(index)
@@ -55,8 +78,9 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         val finalMetadata = Array(childCount) { index ->
             val isSpacer = descriptors.getOrNull(index)?.isSpacer == true
             val child = getChildAt(index)
+            val proposal = child.toProposalStruct(isSpacer)
             ChildMetadataStruct(
-                proposal = child.toProposalStruct(isSpacer),
+                proposal = proposal,
                 priority = descriptors.getPriority(index),
                 stretch = isSpacer
             )
@@ -65,7 +89,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         lastMetadata = finalMetadata
         lastParentProposal = parentProposal
 
-        val requestedSize = NativeBindings.waterui_layout_size(layoutPtr, parentProposal, finalMetadata)
+        val requestedSize = NativeBindings.waterui_layout_size(layoutPtr, parentProposal, finalMetadata, layoutContext)
         val measuredWidth = requestedSize.width.resolveDimension(constraints.minWidth, constraints.maxWidth)
         val measuredHeight = requestedSize.height.resolveDimension(constraints.minHeight, constraints.maxHeight)
 
@@ -85,19 +109,34 @@ class RustLayoutViewGroup @JvmOverloads constructor(
             height = (bottom - top).toFloat()
         )
 
-        val rects = NativeBindings.waterui_layout_place(layoutPtr, bounds, lastParentProposal, metadata)
+        val placements = NativeBindings.waterui_layout_place(layoutPtr, bounds, lastParentProposal, metadata, layoutContext)
+        
+        // Store child contexts for nested RustLayoutViewGroups
+        lastChildContexts = Array(placements.size) { placements[it].context }
+        
         for (index in 0 until childCount) {
-            val rect = rects[index]
+            val placement = placements[index]
+            val rect = placement.rect
             val child = getChildAt(index)
             val childLeft = rect.x.roundToInt()
             val childTop = rect.y.roundToInt()
-            child.layout(
-                childLeft,
-                childTop,
-                childLeft + child.measuredWidth,
-                childTop + child.measuredHeight
-            )
+            // Use the rect dimensions from Rust layout, not the child's measured dimensions
+            val childRight = (rect.x + rect.width).roundToInt()
+            val childBottom = (rect.y + rect.height).roundToInt()
+            child.layout(childLeft, childTop, childRight, childBottom)
+            
+            // Propagate layout context to nested RustLayoutViewGroups
+            if (child is RustLayoutViewGroup) {
+                child.updateLayoutContext(placement.context)
+            }
         }
+    }
+    
+    /**
+     * Get the layout context for a specific child (after layout).
+     */
+    fun getChildLayoutContext(index: Int): LayoutContextStruct {
+        return lastChildContexts?.getOrNull(index) ?: layoutContext
     }
 
 
@@ -158,20 +197,40 @@ private fun LayoutConstraints.toProposalStruct(): ProposalStruct = ProposalStruc
 )
 
 private fun ProposalStruct.toConstraints(parent: LayoutConstraints): LayoutConstraints {
-    val widthSpecified = !width.isNaN()
-    val heightSpecified = !height.isNaN()
-
-    val resolvedMaxWidth = if (widthSpecified) width.roundToInt().coerceAtLeast(0) else parent.maxWidth
-    val resolvedMinWidth = if (widthSpecified) resolvedMaxWidth else parent.minWidth
-
-    val resolvedMaxHeight = if (heightSpecified) height.roundToInt().coerceAtLeast(0) else parent.maxHeight
-    val resolvedMinHeight = if (heightSpecified) resolvedMaxHeight else parent.minHeight
+    // Proposal values:
+    // - NaN: "None" - child decides size, but capped by parent's available space (AT_MOST)
+    // - 0.0: "Zero" - minimum size (EXACTLY 0)
+    // - Infinity: "Infinity" - expand as much as possible (UNSPECIFIED)
+    // - Other: "Exact" - specific size (EXACTLY value)
+    
+    val resolvedMaxWidth = when {
+        width.isNaN() -> parent.maxWidth  // None: AT_MOST parent's max
+        width.isInfinite() -> Int.MAX_VALUE  // Infinity: UNSPECIFIED
+        else -> width.roundToInt().coerceAtLeast(0)  // Exact value
+    }
+    
+    val resolvedMaxHeight = when {
+        height.isNaN() -> parent.maxHeight  // None: AT_MOST parent's max
+        height.isInfinite() -> Int.MAX_VALUE  // Infinity: UNSPECIFIED
+        else -> height.roundToInt().coerceAtLeast(0)  // Exact value
+    }
+    
+    // Min is 0 for None/Infinity (flexible), or same as max for Exact (fixed)
+    val resolvedMinWidth = when {
+        width.isNaN() || width.isInfinite() -> 0
+        else -> resolvedMaxWidth
+    }
+    
+    val resolvedMinHeight = when {
+        height.isNaN() || height.isInfinite() -> 0
+        else -> resolvedMaxHeight
+    }
 
     return LayoutConstraints(
-        minWidth = resolvedMinWidth.coerceIn(0, resolvedMaxWidth.coerceAtLeast(resolvedMinWidth)),
-        maxWidth = resolvedMaxWidth.coerceAtLeast(resolvedMinWidth),
-        minHeight = resolvedMinHeight.coerceIn(0, resolvedMaxHeight.coerceAtLeast(resolvedMinHeight)),
-        maxHeight = resolvedMaxHeight.coerceAtLeast(resolvedMinHeight)
+        minWidth = resolvedMinWidth,
+        maxWidth = resolvedMaxWidth.coerceAtLeast(0),
+        minHeight = resolvedMinHeight,
+        maxHeight = resolvedMaxHeight.coerceAtLeast(0)
     )
 }
 
