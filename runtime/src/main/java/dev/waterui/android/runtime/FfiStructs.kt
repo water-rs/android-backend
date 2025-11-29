@@ -31,6 +31,61 @@ data class ChildMetadataStruct(val proposal: ProposalStruct, val priority: Int, 
     fun isStretch(): Boolean = stretch
 }
 
+// ========== Safe Area Structs ==========
+
+/**
+ * Safe area insets in points (matches Rust SafeAreaInsets)
+ */
+data class SafeAreaInsetsStruct(
+    val top: Float,
+    val bottom: Float,
+    val leading: Float,
+    val trailing: Float
+) {
+    companion object {
+        val ZERO = SafeAreaInsetsStruct(0f, 0f, 0f, 0f)
+    }
+}
+
+/**
+ * Safe area edges bitflags (matches Rust SafeAreaEdges)
+ */
+data class SafeAreaEdgesStruct(val bits: Int) {
+    companion object {
+        val NONE = SafeAreaEdgesStruct(0)
+        val TOP = SafeAreaEdgesStruct(0b0001)
+        val BOTTOM = SafeAreaEdgesStruct(0b0010)
+        val LEADING = SafeAreaEdgesStruct(0b0100)
+        val TRAILING = SafeAreaEdgesStruct(0b1000)
+        val HORIZONTAL = SafeAreaEdgesStruct(LEADING.bits or TRAILING.bits)
+        val VERTICAL = SafeAreaEdgesStruct(TOP.bits or BOTTOM.bits)
+        val ALL = SafeAreaEdgesStruct(HORIZONTAL.bits or VERTICAL.bits)
+    }
+    
+    operator fun plus(other: SafeAreaEdgesStruct) = SafeAreaEdgesStruct(bits or other.bits)
+    fun contains(other: SafeAreaEdgesStruct) = (bits and other.bits) == other.bits
+}
+
+/**
+ * Layout context passed through the layout hierarchy (matches Rust LayoutContext)
+ */
+data class LayoutContextStruct(
+    val safeArea: SafeAreaInsetsStruct,
+    val ignoresSafeArea: SafeAreaEdgesStruct
+) {
+    companion object {
+        val EMPTY = LayoutContextStruct(SafeAreaInsetsStruct.ZERO, SafeAreaEdgesStruct.NONE)
+    }
+}
+
+/**
+ * Child placement result from layout (matches Rust ChildPlacement)
+ */
+data class ChildPlacementStruct(
+    val rect: RectStruct,
+    val context: LayoutContextStruct
+)
+
 // ========== Watcher Structs ==========
 
 /**

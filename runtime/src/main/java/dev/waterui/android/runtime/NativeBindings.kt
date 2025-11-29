@@ -96,12 +96,12 @@ internal object NativeBindings {
     
     fun waterui_force_as_layout_container(viewPtr: Long): LayoutContainerStruct = WatcherJni.forceAsLayoutContainer(viewPtr)
     fun waterui_force_as_fixed_container(viewPtr: Long): FixedContainerStruct = WatcherJni.forceAsFixedContainer(viewPtr)
-    fun waterui_layout_propose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<ProposalStruct> =
-        WatcherJni.layoutPropose(layoutPtr, parent, children)
-    fun waterui_layout_size(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): SizeStruct =
-        WatcherJni.layoutSize(layoutPtr, parent, children)
-    fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<RectStruct> =
-        WatcherJni.layoutPlace(layoutPtr, bounds, parent, children)
+    fun waterui_layout_propose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct = LayoutContextStruct.EMPTY): Array<ProposalStruct> =
+        WatcherJni.layoutPropose(layoutPtr, parent, children, context)
+    fun waterui_layout_size(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct = LayoutContextStruct.EMPTY): SizeStruct =
+        WatcherJni.layoutSize(layoutPtr, parent, children, context)
+    fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct = LayoutContextStruct.EMPTY): Array<ChildPlacementStruct> =
+        WatcherJni.layoutPlace(layoutPtr, bounds, parent, children, context)
     fun waterui_drop_layout(layoutPtr: Long) = WatcherJni.dropLayout(layoutPtr)
 
     // ========== AnyViews ==========
