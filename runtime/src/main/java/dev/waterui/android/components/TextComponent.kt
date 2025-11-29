@@ -24,6 +24,8 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
     val computed = WuiComputed.styledString(struct.contentPtr, env)
     val textView = TextView(context)
+    val textViewId = System.identityHashCode(textView)
+    Log.d("WaterUI.Text", "CREATE: textViewId=$textViewId computedPtr=${struct.contentPtr}")
     val foreground = ThemeBridge.foreground(env)
     foreground.observe { color ->
         textView.setTextColor(color.toColorInt())
@@ -37,7 +39,7 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     bodyFont.attachTo(textView)
     computed.observeWithAnimation { styled, animation ->
         val resolved = styled.toCharSequence(env)
-        Log.d("WaterUI.Text", "TEXT UPDATE: len=${resolved.length} text='${resolved.take(50)}' color=${textView.currentTextColor}")
+        Log.d("WaterUI.Text", "UPDATE: textViewId=$textViewId len=${resolved.length} text='${resolved.take(50)}'")
         textView.applyRustAnimation(animation) {
             textView.text = resolved
         }
