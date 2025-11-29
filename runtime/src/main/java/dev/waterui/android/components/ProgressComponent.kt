@@ -25,8 +25,30 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_progress(node.rawPtr)
     val computed = struct.valuePtr.takeIf { it != 0L }?.let { WuiComputed.double(it, env) }
 
-    val container = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
+    val isLinear = struct.style != PROGRESS_STYLE_CIRCULAR
+    
+    // Linear progress is axis-expanding: expands width to fill available space
+    // Circular progress is fixed-size: uses intrinsic size
+    val container = if (isLinear) {
+        object : LinearLayout(context) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                // Expand to fill available width (axis-expanding behavior)
+                val widthMode = MeasureSpec.getMode(widthMeasureSpec)
+                val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+                val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
+                    MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
+                } else {
+                    widthMeasureSpec
+                }
+                super.onMeasure(expandedWidthSpec, heightMeasureSpec)
+            }
+        }.apply {
+            orientation = LinearLayout.VERTICAL
+        }
+    } else {
+        LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+        }
     }
 
     if (struct.labelPtr != 0L) {
@@ -35,9 +57,19 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     val progressBar = when (struct.style) {
-        PROGRESS_STYLE_CIRCULAR -> ProgressBar(context)
-        else -> ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal)
-    }.apply { max = 1000 }
+        PROGRESS_STYLE_CIRCULAR -> ProgressBar(context).apply {
+            // Circular: fixed size, doesn't expand
+            max = 1000
+        }
+        else -> ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+            // Linear: expands width to fill container
+            max = 1000
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+    }
     container.addView(progressBar)
 
     val valueLabel = if (struct.valueLabelPtr != 0L) {

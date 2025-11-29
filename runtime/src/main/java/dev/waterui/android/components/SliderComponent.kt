@@ -23,7 +23,20 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_slider(node.rawPtr)
     val binding = WuiBinding.double(struct.bindingPtr, env)
 
-    val container = LinearLayout(context).apply {
+    // Slider is axis-expanding: expands width to fill available space
+    val container = object : LinearLayout(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            // Expand to fill available width (axis-expanding behavior)
+            val widthMode = MeasureSpec.getMode(widthMeasureSpec)
+            val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+            val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
+                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
+            } else {
+                widthMeasureSpec
+            }
+            super.onMeasure(expandedWidthSpec, heightMeasureSpec)
+        }
+    }.apply {
         orientation = LinearLayout.VERTICAL
     }
 
