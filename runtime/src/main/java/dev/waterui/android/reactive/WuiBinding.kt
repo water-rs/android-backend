@@ -2,7 +2,9 @@ package dev.waterui.android.reactive
 
 import android.os.Handler
 import android.os.Looper
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.PointerHelper
+import dev.waterui.android.ffi.WaterUILib
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -110,33 +112,33 @@ class WuiBinding<T>(
         fun bool(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Boolean> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = NativeBindings::waterui_read_binding_bool,
-                writer = { ptr, value -> NativeBindings.waterui_set_binding_bool(ptr, value) },
+                reader = { ptr -> WaterUILib.waterui_read_binding_bool(PointerHelper.fromAddress(ptr)) },
+                writer = { ptr, value -> WaterUILib.waterui_set_binding_bool(PointerHelper.fromAddress(ptr), value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.bool(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_binding_bool,
-                dropper = NativeBindings::waterui_drop_binding_bool,
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingBool(ptr, watcher) },
+                dropper = { ptr -> WaterUILib.waterui_drop_binding_bool(PointerHelper.fromAddress(ptr)) },
                 env = env
             )
 
         fun int(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = NativeBindings::waterui_read_binding_int,
-                writer = { ptr, value -> NativeBindings.waterui_set_binding_int(ptr, value) },
+                reader = { ptr -> WaterUILib.waterui_read_binding_i32(PointerHelper.fromAddress(ptr)) },
+                writer = { ptr, value -> WaterUILib.waterui_set_binding_i32(PointerHelper.fromAddress(ptr), value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.int(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_binding_int,
-                dropper = NativeBindings::waterui_drop_binding_int,
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingInt(ptr, watcher) },
+                dropper = { ptr -> WaterUILib.waterui_drop_binding_i32(PointerHelper.fromAddress(ptr)) },
                 env = env
             )
 
         fun double(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Double> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = NativeBindings::waterui_read_binding_double,
-                writer = { ptr, value -> NativeBindings.waterui_set_binding_double(ptr, value) },
+                reader = { ptr -> WaterUILib.waterui_read_binding_f64(PointerHelper.fromAddress(ptr)) },
+                writer = { ptr, value -> WaterUILib.waterui_set_binding_f64(PointerHelper.fromAddress(ptr), value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.double(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_binding_double,
-                dropper = NativeBindings::waterui_drop_binding_double,
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDouble(ptr, watcher) },
+                dropper = { ptr -> WaterUILib.waterui_drop_binding_f64(PointerHelper.fromAddress(ptr)) },
                 env = env
             )
 
@@ -144,15 +146,15 @@ class WuiBinding<T>(
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr ->
-                    val bytes = NativeBindings.waterui_read_binding_str(ptr)
+                    val bytes = WatcherJni.readBindingStr(ptr)
                     bytes.decodeToString()
                 },
                 writer = { ptr, value ->
-                    NativeBindings.waterui_set_binding_str(ptr, value.encodeToByteArray())
+                    WatcherJni.setBindingStr(ptr, value.encodeToByteArray())
                 },
                 watcherFactory = { _, callback -> WatcherStructFactory.string(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_binding_str,
-                dropper = NativeBindings::waterui_drop_binding_str,
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingStr(ptr, watcher) },
+                dropper = { ptr -> WaterUILib.waterui_drop_binding_str(PointerHelper.fromAddress(ptr)) },
                 env = env
             )
     }
@@ -163,38 +165,38 @@ class WuiBinding<T>(
  */
 object WatcherStructFactory {
     fun bool(callback: WatcherCallback<Boolean>): WatcherStruct {
-        return NativeBindings.waterui_create_bool_watcher(callback)
+        return WatcherJni.createBoolWatcher(callback)
     }
 
     fun int(callback: WatcherCallback<Int>): WatcherStruct {
-        return NativeBindings.waterui_create_int_watcher(callback)
+        return WatcherJni.createIntWatcher(callback)
     }
 
     fun double(callback: WatcherCallback<Double>): WatcherStruct {
-        return NativeBindings.waterui_create_double_watcher(callback)
+        return WatcherJni.createDoubleWatcher(callback)
     }
 
     fun string(callback: WatcherCallback<String>): WatcherStruct {
-        return NativeBindings.waterui_create_string_watcher(callback)
+        return WatcherJni.createStringWatcher(callback)
     }
 
     fun anyView(callback: WatcherCallback<Long>): WatcherStruct {
-        return NativeBindings.waterui_create_any_view_watcher(callback)
+        return WatcherJni.createAnyViewWatcher(callback)
     }
 
     fun styledString(callback: WatcherCallback<StyledStrStruct>): WatcherStruct {
-        return NativeBindings.waterui_create_styled_str_watcher(callback)
+        return WatcherJni.createStyledStrWatcher(callback)
     }
 
     fun resolvedColor(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct {
-        return NativeBindings.waterui_create_resolved_color_watcher(callback)
+        return WatcherJni.createResolvedColorWatcher(callback)
     }
 
     fun resolvedFont(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct {
-        return NativeBindings.waterui_create_resolved_font_watcher(callback)
+        return WatcherJni.createResolvedFontWatcher(callback)
     }
 
     fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
-        return NativeBindings.waterui_create_picker_items_watcher(callback)
+        return WatcherJni.createPickerItemsWatcher(callback)
     }
 }
