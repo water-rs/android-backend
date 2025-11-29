@@ -1851,6 +1851,62 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedPickerItems(
       jlong_to_ptr<WuiComputed_Vec_PickerItem_Id>(computedPtr));
 }
 
+// ========== Drop/Resolve Functions ==========
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropLayout(
+    JNIEnv *, jclass, jlong layoutPtr) {
+  g_sym.waterui_drop_layout(jlong_to_ptr<WuiLayout>(layoutPtr));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropAction(
+    JNIEnv *, jclass, jlong actionPtr) {
+  g_sym.waterui_drop_action(jlong_to_ptr<WuiAction>(actionPtr));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_callAction(
+    JNIEnv *, jclass, jlong actionPtr, jlong envPtr) {
+  g_sym.waterui_call_action(jlong_to_ptr<WuiAction>(actionPtr),
+                            jlong_to_ptr<WuiEnv>(envPtr));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropDynamic(
+    JNIEnv *, jclass, jlong dynamicPtr) {
+  g_sym.waterui_drop_dynamic(jlong_to_ptr<WuiDynamic>(dynamicPtr));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropColor(
+    JNIEnv *, jclass, jlong colorPtr) {
+  g_sym.waterui_drop_color(jlong_to_ptr<WuiColor>(colorPtr));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropFont(
+    JNIEnv *, jclass, jlong fontPtr) {
+  g_sym.waterui_drop_font(jlong_to_ptr<WuiFont>(fontPtr));
+}
+
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_resolveColor(
+    JNIEnv *, jclass, jlong colorPtr, jlong envPtr) {
+  return ptr_to_jlong(g_sym.waterui_resolve_color(
+      jlong_to_ptr<WuiColor>(colorPtr), jlong_to_ptr<WuiEnv>(envPtr)));
+}
+
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_resolveFont(
+    JNIEnv *, jclass, jlong fontPtr, jlong envPtr) {
+  return ptr_to_jlong(g_sym.waterui_resolve_font(jlong_to_ptr<WuiFont>(fontPtr),
+                                                 jlong_to_ptr<WuiEnv>(envPtr)));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropWatcherGuard(
+    JNIEnv *, jclass, jlong guardPtr) {
+  g_sym.waterui_drop_box_watcher_guard(jlong_to_ptr<WuiWatcherGuard>(guardPtr));
+}
+
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_getAnimation(
+    JNIEnv *, jclass, jlong metadataPtr) {
+  return static_cast<jint>(g_sym.waterui_get_animation(
+      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr)));
+}
+
 // ========== Theme Functions ==========
 
 #define DEFINE_THEME_COLOR_FN(javaName, cName)                                 \
