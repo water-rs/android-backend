@@ -37,7 +37,20 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val binding = WuiBinding.str(struct.valuePtr, env)
     val promptComputed = struct.promptPtr.takeIf { it != 0L }?.let { WuiComputed.styledString(it, env) }
 
-    val container = LinearLayout(context).apply {
+    // TextField is axis-expanding: expands width to fill available space
+    val container = object : LinearLayout(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            // Expand to fill available width (axis-expanding behavior)
+            val widthMode = MeasureSpec.getMode(widthMeasureSpec)
+            val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+            val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
+                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
+            } else {
+                widthMeasureSpec
+            }
+            super.onMeasure(expandedWidthSpec, heightMeasureSpec)
+        }
+    }.apply {
         orientation = LinearLayout.VERTICAL
     }
 
@@ -57,11 +70,12 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         )
     }
     container.addView(editText)
+    val density = context.resources.displayMetrics.density
     val shape = MaterialShapeDrawable().apply {
-        val radius = 12f.dp(context)
-        val strokeWidth = 1f.dp(context)
+        val radius = 12f * density
+        val strokeWidthPx = 1f * density
         setCornerSize(radius)
-        this.strokeWidth = strokeWidth
+        strokeWidth = strokeWidthPx
     }
     ViewCompat.setBackground(editText, shape)
 
