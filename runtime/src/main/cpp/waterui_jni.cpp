@@ -994,8 +994,7 @@ Java_dev_waterui_android_ffi_WatcherJni_watchBindingBool(JNIEnv *env, jclass,
   WatcherStructFields fields = watcher_struct_from_java(env, watcher);
   auto *w = create_watcher<WuiWatcher_bool, bool>(
       fields, g_sym.waterui_new_watcher_bool);
-  return ptr_to_jlong(g_sym.waterui_watch_binding_bool(
-      reinterpret_cast<const Binding_bool *>(binding), w));
+  return ptr_to_jlong(g_sym.waterui_watch_binding_bool(binding, w));
 }
 
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_watchBindingInt(
@@ -1004,8 +1003,7 @@ JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_watchBindingInt(
   WatcherStructFields fields = watcher_struct_from_java(env, watcher);
   auto *w = create_watcher<WuiWatcher_i32, int32_t>(
       fields, g_sym.waterui_new_watcher_i32);
-  return ptr_to_jlong(g_sym.waterui_watch_binding_i32(
-      reinterpret_cast<const Binding_i32 *>(binding), w));
+  return ptr_to_jlong(g_sym.waterui_watch_binding_i32(binding, w));
 }
 
 JNIEXPORT jlong JNICALL
@@ -1016,8 +1014,7 @@ Java_dev_waterui_android_ffi_WatcherJni_watchBindingDouble(JNIEnv *env, jclass,
   WatcherStructFields fields = watcher_struct_from_java(env, watcher);
   auto *w = create_watcher<WuiWatcher_f64, double>(
       fields, g_sym.waterui_new_watcher_f64);
-  return ptr_to_jlong(g_sym.waterui_watch_binding_f64(
-      reinterpret_cast<const Binding_f64 *>(binding), w));
+  return ptr_to_jlong(g_sym.waterui_watch_binding_f64(binding, w));
 }
 
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_watchBindingStr(
@@ -1026,8 +1023,7 @@ JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_watchBindingStr(
   WatcherStructFields fields = watcher_struct_from_java(env, watcher);
   auto *w = create_watcher<WuiWatcher_Str, WuiStr>(
       fields, g_sym.waterui_new_watcher_str);
-  return ptr_to_jlong(g_sym.waterui_watch_binding_str(
-      reinterpret_cast<const Binding_Str *>(binding), w));
+  return ptr_to_jlong(g_sym.waterui_watch_binding_str(binding, w));
 }
 
 // ========== Watch Computed ==========
@@ -1234,17 +1230,15 @@ Java_dev_waterui_android_ffi_WatcherJni_wuiStrToString(JNIEnv *env, jclass,
   return wui_str_to_jstring(env, str);
 }
 
-JNIEXPORT jstring JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_viewId(JNIEnv *env, jclass,
-                                               jlong viewPtr) {
+JNIEXPORT jstring JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewId(
+    JNIEnv *env, jclass, jlong viewPtr) {
   auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
   WuiStr str = g_sym.waterui_view_id(view);
   return wui_str_to_jstring(env, str);
 }
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsPlain(JNIEnv *env, jclass,
-                                                     jlong viewPtr) {
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsPlain(
+    JNIEnv *env, jclass, jlong viewPtr) {
   auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
   WuiStr str = g_sym.waterui_force_as_plain(view);
   jbyteArray bytes = wui_str_to_byte_array(env, str);
@@ -1376,10 +1370,9 @@ jobject rect_to_java(JNIEnv *env, const WuiRect &rect) {
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_layoutPropose(JNIEnv *env, jclass,
-                                                      jlong layoutPtr,
-                                                      jobject parentObj,
-                                                      jobjectArray childrenArr) {
+Java_dev_waterui_android_ffi_WatcherJni_layoutPropose(
+    JNIEnv *env, jclass, jlong layoutPtr, jobject parentObj,
+    jobjectArray childrenArr) {
   auto *layout = jlong_to_ptr<WuiLayout>(layoutPtr);
   WuiProposalSize parent = proposal_from_java(env, parentObj);
   WuiArray_WuiChildMetadata children = children_from_java(env, childrenArr);
@@ -1398,11 +1391,9 @@ Java_dev_waterui_android_ffi_WatcherJni_layoutPropose(JNIEnv *env, jclass,
   return resultArr;
 }
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_layoutSize(JNIEnv *env, jclass,
-                                                   jlong layoutPtr,
-                                                   jobject parentObj,
-                                                   jobjectArray childrenArr) {
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_layoutSize(
+    JNIEnv *env, jclass, jlong layoutPtr, jobject parentObj,
+    jobjectArray childrenArr) {
   auto *layout = jlong_to_ptr<WuiLayout>(layoutPtr);
   WuiProposalSize parent = proposal_from_java(env, parentObj);
   WuiArray_WuiChildMetadata children = children_from_java(env, childrenArr);
@@ -1439,7 +1430,8 @@ Java_dev_waterui_android_ffi_WatcherJni_layoutPlace(JNIEnv *env, jclass,
 
 #define DEFINE_TYPE_ID_FN(javaName, cName)                                     \
   JNIEXPORT jstring JNICALL                                                    \
-      Java_dev_waterui_android_ffi_WatcherJni_##javaName(JNIEnv *env, jclass) {\
+      Java_dev_waterui_android_ffi_WatcherJni_##javaName(JNIEnv *env,          \
+                                                         jclass) {             \
     WuiStr str = g_sym.cName();                                                \
     return wui_str_to_jstring(env, str);                                       \
   }
@@ -1466,44 +1458,44 @@ DEFINE_TYPE_ID_FN(layoutContainerId, waterui_layout_container_id)
 
 // ========== Core Functions ==========
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_init(JNIEnv *, jclass) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_init(JNIEnv *,
+                                                                     jclass) {
   return ptr_to_jlong(g_sym.waterui_init());
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_main(JNIEnv *, jclass) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_main(JNIEnv *,
+                                                                     jclass) {
   return ptr_to_jlong(g_sym.waterui_main());
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_viewBody(JNIEnv *, jclass, jlong viewPtr,
-                                                 jlong envPtr) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewBody(
+    JNIEnv *, jclass, jlong viewPtr, jlong envPtr) {
   auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
   auto *env = jlong_to_ptr<WuiEnv>(envPtr);
   return ptr_to_jlong(g_sym.waterui_view_body(view, env));
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_cloneEnv(JNIEnv *, jclass, jlong envPtr) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_cloneEnv(
+    JNIEnv *, jclass, jlong envPtr) {
   auto *env = jlong_to_ptr<WuiEnv>(envPtr);
   return ptr_to_jlong(g_sym.waterui_clone_env(env));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropEnv(JNIEnv *, jclass, jlong envPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropEnv(
+    JNIEnv *, jclass, jlong envPtr) {
   g_sym.waterui_drop_env(jlong_to_ptr<WuiEnv>(envPtr));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropAnyview(JNIEnv *, jclass,
-                                                    jlong viewPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropAnyview(
+    JNIEnv *, jclass, jlong viewPtr) {
   g_sym.waterui_drop_anyview(jlong_to_ptr<WuiAnyView>(viewPtr));
 }
 
 JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_configureHotReloadEndpoint(
-    JNIEnv *env, jclass, jstring host, jint port) {
+Java_dev_waterui_android_ffi_WatcherJni_configureHotReloadEndpoint(JNIEnv *env,
+                                                                   jclass,
+                                                                   jstring host,
+                                                                   jint port) {
   const char *hostChars = env->GetStringUTFChars(host, nullptr);
   g_sym.waterui_configure_hot_reload_endpoint(hostChars,
                                               static_cast<uint16_t>(port));
@@ -1520,16 +1512,14 @@ Java_dev_waterui_android_ffi_WatcherJni_configureHotReloadDirectory(
 
 // ========== Force-As Functions ==========
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsText(JNIEnv *, jclass,
-                                                    jlong viewPtr) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsText(
+    JNIEnv *, jclass, jlong viewPtr) {
   auto text = g_sym.waterui_force_as_text(jlong_to_ptr<WuiAnyView>(viewPtr));
   return ptr_to_jlong(text.content);
 }
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsButton(JNIEnv *env, jclass,
-                                                      jlong viewPtr) {
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsButton(
+    JNIEnv *env, jclass, jlong viewPtr) {
   auto button =
       g_sym.waterui_force_as_button(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/ButtonStruct");
@@ -1540,11 +1530,9 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsButton(JNIEnv *env, jclass,
   return obj;
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsColor(JNIEnv *, jclass,
-                                                     jlong viewPtr) {
-  auto color =
-      g_sym.waterui_force_as_color(jlong_to_ptr<WuiAnyView>(viewPtr));
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsColor(
+    JNIEnv *, jclass, jlong viewPtr) {
+  auto color = g_sym.waterui_force_as_color(jlong_to_ptr<WuiAnyView>(viewPtr));
   return ptr_to_jlong(color);
 }
 
@@ -1555,17 +1543,15 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsTextField(JNIEnv *env, jclass,
       g_sym.waterui_force_as_text_field(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/TextFieldStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJI)V");
-  jobject obj =
-      env->NewObject(cls, ctor, ptr_to_jlong(field.label),
-                     ptr_to_jlong(field.value), ptr_to_jlong(field.prompt.content),
-                     static_cast<jint>(field.keyboard));
+  jobject obj = env->NewObject(
+      cls, ctor, ptr_to_jlong(field.label), ptr_to_jlong(field.value),
+      ptr_to_jlong(field.prompt.content), static_cast<jint>(field.keyboard));
   env->DeleteLocalRef(cls);
   return obj;
 }
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsToggle(JNIEnv *env, jclass,
-                                                      jlong viewPtr) {
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsToggle(
+    JNIEnv *env, jclass, jlong viewPtr) {
   auto toggle =
       g_sym.waterui_force_as_toggle(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/ToggleStruct");
@@ -1576,18 +1562,18 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsToggle(JNIEnv *env, jclass,
   return obj;
 }
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsSlider(JNIEnv *env, jclass,
-                                                      jlong viewPtr) {
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsSlider(
+    JNIEnv *env, jclass, jlong viewPtr) {
   auto slider =
       g_sym.waterui_force_as_slider(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/SliderStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJDDJ)V");
-  jobject obj = env->NewObject(
-      cls, ctor, ptr_to_jlong(slider.label),
-      ptr_to_jlong(slider.min_value_label), ptr_to_jlong(slider.max_value_label),
-      static_cast<jdouble>(slider.range.start),
-      static_cast<jdouble>(slider.range.end), ptr_to_jlong(slider.value));
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(slider.label),
+                               ptr_to_jlong(slider.min_value_label),
+                               ptr_to_jlong(slider.max_value_label),
+                               static_cast<jdouble>(slider.range.start),
+                               static_cast<jdouble>(slider.range.end),
+                               ptr_to_jlong(slider.value));
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -1614,10 +1600,10 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsProgress(JNIEnv *env, jclass,
       g_sym.waterui_force_as_progress(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/ProgressStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJI)V");
-  jobject obj = env->NewObject(
-      cls, ctor, ptr_to_jlong(progress.label),
-      ptr_to_jlong(progress.value_label), ptr_to_jlong(progress.value),
-      static_cast<jint>(progress.style));
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(progress.label),
+                               ptr_to_jlong(progress.value_label),
+                               ptr_to_jlong(progress.value),
+                               static_cast<jint>(progress.style));
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -1635,9 +1621,8 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsScrollView(JNIEnv *env, jclass,
   return obj;
 }
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsPicker(JNIEnv *env, jclass,
-                                                      jlong viewPtr) {
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsPicker(
+    JNIEnv *env, jclass, jlong viewPtr) {
   auto picker =
       g_sym.waterui_force_as_picker(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/PickerStruct");
@@ -1652,8 +1637,8 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_forceAsLayoutContainer(JNIEnv *env,
                                                                jclass,
                                                                jlong viewPtr) {
-  auto container =
-      g_sym.waterui_force_as_layout_container(jlong_to_ptr<WuiAnyView>(viewPtr));
+  auto container = g_sym.waterui_force_as_layout_container(
+      jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls =
       env->FindClass("dev/waterui/android/runtime/LayoutContainerStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
@@ -1681,17 +1666,16 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsFixedContainer(JNIEnv *env,
   jclass cls =
       env->FindClass("dev/waterui/android/runtime/FixedContainerStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(J[J)V");
-  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(container.layout),
-                               childPointers);
+  jobject obj =
+      env->NewObject(cls, ctor, ptr_to_jlong(container.layout), childPointers);
   env->DeleteLocalRef(cls);
   env->DeleteLocalRef(childPointers);
   // Don't drop the array here - it's owned by the view
   return obj;
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsDynamic(JNIEnv *, jclass,
-                                                       jlong viewPtr) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsDynamic(
+    JNIEnv *, jclass, jlong viewPtr) {
   auto dynamic =
       g_sym.waterui_force_as_dynamic(jlong_to_ptr<WuiAnyView>(viewPtr));
   return ptr_to_jlong(dynamic);
@@ -1707,103 +1691,31 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsRendererView(JNIEnv *, jclass,
 
 // ========== Drop Functions ==========
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropLayout(JNIEnv *, jclass,
-                                                   jlong layoutPtr) {
-  g_sym.waterui_drop_layout(jlong_to_ptr<WuiLayout>(layoutPtr));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropAction(JNIEnv *, jclass,
-                                                   jlong actionPtr) {
-  g_sym.waterui_drop_action(jlong_to_ptr<WuiAction>(actionPtr));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_callAction(JNIEnv *, jclass,
-                                                   jlong actionPtr,
-                                                   jlong envPtr) {
-  g_sym.waterui_call_action(jlong_to_ptr<WuiAction>(actionPtr),
-                            jlong_to_ptr<WuiEnv>(envPtr));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropDynamic(JNIEnv *, jclass,
-                                                    jlong dynamicPtr) {
-  g_sym.waterui_drop_dynamic(jlong_to_ptr<WuiDynamic>(dynamicPtr));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropColor(JNIEnv *, jclass,
-                                                  jlong colorPtr) {
-  g_sym.waterui_drop_color(jlong_to_ptr<WuiColor>(colorPtr));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropFont(JNIEnv *, jclass,
-                                                 jlong fontPtr) {
-  g_sym.waterui_drop_font(jlong_to_ptr<WuiFont>(fontPtr));
-}
-
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_resolveColor(JNIEnv *, jclass,
-                                                     jlong colorPtr,
-                                                     jlong envPtr) {
-  return ptr_to_jlong(g_sym.waterui_resolve_color(
-      jlong_to_ptr<WuiColor>(colorPtr), jlong_to_ptr<WuiEnv>(envPtr)));
-}
-
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_resolveFont(JNIEnv *, jclass,
-                                                    jlong fontPtr,
-                                                    jlong envPtr) {
-  return ptr_to_jlong(g_sym.waterui_resolve_font(
-      jlong_to_ptr<WuiFont>(fontPtr), jlong_to_ptr<WuiEnv>(envPtr)));
-}
-
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropWatcherGuard(JNIEnv *, jclass,
-                                                         jlong guardPtr) {
-  g_sym.waterui_drop_box_watcher_guard(jlong_to_ptr<WuiWatcherGuard>(guardPtr));
-}
-
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_getAnimation(JNIEnv *, jclass,
-                                                     jlong metadataPtr) {
-  return static_cast<jint>(
-      g_sym.waterui_get_animation(jlong_to_ptr<WuiWatcherMetadata>(metadataPtr)));
-}
-
 // ========== AnyViews Functions ==========
 
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_anyViewsLen(JNIEnv *, jclass,
-                                                    jlong handle) {
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_anyViewsLen(
+    JNIEnv *, jclass, jlong handle) {
   return static_cast<jint>(
       g_sym.waterui_anyviews_len(jlong_to_ptr<WuiAnyViews>(handle)));
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_anyViewsGetView(JNIEnv *, jclass,
-                                                        jlong handle,
-                                                        jint index) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_anyViewsGetView(
+    JNIEnv *, jclass, jlong handle, jint index) {
   return ptr_to_jlong(g_sym.waterui_anyviews_get_view(
       jlong_to_ptr<WuiAnyViews>(handle), static_cast<uintptr_t>(index)));
 }
 
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_anyViewsGetId(JNIEnv *, jclass,
-                                                      jlong handle,
-                                                      jint index) {
-  return static_cast<jint>(g_sym.waterui_anyviews_get_id(
-                               jlong_to_ptr<WuiAnyViews>(handle),
-                               static_cast<uintptr_t>(index))
-                               .inner);
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_anyViewsGetId(
+    JNIEnv *, jclass, jlong handle, jint index) {
+  return static_cast<jint>(
+      g_sym
+          .waterui_anyviews_get_id(jlong_to_ptr<WuiAnyViews>(handle),
+                                   static_cast<uintptr_t>(index))
+          .inner);
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropAnyViews(JNIEnv *, jclass,
-                                                     jlong handle) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropAnyViews(
+    JNIEnv *, jclass, jlong handle) {
   g_sym.waterui_drop_anyviews(jlong_to_ptr<WuiAnyViews>(handle));
 }
 
@@ -1818,9 +1730,8 @@ Java_dev_waterui_android_ffi_WatcherJni_readBindingBool(JNIEnv *, jclass,
              : JNI_FALSE;
 }
 
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_readBindingInt(JNIEnv *, jclass,
-                                                       jlong bindingPtr) {
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_readBindingInt(
+    JNIEnv *, jclass, jlong bindingPtr) {
   return g_sym.waterui_read_binding_i32(
       jlong_to_ptr<WuiBinding_i32>(bindingPtr));
 }
@@ -1832,39 +1743,31 @@ Java_dev_waterui_android_ffi_WatcherJni_readBindingDouble(JNIEnv *, jclass,
       jlong_to_ptr<WuiBinding_f64>(bindingPtr));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_setBindingBool(JNIEnv *, jclass,
-                                                       jlong bindingPtr,
-                                                       jboolean value) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_setBindingBool(
+    JNIEnv *, jclass, jlong bindingPtr, jboolean value) {
   g_sym.waterui_set_binding_bool(jlong_to_ptr<WuiBinding_bool>(bindingPtr),
                                  value == JNI_TRUE);
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_setBindingInt(JNIEnv *, jclass,
-                                                      jlong bindingPtr,
-                                                      jint value) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_setBindingInt(
+    JNIEnv *, jclass, jlong bindingPtr, jint value) {
   g_sym.waterui_set_binding_i32(jlong_to_ptr<WuiBinding_i32>(bindingPtr),
                                 value);
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_setBindingDouble(JNIEnv *, jclass,
-                                                         jlong bindingPtr,
-                                                         jdouble value) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_setBindingDouble(
+    JNIEnv *, jclass, jlong bindingPtr, jdouble value) {
   g_sym.waterui_set_binding_f64(jlong_to_ptr<WuiBinding_f64>(bindingPtr),
                                 value);
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropBindingBool(JNIEnv *, jclass,
-                                                        jlong bindingPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropBindingBool(
+    JNIEnv *, jclass, jlong bindingPtr) {
   g_sym.waterui_drop_binding_bool(jlong_to_ptr<WuiBinding_bool>(bindingPtr));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropBindingInt(JNIEnv *, jclass,
-                                                       jlong bindingPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropBindingInt(
+    JNIEnv *, jclass, jlong bindingPtr) {
   g_sym.waterui_drop_binding_i32(jlong_to_ptr<WuiBinding_i32>(bindingPtr));
 }
 
@@ -1874,9 +1777,8 @@ Java_dev_waterui_android_ffi_WatcherJni_dropBindingDouble(JNIEnv *, jclass,
   g_sym.waterui_drop_binding_f64(jlong_to_ptr<WuiBinding_f64>(bindingPtr));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropBindingStr(JNIEnv *, jclass,
-                                                       jlong bindingPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropBindingStr(
+    JNIEnv *, jclass, jlong bindingPtr) {
   g_sym.waterui_drop_binding_str(jlong_to_ptr<WuiBinding_Str>(bindingPtr));
 }
 
@@ -1889,9 +1791,8 @@ Java_dev_waterui_android_ffi_WatcherJni_readComputedF64(JNIEnv *, jclass,
       jlong_to_ptr<WuiComputed_f64>(computedPtr));
 }
 
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_readComputedI32(JNIEnv *, jclass,
-                                                        jlong computedPtr) {
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_readComputedI32(
+    JNIEnv *, jclass, jlong computedPtr) {
   return g_sym.waterui_read_computed_i32(
       jlong_to_ptr<WuiComputed_i32>(computedPtr));
 }
@@ -1905,23 +1806,20 @@ Java_dev_waterui_android_ffi_WatcherJni_readComputedResolvedColor(
 }
 
 JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_readComputedResolvedFont(JNIEnv *env,
-                                                                 jclass,
-                                                                 jlong computedPtr) {
+Java_dev_waterui_android_ffi_WatcherJni_readComputedResolvedFont(
+    JNIEnv *env, jclass, jlong computedPtr) {
   WuiResolvedFont font = g_sym.waterui_read_computed_resolved_font(
       jlong_to_ptr<WuiComputed_ResolvedFont>(computedPtr));
   return new_resolved_font(env, font);
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropComputedF64(JNIEnv *, jclass,
-                                                        jlong computedPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedF64(
+    JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_f64(jlong_to_ptr<WuiComputed_f64>(computedPtr));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropComputedI32(JNIEnv *, jclass,
-                                                        jlong computedPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedI32(
+    JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_i32(jlong_to_ptr<WuiComputed_i32>(computedPtr));
 }
 
@@ -1940,8 +1838,8 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedResolvedFont(
 }
 
 JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropComputedStyledStr(JNIEnv *, jclass,
-                                                              jlong computedPtr) {
+Java_dev_waterui_android_ffi_WatcherJni_dropComputedStyledStr(
+    JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_styled_str(
       jlong_to_ptr<WuiComputed_StyledStr>(computedPtr));
 }
@@ -1956,21 +1854,22 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedPickerItems(
 // ========== Theme Functions ==========
 
 #define DEFINE_THEME_COLOR_FN(javaName, cName)                                 \
-  JNIEXPORT jlong JNICALL                                                      \
-      Java_dev_waterui_android_ffi_WatcherJni_##javaName(JNIEnv *, jclass,     \
-                                                         jlong envPtr) {       \
-    return ptr_to_jlong(                                                       \
-        g_sym.cName(jlong_to_ptr<WuiEnv>(envPtr)));                            \
+  JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_##javaName(  \
+      JNIEnv *, jclass, jlong envPtr) {                                        \
+    return ptr_to_jlong(g_sym.cName(jlong_to_ptr<WuiEnv>(envPtr)));            \
   }
 
 DEFINE_THEME_COLOR_FN(themeColorBackground, waterui_theme_color_background)
 DEFINE_THEME_COLOR_FN(themeColorSurface, waterui_theme_color_surface)
-DEFINE_THEME_COLOR_FN(themeColorSurfaceVariant, waterui_theme_color_surface_variant)
+DEFINE_THEME_COLOR_FN(themeColorSurfaceVariant,
+                      waterui_theme_color_surface_variant)
 DEFINE_THEME_COLOR_FN(themeColorBorder, waterui_theme_color_border)
 DEFINE_THEME_COLOR_FN(themeColorForeground, waterui_theme_color_foreground)
-DEFINE_THEME_COLOR_FN(themeColorMutedForeground, waterui_theme_color_muted_foreground)
+DEFINE_THEME_COLOR_FN(themeColorMutedForeground,
+                      waterui_theme_color_muted_foreground)
 DEFINE_THEME_COLOR_FN(themeColorAccent, waterui_theme_color_accent)
-DEFINE_THEME_COLOR_FN(themeColorAccentForeground, waterui_theme_color_accent_foreground)
+DEFINE_THEME_COLOR_FN(themeColorAccentForeground,
+                      waterui_theme_color_accent_foreground)
 DEFINE_THEME_COLOR_FN(themeFontBody, waterui_theme_font_body)
 DEFINE_THEME_COLOR_FN(themeFontTitle, waterui_theme_font_title)
 DEFINE_THEME_COLOR_FN(themeFontHeadline, waterui_theme_font_headline)
@@ -1990,11 +1889,8 @@ Java_dev_waterui_android_ffi_WatcherJni_themeInstallColor(JNIEnv *, jclass,
       jlong_to_ptr<WuiComputed_ResolvedColor>(signalPtr));
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_themeInstallFont(JNIEnv *, jclass,
-                                                         jlong envPtr,
-                                                         jint slot,
-                                                         jlong signalPtr) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_themeInstallFont(
+    JNIEnv *, jclass, jlong envPtr, jint slot, jlong signalPtr) {
   g_sym.waterui_theme_install_font(
       jlong_to_ptr<WuiEnv>(envPtr), static_cast<WuiFontSlot>(slot),
       jlong_to_ptr<WuiComputed_ResolvedFont>(signalPtr));
@@ -2008,18 +1904,16 @@ Java_dev_waterui_android_ffi_WatcherJni_themeInstallColorScheme(
       jlong_to_ptr<WuiComputed_ColorScheme>(signalPtr));
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_themeColor(JNIEnv *, jclass,
-                                                   jlong envPtr, jint slot) {
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_themeColor(
+    JNIEnv *, jclass, jlong envPtr, jint slot) {
   return ptr_to_jlong(g_sym.waterui_theme_color(
       jlong_to_ptr<WuiEnv>(envPtr), static_cast<WuiColorSlot>(slot)));
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_themeFont(JNIEnv *, jclass,
-                                                  jlong envPtr, jint slot) {
-  return ptr_to_jlong(g_sym.waterui_theme_font(
-      jlong_to_ptr<WuiEnv>(envPtr), static_cast<WuiFontSlot>(slot)));
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_themeFont(
+    JNIEnv *, jclass, jlong envPtr, jint slot) {
+  return ptr_to_jlong(g_sym.waterui_theme_font(jlong_to_ptr<WuiEnv>(envPtr),
+                                               static_cast<WuiFontSlot>(slot)));
 }
 
 JNIEXPORT jlong JNICALL
@@ -2087,9 +1981,8 @@ Java_dev_waterui_android_ffi_WatcherJni_rendererViewRenderCpu(
   return result ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_dropRendererView(JNIEnv *, jclass,
-                                                         jlong handle) {
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropRendererView(
+    JNIEnv *, jclass, jlong handle) {
   g_sym.waterui_drop_renderer_view(jlong_to_ptr<WuiRendererView>(handle));
 }
 
