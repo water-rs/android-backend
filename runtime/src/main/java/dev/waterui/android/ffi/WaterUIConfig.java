@@ -12,7 +12,7 @@ import org.bytedeco.javacpp.tools.*;
  * provides low-level access to all WaterUI FFI functions including callbacks.
  */
 @Properties(target = "dev.waterui.android.ffi.WaterUILib", value = @Platform(include = "waterui.h", includepath = {
-        "src/main/cpp/" }, library = "waterui_app"))
+        "src/main/cpp/" }))
 public class WaterUIConfig implements InfoMapper {
 
     @Override
