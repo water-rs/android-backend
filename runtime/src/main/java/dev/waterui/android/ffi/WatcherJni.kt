@@ -2,7 +2,6 @@ package dev.waterui.android.ffi
 
 import dev.waterui.android.reactive.WatcherCallback
 import dev.waterui.android.runtime.*
-import org.bytedeco.javacpp.Pointer
 
 /**
  * JNI interface for all WaterUI FFI functions.
@@ -52,55 +51,16 @@ object WatcherJni {
 
     // ========== Drop Functions ==========
     
-    @JvmStatic
-    fun dropLayout(layoutPtr: Long) {
-        WaterUILib.waterui_drop_layout(ptr(layoutPtr))
-    }
-
-    @JvmStatic
-    fun dropAction(actionPtr: Long) {
-        WaterUILib.waterui_drop_action(ptr(actionPtr))
-    }
-
-    @JvmStatic
-    fun callAction(actionPtr: Long, envPtr: Long) {
-        WaterUILib.waterui_call_action(ptr(actionPtr), ptr(envPtr))
-    }
-
-    @JvmStatic
-    fun dropDynamic(dynamicPtr: Long) {
-        WaterUILib.waterui_drop_dynamic(ptr(dynamicPtr))
-    }
-
-    @JvmStatic
-    fun dropColor(colorPtr: Long) {
-        WaterUILib.waterui_drop_color(ptr(colorPtr))
-    }
-
-    @JvmStatic
-    fun dropFont(fontPtr: Long) {
-        WaterUILib.waterui_drop_font(ptr(fontPtr))
-    }
-
-    @JvmStatic
-    fun resolveColor(colorPtr: Long, envPtr: Long): Long {
-        return addr(WaterUILib.waterui_resolve_color(ptr(colorPtr), ptr(envPtr)))
-    }
-
-    @JvmStatic
-    fun resolveFont(fontPtr: Long, envPtr: Long): Long {
-        return addr(WaterUILib.waterui_resolve_font(ptr(fontPtr), ptr(envPtr)))
-    }
-
-    @JvmStatic
-    fun dropWatcherGuard(guardPtr: Long) {
-        WaterUILib.waterui_drop_box_watcher_guard(ptr(guardPtr))
-    }
-
-    @JvmStatic
-    fun getAnimation(metadataPtr: Long): Int {
-        return WaterUILib.waterui_get_animation(ptr(metadataPtr))
-    }
+    @JvmStatic external fun dropLayout(layoutPtr: Long)
+    @JvmStatic external fun dropAction(actionPtr: Long)
+    @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropDynamic(dynamicPtr: Long)
+    @JvmStatic external fun dropColor(colorPtr: Long)
+    @JvmStatic external fun dropFont(fontPtr: Long)
+    @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
+    @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
+    @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
+    @JvmStatic external fun getAnimation(metadataPtr: Long): Int
 
     // ========== AnyViews Functions ==========
     
@@ -240,8 +200,4 @@ object WatcherJni {
     @JvmStatic external fun rendererViewPreferredFormat(handle: Long): Int
     @JvmStatic external fun rendererViewRenderCpu(handle: Long, pixels: ByteArray, width: Int, height: Int, stride: Int, format: Int): Boolean
     @JvmStatic external fun dropRendererView(handle: Long)
-
-    private fun ptr(address: Long): Pointer? = PointerHelper.fromAddress(address)
-
-    private fun addr(pointer: Pointer?): Long = PointerHelper.toAddress(pointer)
 }
