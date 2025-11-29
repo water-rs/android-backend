@@ -1,91 +1,185 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.PointerHelper
+import dev.waterui.android.ffi.WaterUILib
 import dev.waterui.android.reactive.WatcherCallback
+import org.bytedeco.javacpp.Pointer
 
 /**
- * Centralised access to native WaterUI FFI functions. Actual JNI bindings live in the
- * native Rust/C layer; this object exposes type-safe Kotlin entry points.
+ * Centralised access to native WaterUI FFI functions.
+ * 
+ * This module uses a hybrid approach:
+ * - JavaCPP-generated bindings (WaterUILib) for simple FFI calls
+ * - Minimal JNI (via waterui_android.so) for callback/watcher functions
+ * 
+ * The actual native library is loaded via JavaCPP's Loader when WaterUILib
+ * is first accessed.
  */
 internal object NativeBindings {
 
-    external fun bootstrapNativeBindings()
+    /**
+     * Bootstrap the native library. Must be called before any other functions.
+     * This triggers JavaCPP's Loader to load libwaterui_app.so.
+     */
+    fun bootstrapNativeBindings() {
+        // Access WaterUILib to trigger static initializer which loads the native library
+        WaterUILib::class.java
+        // Also load the JNI helper library for callbacks
+        System.loadLibrary("waterui_android")
+    }
 
-    external fun waterui_init(): Long
-    external fun waterui_main(): Long
-    external fun waterui_view_id(anyViewPtr: Long): String
-    external fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long
-    external fun waterui_configure_hot_reload_endpoint(host: String, port: Int)
-    external fun waterui_configure_hot_reload_directory(path: String)
+    // ========== Core Functions (JavaCPP) ==========
+    
+    fun waterui_init(): Long = WaterUILib.waterui_init().address()
+    
+    fun waterui_main(): Long = WaterUILib.waterui_main().address()
+    
+    fun waterui_view_id(anyViewPtr: Long): String {
+        val str = WaterUILib.waterui_view_id(ptr(anyViewPtr))
+        return wuiStrToString(str)
+    }
+    
+    fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long =
+        WaterUILib.waterui_view_body(ptr(anyViewPtr), ptr(envPtr)).address()
+    
+    fun waterui_configure_hot_reload_endpoint(host: String, port: Int) {
+        WaterUILib.waterui_configure_hot_reload_endpoint(host, port.toShort())
+    }
+    
+    fun waterui_configure_hot_reload_directory(path: String) {
+        WaterUILib.waterui_configure_hot_reload_directory(path)
+    }
 
-    // Type identifiers
-    external fun waterui_empty_id(): String
-    external fun waterui_text_id(): String
-    external fun waterui_plain_id(): String
-    external fun waterui_button_id(): String
-    external fun waterui_color_id(): String
-    external fun waterui_text_field_id(): String
-    external fun waterui_stepper_id(): String
-    external fun waterui_progress_id(): String
-    external fun waterui_dynamic_id(): String
-    external fun waterui_scroll_view_id(): String
-    external fun waterui_spacer_id(): String
-    external fun waterui_toggle_id(): String
-    external fun waterui_slider_id(): String
-    external fun waterui_renderer_view_id(): String
-    external fun waterui_fixed_container_id(): String
-    external fun waterui_picker_id(): String
-    // ========== Theme: Color Scheme ==========
-    external fun waterui_computed_color_scheme_constant(scheme: Int): Long
-    external fun waterui_read_computed_color_scheme(ptr: Long): Int
-    external fun waterui_drop_computed_color_scheme(ptr: Long)
+    // ========== Type Identifiers (JavaCPP) ==========
+    
+    fun waterui_empty_id(): String = wuiStrToString(WaterUILib.waterui_empty_id())
+    fun waterui_text_id(): String = wuiStrToString(WaterUILib.waterui_text_id())
+    fun waterui_plain_id(): String = wuiStrToString(WaterUILib.waterui_plain_id())
+    fun waterui_button_id(): String = wuiStrToString(WaterUILib.waterui_button_id())
+    fun waterui_color_id(): String = wuiStrToString(WaterUILib.waterui_color_id())
+    fun waterui_text_field_id(): String = wuiStrToString(WaterUILib.waterui_text_field_id())
+    fun waterui_stepper_id(): String = wuiStrToString(WaterUILib.waterui_stepper_id())
+    fun waterui_progress_id(): String = wuiStrToString(WaterUILib.waterui_progress_id())
+    fun waterui_dynamic_id(): String = wuiStrToString(WaterUILib.waterui_dynamic_id())
+    fun waterui_scroll_view_id(): String = wuiStrToString(WaterUILib.waterui_scroll_view_id())
+    fun waterui_spacer_id(): String = wuiStrToString(WaterUILib.waterui_spacer_id())
+    fun waterui_toggle_id(): String = wuiStrToString(WaterUILib.waterui_toggle_id())
+    fun waterui_slider_id(): String = wuiStrToString(WaterUILib.waterui_slider_id())
+    fun waterui_renderer_view_id(): String = wuiStrToString(WaterUILib.waterui_renderer_view_id())
+    fun waterui_fixed_container_id(): String = wuiStrToString(WaterUILib.waterui_fixed_container_id())
+    fun waterui_picker_id(): String = wuiStrToString(WaterUILib.waterui_picker_id())
+    fun waterui_layout_container_id(): String = wuiStrToString(WaterUILib.waterui_layout_container_id())
+
+    // ========== Theme: Color Scheme (JavaCPP) ==========
+    
+    fun waterui_computed_color_scheme_constant(scheme: Int): Long =
+        WaterUILib.waterui_computed_color_scheme_constant(scheme).address()
+    
+    fun waterui_read_computed_color_scheme(ptr: Long): Int =
+        WaterUILib.waterui_read_computed_color_scheme(ptr(ptr))
+    
+    fun waterui_drop_computed_color_scheme(ptr: Long) {
+        WaterUILib.waterui_drop_computed_color_scheme(ptr(ptr))
+    }
+    
+    // Watcher functions need JNI for callbacks
     external fun waterui_watch_computed_color_scheme(computed: Long, watcher: WatcherStruct): Long
     external fun waterui_new_watcher_color_scheme(data: Long, call: Long, drop: Long): Long
-    external fun waterui_theme_install_color_scheme(envPtr: Long, signalPtr: Long)
-    external fun waterui_theme_color_scheme(envPtr: Long): Long
+    
+    fun waterui_theme_install_color_scheme(envPtr: Long, signalPtr: Long) {
+        WaterUILib.waterui_theme_install_color_scheme(ptr(envPtr), ptr(signalPtr))
+    }
+    
+    fun waterui_theme_color_scheme(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_scheme(ptr(envPtr)).address()
 
-    // ========== Theme: Slot-based Color API ==========
-    external fun waterui_theme_install_color(envPtr: Long, slot: Int, signalPtr: Long)
-    external fun waterui_theme_color(envPtr: Long, slot: Int): Long
+    // ========== Theme: Slot-based Color API (JavaCPP) ==========
+    
+    fun waterui_theme_install_color(envPtr: Long, slot: Int, signalPtr: Long) {
+        WaterUILib.waterui_theme_install_color(ptr(envPtr), slot, ptr(signalPtr))
+    }
+    
+    fun waterui_theme_color(envPtr: Long, slot: Int): Long =
+        WaterUILib.waterui_theme_color(ptr(envPtr), slot).address()
 
-    // ========== Theme: Slot-based Font API ==========
-    external fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long)
-    external fun waterui_theme_font(envPtr: Long, slot: Int): Long
+    // ========== Theme: Slot-based Font API (JavaCPP) ==========
+    
+    fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long) {
+        WaterUILib.waterui_theme_install_font(ptr(envPtr), slot, ptr(signalPtr))
+    }
+    
+    fun waterui_theme_font(envPtr: Long, slot: Int): Long =
+        WaterUILib.waterui_theme_font(ptr(envPtr), slot).address()
 
-    // ========== Theme: Legacy per-token APIs (backward compat) ==========
-    external fun waterui_theme_color_background(envPtr: Long): Long
-    external fun waterui_theme_color_surface(envPtr: Long): Long
-    external fun waterui_theme_color_surface_variant(envPtr: Long): Long
-    external fun waterui_theme_color_border(envPtr: Long): Long
-    external fun waterui_theme_color_foreground(envPtr: Long): Long
-    external fun waterui_theme_color_muted_foreground(envPtr: Long): Long
-    external fun waterui_theme_color_accent(envPtr: Long): Long
-    external fun waterui_theme_color_accent_foreground(envPtr: Long): Long
-    external fun waterui_theme_font_body(envPtr: Long): Long
-    external fun waterui_theme_font_title(envPtr: Long): Long
-    external fun waterui_theme_font_headline(envPtr: Long): Long
-    external fun waterui_theme_font_subheadline(envPtr: Long): Long
-    external fun waterui_theme_font_caption(envPtr: Long): Long
-    external fun waterui_theme_font_footnote(envPtr: Long): Long
+    // ========== Theme: Legacy per-token APIs (JavaCPP) ==========
+    
+    fun waterui_theme_color_background(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_background(ptr(envPtr)).address()
+    fun waterui_theme_color_surface(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_surface(ptr(envPtr)).address()
+    fun waterui_theme_color_surface_variant(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_surface_variant(ptr(envPtr)).address()
+    fun waterui_theme_color_border(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_border(ptr(envPtr)).address()
+    fun waterui_theme_color_foreground(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_foreground(ptr(envPtr)).address()
+    fun waterui_theme_color_muted_foreground(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_muted_foreground(ptr(envPtr)).address()
+    fun waterui_theme_color_accent(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_accent(ptr(envPtr)).address()
+    fun waterui_theme_color_accent_foreground(envPtr: Long): Long =
+        WaterUILib.waterui_theme_color_accent_foreground(ptr(envPtr)).address()
+    fun waterui_theme_font_body(envPtr: Long): Long =
+        WaterUILib.waterui_theme_font_body(ptr(envPtr)).address()
+    fun waterui_theme_font_title(envPtr: Long): Long =
+        WaterUILib.waterui_theme_font_title(ptr(envPtr)).address()
+    fun waterui_theme_font_headline(envPtr: Long): Long =
+        WaterUILib.waterui_theme_font_headline(ptr(envPtr)).address()
+    fun waterui_theme_font_subheadline(envPtr: Long): Long =
+        WaterUILib.waterui_theme_font_subheadline(ptr(envPtr)).address()
+    fun waterui_theme_font_caption(envPtr: Long): Long =
+        WaterUILib.waterui_theme_font_caption(ptr(envPtr)).address()
+    fun waterui_theme_font_footnote(envPtr: Long): Long =
+        WaterUILib.waterui_theme_font_footnote(ptr(envPtr)).address()
 
-    external fun waterui_clone_env(envPtr: Long): Long
-    external fun waterui_env_drop(envPtr: Long)
+    // ========== Environment (JavaCPP) ==========
+    
+    fun waterui_clone_env(envPtr: Long): Long =
+        WaterUILib.waterui_clone_env(ptr(envPtr)).address()
+    
+    fun waterui_env_drop(envPtr: Long) {
+        WaterUILib.waterui_drop_env(ptr(envPtr))
+    }
 
-    external fun waterui_drop_anyview(viewPtr: Long)
+    fun waterui_drop_anyview(viewPtr: Long) {
+        WaterUILib.waterui_drop_anyview(ptr(viewPtr))
+    }
 
-    // Layout bridging
-    external fun waterui_layout_container_id(): String
+    // ========== Layout bridging (Hybrid - JNI for complex structs) ==========
+    
     external fun waterui_force_as_layout_container(viewPtr: Long): LayoutContainerStruct
     external fun waterui_force_as_fixed_container(viewPtr: Long): FixedContainerStruct
     external fun waterui_layout_propose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<ProposalStruct>
     external fun waterui_layout_size(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): SizeStruct
     external fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, proposal: ProposalStruct, children: Array<ChildMetadataStruct>): Array<RectStruct>
 
-    external fun waterui_any_views_len(handle: Long): Int
-    external fun waterui_any_views_get_view(handle: Long, index: Int): Long
-    external fun waterui_any_views_get_id(handle: Long, index: Int): Int
-    external fun waterui_drop_any_views(handle: Long)
+    // ========== AnyViews (JavaCPP) ==========
+    
+    fun waterui_any_views_len(handle: Long): Int =
+        WaterUILib.waterui_anyviews_len(ptr(handle)).toInt()
+    
+    fun waterui_any_views_get_view(handle: Long, index: Int): Long =
+        WaterUILib.waterui_anyviews_get_view(ptr(handle), index.toLong()).address()
+    
+    fun waterui_any_views_get_id(handle: Long, index: Int): Int =
+        WaterUILib.waterui_anyviews_get_id(ptr(handle), index.toLong()).inner()
+    
+    fun waterui_drop_any_views(handle: Long) {
+        WaterUILib.waterui_drop_anyviews(ptr(handle))
+    }
 
-    // Reactive bindings (skeleton only; full surface to be added incrementally)
+    // ========== Reactive bindings (JNI for callbacks) ==========
+    
     external fun waterui_watch_binding_bool(bindingPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_watch_binding_int(bindingPtr: Long, watcher: WatcherStruct): Long
     external fun waterui_watch_binding_double(bindingPtr: Long, watcher: WatcherStruct): Long
@@ -101,59 +195,167 @@ internal object NativeBindings {
     external fun waterui_create_resolved_font_watcher(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
     external fun waterui_create_picker_items_watcher(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct
 
-    external fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean)
-    external fun waterui_set_binding_int(bindingPtr: Long, value: Int)
-    external fun waterui_set_binding_double(bindingPtr: Long, value: Double)
+    // ========== Binding setters/getters (JavaCPP) ==========
+    
+    fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean) {
+        WaterUILib.waterui_set_binding_bool(ptr(bindingPtr), value)
+    }
+    
+    fun waterui_set_binding_int(bindingPtr: Long, value: Int) {
+        WaterUILib.waterui_set_binding_i32(ptr(bindingPtr), value)
+    }
+    
+    fun waterui_set_binding_double(bindingPtr: Long, value: Double) {
+        WaterUILib.waterui_set_binding_f64(ptr(bindingPtr), value)
+    }
+    
+    // String binding needs JNI for byte array handling
     external fun waterui_set_binding_str(bindingPtr: Long, bytes: ByteArray)
 
-    external fun waterui_read_binding_bool(bindingPtr: Long): Boolean
-    external fun waterui_read_binding_int(bindingPtr: Long): Int
-    external fun waterui_read_binding_double(bindingPtr: Long): Double
+    fun waterui_read_binding_bool(bindingPtr: Long): Boolean =
+        WaterUILib.waterui_read_binding_bool(ptr(bindingPtr))
+    
+    fun waterui_read_binding_int(bindingPtr: Long): Int =
+        WaterUILib.waterui_read_binding_i32(ptr(bindingPtr))
+    
+    fun waterui_read_binding_double(bindingPtr: Long): Double =
+        WaterUILib.waterui_read_binding_f64(ptr(bindingPtr))
+    
+    // String binding needs JNI for byte array handling
     external fun waterui_read_binding_str(bindingPtr: Long): ByteArray
 
-    external fun waterui_drop_binding_bool(bindingPtr: Long)
-    external fun waterui_drop_binding_int(bindingPtr: Long)
-    external fun waterui_drop_binding_double(bindingPtr: Long)
-    external fun waterui_drop_binding_str(bindingPtr: Long)
+    fun waterui_drop_binding_bool(bindingPtr: Long) {
+        WaterUILib.waterui_drop_binding_bool(ptr(bindingPtr))
+    }
+    
+    fun waterui_drop_binding_int(bindingPtr: Long) {
+        WaterUILib.waterui_drop_binding_i32(ptr(bindingPtr))
+    }
+    
+    fun waterui_drop_binding_double(bindingPtr: Long) {
+        WaterUILib.waterui_drop_binding_f64(ptr(bindingPtr))
+    }
+    
+    fun waterui_drop_binding_str(bindingPtr: Long) {
+        WaterUILib.waterui_drop_binding_str(ptr(bindingPtr))
+    }
 
-    external fun waterui_drop_watcher_guard(guardPtr: Long)
-    external fun waterui_get_animation(metadataPtr: Long): Int
+    // ========== Watcher utilities (Hybrid) ==========
+    
+    fun waterui_drop_watcher_guard(guardPtr: Long) {
+        WaterUILib.waterui_drop_box_watcher_guard(ptr(guardPtr))
+    }
+    
+    fun waterui_get_animation(metadataPtr: Long): Int =
+        WaterUILib.waterui_get_animation(ptr(metadataPtr))
+    
+    // Dynamic connect needs JNI for callbacks
     external fun waterui_dynamic_connect(dynamicPtr: Long, watcher: WatcherStruct)
 
-    // Computed helpers
-    external fun waterui_read_computed_f64(computedPtr: Long): Double
+    // ========== Computed helpers (Hybrid) ==========
+    
+    fun waterui_read_computed_f64(computedPtr: Long): Double =
+        WaterUILib.waterui_read_computed_f64(ptr(computedPtr))
+    
     external fun waterui_watch_computed_f64(computedPtr: Long, watcher: WatcherStruct): Long
-    external fun waterui_drop_computed_f64(computedPtr: Long)
+    
+    fun waterui_drop_computed_f64(computedPtr: Long) {
+        WaterUILib.waterui_drop_computed_f64(ptr(computedPtr))
+    }
 
-    external fun waterui_read_computed_i32(computedPtr: Long): Int
+    fun waterui_read_computed_i32(computedPtr: Long): Int =
+        WaterUILib.waterui_read_computed_i32(ptr(computedPtr))
+    
     external fun waterui_watch_computed_i32(computedPtr: Long, watcher: WatcherStruct): Long
-    external fun waterui_drop_computed_i32(computedPtr: Long)
+    
+    fun waterui_drop_computed_i32(computedPtr: Long) {
+        WaterUILib.waterui_drop_computed_i32(ptr(computedPtr))
+    }
 
+    // StyledStr needs JNI for struct conversion
     external fun waterui_read_computed_styled_str(computedPtr: Long): StyledStrStruct
     external fun waterui_watch_computed_styled_str(computedPtr: Long, watcher: WatcherStruct): Long
-    external fun waterui_drop_computed_styled_str(computedPtr: Long)
+    
+    fun waterui_drop_computed_styled_str(computedPtr: Long) {
+        WaterUILib.waterui_drop_computed_styled_str(ptr(computedPtr))
+    }
+    
     external fun waterui_watch_computed_resolved_font(computedPtr: Long, watcher: WatcherStruct): Long
+    
+    // Picker items need JNI for array handling
     external fun waterui_read_computed_picker_items(computedPtr: Long): Array<PickerItemStruct>
     external fun waterui_watch_computed_picker_items(computedPtr: Long, watcher: WatcherStruct): Long
-    external fun waterui_drop_computed_picker_items(computedPtr: Long)
+    
+    fun waterui_drop_computed_picker_items(computedPtr: Long) {
+        WaterUILib.waterui_drop_computed_picker_items(ptr(computedPtr))
+    }
 
-    external fun waterui_drop_font(fontPtr: Long)
-    external fun waterui_resolve_font(fontPtr: Long, envPtr: Long): Long
-    external fun waterui_read_computed_resolved_font(computedPtr: Long): ResolvedFontStruct
-    external fun waterui_drop_computed_resolved_font(computedPtr: Long)
+    // ========== Font (JavaCPP) ==========
+    
+    fun waterui_drop_font(fontPtr: Long) {
+        WaterUILib.waterui_drop_font(ptr(fontPtr))
+    }
+    
+    fun waterui_resolve_font(fontPtr: Long, envPtr: Long): Long =
+        WaterUILib.waterui_resolve_font(ptr(fontPtr), ptr(envPtr)).address()
+    
+    fun waterui_read_computed_resolved_font(computedPtr: Long): ResolvedFontStruct {
+        val font = WaterUILib.waterui_read_computed_resolved_font(ptr(computedPtr))
+        return ResolvedFontStruct(
+            size = font.size(),
+            weight = font.weight()
+        )
+    }
+    
+    fun waterui_drop_computed_resolved_font(computedPtr: Long) {
+        WaterUILib.waterui_drop_computed_resolved_font(ptr(computedPtr))
+    }
 
-    external fun waterui_drop_color(colorPtr: Long)
-    external fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long
-    external fun waterui_read_computed_resolved_color(computedPtr: Long): ResolvedColorStruct
+    // ========== Color (JavaCPP) ==========
+    
+    fun waterui_drop_color(colorPtr: Long) {
+        WaterUILib.waterui_drop_color(ptr(colorPtr))
+    }
+    
+    fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long =
+        WaterUILib.waterui_resolve_color(ptr(colorPtr), ptr(envPtr)).address()
+    
+    fun waterui_read_computed_resolved_color(computedPtr: Long): ResolvedColorStruct {
+        val color = WaterUILib.waterui_read_computed_resolved_color(ptr(computedPtr))
+        return ResolvedColorStruct(
+            red = color.red(),
+            green = color.green(),
+            blue = color.blue(),
+            opacity = color.opacity()
+        )
+    }
+    
     external fun waterui_watch_computed_resolved_color(computedPtr: Long, watcher: WatcherStruct): Long
-    external fun waterui_drop_computed_resolved_color(computedPtr: Long)
+    
+    fun waterui_drop_computed_resolved_color(computedPtr: Long) {
+        WaterUILib.waterui_drop_computed_resolved_color(ptr(computedPtr))
+    }
 
-    external fun waterui_drop_layout(layoutPtr: Long)
+    // ========== Layout/Action/Dynamic (JavaCPP) ==========
+    
+    fun waterui_drop_layout(layoutPtr: Long) {
+        WaterUILib.waterui_drop_layout(ptr(layoutPtr))
+    }
 
-    external fun waterui_drop_action(actionPtr: Long)
-    external fun waterui_call_action(actionPtr: Long, envPtr: Long)
-    external fun waterui_drop_dynamic(dynamicPtr: Long)
+    fun waterui_drop_action(actionPtr: Long) {
+        WaterUILib.waterui_drop_action(ptr(actionPtr))
+    }
+    
+    fun waterui_call_action(actionPtr: Long, envPtr: Long) {
+        WaterUILib.waterui_call_action(ptr(actionPtr), ptr(envPtr))
+    }
+    
+    fun waterui_drop_dynamic(dynamicPtr: Long) {
+        WaterUILib.waterui_drop_dynamic(ptr(dynamicPtr))
+    }
 
+    // ========== Force-as converters (JNI for complex structs) ==========
+    
     external fun waterui_force_as_button(anyViewPtr: Long): ButtonStruct
     external fun waterui_force_as_text(anyViewPtr: Long): TextStruct
     external fun waterui_force_as_plain(anyViewPtr: Long): PlainStruct
@@ -168,9 +370,18 @@ internal object NativeBindings {
     external fun waterui_force_as_renderer_view(anyViewPtr: Long): Long
     external fun waterui_force_as_picker(anyViewPtr: Long): PickerStruct
 
-    external fun waterui_renderer_view_width(handle: Long): Float
-    external fun waterui_renderer_view_height(handle: Long): Float
-    external fun waterui_renderer_view_preferred_format(handle: Long): Int
+    // ========== Renderer View (Hybrid) ==========
+    
+    fun waterui_renderer_view_width(handle: Long): Float =
+        WaterUILib.waterui_renderer_view_width(ptr(handle))
+    
+    fun waterui_renderer_view_height(handle: Long): Float =
+        WaterUILib.waterui_renderer_view_height(ptr(handle))
+    
+    fun waterui_renderer_view_preferred_format(handle: Long): Int =
+        WaterUILib.waterui_renderer_view_preferred_format(ptr(handle))
+    
+    // CPU rendering needs JNI for byte array handling
     external fun waterui_renderer_view_render_cpu(
         handle: Long,
         pixels: ByteArray,
@@ -179,42 +390,31 @@ internal object NativeBindings {
         stride: Int,
         format: Int,
     ): Boolean
-    external fun waterui_drop_renderer_view(handle: Long)
+    
+    fun waterui_drop_renderer_view(handle: Long) {
+        WaterUILib.waterui_drop_renderer_view(ptr(handle))
+    }
 
-    // ========== Reactive Theme Signals ==========
-    // These allow native code to create and update reactive signals
-    // that notify WaterUI when theme values change
+    // ========== Reactive Theme Signals (JNI for callbacks) ==========
     
-    /**
-     * Creates a reactive color state that can be updated and notify watchers.
-     * Returns a state handle that must be converted to computed for use.
-     */
     external fun waterui_create_reactive_color_state(argb: Int): Long
-    
-    /**
-     * Converts a reactive color state to a WuiComputed pointer for installation.
-     */
     external fun waterui_reactive_color_state_to_computed(statePtr: Long): Long
-    
-    /**
-     * Updates a reactive color state with new ARGB value, notifying all watchers.
-     */
     external fun waterui_reactive_color_state_set(statePtr: Long, argb: Int)
-    
-    /**
-     * Creates a reactive font state.
-     */
     external fun waterui_create_reactive_font_state(size: Float, weight: Int): Long
-    
-    /**
-     * Converts a reactive font state to a WuiComputed pointer for installation.
-     */
     external fun waterui_reactive_font_state_to_computed(statePtr: Long): Long
-    
-    /**
-     * Updates a reactive font state, notifying all watchers.
-     */
     external fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int)
+
+    // ========== Helper functions ==========
+    
+    private fun ptr(address: Long): Pointer = PointerHelper.fromAddress(address)
+    
+    private fun wuiStrToString(str: WaterUILib.WuiStr): String {
+        // For now, use JNI helper for string conversion
+        return jniWuiStrToString(str.address())
+    }
+    
+    // JNI helper for WuiStr conversion
+    private external fun jniWuiStrToString(strPtr: Long): String
 }
 
 fun bootstrapWaterUiRuntime() {
@@ -269,7 +469,7 @@ data class ChildMetadataStruct(
 }
 
 /**
- * Common watcher envelope for bindings/computed values. Concrete shapes will be marshalled via JNI.
+ * Common watcher envelope for bindings/computed values.
  */
 data class WatcherStruct(
     val dataPtr: Long,
