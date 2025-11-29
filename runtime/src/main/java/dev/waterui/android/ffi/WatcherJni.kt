@@ -169,9 +169,9 @@ object WatcherJni {
 
     // ========== Layout Functions ==========
     
-    @JvmStatic external fun layoutPropose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<ProposalStruct>
-    @JvmStatic external fun layoutSize(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>): SizeStruct
-    @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, parent: ProposalStruct, children: Array<ChildMetadataStruct>): Array<RectStruct>
+    @JvmStatic external fun layoutPropose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct): Array<ProposalStruct>
+    @JvmStatic external fun layoutSize(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct): SizeStruct
+    @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct): Array<ChildPlacementStruct>
 
     // ========== Type ID Functions ==========
     
