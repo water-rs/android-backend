@@ -2,8 +2,6 @@ package dev.waterui.android.reactive
 
 import android.os.Handler
 import android.os.Looper
-import dev.waterui.android.ffi.PointerHelper
-import dev.waterui.android.ffi.WaterUILib
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
@@ -112,33 +110,33 @@ class WuiBinding<T>(
         fun bool(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Boolean> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = { ptr -> WaterUILib.waterui_read_binding_bool(PointerHelper.fromAddress(ptr)) },
-                writer = { ptr, value -> WaterUILib.waterui_set_binding_bool(PointerHelper.fromAddress(ptr), value) },
+                reader = { ptr -> WatcherJni.readBindingBool(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingBool(ptr, value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.bool(callback) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingBool(ptr, watcher) },
-                dropper = { ptr -> WaterUILib.waterui_drop_binding_bool(PointerHelper.fromAddress(ptr)) },
+                dropper = { ptr -> WatcherJni.dropBindingBool(ptr) },
                 env = env
             )
 
         fun int(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = { ptr -> WaterUILib.waterui_read_binding_i32(PointerHelper.fromAddress(ptr)) },
-                writer = { ptr, value -> WaterUILib.waterui_set_binding_i32(PointerHelper.fromAddress(ptr), value) },
+                reader = { ptr -> WatcherJni.readBindingInt(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingInt(ptr, value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.int(callback) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingInt(ptr, watcher) },
-                dropper = { ptr -> WaterUILib.waterui_drop_binding_i32(PointerHelper.fromAddress(ptr)) },
+                dropper = { ptr -> WatcherJni.dropBindingInt(ptr) },
                 env = env
             )
 
         fun double(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Double> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = { ptr -> WaterUILib.waterui_read_binding_f64(PointerHelper.fromAddress(ptr)) },
-                writer = { ptr, value -> WaterUILib.waterui_set_binding_f64(PointerHelper.fromAddress(ptr), value) },
+                reader = { ptr -> WatcherJni.readBindingDouble(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingDouble(ptr, value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.double(callback) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDouble(ptr, watcher) },
-                dropper = { ptr -> WaterUILib.waterui_drop_binding_f64(PointerHelper.fromAddress(ptr)) },
+                dropper = { ptr -> WatcherJni.dropBindingDouble(ptr) },
                 env = env
             )
 
@@ -154,7 +152,7 @@ class WuiBinding<T>(
                 },
                 watcherFactory = { _, callback -> WatcherStructFactory.string(callback) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingStr(ptr, watcher) },
-                dropper = { ptr -> WaterUILib.waterui_drop_binding_str(PointerHelper.fromAddress(ptr)) },
+                dropper = { ptr -> WatcherJni.dropBindingStr(ptr) },
                 env = env
             )
     }
