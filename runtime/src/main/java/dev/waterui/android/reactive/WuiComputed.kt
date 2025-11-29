@@ -2,7 +2,9 @@ package dev.waterui.android.reactive
 
 import android.os.Handler
 import android.os.Looper
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.PointerHelper
+import dev.waterui.android.ffi.WaterUILib
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -10,7 +12,6 @@ import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
-import kotlinx.coroutines.launch
 import dev.waterui.android.runtime.WuiStyledStr
 import dev.waterui.android.runtime.toModel
 
@@ -92,38 +93,46 @@ class WuiComputed<T>(
         fun double(ptr: Long, env: WuiEnvironment): WuiComputed<Double> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = NativeBindings::waterui_read_computed_f64,
+                reader = { p -> WaterUILib.waterui_read_computed_f64(PointerHelper.fromAddress(p)) },
                 watcherFactory = { _, callback -> WatcherStructFactory.double(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_f64,
-                dropper = NativeBindings::waterui_drop_computed_f64,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedF64(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_f64(PointerHelper.fromAddress(p)) },
                 env = env
             )
 
         fun styledString(ptr: Long, env: WuiEnvironment): WuiComputed<WuiStyledStr> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = { computed ->
-                    NativeBindings.waterui_read_computed_styled_str(computed).toModel()
+                reader = { p ->
+                    WatcherJni.readComputedStyledStr(p).toModel()
                 },
                 watcherFactory = { _, callback ->
                     WatcherStructFactory.styledString { struct, metadata ->
                         callback.onChanged(struct.toModel(), metadata)
                     }
                 },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_styled_str,
-                dropper = NativeBindings::waterui_drop_computed_styled_str,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedStyledStr(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_styled_str(PointerHelper.fromAddress(p)) },
                 env = env,
                 valueReleaser = { it.close() }
             )
 
         fun resolvedColor(colorPtr: Long, env: WuiEnvironment): WuiComputed<ResolvedColorStruct> {
-            val computedPtr = NativeBindings.waterui_resolve_color(colorPtr, env.raw())
+            val computedPtr = PointerHelper.toAddress(
+                WaterUILib.waterui_resolve_color(
+                    PointerHelper.fromAddress(colorPtr),
+                    PointerHelper.fromAddress(env.raw())
+                )
+            )
             return WuiComputed(
                 computedPtr = computedPtr,
-                reader = NativeBindings::waterui_read_computed_resolved_color,
+                reader = { p ->
+                    val color = WaterUILib.waterui_read_computed_resolved_color(PointerHelper.fromAddress(p))
+                    ResolvedColorStruct(color.red(), color.green(), color.blue(), color.opacity())
+                },
                 watcherFactory = { _, callback -> WatcherStructFactory.resolvedColor(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_resolved_color,
-                dropper = NativeBindings::waterui_drop_computed_resolved_color,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedColor(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_resolved_color(PointerHelper.fromAddress(p)) },
                 env = env
             )
         }
@@ -131,46 +140,52 @@ class WuiComputed<T>(
         fun pickerItems(ptr: Long, env: WuiEnvironment): WuiComputed<List<PickerItemStruct>> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = { computed ->
-                    NativeBindings.waterui_read_computed_picker_items(computed).toList()
+                reader = { p ->
+                    WatcherJni.readComputedPickerItems(p).toList()
                 },
                 watcherFactory = { _, callback ->
                     WatcherStructFactory.pickerItems { array, metadata ->
                         callback.onChanged(array.toList(), metadata)
                     }
                 },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_picker_items,
-                dropper = NativeBindings::waterui_drop_computed_picker_items,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedPickerItems(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_picker_items(PointerHelper.fromAddress(p)) },
                 env = env
             )
 
         fun int(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = NativeBindings::waterui_read_computed_i32,
+                reader = { p -> WaterUILib.waterui_read_computed_i32(PointerHelper.fromAddress(p)) },
                 watcherFactory = { _, callback -> WatcherStructFactory.int(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_i32,
-                dropper = NativeBindings::waterui_drop_computed_i32,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedI32(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_i32(PointerHelper.fromAddress(p)) },
                 env = env
             )
 
         fun colorFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = NativeBindings::waterui_read_computed_resolved_color,
+                reader = { p ->
+                    val color = WaterUILib.waterui_read_computed_resolved_color(PointerHelper.fromAddress(p))
+                    ResolvedColorStruct(color.red(), color.green(), color.blue(), color.opacity())
+                },
                 watcherFactory = { _, callback -> WatcherStructFactory.resolvedColor(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_resolved_color,
-                dropper = NativeBindings::waterui_drop_computed_resolved_color,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedColor(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_resolved_color(PointerHelper.fromAddress(p)) },
                 env = env
             )
 
         fun fontFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = NativeBindings::waterui_read_computed_resolved_font,
+                reader = { p ->
+                    val font = WaterUILib.waterui_read_computed_resolved_font(PointerHelper.fromAddress(p))
+                    ResolvedFontStruct(font.size(), font.weight())
+                },
                 watcherFactory = { _, callback -> WatcherStructFactory.resolvedFont(callback) },
-                watcherRegistrar = NativeBindings::waterui_watch_computed_resolved_font,
-                dropper = NativeBindings::waterui_drop_computed_resolved_font,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedFont(p, watcher) },
+                dropper = { p -> WaterUILib.waterui_drop_computed_resolved_font(PointerHelper.fromAddress(p)) },
                 env = env
             )
     }
