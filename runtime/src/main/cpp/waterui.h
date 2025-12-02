@@ -23,6 +23,38 @@ typedef struct WuiArray {
   struct WuiArrayVTable vtable;
 } WuiArray;
 
+/**
+ * FFI representation of StretchAxis enum.
+ *
+ * Specifies which axis (or axes) a view stretches to fill available space.
+ */
+typedef enum WuiStretchAxis {
+  /**
+   * No stretching - view uses its intrinsic size
+   */
+  WuiStretchAxis_None = 0,
+  /**
+   * Stretch horizontally only (expand width, use intrinsic height)
+   */
+  WuiStretchAxis_Horizontal = 1,
+  /**
+   * Stretch vertically only (expand height, use intrinsic width)
+   */
+  WuiStretchAxis_Vertical = 2,
+  /**
+   * Stretch in both directions (expand width and height)
+   */
+  WuiStretchAxis_Both = 3,
+  /**
+   * Stretch along the parent container's main axis (e.g., Spacer)
+   */
+  WuiStretchAxis_MainAxis = 4,
+  /**
+   * Stretch along the parent container's cross axis (e.g., Divider)
+   */
+  WuiStretchAxis_CrossAxis = 5,
+} WuiStretchAxis;
+
 typedef enum WuiAnimation {
   WuiAnimation_Default,
   WuiAnimation_None,
@@ -401,9 +433,25 @@ typedef struct Computed_f64 Computed_f64;
 typedef struct Computed_i32 Computed_i32;
 
 /**
- * Safe area insets in points, relative to the container bounds
+ * Specifies which edges should ignore safe area insets.
+ *
+ * Used with `IgnoreSafeArea` to control which edges of a view
+ * should extend into the unsafe screen regions.
  */
-typedef struct SafeAreaInsets SafeAreaInsets;
+typedef struct EdgeSet EdgeSet;
+
+/**
+ * A size proposal from parent to child during layout negotiation.
+ *
+ * Each dimension can be:
+ * - `None` - "Tell me your ideal size" (unspecified)
+ * - `Some(0.0)` - "Tell me your minimum size"
+ * - `Some(f32::INFINITY)` - "Tell me your maximum size"
+ * - `Some(value)` - "I suggest you use this size"
+ *
+ * Children are free to return any size; the proposal is just a suggestion.
+ */
+typedef struct ProposalSize ProposalSize;
 
 typedef struct WuiAction WuiAction;
 
@@ -545,103 +593,92 @@ typedef struct WuiContainer {
   struct WuiAnyViews *contents;
 } WuiContainer;
 
-typedef struct WuiProposalSize {
-  float width;
-  float height;
-} WuiProposalSize;
-
-typedef struct WuiArraySlice_WuiProposalSize {
-  struct WuiProposalSize *head;
-  uintptr_t len;
-} WuiArraySlice_WuiProposalSize;
-
-typedef struct WuiArrayVTable_WuiProposalSize {
-  void (*drop)(void *);
-  struct WuiArraySlice_WuiProposalSize (*slice)(const void *);
-} WuiArrayVTable_WuiProposalSize;
-
-/**
- * A generic array structure for FFI, representing a contiguous sequence of
- * elements. `WuiArray` can represent mutiple types of arrays, for instance, a
- * `&[T]` (in this case, the lifetime of WuiArray is bound to the caller's
- * scope), or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`,
- * `Bytes`, or even a foreign allocated array. For a value type, `WuiArray`
- * contains a destructor function pointer to free the array buffer, whatever it
- * is allocated by Rust side or foreign side. We assume `T` does not contain any
- * non-trivial drop logic, and `WuiArray` will not call `drop` on each element
- * when it is dropped.
- */
-typedef struct WuiArray_WuiProposalSize {
-  NonNull data;
-  struct WuiArrayVTable_WuiProposalSize vtable;
-} WuiArray_WuiProposalSize;
-
-typedef struct WuiChildMetadata {
-  struct WuiProposalSize proposal;
-  uint8_t priority;
-  bool stretch;
-} WuiChildMetadata;
-
-typedef struct WuiArraySlice_WuiChildMetadata {
-  struct WuiChildMetadata *head;
-  uintptr_t len;
-} WuiArraySlice_WuiChildMetadata;
-
-typedef struct WuiArrayVTable_WuiChildMetadata {
-  void (*drop)(void *);
-  struct WuiArraySlice_WuiChildMetadata (*slice)(const void *);
-} WuiArrayVTable_WuiChildMetadata;
-
-/**
- * A generic array structure for FFI, representing a contiguous sequence of
- * elements. `WuiArray` can represent mutiple types of arrays, for instance, a
- * `&[T]` (in this case, the lifetime of WuiArray is bound to the caller's
- * scope), or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`,
- * `Bytes`, or even a foreign allocated array. For a value type, `WuiArray`
- * contains a destructor function pointer to free the array buffer, whatever it
- * is allocated by Rust side or foreign side. We assume `T` does not contain any
- * non-trivial drop logic, and `WuiArray` will not call `drop` on each element
- * when it is dropped.
- */
-typedef struct WuiArray_WuiChildMetadata {
-  NonNull data;
-  struct WuiArrayVTable_WuiChildMetadata vtable;
-} WuiArray_WuiChildMetadata;
-
-/**
- * FFI representation of safe area insets
- */
-typedef struct WuiSafeAreaInsets {
-  float top;
-  float bottom;
-  float leading;
-  float trailing;
-} WuiSafeAreaInsets;
-
-/**
- * FFI representation of safe area edges (bitflags)
- */
-typedef struct WuiSafeAreaEdges {
-  uint8_t bits;
-} WuiSafeAreaEdges;
-
-/**
- * FFI representation of layout context
- */
-typedef struct WuiLayoutContext {
-  struct WuiSafeAreaInsets safe_area;
-  struct WuiSafeAreaEdges ignores_safe_area;
-} WuiLayoutContext;
-
 typedef struct WuiSize {
   float width;
   float height;
 } WuiSize;
 
-typedef struct WuiScrollView {
-  enum WuiAxis axis;
-  struct WuiAnyView *content;
-} WuiScrollView;
+typedef struct WuiProposalSize {
+  float width;
+  float height;
+} WuiProposalSize;
+
+/**
+ * VTable for SubView operations.
+ *
+ * This structure contains function pointers that allow native code to implement
+ * the SubView protocol. The native backend provides these callbacks to
+ * participate in layout negotiation.
+ */
+typedef struct WuiSubViewVTable {
+  /**
+   * Measures the child view given a size proposal.
+   * Called potentially multiple times with different proposals during layout.
+   */
+  struct WuiSize (*measure)(void *context, struct WuiProposalSize proposal);
+  /**
+   * Cleans up the context when the subview is no longer needed.
+   * Called when the WuiSubView is dropped.
+   */
+  void (*drop)(void *context);
+} WuiSubViewVTable;
+
+/**
+ * FFI representation of a SubView proxy.
+ *
+ * This allows native code to participate in the layout negotiation protocol
+ * by providing callbacks that can be called multiple times with different
+ * proposals.
+ *
+ * # Memory Management
+ *
+ * The `context` pointer is owned by this struct. When the `WuiSubView` is
+ * dropped, the `vtable.drop` function will be called to clean up the context.
+ */
+typedef struct WuiSubView {
+  /**
+   * Opaque context pointer (e.g., child view reference, cached data)
+   */
+  void *context;
+  /**
+   * VTable containing measure and drop functions
+   */
+  struct WuiSubViewVTable vtable;
+  /**
+   * Which axis this view stretches to fill available space
+   */
+  enum WuiStretchAxis stretch_axis;
+  /**
+   * Layout priority (higher = measured first, gets space preference)
+   */
+  int32_t priority;
+} WuiSubView;
+
+typedef struct WuiArraySlice_WuiSubView {
+  struct WuiSubView *head;
+  uintptr_t len;
+} WuiArraySlice_WuiSubView;
+
+typedef struct WuiArrayVTable_WuiSubView {
+  void (*drop)(void *);
+  struct WuiArraySlice_WuiSubView (*slice)(const void *);
+} WuiArrayVTable_WuiSubView;
+
+/**
+ * A generic array structure for FFI, representing a contiguous sequence of
+ * elements. `WuiArray` can represent mutiple types of arrays, for instance, a
+ * `&[T]` (in this case, the lifetime of WuiArray is bound to the caller's
+ * scope), or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`,
+ * `Bytes`, or even a foreign allocated array. For a value type, `WuiArray`
+ * contains a destructor function pointer to free the array buffer, whatever it
+ * is allocated by Rust side or foreign side. We assume `T` does not contain any
+ * non-trivial drop logic, and `WuiArray` will not call `drop` on each element
+ * when it is dropped.
+ */
+typedef struct WuiArray_WuiSubView {
+  NonNull data;
+  struct WuiArrayVTable_WuiSubView vtable;
+} WuiArray_WuiSubView;
 
 typedef struct WuiPoint {
   float x;
@@ -653,23 +690,15 @@ typedef struct WuiRect {
   struct WuiSize size;
 } WuiRect;
 
-/**
- * FFI representation of child placement (rect + context)
- */
-typedef struct WuiChildPlacement {
-  struct WuiRect rect;
-  struct WuiLayoutContext context;
-} WuiChildPlacement;
-
-typedef struct WuiArraySlice_WuiChildPlacement {
-  struct WuiChildPlacement *head;
+typedef struct WuiArraySlice_WuiRect {
+  struct WuiRect *head;
   uintptr_t len;
-} WuiArraySlice_WuiChildPlacement;
+} WuiArraySlice_WuiRect;
 
-typedef struct WuiArrayVTable_WuiChildPlacement {
+typedef struct WuiArrayVTable_WuiRect {
   void (*drop)(void *);
-  struct WuiArraySlice_WuiChildPlacement (*slice)(const void *);
-} WuiArrayVTable_WuiChildPlacement;
+  struct WuiArraySlice_WuiRect (*slice)(const void *);
+} WuiArrayVTable_WuiRect;
 
 /**
  * A generic array structure for FFI, representing a contiguous sequence of
@@ -682,10 +711,15 @@ typedef struct WuiArrayVTable_WuiChildPlacement {
  * non-trivial drop logic, and `WuiArray` will not call `drop` on each element
  * when it is dropped.
  */
-typedef struct WuiArray_WuiChildPlacement {
+typedef struct WuiArray_WuiRect {
   NonNull data;
-  struct WuiArrayVTable_WuiChildPlacement vtable;
-} WuiArray_WuiChildPlacement;
+  struct WuiArrayVTable_WuiRect vtable;
+} WuiArray_WuiRect;
+
+typedef struct WuiScrollView {
+  enum WuiAxis axis;
+  struct WuiAnyView *content;
+} WuiScrollView;
 
 typedef struct WuiButton {
   struct WuiAnyView *label;
@@ -1045,6 +1079,20 @@ struct WuiAnyView *waterui_view_body(struct WuiAnyView *view,
  */
 struct WuiStr waterui_view_id(const struct WuiAnyView *view);
 
+/**
+ * Gets the stretch axis of a view.
+ *
+ * Returns the `StretchAxis` that indicates how this view stretches to fill
+ * available space. For native views, this returns the layout behavior defined
+ * by the `NativeView` trait. For non-native views, this will panic.
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to a properly
+ * initialized `WuiAnyView` instance and that it remains valid for the
+ * duration of this function call.
+ */
+enum WuiStretchAxis waterui_view_stretch_axis(const struct WuiAnyView *view);
+
 struct WuiAnyView *waterui_empty_anyview(void);
 
 struct WuiStr waterui_anyview_id(void);
@@ -1274,33 +1322,42 @@ struct WuiContainer waterui_force_as_layout_container(struct WuiAnyView *view);
 struct WuiStr waterui_layout_container_id(void);
 
 /**
- * Proposes sizes for children based on parent constraints and child metadata.
+ * Calculates the size required by the layout given a proposal and child
+ * proxies.
+ *
+ * This function implements the new SubView-based negotiation protocol where
+ * layouts can query children multiple times with different proposals.
  *
  * # Safety
  *
- * The `layout` pointer must be valid and point to a properly initialized
- * `WuiLayout`. The caller must ensure the layout object remains valid for the
- * duration of this call.
+ * - The `layout` pointer must be valid and point to a properly initialized
+ * `WuiLayout`.
+ * - The `children` array must contain valid `WuiSubView` entries.
+ * - The measure callbacks in each child must be safe to call.
+ * - The `children` array will be consumed and dropped after this call.
  */
-struct WuiArray_WuiProposalSize
-waterui_layout_propose(struct WuiLayout *layout, struct WuiProposalSize parent,
-                       struct WuiArray_WuiChildMetadata children,
-                       struct WuiLayoutContext context);
+struct WuiSize
+waterui_layout_size_that_fits(struct WuiLayout *layout,
+                              struct WuiProposalSize proposal,
+                              struct WuiArray_WuiSubView children);
 
 /**
- * Calculates the size required by the layout based on parent constraints and
- * child metadata.
+ * Places child views within the specified bounds.
+ *
+ * Returns an array of Rect values representing the position and size of each
+ * child.
  *
  * # Safety
  *
- * The `layout` pointer must be valid and point to a properly initialized
- * `WuiLayout`. The caller must ensure the layout object remains valid for the
- * duration of this call.
+ * - The `layout` pointer must be valid and point to a properly initialized
+ * `WuiLayout`.
+ * - The `children` array must contain valid `WuiSubView` entries.
+ * - The measure callbacks in each child must be safe to call.
+ * - The `children` array will be consumed and dropped after this call.
  */
-struct WuiSize waterui_layout_size(struct WuiLayout *layout,
-                                   struct WuiProposalSize parent,
-                                   struct WuiArray_WuiChildMetadata children,
-                                   struct WuiLayoutContext context);
+struct WuiArray_WuiRect
+waterui_layout_place(struct WuiLayout *layout, struct WuiRect bounds,
+                     struct WuiArray_WuiSubView children);
 
 /**
  * # Safety
@@ -1311,22 +1368,6 @@ struct WuiSize waterui_layout_size(struct WuiLayout *layout,
 struct WuiScrollView waterui_force_as_scroll_view(struct WuiAnyView *view);
 
 struct WuiStr waterui_scroll_view_id(void);
-
-/**
- * Places child views within the specified bounds based on layout constraints
- * and child metadata.
- *
- * # Safety
- *
- * The `layout` pointer must be valid and point to a properly initialized
- * `WuiLayout`. The caller must ensure the layout object remains valid for the
- * duration of this call.
- */
-struct WuiArray_WuiChildPlacement
-waterui_layout_place(struct WuiLayout *layout, struct WuiRect bound,
-                     struct WuiProposalSize proposal,
-                     struct WuiArray_WuiChildMetadata children,
-                     struct WuiLayoutContext context);
 
 /**
  * # Safety
@@ -1357,6 +1398,11 @@ struct WuiStr waterui_lazy_id(void);
 struct WuiLink waterui_force_as_link(struct WuiAnyView *view);
 
 struct WuiStr waterui_link_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_link_stretch_axis(struct WuiAnyView *view);
 
 /**
  * # Safety
@@ -1496,6 +1542,11 @@ struct WuiText waterui_force_as_text(struct WuiAnyView *view);
 struct WuiStr waterui_text_id(void);
 
 /**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_text_stretch_axis(struct WuiAnyView *view);
+
+/**
  * Reads the current value from a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized
@@ -1565,6 +1616,11 @@ struct WuiTextField waterui_force_as_text_field(struct WuiAnyView *view);
 struct WuiStr waterui_text_field_id(void);
 
 /**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_text_field_stretch_axis(struct WuiAnyView *view);
+
+/**
  * # Safety
  * This function is unsafe because it dereferences a raw pointer and performs
  * unchecked downcasting. The caller must ensure that `view` is a valid pointer
@@ -1573,6 +1629,11 @@ struct WuiStr waterui_text_field_id(void);
 struct WuiToggle waterui_force_as_toggle(struct WuiAnyView *view);
 
 struct WuiStr waterui_toggle_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_toggle_stretch_axis(struct WuiAnyView *view);
 
 /**
  * # Safety
@@ -1585,6 +1646,11 @@ struct WuiSlider waterui_force_as_slider(struct WuiAnyView *view);
 struct WuiStr waterui_slider_id(void);
 
 /**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_slider_stretch_axis(struct WuiAnyView *view);
+
+/**
  * # Safety
  * This function is unsafe because it dereferences a raw pointer and performs
  * unchecked downcasting. The caller must ensure that `view` is a valid pointer
@@ -1593,6 +1659,11 @@ struct WuiStr waterui_slider_id(void);
 struct WuiStepper waterui_force_as_stepper(struct WuiAnyView *view);
 
 struct WuiStr waterui_stepper_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_stepper_stretch_axis(struct WuiAnyView *view);
 
 /**
  * # Safety
@@ -1605,6 +1676,11 @@ struct WuiColorPicker waterui_force_as_color_picker(struct WuiAnyView *view);
 struct WuiStr waterui_color_picker_id(void);
 
 /**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_color_picker_stretch_axis(struct WuiAnyView *view);
+
+/**
  * # Safety
  * This function is unsafe because it dereferences a raw pointer and performs
  * unchecked downcasting. The caller must ensure that `view` is a valid pointer
@@ -1613,6 +1689,11 @@ struct WuiStr waterui_color_picker_id(void);
 struct WuiPicker waterui_force_as_picker(struct WuiAnyView *view);
 
 struct WuiStr waterui_picker_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_picker_stretch_axis(struct WuiAnyView *view);
 
 /**
  * # Safety
@@ -1643,6 +1724,11 @@ struct WuiPhoto waterui_force_as_photo(struct WuiAnyView *view);
 struct WuiStr waterui_photo_id(void);
 
 /**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_photo_stretch_axis(struct WuiAnyView *view);
+
+/**
  * # Safety
  * This function is unsafe because it dereferences a raw pointer and performs
  * unchecked downcasting. The caller must ensure that `view` is a valid pointer
@@ -1653,6 +1739,11 @@ struct WuiVideoPlayer waterui_force_as_video_player(struct WuiAnyView *view);
 struct WuiStr waterui_video_player_id(void);
 
 /**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_video_player_stretch_axis(struct WuiAnyView *view);
+
+/**
  * # Safety
  * This function is unsafe because it dereferences a raw pointer and performs
  * unchecked downcasting. The caller must ensure that `view` is a valid pointer
@@ -1661,6 +1752,11 @@ struct WuiStr waterui_video_player_id(void);
 struct WuiLivePhoto waterui_force_as_live_photo(struct WuiAnyView *view);
 
 struct WuiStr waterui_live_photo_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_live_photo_stretch_axis(struct WuiAnyView *view);
 
 /**
  * # Safety
@@ -1712,6 +1808,11 @@ struct WuiStr waterui_list_item_id(void);
 struct WuiList waterui_force_as_list(struct WuiAnyView *view);
 
 struct WuiStr waterui_list_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_list_stretch_axis(struct WuiAnyView *view);
 
 /**
  * Calls the delete callback for a list item.
@@ -1796,6 +1897,11 @@ struct WuiStr waterui_table_column_id(void);
 struct WuiProgress waterui_force_as_progress(struct WuiAnyView *view);
 
 struct WuiStr waterui_progress_id(void);
+
+/**
+ * Returns the stretch axis for this native view type.
+ */
+enum WuiStretchAxis waterui_progress_stretch_axis(struct WuiAnyView *view);
 
 /**
  * # Safety
