@@ -25,6 +25,7 @@ object WatcherJni {
     @JvmStatic external fun main(): Long
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): String
+    @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
     @JvmStatic external fun cloneEnv(envPtr: Long): Long
     @JvmStatic external fun dropEnv(envPtr: Long)
     @JvmStatic external fun dropAnyview(viewPtr: Long)
@@ -168,10 +169,9 @@ object WatcherJni {
     @JvmStatic external fun computedColorSchemeConstant(scheme: Int): Long
 
     // ========== Layout Functions ==========
-    
-    @JvmStatic external fun layoutPropose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct): Array<ProposalStruct>
-    @JvmStatic external fun layoutSize(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct): SizeStruct
-    @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct): Array<ChildPlacementStruct>
+
+    @JvmStatic external fun layoutSizeThatFits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct
+    @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct>
 
     // ========== Type ID Functions ==========
     

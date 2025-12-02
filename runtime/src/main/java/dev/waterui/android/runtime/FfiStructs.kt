@@ -10,6 +10,29 @@ const val RENDERER_BUFFER_FORMAT_RGBA8888: Int = 0
 
 // ========== Layout Structs ==========
 
+/**
+ * Stretch axis enum values matching WuiStretchAxis in FFI.
+ * Determines which axis (or axes) a view stretches to fill available space.
+ */
+enum class StretchAxis(val value: Int) {
+    /** Content-sized, does not expand */
+    NONE(0),
+    /** Expands horizontally to fill available width */
+    HORIZONTAL(1),
+    /** Expands vertically to fill available height */
+    VERTICAL(2),
+    /** Expands in both directions to fill all available space */
+    BOTH(3),
+    /** Expands along the main axis of the parent stack (VStack: vertical, HStack: horizontal) */
+    MAIN_AXIS(4),
+    /** Expands along the cross axis of the parent stack (VStack: horizontal, HStack: vertical) */
+    CROSS_AXIS(5);
+
+    companion object {
+        fun fromInt(value: Int): StretchAxis = entries.firstOrNull { it.value == value } ?: NONE
+    }
+}
+
 data class LayoutContainerStruct(val layoutPtr: Long, val childrenPtr: Long)
 
 data class FixedContainerStruct(val layoutPtr: Long, val childPointers: LongArray) {
@@ -27,8 +50,43 @@ data class SizeStruct(val width: Float, val height: Float)
 
 data class RectStruct(val x: Float, val y: Float, val width: Float, val height: Float)
 
+/** @deprecated Use StretchAxis enum instead of boolean stretch */
+@Deprecated("Use StretchAxis enum with SubViewStruct instead", ReplaceWith("SubViewStruct"))
 data class ChildMetadataStruct(val proposal: ProposalStruct, val priority: Int, val stretch: Boolean) {
     fun isStretch(): Boolean = stretch
+}
+
+/**
+ * SubView metadata for the new 2-phase layout system.
+ * Used with waterui_layout_size_that_fits and waterui_layout_place.
+ *
+ * The view reference is used by the native layer to call back into Java
+ * for measuring the child view during layout negotiation.
+ */
+data class SubViewStruct(
+    val view: android.view.View,
+    val stretchAxis: StretchAxis,
+    val priority: Int = 0
+) {
+    /**
+     * Called by native code to measure this view for a given proposal.
+     * This method must be present for the JNI callback to work.
+     */
+    @Suppress("unused") // Called from native code
+    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): SizeStruct {
+        val widthSpec = proposalToMeasureSpec(proposalWidth, true)
+        val heightSpec = proposalToMeasureSpec(proposalHeight, false)
+        view.measure(widthSpec, heightSpec)
+        return SizeStruct(view.measuredWidth.toFloat(), view.measuredHeight.toFloat())
+    }
+
+    private fun proposalToMeasureSpec(proposal: Float, isWidth: Boolean): Int {
+        return when {
+            proposal.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+            proposal.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+            else -> android.view.View.MeasureSpec.makeMeasureSpec(proposal.toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+        }
+    }
 }
 
 // ========== Safe Area Structs ==========

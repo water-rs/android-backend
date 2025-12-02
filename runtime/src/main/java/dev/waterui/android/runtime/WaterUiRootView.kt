@@ -1,19 +1,11 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
-import android.graphics.Color
-import android.os.Build
 import android.util.AttributeSet
-import android.view.View
-import android.view.ViewGroup
 import android.view.ContextThemeWrapper
-import android.view.WindowInsets
-import androidx.core.graphics.Insets
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import android.view.ViewGroup
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
-import dev.waterui.android.layout.RustLayoutViewGroup
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.ReactiveColorSignal
@@ -32,7 +24,6 @@ class WaterUiRootView @JvmOverloads constructor(
     private var rootPtr: Long = 0L
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
     private var materialThemeInstalled = false
-    private var currentSafeArea: SafeAreaInsetsStruct = SafeAreaInsetsStruct.ZERO
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
         registry = renderRegistry
@@ -55,42 +46,7 @@ class WaterUiRootView @JvmOverloads constructor(
         if (environment == null) {
             environment = WuiEnvironment.create()
         }
-        setupWindowInsetsListener()
         renderRoot()
-    }
-    
-    private fun setupWindowInsetsListener() {
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, windowInsets ->
-            val systemBars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            val displayCutout = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            
-            // Combine all insets - take max of each edge
-            val density = resources.displayMetrics.density
-            val safeArea = SafeAreaInsetsStruct(
-                top = maxOf(systemBars.top, displayCutout.top).toFloat() / density,
-                bottom = maxOf(systemBars.bottom, ime.bottom).toFloat() / density,
-                leading = maxOf(systemBars.left, displayCutout.left).toFloat() / density,
-                trailing = maxOf(systemBars.right, displayCutout.right).toFloat() / density
-            )
-            
-            if (safeArea != currentSafeArea) {
-                currentSafeArea = safeArea
-                propagateSafeAreaToChildren()
-            }
-            
-            windowInsets
-        }
-    }
-    
-    private fun propagateSafeAreaToChildren() {
-        val layoutContext = LayoutContextStruct(currentSafeArea, SafeAreaEdgesStruct.NONE)
-        for (i in 0 until childCount) {
-            val child = getChildAt(i)
-            if (child is RustLayoutViewGroup) {
-                child.updateLayoutContext(layoutContext)
-            }
-        }
     }
 
     override fun onDetachedFromWindow() {
