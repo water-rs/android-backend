@@ -59,10 +59,10 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_watcher_resolved_font)                                        \
   X(waterui_new_computed_resolved_color)                                       \
   X(waterui_new_computed_resolved_font)                                        \
-  X(waterui_layout_propose)                                                    \
-  X(waterui_layout_size)                                                       \
+  X(waterui_layout_size_that_fits)                                             \
   X(waterui_layout_place)                                                      \
   X(waterui_view_id)                                                           \
+  X(waterui_view_stretch_axis)                                                 \
   X(waterui_force_as_plain)                                                    \
   X(waterui_empty_id)                                                          \
   X(waterui_text_id)                                                           \
@@ -1237,6 +1237,12 @@ JNIEXPORT jstring JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewId(
   return wui_str_to_jstring(env, str);
 }
 
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewStretchAxis(
+    JNIEnv *, jclass, jlong viewPtr) {
+  auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
+  return static_cast<jint>(g_sym.waterui_view_stretch_axis(view));
+}
+
 JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsPlain(
     JNIEnv *env, jclass, jlong viewPtr) {
   auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
@@ -1252,25 +1258,101 @@ JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsPlain(
 
 // ========== Layout Functions ==========
 
-struct ChildArrayHolder {
-  WuiChildMetadata *data;
-  size_t len;
+// Context for SubView callbacks - holds JNI references for measuring
+struct SubViewContext {
+  JavaVM *jvm;
+  jobject subviewRef;      // Global reference to the SubViewStruct
+  jmethodID measureMethod; // Method to measure the view
+  jclass subviewClass;     // Global reference to the SubViewStruct class
 };
 
-WuiArraySlice_WuiChildMetadata child_slice(const void *opaque) {
-  const auto *holder = static_cast<const ChildArrayHolder *>(opaque);
-  WuiArraySlice_WuiChildMetadata slice{};
+// Measure callback - called by Rust to measure a child view
+WuiSize subview_measure(void *context, WuiProposalSize proposal) {
+  auto *ctx = static_cast<SubViewContext *>(context);
+  JNIEnv *env = nullptr;
+  bool wasAttached = false;
+
+  // Get JNI environment
+  jint result = ctx->jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (result == JNI_EDETACHED) {
+    ctx->jvm->AttachCurrentThread(&env, nullptr);
+    wasAttached = true;
+  }
+
+  // Call the measureForLayout method on the SubViewStruct
+  // measureForLayout(float proposalWidth, float proposalHeight) returns SizeStruct
+  jobject sizeObj = env->CallObjectMethod(ctx->subviewRef, ctx->measureMethod,
+                                          proposal.width, proposal.height);
+
+  WuiSize size{};
+  if (sizeObj != nullptr) {
+    jclass sizeCls = env->GetObjectClass(sizeObj);
+    jfieldID widthField = env->GetFieldID(sizeCls, "width", "F");
+    jfieldID heightField = env->GetFieldID(sizeCls, "height", "F");
+    size.width = env->GetFloatField(sizeObj, widthField);
+    size.height = env->GetFloatField(sizeObj, heightField);
+    env->DeleteLocalRef(sizeCls);
+    env->DeleteLocalRef(sizeObj);
+  }
+
+  if (wasAttached) {
+    ctx->jvm->DetachCurrentThread();
+  }
+
+  return size;
+}
+
+// Drop callback - cleans up JNI references
+void subview_drop(void *context) {
+  auto *ctx = static_cast<SubViewContext *>(context);
+  if (ctx == nullptr)
+    return;
+
+  JNIEnv *env = nullptr;
+  bool wasAttached = false;
+  jint result = ctx->jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (result == JNI_EDETACHED) {
+    ctx->jvm->AttachCurrentThread(&env, nullptr);
+    wasAttached = true;
+  }
+
+  env->DeleteGlobalRef(ctx->subviewRef);
+  env->DeleteGlobalRef(ctx->subviewClass);
+
+  if (wasAttached) {
+    ctx->jvm->DetachCurrentThread();
+  }
+
+  delete ctx;
+}
+
+// Holder for the SubView array
+struct SubViewArrayHolder {
+  WuiSubView *data;
+  size_t len;
+  JavaVM *jvm; // Keep JVM reference for cleanup
+};
+
+WuiArraySlice_WuiSubView subview_slice(const void *opaque) {
+  const auto *holder = static_cast<const SubViewArrayHolder *>(opaque);
+  WuiArraySlice_WuiSubView slice{};
   slice.head = holder->data;
   slice.len = holder->len;
   return slice;
 }
 
-void child_drop(void *opaque) {
-  auto *holder = static_cast<ChildArrayHolder *>(opaque);
+void subview_array_drop(void *opaque) {
+  auto *holder = static_cast<SubViewArrayHolder *>(opaque);
   if (holder == nullptr)
     return;
+  // Each SubView's drop will clean up its context
+  for (size_t i = 0; i < holder->len; ++i) {
+    if (holder->data[i].vtable.drop != nullptr) {
+      holder->data[i].vtable.drop(holder->data[i].context);
+    }
+  }
   std::free(holder->data);
-  std::free(holder);
+  delete holder;
 }
 
 WuiProposalSize proposal_from_java(JNIEnv *env, jobject proposal_obj) {
@@ -1305,42 +1387,67 @@ WuiRect rect_from_java(JNIEnv *env, jobject rect_obj) {
   return rect;
 }
 
-WuiChildMetadata child_from_java(JNIEnv *env, jobject child_obj) {
-  jclass cls = env->GetObjectClass(child_obj);
-  jmethodID getProposal = env->GetMethodID(
-      cls, "getProposal", "()Ldev/waterui/android/runtime/ProposalStruct;");
-  jmethodID getPriority = env->GetMethodID(cls, "getPriority", "()I");
-  jmethodID getStretch = env->GetMethodID(cls, "isStretch", "()Z");
-  jobject proposal_obj = env->CallObjectMethod(child_obj, getProposal);
-  WuiProposalSize proposal = proposal_from_java(env, proposal_obj);
-  env->DeleteLocalRef(proposal_obj);
-  jint priority = env->CallIntMethod(child_obj, getPriority);
-  jboolean stretch = env->CallBooleanMethod(child_obj, getStretch);
+// Create a WuiSubView from Java SubViewStruct
+// SubViewStruct contains: view (View), stretchAxis (StretchAxis), priority (Int)
+WuiSubView subview_from_java(JNIEnv *env, JavaVM *jvm, jobject subviewObj) {
+  jclass cls = env->GetObjectClass(subviewObj);
+
+  // Get stretchAxis field
+  jfieldID stretchField =
+      env->GetFieldID(cls, "stretchAxis", "Ldev/waterui/android/runtime/StretchAxis;");
+  jobject stretchObj = env->GetObjectField(subviewObj, stretchField);
+  jclass stretchCls = env->GetObjectClass(stretchObj);
+  jmethodID getValueMethod = env->GetMethodID(stretchCls, "getValue", "()I");
+  jint stretchAxis = env->CallIntMethod(stretchObj, getValueMethod);
+  env->DeleteLocalRef(stretchCls);
+  env->DeleteLocalRef(stretchObj);
+
+  // Get priority field
+  jfieldID priorityField = env->GetFieldID(cls, "priority", "I");
+  jint priority = env->GetIntField(subviewObj, priorityField);
+
+  // Create the context with global references to SubViewStruct
+  auto *ctx = new SubViewContext();
+  ctx->jvm = jvm;
+  ctx->subviewRef = env->NewGlobalRef(subviewObj);
+  ctx->subviewClass = static_cast<jclass>(env->NewGlobalRef(cls));
+
+  // Get the measureForLayout method from SubViewStruct
+  ctx->measureMethod = env->GetMethodID(
+      cls, "measureForLayout", "(FF)Ldev/waterui/android/runtime/SizeStruct;");
+
   env->DeleteLocalRef(cls);
-  WuiChildMetadata metadata{};
-  metadata.proposal = proposal;
-  metadata.priority = static_cast<uint8_t>(priority);
-  metadata.stretch = stretch == JNI_TRUE;
-  return metadata;
+
+  WuiSubView subview{};
+  subview.context = ctx;
+  subview.vtable.measure = subview_measure;
+  subview.vtable.drop = subview_drop;
+  subview.stretch_axis = static_cast<WuiStretchAxis>(stretchAxis);
+  subview.priority = static_cast<int32_t>(priority);
+
+  return subview;
 }
 
-WuiArray_WuiChildMetadata children_from_java(JNIEnv *env,
-                                             jobjectArray children) {
-  jsize len = env->GetArrayLength(children);
-  auto *holder =
-      static_cast<ChildArrayHolder *>(std::malloc(sizeof(ChildArrayHolder)));
+// Create WuiArray_WuiSubView from Java array of SubViewStruct
+WuiArray_WuiSubView subviews_from_java(JNIEnv *env, JavaVM *jvm,
+                                       jobjectArray subviewsArr) {
+  jsize len = env->GetArrayLength(subviewsArr);
+  auto *holder = new SubViewArrayHolder();
   holder->len = static_cast<size_t>(len);
-  holder->data = static_cast<WuiChildMetadata *>(
-      std::calloc(holder->len, sizeof(WuiChildMetadata)));
+  holder->jvm = jvm;
+  holder->data =
+      static_cast<WuiSubView *>(std::calloc(holder->len, sizeof(WuiSubView)));
+
   for (jsize i = 0; i < len; ++i) {
-    jobject child_obj = env->GetObjectArrayElement(children, i);
-    holder->data[i] = child_from_java(env, child_obj);
-    env->DeleteLocalRef(child_obj);
+    jobject subviewObj = env->GetObjectArrayElement(subviewsArr, i);
+    holder->data[i] = subview_from_java(env, jvm, subviewObj);
+    env->DeleteLocalRef(subviewObj);
   }
-  WuiArray_WuiChildMetadata array{};
+
+  WuiArray_WuiSubView array{};
   array.data = holder;
-  array.vtable.drop = child_drop;
-  array.vtable.slice = child_slice;
+  array.vtable.drop = subview_array_drop;
+  array.vtable.slice = subview_slice;
   return array;
 }
 
@@ -1369,159 +1476,49 @@ jobject rect_to_java(JNIEnv *env, const WuiRect &rect) {
   return obj;
 }
 
-// ========== Layout Context Helpers ==========
-
-WuiLayoutContext context_from_java(JNIEnv *env, jobject contextObj) {
-  jclass cls = env->GetObjectClass(contextObj);
-
-  // Get safeArea field
-  jfieldID safeAreaField = env->GetFieldID(
-      cls, "safeArea", "Ldev/waterui/android/runtime/SafeAreaInsetsStruct;");
-  jobject safeAreaObj = env->GetObjectField(contextObj, safeAreaField);
-  jclass safeAreaCls = env->GetObjectClass(safeAreaObj);
-  jfieldID topField = env->GetFieldID(safeAreaCls, "top", "F");
-  jfieldID bottomField = env->GetFieldID(safeAreaCls, "bottom", "F");
-  jfieldID leadingField = env->GetFieldID(safeAreaCls, "leading", "F");
-  jfieldID trailingField = env->GetFieldID(safeAreaCls, "trailing", "F");
-
-  WuiSafeAreaInsets safeArea = {
-      .top = env->GetFloatField(safeAreaObj, topField),
-      .bottom = env->GetFloatField(safeAreaObj, bottomField),
-      .leading = env->GetFloatField(safeAreaObj, leadingField),
-      .trailing = env->GetFloatField(safeAreaObj, trailingField)};
-
-  // Get ignoresSafeArea field (value class wrapping int)
-  jfieldID ignoresField =
-      env->GetFieldID(cls, "ignoresSafeArea",
-                      "Ldev/waterui/android/runtime/SafeAreaEdgesStruct;");
-  jobject ignoresObj = env->GetObjectField(contextObj, ignoresField);
-  jclass ignoresCls = env->GetObjectClass(ignoresObj);
-  jfieldID bitsField = env->GetFieldID(ignoresCls, "bits", "I");
-  uint8_t bits = static_cast<uint8_t>(env->GetIntField(ignoresObj, bitsField));
-
-  WuiSafeAreaEdges ignores = {.bits = bits};
-
-  env->DeleteLocalRef(safeAreaCls);
-  env->DeleteLocalRef(safeAreaObj);
-  env->DeleteLocalRef(ignoresCls);
-  env->DeleteLocalRef(ignoresObj);
-  env->DeleteLocalRef(cls);
-
-  return WuiLayoutContext{.safe_area = safeArea, .ignores_safe_area = ignores};
-}
-
-jobject context_to_java(JNIEnv *env, const WuiLayoutContext &context) {
-  // Create SafeAreaInsetsStruct
-  jclass safeAreaCls =
-      env->FindClass("dev/waterui/android/runtime/SafeAreaInsetsStruct");
-  jmethodID safeAreaCtor = env->GetMethodID(safeAreaCls, "<init>", "(FFFF)V");
-  jobject safeAreaObj =
-      env->NewObject(safeAreaCls, safeAreaCtor, context.safe_area.top,
-                     context.safe_area.bottom, context.safe_area.leading,
-                     context.safe_area.trailing);
-
-  // Create SafeAreaEdgesStruct (value class)
-  jclass edgesCls =
-      env->FindClass("dev/waterui/android/runtime/SafeAreaEdgesStruct");
-  jmethodID edgesCtor = env->GetMethodID(edgesCls, "<init>", "(I)V");
-  jobject edgesObj = env->NewObject(
-      edgesCls, edgesCtor, static_cast<jint>(context.ignores_safe_area.bits));
-
-  // Create LayoutContextStruct
-  jclass contextCls =
-      env->FindClass("dev/waterui/android/runtime/LayoutContextStruct");
-  jmethodID contextCtor = env->GetMethodID(
-      contextCls, "<init>",
-      "(Ldev/waterui/android/runtime/SafeAreaInsetsStruct;Ldev/waterui/android/"
-      "runtime/SafeAreaEdgesStruct;)V");
-  jobject contextObj =
-      env->NewObject(contextCls, contextCtor, safeAreaObj, edgesObj);
-
-  env->DeleteLocalRef(safeAreaCls);
-  env->DeleteLocalRef(safeAreaObj);
-  env->DeleteLocalRef(edgesCls);
-  env->DeleteLocalRef(edgesObj);
-  env->DeleteLocalRef(contextCls);
-
-  return contextObj;
-}
-
-jobject placement_to_java(JNIEnv *env, const WuiChildPlacement &placement) {
-  jobject rectObj = rect_to_java(env, placement.rect);
-  jobject contextObj = context_to_java(env, placement.context);
-
-  jclass cls =
-      env->FindClass("dev/waterui/android/runtime/ChildPlacementStruct");
-  jmethodID ctor =
-      env->GetMethodID(cls, "<init>",
-                       "(Ldev/waterui/android/runtime/RectStruct;Ldev/waterui/"
-                       "android/runtime/LayoutContextStruct;)V");
-  jobject obj = env->NewObject(cls, ctor, rectObj, contextObj);
-
-  env->DeleteLocalRef(rectObj);
-  env->DeleteLocalRef(contextObj);
-  env->DeleteLocalRef(cls);
-
-  return obj;
-}
-
 // ========== Layout Functions ==========
 
-JNIEXPORT jobjectArray JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_layoutPropose(JNIEnv *env, jclass,
-                                                      jlong layoutPtr,
-                                                      jobject parentObj,
-                                                      jobjectArray childrenArr,
-                                                      jobject contextObj) {
-  auto *layout = jlong_to_ptr<WuiLayout>(layoutPtr);
-  WuiProposalSize parent = proposal_from_java(env, parentObj);
-  WuiArray_WuiChildMetadata children = children_from_java(env, childrenArr);
-  WuiLayoutContext context = context_from_java(env, contextObj);
-  WuiArray_WuiProposalSize result =
-      g_sym.waterui_layout_propose(layout, parent, children, context);
-  WuiArraySlice_WuiProposalSize slice = result.vtable.slice(result.data);
-  jclass cls = env->FindClass("dev/waterui/android/runtime/ProposalStruct");
-  jobjectArray resultArr = env->NewObjectArray(slice.len, cls, nullptr);
-  for (uintptr_t i = 0; i < slice.len; ++i) {
-    jobject proposal_obj = proposal_to_java(env, slice.head[i]);
-    env->SetObjectArrayElement(resultArr, static_cast<jsize>(i), proposal_obj);
-    env->DeleteLocalRef(proposal_obj);
-  }
-  env->DeleteLocalRef(cls);
-  result.vtable.drop(result.data);
-  return resultArr;
+// Get JavaVM from JNIEnv for use in callbacks
+static JavaVM *get_java_vm(JNIEnv *env) {
+  JavaVM *jvm = nullptr;
+  env->GetJavaVM(&jvm);
+  return jvm;
 }
 
-JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_layoutSize(
-    JNIEnv *env, jclass, jlong layoutPtr, jobject parentObj,
-    jobjectArray childrenArr, jobject contextObj) {
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_layoutSizeThatFits(
+    JNIEnv *env, jclass, jlong layoutPtr, jobject proposalObj,
+    jobjectArray subviewsArr) {
   auto *layout = jlong_to_ptr<WuiLayout>(layoutPtr);
-  WuiProposalSize parent = proposal_from_java(env, parentObj);
-  WuiArray_WuiChildMetadata children = children_from_java(env, childrenArr);
-  WuiLayoutContext context = context_from_java(env, contextObj);
-  WuiSize size = g_sym.waterui_layout_size(layout, parent, children, context);
+  WuiProposalSize proposal = proposal_from_java(env, proposalObj);
+  JavaVM *jvm = get_java_vm(env);
+  WuiArray_WuiSubView subviews = subviews_from_java(env, jvm, subviewsArr);
+
+  WuiSize size =
+      g_sym.waterui_layout_size_that_fits(layout, proposal, subviews);
+
   return size_to_java(env, size);
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_layoutPlace(
-    JNIEnv *env, jclass, jlong layoutPtr, jobject boundsObj, jobject parentObj,
-    jobjectArray childrenArr, jobject contextObj) {
+Java_dev_waterui_android_ffi_WatcherJni_layoutPlace(JNIEnv *env, jclass,
+                                                    jlong layoutPtr,
+                                                    jobject boundsObj,
+                                                    jobjectArray subviewsArr) {
   auto *layout = jlong_to_ptr<WuiLayout>(layoutPtr);
   WuiRect bounds = rect_from_java(env, boundsObj);
-  WuiProposalSize parent = proposal_from_java(env, parentObj);
-  WuiArray_WuiChildMetadata children = children_from_java(env, childrenArr);
-  WuiLayoutContext context = context_from_java(env, contextObj);
-  WuiArray_WuiChildPlacement result =
-      g_sym.waterui_layout_place(layout, bounds, parent, children, context);
-  WuiArraySlice_WuiChildPlacement slice = result.vtable.slice(result.data);
-  jclass cls =
-      env->FindClass("dev/waterui/android/runtime/ChildPlacementStruct");
+  JavaVM *jvm = get_java_vm(env);
+  WuiArray_WuiSubView subviews = subviews_from_java(env, jvm, subviewsArr);
+
+  WuiArray_WuiRect result = g_sym.waterui_layout_place(layout, bounds, subviews);
+  WuiArraySlice_WuiRect slice = result.vtable.slice(result.data);
+
+  jclass cls = env->FindClass("dev/waterui/android/runtime/RectStruct");
   jobjectArray resultArr = env->NewObjectArray(slice.len, cls, nullptr);
   for (uintptr_t i = 0; i < slice.len; ++i) {
-    jobject placement_obj = placement_to_java(env, slice.head[i]);
-    env->SetObjectArrayElement(resultArr, static_cast<jsize>(i), placement_obj);
-    env->DeleteLocalRef(placement_obj);
+    jobject rectObj = rect_to_java(env, slice.head[i]);
+    env->SetObjectArrayElement(resultArr, static_cast<jsize>(i), rectObj);
+    env->DeleteLocalRef(rectObj);
   }
   env->DeleteLocalRef(cls);
   result.vtable.drop(result.data);

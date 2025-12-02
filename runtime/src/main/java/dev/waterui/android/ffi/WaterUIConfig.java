@@ -59,7 +59,8 @@ public class WaterUIConfig implements InfoMapper {
         infoMap.put(new Info(
                 "WuiAnimation", "WuiAxis", "WuiFontWeight", "WuiKeyboardType",
                 "WuiProgressStyle", "WuiRendererBufferFormat",
-                "WuiColorScheme", "WuiColorSlot", "WuiFontSlot").valueTypes("int").pointerTypes("IntPointer"));
+                "WuiColorScheme", "WuiColorSlot", "WuiFontSlot",
+                "WuiStretchAxis").valueTypes("int").pointerTypes("IntPointer"));
 
         // ============================================================
         // Struct mappings
@@ -72,21 +73,23 @@ public class WaterUIConfig implements InfoMapper {
         infoMap.put(new Info("WuiArray", "WuiArray_u8", "WuiArray_____WuiAnyView",
                 "WuiArray_WuiProposalSize", "WuiArray_WuiChildMetadata",
                 "WuiArray_WuiRect", "WuiArray_WuiStyledChunk",
-                "WuiArray_WuiTableColumn", "WuiArray_WuiPickerItem").pointerTypes("Pointer"));
+                "WuiArray_WuiTableColumn", "WuiArray_WuiPickerItem",
+                "WuiArray_WuiSubView").pointerTypes("Pointer"));
 
         // VTable types - skip these as they contain internal function pointers
         infoMap.put(new Info("WuiArrayVTable", "WuiArrayVTable_u8",
                 "WuiArrayVTable_____WuiAnyView", "WuiArrayVTable_WuiProposalSize",
                 "WuiArrayVTable_WuiChildMetadata", "WuiArrayVTable_WuiRect",
                 "WuiArrayVTable_WuiStyledChunk", "WuiArrayVTable_WuiTableColumn",
-                "WuiArrayVTable_WuiPickerItem").skip());
+                "WuiArrayVTable_WuiPickerItem", "WuiArrayVTable_WuiSubView",
+                "WuiSubViewVTable").skip());
 
         // Slice types
         infoMap.put(new Info("WuiArraySlice", "WuiArraySlice_u8",
                 "WuiArraySlice_____WuiAnyView", "WuiArraySlice_WuiProposalSize",
                 "WuiArraySlice_WuiChildMetadata", "WuiArraySlice_WuiRect",
                 "WuiArraySlice_WuiStyledChunk", "WuiArraySlice_WuiTableColumn",
-                "WuiArraySlice_WuiPickerItem").pointerTypes("Pointer"));
+                "WuiArraySlice_WuiPickerItem", "WuiArraySlice_WuiSubView").pointerTypes("Pointer"));
 
         // ============================================================
         // Data structs - generate proper classes
@@ -98,6 +101,7 @@ public class WaterUIConfig implements InfoMapper {
         infoMap.put(new Info("WuiPoint").pointerTypes("WuiPoint"));
         infoMap.put(new Info("WuiRect").pointerTypes("WuiRect"));
         infoMap.put(new Info("WuiChildMetadata").pointerTypes("WuiChildMetadata"));
+        infoMap.put(new Info("WuiSubView").pointerTypes("WuiSubView"));
         infoMap.put(new Info("WuiId").pointerTypes("WuiId"));
         infoMap.put(new Info("WuiRange_f64").pointerTypes("WuiRange_f64"));
         infoMap.put(new Info("WuiRange_i32").pointerTypes("WuiRange_i32"));
@@ -151,6 +155,9 @@ public class WaterUIConfig implements InfoMapper {
         
         // VTable slice function
         infoMap.put(new Info("struct WuiArraySlice (*)(const void*)").skip());
+
+        // SubView measure callback: WuiSize (*)(void*, WuiProposalSize)
+        infoMap.put(new Info("struct WuiSize (*)(void*, struct WuiProposalSize)").pointerTypes("SubViewMeasure"));
 
         // NonNull is just void*
         infoMap.put(new Info("NonNull").valueTypes("Pointer"));

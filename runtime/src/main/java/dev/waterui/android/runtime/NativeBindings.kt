@@ -26,6 +26,7 @@ internal object NativeBindings {
     fun waterui_main(): Long = WatcherJni.main()
     fun waterui_view_id(anyViewPtr: Long): String = WatcherJni.viewId(anyViewPtr)
     fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long = WatcherJni.viewBody(anyViewPtr, envPtr)
+    fun waterui_view_stretch_axis(anyViewPtr: Long): Int = WatcherJni.viewStretchAxis(anyViewPtr)
     fun waterui_configure_hot_reload_endpoint(host: String, port: Int) = WatcherJni.configureHotReloadEndpoint(host, port)
     fun waterui_configure_hot_reload_directory(path: String) = WatcherJni.configureHotReloadDirectory(path)
 
@@ -93,15 +94,13 @@ internal object NativeBindings {
     fun waterui_drop_anyview(viewPtr: Long) = WatcherJni.dropAnyview(viewPtr)
 
     // ========== Layout bridging ==========
-    
+
     fun waterui_force_as_layout_container(viewPtr: Long): LayoutContainerStruct = WatcherJni.forceAsLayoutContainer(viewPtr)
     fun waterui_force_as_fixed_container(viewPtr: Long): FixedContainerStruct = WatcherJni.forceAsFixedContainer(viewPtr)
-    fun waterui_layout_propose(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct = LayoutContextStruct.EMPTY): Array<ProposalStruct> =
-        WatcherJni.layoutPropose(layoutPtr, parent, children, context)
-    fun waterui_layout_size(layoutPtr: Long, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct = LayoutContextStruct.EMPTY): SizeStruct =
-        WatcherJni.layoutSize(layoutPtr, parent, children, context)
-    fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, parent: ProposalStruct, children: Array<ChildMetadataStruct>, context: LayoutContextStruct = LayoutContextStruct.EMPTY): Array<ChildPlacementStruct> =
-        WatcherJni.layoutPlace(layoutPtr, bounds, parent, children, context)
+    fun waterui_layout_size_that_fits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct =
+        WatcherJni.layoutSizeThatFits(layoutPtr, proposal, subviews)
+    fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct> =
+        WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
     fun waterui_drop_layout(layoutPtr: Long) = WatcherJni.dropLayout(layoutPtr)
 
     // ========== AnyViews ==========
