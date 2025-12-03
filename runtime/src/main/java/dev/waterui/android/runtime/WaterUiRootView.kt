@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.ContextThemeWrapper
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import dev.waterui.android.reactive.WuiComputed
@@ -13,11 +14,14 @@ import dev.waterui.android.runtime.ReactiveColorSignal
 /**
  * Root view that owns the WaterUI environment and inflates the Rust-driven
  * view hierarchy into Android's View system.
+ *
+ * Layout decisions are made by the Rust layout engine - this view only
+ * measures and places children according to Rust's instructions.
  */
 class WaterUiRootView @JvmOverloads constructor(
     baseContext: Context,
     attrs: AttributeSet? = null
-) : CenteringHostLayout(createMaterialContext(baseContext), attrs) {
+) : FrameLayout(createMaterialContext(baseContext), attrs) {
 
     private var registry: RenderRegistry = RenderRegistry.default()
     private var environment: WuiEnvironment? = null
