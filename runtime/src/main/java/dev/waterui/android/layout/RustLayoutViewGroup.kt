@@ -29,7 +29,12 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         require(layoutPtr != 0L) { "onMeasure called with null layout pointer" }
-        require(childCount > 0) { "onMeasure called with no children" }
+
+        // Empty containers should report zero size
+        if (childCount == 0) {
+            setMeasuredDimension(0, 0)
+            return
+        }
 
         val constraints = LayoutConstraints.fromMeasureSpecs(widthMeasureSpec, heightMeasureSpec)
         val parentProposal = constraints.toProposalStruct()
@@ -55,7 +60,11 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         require(layoutPtr != 0L) { "onLayout called with null layout pointer" }
-        require(childCount > 0) { "onLayout called with no children" }
+
+        // Nothing to layout for empty containers
+        if (childCount == 0) {
+            return
+        }
 
         val bounds = RectStruct(
             x = 0f,
@@ -81,10 +90,24 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         for (index in 0 until childCount) {
             val rect = placements[index]
             val child = getChildAt(index)
+
+            val allocatedWidth = rect.width.roundToInt()
+            val allocatedHeight = rect.height.roundToInt()
+
+            // Re-measure child at allocated size if different from measured size.
+            // This is critical for StretchAxis::Horizontal components (TextField, Slider, etc.)
+            // which report minimum width during size_that_fits but expand during place.
+            if (child.measuredWidth != allocatedWidth || child.measuredHeight != allocatedHeight) {
+                child.measure(
+                    View.MeasureSpec.makeMeasureSpec(allocatedWidth, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(allocatedHeight, View.MeasureSpec.EXACTLY)
+                )
+            }
+
             val childLeft = rect.x.roundToInt()
             val childTop = rect.y.roundToInt()
-            val childRight = (rect.x + rect.width).roundToInt()
-            val childBottom = (rect.y + rect.height).roundToInt()
+            val childRight = childLeft + allocatedWidth
+            val childBottom = childTop + allocatedHeight
             child.layout(childLeft, childTop, childRight, childBottom)
         }
     }

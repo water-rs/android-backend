@@ -77,7 +77,6 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_spacer_id)                                                         \
   X(waterui_toggle_id)                                                         \
   X(waterui_slider_id)                                                         \
-  X(waterui_renderer_view_id)                                                  \
   X(waterui_fixed_container_id)                                                \
   X(waterui_picker_id)                                                         \
   X(waterui_layout_container_id)                                               \
@@ -102,7 +101,6 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_layout_container)                                         \
   X(waterui_force_as_fixed_container)                                          \
   X(waterui_force_as_dynamic)                                                  \
-  X(waterui_force_as_renderer_view)                                            \
   X(waterui_drop_layout)                                                       \
   X(waterui_drop_action)                                                       \
   X(waterui_call_action)                                                       \
@@ -160,11 +158,8 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_computed_color_scheme_constant)                                    \
   X(waterui_read_computed_color_scheme)                                        \
   X(waterui_drop_computed_color_scheme)                                        \
-  X(waterui_renderer_view_width)                                               \
-  X(waterui_renderer_view_height)                                              \
-  X(waterui_renderer_view_preferred_format)                                    \
-  X(waterui_renderer_view_render_cpu)                                          \
-  X(waterui_drop_renderer_view)
+  X(waterui_metadata_env_id)                                                   \
+  X(waterui_force_as_metadata_env)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -1548,10 +1543,10 @@ DEFINE_TYPE_ID_FN(scrollViewId, waterui_scroll_view_id)
 DEFINE_TYPE_ID_FN(spacerId, waterui_spacer_id)
 DEFINE_TYPE_ID_FN(toggleId, waterui_toggle_id)
 DEFINE_TYPE_ID_FN(sliderId, waterui_slider_id)
-DEFINE_TYPE_ID_FN(rendererViewId, waterui_renderer_view_id)
 DEFINE_TYPE_ID_FN(fixedContainerId, waterui_fixed_container_id)
 DEFINE_TYPE_ID_FN(pickerId, waterui_picker_id)
 DEFINE_TYPE_ID_FN(layoutContainerId, waterui_layout_container_id)
+DEFINE_TYPE_ID_FN(metadataEnvId, waterui_metadata_env_id)
 
 #undef DEFINE_TYPE_ID_FN
 
@@ -1780,12 +1775,17 @@ JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsDynamic(
   return ptr_to_jlong(dynamic);
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsRendererView(JNIEnv *, jclass,
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataEnv(JNIEnv *env, jclass,
                                                             jlong viewPtr) {
-  auto rv =
-      g_sym.waterui_force_as_renderer_view(jlong_to_ptr<WuiAnyView>(viewPtr));
-  return ptr_to_jlong(rv);
+  auto metadata =
+      g_sym.waterui_force_as_metadata_env(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataEnvStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value));
+  env->DeleteLocalRef(cls);
+  return obj;
 }
 
 // ========== Drop Functions ==========
@@ -2097,48 +2097,6 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedColorScheme(
     JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_color_scheme(
       jlong_to_ptr<WuiComputed_ColorScheme>(computedPtr));
-}
-
-// ========== Renderer View ==========
-
-JNIEXPORT jfloat JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_rendererViewWidth(JNIEnv *, jclass,
-                                                          jlong handle) {
-  return g_sym.waterui_renderer_view_width(
-      jlong_to_ptr<WuiRendererView>(handle));
-}
-
-JNIEXPORT jfloat JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_rendererViewHeight(JNIEnv *, jclass,
-                                                           jlong handle) {
-  return g_sym.waterui_renderer_view_height(
-      jlong_to_ptr<WuiRendererView>(handle));
-}
-
-JNIEXPORT jint JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_rendererViewPreferredFormat(
-    JNIEnv *, jclass, jlong handle) {
-  return static_cast<jint>(g_sym.waterui_renderer_view_preferred_format(
-      jlong_to_ptr<WuiRendererView>(handle)));
-}
-
-JNIEXPORT jboolean JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_rendererViewRenderCpu(
-    JNIEnv *env, jclass, jlong handle, jbyteArray pixels, jint width,
-    jint height, jint stride, jint format) {
-  jbyte *data = env->GetByteArrayElements(pixels, nullptr);
-  bool result = g_sym.waterui_renderer_view_render_cpu(
-      jlong_to_ptr<WuiRendererView>(handle), reinterpret_cast<uint8_t *>(data),
-      static_cast<uint32_t>(width), static_cast<uint32_t>(height),
-      static_cast<uintptr_t>(stride),
-      static_cast<WuiRendererBufferFormat>(format));
-  env->ReleaseByteArrayElements(pixels, data, 0);
-  return result ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropRendererView(
-    JNIEnv *, jclass, jlong handle) {
-  g_sym.waterui_drop_renderer_view(jlong_to_ptr<WuiRendererView>(handle));
 }
 
 } // extern "C"

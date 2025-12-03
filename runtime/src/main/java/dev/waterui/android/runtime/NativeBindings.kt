@@ -45,10 +45,10 @@ internal object NativeBindings {
     fun waterui_spacer_id(): String = WatcherJni.spacerId()
     fun waterui_toggle_id(): String = WatcherJni.toggleId()
     fun waterui_slider_id(): String = WatcherJni.sliderId()
-    fun waterui_renderer_view_id(): String = WatcherJni.rendererViewId()
     fun waterui_fixed_container_id(): String = WatcherJni.fixedContainerId()
     fun waterui_picker_id(): String = WatcherJni.pickerId()
     fun waterui_layout_container_id(): String = WatcherJni.layoutContainerId()
+    fun waterui_metadata_env_id(): String = WatcherJni.metadataEnvId()
 
     // ========== Theme: Color Scheme ==========
     
@@ -204,16 +204,7 @@ internal object NativeBindings {
     fun waterui_force_as_progress(viewPtr: Long): ProgressStruct = WatcherJni.forceAsProgress(viewPtr)
     fun waterui_force_as_scroll(viewPtr: Long): ScrollStruct = WatcherJni.forceAsScrollView(viewPtr)
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)
-
-    // ========== Renderer View ==========
-    
-    fun waterui_force_as_renderer_view(viewPtr: Long): Long = WatcherJni.forceAsRendererView(viewPtr)
-    fun waterui_renderer_view_width(handle: Long): Float = WatcherJni.rendererViewWidth(handle)
-    fun waterui_renderer_view_height(handle: Long): Float = WatcherJni.rendererViewHeight(handle)
-    fun waterui_renderer_view_preferred_format(handle: Long): Int = WatcherJni.rendererViewPreferredFormat(handle)
-    fun waterui_renderer_view_render_cpu(handle: Long, pixels: ByteArray, width: Int, height: Int, stride: Int, format: Int): Boolean =
-        WatcherJni.rendererViewRenderCpu(handle, pixels, width, height, stride, format)
-    fun waterui_drop_renderer_view(handle: Long) = WatcherJni.dropRendererView(handle)
+    fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
 
     // ========== Reactive State Creation (for theme) ==========
     
