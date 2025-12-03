@@ -27,10 +27,21 @@ fun inflateAnyView(
     val renderer = registry.resolve(typeId)
 
     if (renderer != null) {
-        // This is a native view - get its stretch axis and store on the view
-        val stretchAxis = StretchAxis.fromInt(NativeBindings.waterui_view_stretch_axis(pointer))
+        // Get stretch axis BEFORE createView - the pointer is consumed/invalidated by createView!
+        // Metadata types don't implement NativeView, they propagate stretch axis from content.
+        val stretchAxis = if (!registry.isMetadata(typeId)) {
+            StretchAxis.fromInt(NativeBindings.waterui_view_stretch_axis(pointer))
+        } else {
+            null
+        }
+
+        // Create the view (this consumes the pointer via force_as_* FFI functions)
         val view = renderer.createView(context, node, environment, registry)
-        view.setTag(TAG_STRETCH_AXIS, stretchAxis)
+
+        // Apply stretch axis if we got one
+        if (stretchAxis != null) {
+            view.setTag(TAG_STRETCH_AXIS, stretchAxis)
+        }
         return view
     }
 

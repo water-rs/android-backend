@@ -3,11 +3,11 @@ package dev.waterui.android.components
 import android.widget.FrameLayout
 import dev.waterui.android.reactive.WatcherStructFactory
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
 
 private val dynamicTypeId: WuiTypeId by lazy { NativeBindings.waterui_dynamic_id().toTypeId() }
@@ -40,6 +40,6 @@ private val dynamicRenderer = WuiRenderer { context, node, env, registry ->
     container
 }
 
-internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiDynamic() {
+internal fun RegistryBuilder.registerWuiDynamic() {
     register({ dynamicTypeId }, dynamicRenderer)
 }

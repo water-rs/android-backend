@@ -4,11 +4,11 @@ import dev.waterui.android.layout.ChildDescriptor
 import dev.waterui.android.layout.RustLayoutViewGroup
 import dev.waterui.android.runtime.NativeAnyViews
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
 import dev.waterui.android.runtime.usePointer
 
@@ -73,7 +73,7 @@ private val fixedContainerRenderer = WuiRenderer { context, node, env, registry 
     group
 }
 
-internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiContainers() {
+internal fun RegistryBuilder.registerWuiContainers() {
     register({ layoutContainerTypeId }, layoutContainerRenderer)
     register({ fixedContainerTypeId }, fixedContainerRenderer)
 }

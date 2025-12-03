@@ -37,12 +37,22 @@ open class CenteringHostLayout @JvmOverloads constructor(
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
         val heightSize = MeasureSpec.getSize(heightMeasureSpec)
 
-        val childWidthSpec = when (widthMode) {
-            MeasureSpec.EXACTLY, MeasureSpec.AT_MOST -> MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.AT_MOST)
+        val lp = child.layoutParams
+
+        // For MATCH_PARENT children, give them EXACTLY the available size (like iOS Auto Layout constraints)
+        // For WRAP_CONTENT children, give them AT_MOST so they can size themselves
+        val childWidthSpec = when {
+            lp.width == LayoutParams.MATCH_PARENT && widthMode != MeasureSpec.UNSPECIFIED ->
+                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
+            widthMode == MeasureSpec.EXACTLY || widthMode == MeasureSpec.AT_MOST ->
+                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.AT_MOST)
             else -> MeasureSpec.UNSPECIFIED
         }
-        val childHeightSpec = when (heightMode) {
-            MeasureSpec.EXACTLY, MeasureSpec.AT_MOST -> MeasureSpec.makeMeasureSpec(heightSize, MeasureSpec.AT_MOST)
+        val childHeightSpec = when {
+            lp.height == LayoutParams.MATCH_PARENT && heightMode != MeasureSpec.UNSPECIFIED ->
+                MeasureSpec.makeMeasureSpec(heightSize, MeasureSpec.EXACTLY)
+            heightMode == MeasureSpec.EXACTLY || heightMode == MeasureSpec.AT_MOST ->
+                MeasureSpec.makeMeasureSpec(heightSize, MeasureSpec.AT_MOST)
             else -> MeasureSpec.UNSPECIFIED
         }
 

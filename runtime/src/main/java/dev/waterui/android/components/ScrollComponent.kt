@@ -4,10 +4,10 @@ import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import dev.waterui.android.runtime.CenteringHostLayout
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
 
 private val scrollTypeId: WuiTypeId by lazy { NativeBindings.waterui_scroll_view_id().toTypeId() }
@@ -43,6 +43,6 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
     }
 }
 
-internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiScroll() {
+internal fun RegistryBuilder.registerWuiScroll() {
     register({ scrollTypeId }, scrollRenderer)
 }
