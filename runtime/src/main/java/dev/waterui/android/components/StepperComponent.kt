@@ -1,12 +1,9 @@
 package dev.waterui.android.components
 
 import android.content.res.ColorStateList
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.view.Gravity
 import android.widget.LinearLayout
-import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.ShapeAppearanceModel
@@ -35,7 +32,6 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     val density = context.resources.displayMetrics.density
     val cornerRadiusPx = 12 * density
     val buttonSize = (44 * density).toInt()
-    val valueMinWidth = (48 * density).toInt()
     val spacingPx = (8 * density).toInt()
 
     val container = LinearLayout(context).apply {
@@ -43,12 +39,13 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
         gravity = Gravity.CENTER_VERTICAL
     }
 
-    // Add label if present, with spacing
+    // Add label if present - takes remaining space (weight=1) to push controls to the right
     if (struct.labelPtr != 0L) {
         val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
         val labelParams = LinearLayout.LayoutParams(
+            0,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
+            1f // weight=1 to fill remaining space
         ).apply {
             marginEnd = spacingPx
         }
@@ -86,15 +83,6 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
             .build()
     }
 
-    // Value display - centered with minimum width
-    val valueView = TextView(context).apply {
-        textSize = 16f
-        typeface = Typeface.DEFAULT_BOLD
-        gravity = Gravity.CENTER
-        minWidth = valueMinWidth
-        setPadding(spacingPx, 0, spacingPx, 0)
-    }
-
     // Increment button - rounded right corners only
     val increment = MaterialButton(context).apply {
         text = "+"
@@ -115,16 +103,11 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     controlGroup.addView(decrement)
-    controlGroup.addView(valueView)
     controlGroup.addView(increment)
     container.addView(controlGroup)
 
     var stepValue = 1
     stepComputed?.observe { value -> stepValue = value }
-
-    binding.observe { value ->
-        valueView.text = value.toString()
-    }
 
     decrement.setOnClickListener {
         val newValue = (binding.current() - stepValue).coerceAtLeast(rangeStart)
@@ -151,12 +134,6 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
         increment.setTextColor(colorInt)
     }
     accentForeground.attachTo(container)
-
-    val foreground = ThemeBridge.foreground(env)
-    foreground.observe { color ->
-        valueView.setTextColor(color.toColorInt())
-    }
-    foreground.attachTo(valueView)
 
     container.disposeWith(binding)
     stepComputed?.let { container.disposeWith(it) }
