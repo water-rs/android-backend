@@ -181,6 +181,8 @@ data class ColorStruct(val colorPtr: Long)
 
 data class TextFieldStruct(val labelPtr: Long, val valuePtr: Long, val promptPtr: Long, val keyboardType: Int)
 
+data class SecureFieldStruct(val labelPtr: Long, val valuePtr: Long)
+
 data class ToggleStruct(val labelPtr: Long, val bindingPtr: Long)
 
 data class SliderStruct(
