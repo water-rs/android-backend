@@ -8,7 +8,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.toTypeId
+
 
 private val dynamicTypeId: WuiTypeId by lazy { NativeBindings.waterui_dynamic_id().toTypeId() }
 

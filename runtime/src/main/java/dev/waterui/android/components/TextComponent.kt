@@ -13,7 +13,7 @@ import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeface
-import dev.waterui.android.runtime.toTypeId
+
 private val textTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_text_id().toTypeId()
 }

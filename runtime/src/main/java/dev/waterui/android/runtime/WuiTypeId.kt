@@ -1,13 +1,12 @@
 package dev.waterui.android.runtime
 
 /**
- * Kotlin representation of `WuiTypeId` (string identifiers exposed by the Rust backend).
+ * 128-bit type identifier for O(1) comparison.
+ *
+ * This maps directly to Rust's `WuiTypeId` struct with two u64 fields.
+ * - Normal build: Contains the view's `TypeId` (guaranteed unique by Rust)
+ * - Hot reload: Contains 128-bit FNV-1a hash of `type_name()` (stable across dylibs)
+ *
+ * Using 128-bit virtually eliminates collision risk (birthday paradox threshold: ~10^19).
  */
-@JvmInline
-value class WuiTypeId(val raw: String) {
-    companion object {
-        val ANY_VIEW: WuiTypeId = WuiTypeId("waterui.AnyView")
-    }
-}
-
-fun String.toTypeId(): WuiTypeId = WuiTypeId(this)
+data class WuiTypeId(val low: Long, val high: Long)

@@ -9,7 +9,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.toColorInt
-import dev.waterui.android.runtime.toTypeId
+
 
 private val colorTypeId: WuiTypeId by lazy { NativeBindings.waterui_color_id().toTypeId() }
 

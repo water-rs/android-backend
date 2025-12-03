@@ -24,7 +24,7 @@ object WatcherJni {
     @JvmStatic external fun init(): Long
     @JvmStatic external fun main(): Long
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
-    @JvmStatic external fun viewId(viewPtr: Long): String
+    @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
     @JvmStatic external fun cloneEnv(envPtr: Long): Long
     @JvmStatic external fun dropEnv(envPtr: Long)
@@ -174,22 +174,22 @@ object WatcherJni {
     @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct>
 
     // ========== Type ID Functions ==========
-    
-    @JvmStatic external fun emptyId(): String
-    @JvmStatic external fun textId(): String
-    @JvmStatic external fun plainId(): String
-    @JvmStatic external fun buttonId(): String
-    @JvmStatic external fun colorId(): String
-    @JvmStatic external fun textFieldId(): String
-    @JvmStatic external fun stepperId(): String
-    @JvmStatic external fun progressId(): String
-    @JvmStatic external fun dynamicId(): String
-    @JvmStatic external fun scrollViewId(): String
-    @JvmStatic external fun spacerId(): String
-    @JvmStatic external fun toggleId(): String
-    @JvmStatic external fun sliderId(): String
-    @JvmStatic external fun fixedContainerId(): String
-    @JvmStatic external fun pickerId(): String
-    @JvmStatic external fun layoutContainerId(): String
-    @JvmStatic external fun metadataEnvId(): String
+
+    @JvmStatic external fun emptyId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun textId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun plainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun buttonId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun textFieldId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun stepperId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun progressId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun toggleId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun sliderId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun fixedContainerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun pickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun layoutContainerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct
 }

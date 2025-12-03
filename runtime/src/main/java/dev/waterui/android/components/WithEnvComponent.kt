@@ -10,7 +10,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.toTypeId
+
 
 private val metadataEnvTypeId: WuiTypeId by lazy { NativeBindings.waterui_metadata_env_id().toTypeId() }
 

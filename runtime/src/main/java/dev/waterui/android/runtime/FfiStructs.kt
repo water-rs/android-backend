@@ -62,29 +62,39 @@ data class ChildMetadataStruct(val proposal: ProposalStruct, val priority: Int, 
  *
  * The view reference is used by the native layer to call back into Java
  * for measuring the child view during layout negotiation.
+ *
+ * @param density Screen density for converting between dp (Rust) and pixels (Android).
+ *                Rust layout uses density-independent points; Android uses pixels.
  */
 data class SubViewStruct(
     val view: android.view.View,
     val stretchAxis: StretchAxis,
-    val priority: Int = 0
+    val priority: Int = 0,
+    val density: Float = 1f
 ) {
     /**
      * Called by native code to measure this view for a given proposal.
      * This method must be present for the JNI callback to work.
+     *
+     * @param proposalWidth Proposed width in dp (density-independent points)
+     * @param proposalHeight Proposed height in dp (density-independent points)
+     * @return Size in dp for Rust layout engine
      */
     @Suppress("unused") // Called from native code
     fun measureForLayout(proposalWidth: Float, proposalHeight: Float): SizeStruct {
-        val widthSpec = proposalToMeasureSpec(proposalWidth, true)
-        val heightSpec = proposalToMeasureSpec(proposalHeight, false)
+        // Convert dp proposal to pixel MeasureSpec
+        val widthSpec = proposalToMeasureSpec(proposalWidth * density)
+        val heightSpec = proposalToMeasureSpec(proposalHeight * density)
         view.measure(widthSpec, heightSpec)
-        return SizeStruct(view.measuredWidth.toFloat(), view.measuredHeight.toFloat())
+        // Convert pixel result back to dp for Rust
+        return SizeStruct(view.measuredWidth.toFloat() / density, view.measuredHeight.toFloat() / density)
     }
 
-    private fun proposalToMeasureSpec(proposal: Float, isWidth: Boolean): Int {
+    private fun proposalToMeasureSpec(proposalPx: Float): Int {
         return when {
-            proposal.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            proposal.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            else -> android.view.View.MeasureSpec.makeMeasureSpec(proposal.toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+            proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+            proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+            else -> android.view.View.MeasureSpec.makeMeasureSpec(proposalPx.toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
         }
     }
 }
@@ -236,4 +246,17 @@ data class PickerItemStruct(val tag: Int, val label: StyledStrStruct)
 data class ResolvedColorStruct(val red: Float, val green: Float, val blue: Float, val opacity: Float)
 
 data class ResolvedFontStruct(val size: Float, val weight: Int)
+
+// ========== Type ID Struct ==========
+
+/**
+ * 128-bit type identifier for O(1) comparison.
+ * Returned from JNI for type identification.
+ */
+data class TypeIdStruct(val low: Long, val high: Long) {
+    /**
+     * Converts to WuiTypeId for registry lookups.
+     */
+    fun toTypeId(): WuiTypeId = WuiTypeId(low, high)
+}
 

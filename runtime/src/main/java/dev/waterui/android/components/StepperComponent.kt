@@ -21,7 +21,7 @@ import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
-import dev.waterui.android.runtime.toTypeId
+
 
 private val stepperTypeId: WuiTypeId by lazy { NativeBindings.waterui_stepper_id().toTypeId() }
 
