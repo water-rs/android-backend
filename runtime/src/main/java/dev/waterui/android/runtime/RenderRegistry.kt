@@ -7,17 +7,27 @@ import dev.waterui.android.components.*
 /**
  * Registry of known view renderers. Each renderer creates a concrete Android [View]
  * for a WaterUI node.
+ *
+ * Metadata types are tracked separately - they don't implement NativeView and are
+ * transparent for layout (stretch axis comes from their content).
  */
 class RenderRegistry private constructor(
-    private val entries: Map<WuiTypeId, WuiRenderer>
+    private val entries: Map<WuiTypeId, WuiRenderer>,
+    private val metadataTypes: Set<WuiTypeId>
 ) {
     fun resolve(typeId: WuiTypeId): WuiRenderer? = entries[typeId]
 
+    /** Returns true if this type is a Metadata<T> type (transparent for layout). */
+    fun isMetadata(typeId: WuiTypeId): Boolean = typeId in metadataTypes
+
     fun with(typeId: WuiTypeId, renderer: WuiRenderer): RenderRegistry =
-        RenderRegistry(entries + (typeId to renderer))
+        RenderRegistry(entries + (typeId to renderer), metadataTypes)
+
+    fun withMetadata(typeId: WuiTypeId, renderer: WuiRenderer): RenderRegistry =
+        RenderRegistry(entries + (typeId to renderer), metadataTypes + typeId)
 
     companion object {
-        fun default(): RenderRegistry = RenderRegistry(defaultComponents)
+        fun default(): RenderRegistry = RenderRegistry(defaultComponents, defaultMetadataTypes)
     }
 }
 
@@ -38,10 +48,31 @@ data class WuiNode(
 )
 
 /**
+ * Builder context for populating the registry.
+ */
+class RegistryBuilder {
+    internal val components = mutableMapOf<WuiTypeId, WuiRenderer>()
+    internal val metadataTypes = mutableSetOf<WuiTypeId>()
+
+    /** Register a native view component. */
+    fun register(idProvider: () -> WuiTypeId, renderer: WuiRenderer) {
+        components[idProvider()] = renderer
+    }
+
+    /** Register a metadata component (transparent for layout). */
+    fun registerMetadata(idProvider: () -> WuiTypeId, renderer: WuiRenderer) {
+        val typeId = idProvider()
+        components[typeId] = renderer
+        metadataTypes.add(typeId)
+    }
+}
+
+/**
  * Populated lazily to avoid referencing components before they are defined.
  */
-private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
-    buildMap {
+private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by lazy {
+    val builder = RegistryBuilder()
+    with(builder) {
         registerWuiEmptyView()
         registerWuiText()
         registerWuiPlain()
@@ -56,17 +87,11 @@ private val defaultComponents: Map<WuiTypeId, WuiRenderer> by lazy {
         registerWuiToggle()
         registerWuiSpacer()
         registerWuiSlider()
-        registerWuiRendererView()
         registerWuiPicker()
+        registerWuiWithEnv()
     }
+    builder.components to builder.metadataTypes
 }
 
-/**
- * Convenience extension for populating a registry map.
- */
-fun MutableMap<WuiTypeId, WuiRenderer>.register(
-    idProvider: () -> WuiTypeId,
-    renderer: WuiRenderer
-) {
-    put(idProvider(), renderer)
-}
+private val defaultComponents: Map<WuiTypeId, WuiRenderer> get() = registryData.first
+private val defaultMetadataTypes: Set<WuiTypeId> get() = registryData.second

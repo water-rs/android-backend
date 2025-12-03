@@ -48,7 +48,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsLayoutContainer(viewPtr: Long): LayoutContainerStruct
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
-    @JvmStatic external fun forceAsRendererView(viewPtr: Long): Long
+    @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
 
     // ========== Drop Functions ==========
     
@@ -188,16 +188,8 @@ object WatcherJni {
     @JvmStatic external fun spacerId(): String
     @JvmStatic external fun toggleId(): String
     @JvmStatic external fun sliderId(): String
-    @JvmStatic external fun rendererViewId(): String
     @JvmStatic external fun fixedContainerId(): String
     @JvmStatic external fun pickerId(): String
     @JvmStatic external fun layoutContainerId(): String
-
-    // ========== Renderer View ==========
-    
-    @JvmStatic external fun rendererViewWidth(handle: Long): Float
-    @JvmStatic external fun rendererViewHeight(handle: Long): Float
-    @JvmStatic external fun rendererViewPreferredFormat(handle: Long): Int
-    @JvmStatic external fun rendererViewRenderCpu(handle: Long, pixels: ByteArray, width: Int, height: Int, stride: Int, format: Int): Boolean
-    @JvmStatic external fun dropRendererView(handle: Long)
+    @JvmStatic external fun metadataEnvId(): String
 }

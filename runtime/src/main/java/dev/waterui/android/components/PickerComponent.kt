@@ -8,10 +8,10 @@ import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.PickerItemStruct
+import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toTypeId
 import dev.waterui.android.runtime.toModel
 
@@ -86,6 +86,6 @@ private val pickerRenderer = WuiRenderer { context, node, env, _ ->
     spinner
 }
 
-internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiPicker() {
+internal fun RegistryBuilder.registerWuiPicker() {
     register({ pickerTypeId }, pickerRenderer)
 }

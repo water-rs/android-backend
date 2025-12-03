@@ -201,6 +201,12 @@ data class PickerStruct(val itemsPtr: Long, val selectionPtr: Long)
 // Alias for container struct returned by force_as_layout_container
 data class ContainerStruct(val layoutPtr: Long, val contentsPtr: Long)
 
+/**
+ * Metadata<Environment> struct for WithEnv component.
+ * Provides a new environment for child views.
+ */
+data class MetadataEnvStruct(val contentPtr: Long, val envPtr: Long)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {

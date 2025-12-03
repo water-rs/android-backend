@@ -4,13 +4,13 @@ import android.util.TypedValue
 import android.widget.TextView
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.register
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeface
 import dev.waterui.android.runtime.toTypeId
@@ -45,6 +45,6 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     textView
 }
 
-internal fun MutableMap<WuiTypeId, WuiRenderer>.registerWuiText() {
+internal fun RegistryBuilder.registerWuiText() {
     register({ textTypeId }, textRenderer)
 }

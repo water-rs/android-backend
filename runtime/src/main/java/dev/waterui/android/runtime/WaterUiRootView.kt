@@ -91,7 +91,9 @@ class WaterUiRootView @JvmOverloads constructor(
         android.util.Log.d("WaterUI.RootView", "renderRoot: inflating view")
         val child = inflateAnyView(context, rootPtr, env, registry)
         android.util.Log.d("WaterUI.RootView", "renderRoot: view inflated, adding to layout")
-        val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        // Use MATCH_PARENT to fill the available space, matching iOS Auto Layout constraints
+        // that pin root view to all edges of the parent
+        val params = LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         addView(child, params)
         android.util.Log.d("WaterUI.RootView", "renderRoot: done")
     }
