@@ -53,6 +53,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_read_computed_picker_items)                                        \
   X(waterui_read_binding_str)                                                  \
   X(waterui_set_binding_str)                                                   \
+  X(waterui_set_binding_secure)                                                \
+  X(waterui_secure_field_id)                                                   \
+  X(waterui_force_as_secure_field)                                             \
   X(waterui_call_watcher_resolved_color)                                       \
   X(waterui_call_watcher_resolved_font)                                        \
   X(waterui_drop_watcher_resolved_color)                                       \
@@ -1225,6 +1228,14 @@ JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_setBindingStr(
   str._0.vtable.drop(str._0.data);
 }
 
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_setBindingSecure(
+    JNIEnv *env, jclass, jlong bindingPtr, jbyteArray bytes) {
+  auto *binding = jlong_to_ptr<WuiBinding_Secure>(bindingPtr);
+  WuiStr str = str_from_byte_array(env, bytes);
+  g_sym.waterui_set_binding_secure(binding, str);
+  str._0.vtable.drop(str._0.data);
+}
+
 // ========== String Conversion ==========
 
 // NOTE: wuiStrToString was removed as it incorrectly used waterui_view_id.
@@ -1550,6 +1561,7 @@ DEFINE_TYPE_ID_FN(toggleId, waterui_toggle_id)
 DEFINE_TYPE_ID_FN(sliderId, waterui_slider_id)
 DEFINE_TYPE_ID_FN(fixedContainerId, waterui_fixed_container_id)
 DEFINE_TYPE_ID_FN(pickerId, waterui_picker_id)
+DEFINE_TYPE_ID_FN(secureFieldId, waterui_secure_field_id)
 DEFINE_TYPE_ID_FN(layoutContainerId, waterui_layout_container_id)
 DEFINE_TYPE_ID_FN(metadataEnvId, waterui_metadata_env_id)
 
@@ -1645,6 +1657,19 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsTextField(JNIEnv *env, jclass,
   jobject obj = env->NewObject(
       cls, ctor, ptr_to_jlong(field.label), ptr_to_jlong(field.value),
       ptr_to_jlong(field.prompt.content), static_cast<jint>(field.keyboard));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsSecureField(JNIEnv *env, jclass,
+                                                           jlong viewPtr) {
+  auto field =
+      g_sym.waterui_force_as_secure_field(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/SecureFieldStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(
+      cls, ctor, ptr_to_jlong(field.label), ptr_to_jlong(field.value));
   env->DeleteLocalRef(cls);
   return obj;
 }

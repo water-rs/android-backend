@@ -45,6 +45,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsProgress(viewPtr: Long): ProgressStruct
     @JvmStatic external fun forceAsScrollView(viewPtr: Long): ScrollStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
+    @JvmStatic external fun forceAsSecureField(viewPtr: Long): SecureFieldStruct
     @JvmStatic external fun forceAsLayoutContainer(viewPtr: Long): LayoutContainerStruct
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
@@ -80,6 +81,7 @@ object WatcherJni {
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
     @JvmStatic external fun setBindingStr(bindingPtr: Long, bytes: ByteArray)
+    @JvmStatic external fun setBindingSecure(bindingPtr: Long, bytes: ByteArray)
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
@@ -190,6 +192,7 @@ object WatcherJni {
     @JvmStatic external fun sliderId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun fixedContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun pickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun secureFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun layoutContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct
 }

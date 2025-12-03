@@ -77,12 +77,8 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     editText.addTextChangedListener { text ->
         if (!updating.get()) {
             val textValue = text?.toString().orEmpty()
-            // Create a new Secure value from the string
-            val secureValue = NativeBindings.waterui_secure_from_str(textValue.toWuiStr())
-            // Set the binding value
-            NativeBindings.waterui_set_binding_secure(struct.valuePtr, secureValue)
-            // Clean up the temporary secure value
-            // Note: The binding now owns the value, so we don't need to drop it here
+            // Set the binding value directly with the string bytes
+            NativeBindings.waterui_set_binding_secure(struct.valuePtr, textValue.encodeToByteArray())
         }
     }
 
@@ -108,17 +104,6 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     hintColor.attachTo(editText)
 
     container
-}
-
-// Helper function to convert String to WuiStr
-private fun String.toWuiStr(): Long {
-    // This needs to create a WuiStr from the string
-    // The implementation depends on how WuiStr is handled in the Android FFI
-    // For now, we'll use the pattern from NativeBindings
-    val bytes = this.toByteArray(Charsets.UTF_8)
-    // TODO: Proper WuiStr creation - this is a placeholder
-    // The actual implementation should match the FFI bindings
-    return 0L // Placeholder
 }
 
 internal fun RegistryBuilder.registerWuiSecureField() {

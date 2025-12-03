@@ -47,6 +47,7 @@ internal object NativeBindings {
     fun waterui_slider_id(): TypeIdStruct = WatcherJni.sliderId()
     fun waterui_fixed_container_id(): TypeIdStruct = WatcherJni.fixedContainerId()
     fun waterui_picker_id(): TypeIdStruct = WatcherJni.pickerId()
+    fun waterui_secure_field_id(): TypeIdStruct = WatcherJni.secureFieldId()
     fun waterui_layout_container_id(): TypeIdStruct = WatcherJni.layoutContainerId()
     fun waterui_metadata_env_id(): TypeIdStruct = WatcherJni.metadataEnvId()
 
@@ -135,6 +136,7 @@ internal object NativeBindings {
     fun waterui_set_binding_int(bindingPtr: Long, value: Int) = WatcherJni.setBindingInt(bindingPtr, value)
     fun waterui_set_binding_double(bindingPtr: Long, value: Double) = WatcherJni.setBindingDouble(bindingPtr, value)
     fun waterui_set_binding_str(bindingPtr: Long, bytes: ByteArray) = WatcherJni.setBindingStr(bindingPtr, bytes)
+    fun waterui_set_binding_secure(bindingPtr: Long, bytes: ByteArray) = WatcherJni.setBindingSecure(bindingPtr, bytes)
     fun waterui_read_binding_bool(bindingPtr: Long): Boolean = WatcherJni.readBindingBool(bindingPtr)
     fun waterui_read_binding_int(bindingPtr: Long): Int = WatcherJni.readBindingInt(bindingPtr)
     fun waterui_read_binding_double(bindingPtr: Long): Double = WatcherJni.readBindingDouble(bindingPtr)
@@ -204,6 +206,7 @@ internal object NativeBindings {
     fun waterui_force_as_progress(viewPtr: Long): ProgressStruct = WatcherJni.forceAsProgress(viewPtr)
     fun waterui_force_as_scroll(viewPtr: Long): ScrollStruct = WatcherJni.forceAsScrollView(viewPtr)
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)
+    fun waterui_force_as_secure_field(viewPtr: Long): SecureFieldStruct = WatcherJni.forceAsSecureField(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
 
     // ========== Reactive State Creation (for theme) ==========

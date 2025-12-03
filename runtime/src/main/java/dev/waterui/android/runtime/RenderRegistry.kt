@@ -79,6 +79,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiButton()
         registerWuiColor()
         registerWuiTextField()
+        registerWuiSecureField()
         registerWuiStepper()
         registerWuiProgress()
         registerWuiDynamic()
