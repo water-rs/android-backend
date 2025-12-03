@@ -21,34 +21,34 @@ internal object NativeBindings {
     }
 
     // ========== Core Functions ==========
-    
+
     fun waterui_init(): Long = WatcherJni.init()
     fun waterui_main(): Long = WatcherJni.main()
-    fun waterui_view_id(anyViewPtr: Long): String = WatcherJni.viewId(anyViewPtr)
+    fun waterui_view_id(anyViewPtr: Long): TypeIdStruct = WatcherJni.viewId(anyViewPtr)
     fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long = WatcherJni.viewBody(anyViewPtr, envPtr)
     fun waterui_view_stretch_axis(anyViewPtr: Long): Int = WatcherJni.viewStretchAxis(anyViewPtr)
     fun waterui_configure_hot_reload_endpoint(host: String, port: Int) = WatcherJni.configureHotReloadEndpoint(host, port)
     fun waterui_configure_hot_reload_directory(path: String) = WatcherJni.configureHotReloadDirectory(path)
 
     // ========== Type Identifiers ==========
-    
-    fun waterui_empty_id(): String = WatcherJni.emptyId()
-    fun waterui_text_id(): String = WatcherJni.textId()
-    fun waterui_plain_id(): String = WatcherJni.plainId()
-    fun waterui_button_id(): String = WatcherJni.buttonId()
-    fun waterui_color_id(): String = WatcherJni.colorId()
-    fun waterui_text_field_id(): String = WatcherJni.textFieldId()
-    fun waterui_stepper_id(): String = WatcherJni.stepperId()
-    fun waterui_progress_id(): String = WatcherJni.progressId()
-    fun waterui_dynamic_id(): String = WatcherJni.dynamicId()
-    fun waterui_scroll_view_id(): String = WatcherJni.scrollViewId()
-    fun waterui_spacer_id(): String = WatcherJni.spacerId()
-    fun waterui_toggle_id(): String = WatcherJni.toggleId()
-    fun waterui_slider_id(): String = WatcherJni.sliderId()
-    fun waterui_fixed_container_id(): String = WatcherJni.fixedContainerId()
-    fun waterui_picker_id(): String = WatcherJni.pickerId()
-    fun waterui_layout_container_id(): String = WatcherJni.layoutContainerId()
-    fun waterui_metadata_env_id(): String = WatcherJni.metadataEnvId()
+
+    fun waterui_empty_id(): TypeIdStruct = WatcherJni.emptyId()
+    fun waterui_text_id(): TypeIdStruct = WatcherJni.textId()
+    fun waterui_plain_id(): TypeIdStruct = WatcherJni.plainId()
+    fun waterui_button_id(): TypeIdStruct = WatcherJni.buttonId()
+    fun waterui_color_id(): TypeIdStruct = WatcherJni.colorId()
+    fun waterui_text_field_id(): TypeIdStruct = WatcherJni.textFieldId()
+    fun waterui_stepper_id(): TypeIdStruct = WatcherJni.stepperId()
+    fun waterui_progress_id(): TypeIdStruct = WatcherJni.progressId()
+    fun waterui_dynamic_id(): TypeIdStruct = WatcherJni.dynamicId()
+    fun waterui_scroll_view_id(): TypeIdStruct = WatcherJni.scrollViewId()
+    fun waterui_spacer_id(): TypeIdStruct = WatcherJni.spacerId()
+    fun waterui_toggle_id(): TypeIdStruct = WatcherJni.toggleId()
+    fun waterui_slider_id(): TypeIdStruct = WatcherJni.sliderId()
+    fun waterui_fixed_container_id(): TypeIdStruct = WatcherJni.fixedContainerId()
+    fun waterui_picker_id(): TypeIdStruct = WatcherJni.pickerId()
+    fun waterui_layout_container_id(): TypeIdStruct = WatcherJni.layoutContainerId()
+    fun waterui_metadata_env_id(): TypeIdStruct = WatcherJni.metadataEnvId()
 
     // ========== Theme: Color Scheme ==========
     

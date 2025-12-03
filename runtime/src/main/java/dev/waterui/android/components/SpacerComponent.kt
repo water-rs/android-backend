@@ -5,7 +5,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.toTypeId
+
 
 private val spacerTypeId: WuiTypeId by lazy { NativeBindings.waterui_spacer_id().toTypeId() }
 

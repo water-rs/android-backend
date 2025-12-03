@@ -9,7 +9,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.toTypeId
+
 import dev.waterui.android.runtime.usePointer
 
 private val layoutContainerTypeId: WuiTypeId by lazy {
@@ -38,7 +38,7 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
             // Create descriptors from inflated children's stretch axes
             val descriptors = inflatedChildren.map { child ->
                 ChildDescriptor(
-                    typeId = WuiTypeId(""),  // typeId not used for layout
+                    typeId = WuiTypeId(0L, 0L),  // typeId not used for layout
                     stretchAxis = child.getWuiStretchAxis()
                 )
             }
@@ -62,7 +62,7 @@ private val fixedContainerRenderer = WuiRenderer { context, node, env, registry 
     // Create descriptors from inflated children's stretch axes
     val descriptors = inflatedChildren.map { child ->
         ChildDescriptor(
-            typeId = WuiTypeId(""),  // typeId not used for layout
+            typeId = WuiTypeId(0L, 0L),  // typeId not used for layout
             stretchAxis = child.getWuiStretchAxis()
         )
     }

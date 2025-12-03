@@ -10,7 +10,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeface
-import dev.waterui.android.runtime.toTypeId
+
 import android.util.Log
 
 private val labelTypeId: WuiTypeId by lazy { NativeBindings.waterui_plain_id().toTypeId() }

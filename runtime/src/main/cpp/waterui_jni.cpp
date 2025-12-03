@@ -183,6 +183,8 @@ static jclass gMetadataClass = nullptr;
 static jmethodID gMetadataCtor = nullptr;
 static jclass gWatcherStructClass = nullptr;
 static jmethodID gWatcherStructCtor = nullptr;
+static jclass gTypeIdStructClass = nullptr;
+static jmethodID gTypeIdStructCtor = nullptr;
 
 void throw_unsatisfied(JNIEnv *env, const std::string &message) {
   jclass errorClass = env->FindClass("java/lang/UnsatisfiedLinkError");
@@ -335,6 +337,12 @@ jobject new_metadata(JNIEnv *env, WuiWatcherMetadata *metadata) {
 jobject new_watcher_struct(JNIEnv *env, jlong data, jlong call, jlong drop) {
   return env->NewObject(gWatcherStructClass, gWatcherStructCtor, data, call,
                         drop);
+}
+
+jobject new_type_id_struct(JNIEnv *env, WuiTypeId typeId) {
+  return env->NewObject(gTypeIdStructClass, gTypeIdStructCtor,
+                        static_cast<jlong>(typeId.low),
+                        static_cast<jlong>(typeId.high));
 }
 
 jobject box_boolean(JNIEnv *env, bool value) {
@@ -861,9 +869,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *) {
   gMetadataClass =
       init_class("dev/waterui/android/reactive/WuiWatcherMetadata");
   gWatcherStructClass = init_class("dev/waterui/android/runtime/WatcherStruct");
+  gTypeIdStructClass = init_class("dev/waterui/android/runtime/TypeIdStruct");
 
   if (!gBooleanClass || !gIntegerClass || !gDoubleClass || !gLongClass ||
-      !gMetadataClass || !gWatcherStructClass) {
+      !gMetadataClass || !gWatcherStructClass || !gTypeIdStructClass) {
     return JNI_ERR;
   }
 
@@ -878,9 +887,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *) {
   gMetadataCtor = env->GetMethodID(gMetadataClass, "<init>", "(J)V");
   gWatcherStructCtor =
       env->GetMethodID(gWatcherStructClass, "<init>", "(JJJ)V");
+  gTypeIdStructCtor =
+      env->GetMethodID(gTypeIdStructClass, "<init>", "(JJ)V");
 
   if (!gBooleanValueOf || !gIntegerValueOf || !gDoubleValueOf ||
-      !gLongValueOf || !gMetadataCtor || !gWatcherStructCtor) {
+      !gLongValueOf || !gMetadataCtor || !gWatcherStructCtor || !gTypeIdStructCtor) {
     return JNI_ERR;
   }
 
@@ -903,12 +914,14 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
   release(gLongClass);
   release(gMetadataClass);
   release(gWatcherStructClass);
+  release(gTypeIdStructClass);
   gBooleanValueOf = nullptr;
   gIntegerValueOf = nullptr;
   gDoubleValueOf = nullptr;
   gLongValueOf = nullptr;
   gMetadataCtor = nullptr;
   gWatcherStructCtor = nullptr;
+  gTypeIdStructCtor = nullptr;
   g_vm = nullptr;
 }
 
@@ -1214,22 +1227,14 @@ JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_setBindingStr(
 
 // ========== String Conversion ==========
 
-JNIEXPORT jstring JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_wuiStrToString(JNIEnv *env, jclass,
-                                                       jlong ptrHi,
-                                                       jlong ptrLo) {
-  // Reconstruct WuiStr from two longs (pointer to data, vtable)
-  // This is a simplified version - we use the view_id function
-  auto *view = jlong_to_ptr<WuiAnyView>(ptrHi);
-  WuiStr str = g_sym.waterui_view_id(view);
-  return wui_str_to_jstring(env, str);
-}
+// NOTE: wuiStrToString was removed as it incorrectly used waterui_view_id.
+// waterui_view_id now returns WuiTypeId, not WuiStr.
 
-JNIEXPORT jstring JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewId(
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewId(
     JNIEnv *env, jclass, jlong viewPtr) {
   auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
-  WuiStr str = g_sym.waterui_view_id(view);
-  return wui_str_to_jstring(env, str);
+  WuiTypeId typeId = g_sym.waterui_view_id(view);
+  return new_type_id_struct(env, typeId);
 }
 
 JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewStretchAxis(
@@ -1523,11 +1528,11 @@ Java_dev_waterui_android_ffi_WatcherJni_layoutPlace(JNIEnv *env, jclass,
 // ========== Type ID Functions ==========
 
 #define DEFINE_TYPE_ID_FN(javaName, cName)                                     \
-  JNIEXPORT jstring JNICALL                                                    \
+  JNIEXPORT jobject JNICALL                                                    \
       Java_dev_waterui_android_ffi_WatcherJni_##javaName(JNIEnv *env,          \
                                                          jclass) {             \
-    WuiStr str = g_sym.cName();                                                \
-    return wui_str_to_jstring(env, str);                                       \
+    WuiTypeId typeId = g_sym.cName();                                          \
+    return new_type_id_struct(env, typeId);                                    \
   }
 
 DEFINE_TYPE_ID_FN(emptyId, waterui_empty_id)
