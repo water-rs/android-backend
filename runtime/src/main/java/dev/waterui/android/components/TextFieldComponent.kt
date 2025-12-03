@@ -57,6 +57,10 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)
 
+    val density = context.resources.displayMetrics.density
+    val horizontalPadding = (12 * density).toInt()
+    val verticalPadding = (8 * density).toInt()
+
     val editText = AppCompatEditText(context).apply {
         inputType = resolveInputType(struct.keyboardType)
         if (struct.keyboardType == KEYBOARD_SECURE) {
@@ -64,13 +68,13 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         } else {
             transformationMethod = null
         }
+        setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
     }
     container.addView(editText)
-    val density = context.resources.displayMetrics.density
     val shape = MaterialShapeDrawable().apply {
         val radius = 12f * density
         val strokeWidthPx = 1f * density
