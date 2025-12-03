@@ -12,7 +12,7 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.toTypeId
+
 import dev.waterui.android.runtime.toModel
 
 private val pickerTypeId: WuiTypeId by lazy { NativeBindings.waterui_picker_id().toTypeId() }

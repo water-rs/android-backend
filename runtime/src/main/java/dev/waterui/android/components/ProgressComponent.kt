@@ -14,7 +14,7 @@ import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
-import dev.waterui.android.runtime.toTypeId
+
 import kotlin.math.roundToInt
 
 private val progressTypeId: WuiTypeId by lazy { NativeBindings.waterui_progress_id().toTypeId() }
