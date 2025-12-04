@@ -170,6 +170,8 @@ internal object NativeBindings {
     fun waterui_drop_color(colorPtr: Long) = WatcherJni.dropColor(colorPtr)
     fun waterui_read_computed_resolved_color(computedPtr: Long): ResolvedColorStruct = WatcherJni.readComputedResolvedColor(computedPtr)
     fun waterui_drop_computed_resolved_color(computedPtr: Long) = WatcherJni.dropComputedResolvedColor(computedPtr)
+    fun waterui_read_computed_color(computedPtr: Long): Long = WatcherJni.readComputedColor(computedPtr)
+    fun waterui_drop_computed_color(computedPtr: Long) = WatcherJni.dropComputedColor(computedPtr)
     fun waterui_watch_computed_resolved_color(computedPtr: Long, watcher: WatcherStruct): Long = WatcherJni.watchComputedResolvedColor(computedPtr, watcher)
 
     // ========== Font resolution ==========
@@ -208,6 +210,30 @@ internal object NativeBindings {
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)
     fun waterui_force_as_secure_field(viewPtr: Long): SecureFieldStruct = WatcherJni.forceAsSecureField(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
+    fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
+    fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
+    fun waterui_force_as_metadata_on_event(viewPtr: Long): MetadataOnEventStruct = WatcherJni.forceAsMetadataOnEvent(viewPtr)
+    fun waterui_force_as_metadata_background(viewPtr: Long): MetadataBackgroundStruct = WatcherJni.forceAsMetadataBackground(viewPtr)
+    fun waterui_force_as_metadata_foreground(viewPtr: Long): MetadataForegroundStruct = WatcherJni.forceAsMetadataForeground(viewPtr)
+    fun waterui_force_as_metadata_shadow(viewPtr: Long): MetadataShadowStruct = WatcherJni.forceAsMetadataShadow(viewPtr)
+    fun waterui_force_as_metadata_focused(viewPtr: Long): MetadataFocusedStruct = WatcherJni.forceAsMetadataFocused(viewPtr)
+    fun waterui_force_as_metadata_ignore_safe_area(viewPtr: Long): MetadataIgnoreSafeAreaStruct = WatcherJni.forceAsMetadataIgnoreSafeArea(viewPtr)
+
+    // ========== Metadata Type IDs ==========
+
+    fun waterui_metadata_secure_id(): TypeIdStruct = WatcherJni.metadataSecureId()
+    fun waterui_metadata_gesture_id(): TypeIdStruct = WatcherJni.metadataGestureId()
+    fun waterui_metadata_on_event_id(): TypeIdStruct = WatcherJni.metadataOnEventId()
+    fun waterui_metadata_background_id(): TypeIdStruct = WatcherJni.metadataBackgroundId()
+    fun waterui_metadata_foreground_id(): TypeIdStruct = WatcherJni.metadataForegroundId()
+    fun waterui_metadata_shadow_id(): TypeIdStruct = WatcherJni.metadataShadowId()
+    fun waterui_metadata_focused_id(): TypeIdStruct = WatcherJni.metadataFocusedId()
+    fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
+
+    // ========== OnEvent Handler ==========
+
+    fun waterui_call_on_event(handlerPtr: Long, envPtr: Long) = WatcherJni.callOnEvent(handlerPtr, envPtr)
+    fun waterui_drop_on_event(handlerPtr: Long) = WatcherJni.dropOnEvent(handlerPtr)
 
     // ========== Reactive State Creation (for theme) ==========
     
