@@ -219,6 +219,134 @@ data class ContainerStruct(val layoutPtr: Long, val contentsPtr: Long)
  */
 data class MetadataEnvStruct(val contentPtr: Long, val envPtr: Long)
 
+// ========== Metadata Structs ==========
+
+/**
+ * Metadata<Secure> struct for secure view rendering.
+ * Prevents screenshots and screen recording of the wrapped content.
+ */
+data class MetadataSecureStruct(val contentPtr: Long)
+
+/**
+ * Gesture type enum matching WuiGesture_Tag in FFI.
+ */
+enum class GestureType(val value: Int) {
+    TAP(0),
+    LONG_PRESS(1),
+    DRAG(2),
+    MAGNIFICATION(3),
+    ROTATION(4),
+    THEN(5);
+
+    companion object {
+        fun fromInt(value: Int): GestureType = entries.firstOrNull { it.value == value } ?: TAP
+    }
+}
+
+/**
+ * Metadata<GestureObserver> struct for gesture recognition.
+ */
+data class MetadataGestureStruct(
+    val contentPtr: Long,
+    val gestureType: Int,
+    val gestureData: GestureDataStruct,
+    val actionPtr: Long
+)
+
+/**
+ * Gesture-specific data union.
+ */
+data class GestureDataStruct(
+    val tapCount: Int = 1,
+    val longPressDuration: Int = 500,
+    val dragMinDistance: Float = 10f,
+    val magnificationInitialScale: Float = 1f,
+    val rotationInitialAngle: Float = 0f,
+    val thenFirstPtr: Long = 0L,
+    val thenSecondPtr: Long = 0L
+)
+
+/**
+ * Event type enum matching WuiEvent in FFI.
+ */
+enum class EventType(val value: Int) {
+    APPEAR(0),
+    DISAPPEAR(1);
+
+    companion object {
+        fun fromInt(value: Int): EventType = entries.firstOrNull { it.value == value } ?: APPEAR
+    }
+}
+
+/**
+ * Metadata<OnEvent> struct for lifecycle event handlers.
+ */
+data class MetadataOnEventStruct(
+    val contentPtr: Long,
+    val eventType: Int,
+    val handlerPtr: Long
+)
+
+/**
+ * Background type enum matching WuiBackground_Tag in FFI.
+ */
+enum class BackgroundType(val value: Int) {
+    COLOR(0),
+    IMAGE(1);
+
+    companion object {
+        fun fromInt(value: Int): BackgroundType = entries.firstOrNull { it.value == value } ?: COLOR
+    }
+}
+
+/**
+ * Metadata<Background> struct for background color/image.
+ */
+data class MetadataBackgroundStruct(
+    val contentPtr: Long,
+    val backgroundType: Int,
+    val colorPtr: Long,  // Used when backgroundType == COLOR
+    val imagePtr: Long   // Used when backgroundType == IMAGE
+)
+
+/**
+ * Metadata<ForegroundColor> struct for foreground/tint color.
+ */
+data class MetadataForegroundStruct(
+    val contentPtr: Long,
+    val colorPtr: Long
+)
+
+/**
+ * Metadata<Shadow> struct for shadow effects.
+ */
+data class MetadataShadowStruct(
+    val contentPtr: Long,
+    val colorPtr: Long,
+    val offsetX: Float,
+    val offsetY: Float,
+    val radius: Float
+)
+
+/**
+ * Metadata<Focused> struct for focus state management.
+ */
+data class MetadataFocusedStruct(
+    val contentPtr: Long,
+    val bindingPtr: Long
+)
+
+/**
+ * Metadata<IgnoreSafeArea> struct for safe area handling.
+ */
+data class MetadataIgnoreSafeAreaStruct(
+    val contentPtr: Long,
+    val top: Boolean,
+    val bottom: Boolean,
+    val leading: Boolean,
+    val trailing: Boolean
+)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {
