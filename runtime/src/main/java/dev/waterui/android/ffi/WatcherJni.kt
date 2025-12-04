@@ -58,6 +58,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
+    @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
 
     // ========== Drop Functions ==========
     
@@ -94,6 +95,9 @@ object WatcherJni {
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
     @JvmStatic external fun dropBindingStr(bindingPtr: Long)
+    @JvmStatic external fun readBindingFloat(bindingPtr: Long): Float
+    @JvmStatic external fun setBindingFloat(bindingPtr: Long, value: Float)
+    @JvmStatic external fun dropBindingFloat(bindingPtr: Long)
 
     // ========== Computed Read/Drop ==========
     
@@ -119,7 +123,9 @@ object WatcherJni {
     @JvmStatic external fun createBoolWatcher(callback: WatcherCallback<Boolean>): WatcherStruct
     @JvmStatic external fun createIntWatcher(callback: WatcherCallback<Int>): WatcherStruct
     @JvmStatic external fun createDoubleWatcher(callback: WatcherCallback<Double>): WatcherStruct
+    @JvmStatic external fun createFloatWatcher(callback: WatcherCallback<Float>): WatcherStruct
     @JvmStatic external fun createStringWatcher(callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createVideoWatcher(callback: WatcherCallback<VideoStruct>): WatcherStruct
     @JvmStatic external fun createAnyViewWatcher(callback: WatcherCallback<Long>): WatcherStruct
     @JvmStatic external fun createStyledStrWatcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
     @JvmStatic external fun createResolvedColorWatcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
@@ -132,6 +138,7 @@ object WatcherJni {
     @JvmStatic external fun watchBindingInt(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDouble(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingStr(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingFloat(bindingPtr: Long, watcher: WatcherStruct): Long
 
     // ========== Watch Computed ==========
     
@@ -142,6 +149,9 @@ object WatcherJni {
     @JvmStatic external fun watchComputedResolvedFont(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedPickerItems(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedColorScheme(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun readComputedVideo(computedPtr: Long): VideoStruct
+    @JvmStatic external fun watchComputedVideo(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun dropComputedVideo(computedPtr: Long)
 
     // ========== Dynamic Connect ==========
     
@@ -213,6 +223,7 @@ object WatcherJni {
     @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== OnEvent Handler Functions ==========
 

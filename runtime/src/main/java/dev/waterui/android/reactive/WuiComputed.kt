@@ -7,6 +7,7 @@ import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ResolvedFontStruct
+import dev.waterui.android.runtime.VideoStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
@@ -170,6 +171,16 @@ class WuiComputed<T>(
                 watcherFactory = { _, callback -> WatcherStructFactory.resolvedFont(callback) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedFont(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedResolvedFont(p) },
+                env = env
+            )
+
+        fun video(ptr: Long, env: WuiEnvironment): WuiComputed<VideoStruct> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedVideo(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.video(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedVideo(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedVideo(p) },
                 env = env
             )
     }

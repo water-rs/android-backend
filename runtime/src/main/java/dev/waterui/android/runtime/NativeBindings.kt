@@ -218,6 +218,7 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_shadow(viewPtr: Long): MetadataShadowStruct = WatcherJni.forceAsMetadataShadow(viewPtr)
     fun waterui_force_as_metadata_focused(viewPtr: Long): MetadataFocusedStruct = WatcherJni.forceAsMetadataFocused(viewPtr)
     fun waterui_force_as_metadata_ignore_safe_area(viewPtr: Long): MetadataIgnoreSafeAreaStruct = WatcherJni.forceAsMetadataIgnoreSafeArea(viewPtr)
+    fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)
 
     // ========== Metadata Type IDs ==========
 
@@ -229,6 +230,7 @@ internal object NativeBindings {
     fun waterui_metadata_shadow_id(): TypeIdStruct = WatcherJni.metadataShadowId()
     fun waterui_metadata_focused_id(): TypeIdStruct = WatcherJni.metadataFocusedId()
     fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
+    fun waterui_video_player_id(): TypeIdStruct = WatcherJni.videoPlayerId()
 
     // ========== OnEvent Handler ==========
 

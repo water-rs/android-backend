@@ -8,6 +8,7 @@ import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.StyledStrStruct
+import dev.waterui.android.runtime.VideoStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
@@ -155,6 +156,17 @@ class WuiBinding<T>(
                 dropper = { ptr -> WatcherJni.dropBindingStr(ptr) },
                 env = env
             )
+
+        fun float(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Float> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingFloat(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingFloat(ptr, value) },
+                watcherFactory = { _, callback -> WatcherStructFactory.float(callback) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingFloat(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingFloat(ptr) },
+                env = env
+            )
     }
 }
 
@@ -174,8 +186,16 @@ object WatcherStructFactory {
         return WatcherJni.createDoubleWatcher(callback)
     }
 
+    fun float(callback: WatcherCallback<Float>): WatcherStruct {
+        return WatcherJni.createFloatWatcher(callback)
+    }
+
     fun string(callback: WatcherCallback<String>): WatcherStruct {
         return WatcherJni.createStringWatcher(callback)
+    }
+
+    fun video(callback: WatcherCallback<VideoStruct>): WatcherStruct {
+        return WatcherJni.createVideoWatcher(callback)
     }
 
     fun anyView(callback: WatcherCallback<Long>): WatcherStruct {

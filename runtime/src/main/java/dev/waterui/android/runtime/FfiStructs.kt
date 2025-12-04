@@ -371,6 +371,20 @@ data class TextStyleStruct(
 
 data class PickerItemStruct(val tag: Int, val label: StyledStrStruct)
 
+// ========== Video Structs ==========
+
+/**
+ * Video source struct with URL.
+ */
+data class VideoStruct(val url: String)
+
+/**
+ * VideoPlayer component data.
+ * - videoPtr: Computed<Video> pointer
+ * - volumePtr: Binding<Volume> pointer (f32)
+ */
+data class VideoPlayerStruct(val videoPtr: Long, val volumePtr: Long)
+
 // ========== Resolved Value Structs ==========
 
 data class ResolvedColorStruct(val red: Float, val green: Float, val blue: Float, val opacity: Float)
