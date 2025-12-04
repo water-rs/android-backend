@@ -181,7 +181,18 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_ignore_safe_area)                                \
   X(waterui_call_on_event)                                                     \
   X(waterui_drop_on_event)                                                     \
-  X(waterui_read_computed_color)
+  X(waterui_read_computed_color)                                               \
+  X(waterui_video_player_id)                                                   \
+  X(waterui_force_as_video_player)                                             \
+  X(waterui_read_binding_f32)                                                  \
+  X(waterui_set_binding_f32)                                                   \
+  X(waterui_drop_binding_f32)                                                  \
+  X(waterui_new_watcher_f32)                                                   \
+  X(waterui_watch_binding_f32)                                                 \
+  X(waterui_read_computed_video)                                               \
+  X(waterui_watch_computed_video)                                              \
+  X(waterui_drop_computed_video)                                               \
+  X(waterui_new_watcher_video)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -2349,6 +2360,114 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedColorScheme(
     JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_color_scheme(
       jlong_to_ptr<WuiComputed_ColorScheme>(computedPtr));
+}
+
+// ========== VideoPlayer Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_videoPlayerId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_video_player_id();
+  return makeTypeIdStruct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsVideoPlayer(JNIEnv *env, jclass,
+                                                           jlong viewPtr) {
+  auto vp =
+      g_sym.waterui_force_as_video_player(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/VideoPlayerStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(vp.video),
+                               ptr_to_jlong(vp.volume));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+// ========== Float Binding Functions ==========
+
+JNIEXPORT jfloat JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readBindingFloat(JNIEnv *, jclass,
+                                                         jlong bindingPtr) {
+  return g_sym.waterui_read_binding_f32(
+      jlong_to_ptr<WuiBinding_f32>(bindingPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_setBindingFloat(JNIEnv *, jclass,
+                                                        jlong bindingPtr,
+                                                        jfloat value) {
+  g_sym.waterui_set_binding_f32(jlong_to_ptr<WuiBinding_f32>(bindingPtr),
+                                value);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropBindingFloat(JNIEnv *, jclass,
+                                                         jlong bindingPtr) {
+  g_sym.waterui_drop_binding_f32(jlong_to_ptr<WuiBinding_f32>(bindingPtr));
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchBindingFloat(JNIEnv *, jclass,
+                                                          jlong bindingPtr,
+                                                          jobject watcher) {
+  // Not implemented yet - would require Float watcher callback infrastructure
+  return 0;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_createFloatWatcher(JNIEnv *env, jclass,
+                                                           jobject callback) {
+  // Not implemented yet - would require Float watcher callback infrastructure
+  jclass cls = env->FindClass("dev/waterui/android/runtime/WatcherStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJ)V");
+  jobject obj = env->NewObject(cls, ctor, 0L, 0L, 0L);
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+// ========== Video Computed Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readComputedVideo(JNIEnv *env, jclass,
+                                                          jlong computedPtr) {
+  auto video = g_sym.waterui_read_computed_video(
+      jlong_to_ptr<WuiComputed_Video>(computedPtr));
+  // Convert WuiVideo to VideoStruct
+  jclass cls = env->FindClass("dev/waterui/android/runtime/VideoStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
+  // Convert WuiStr (url) to Java String
+  jstring urlStr = env->NewStringUTF(
+      reinterpret_cast<const char *>(video.url._0.ptr));
+  jobject obj = env->NewObject(cls, ctor, urlStr);
+  env->DeleteLocalRef(cls);
+  env->DeleteLocalRef(urlStr);
+  return obj;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchComputedVideo(JNIEnv *, jclass,
+                                                           jlong computedPtr,
+                                                           jobject watcher) {
+  // Not implemented yet - would require Video watcher callback infrastructure
+  return 0;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropComputedVideo(JNIEnv *, jclass,
+                                                          jlong computedPtr) {
+  g_sym.waterui_drop_computed_video(
+      jlong_to_ptr<WuiComputed_Video>(computedPtr));
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_createVideoWatcher(JNIEnv *env, jclass,
+                                                           jobject callback) {
+  // Not implemented yet - would require Video watcher callback infrastructure
+  jclass cls = env->FindClass("dev/waterui/android/runtime/WatcherStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJ)V");
+  jobject obj = env->NewObject(cls, ctor, 0L, 0L, 0L);
+  env->DeleteLocalRef(cls);
+  return obj;
 }
 
 } // extern "C"
