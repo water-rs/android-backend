@@ -50,6 +50,14 @@ object WatcherJni {
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
+    @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
+    @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
+    @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
+    @JvmStatic external fun forceAsMetadataBackground(viewPtr: Long): MetadataBackgroundStruct
+    @JvmStatic external fun forceAsMetadataForeground(viewPtr: Long): MetadataForegroundStruct
+    @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
+    @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
+    @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
 
     // ========== Drop Functions ==========
     
@@ -96,6 +104,8 @@ object WatcherJni {
     @JvmStatic external fun readComputedStyledStr(computedPtr: Long): StyledStrStruct
     @JvmStatic external fun readComputedPickerItems(computedPtr: Long): Array<PickerItemStruct>
     @JvmStatic external fun readComputedColorScheme(computedPtr: Long): Int
+    @JvmStatic external fun readComputedColor(computedPtr: Long): Long
+    @JvmStatic external fun dropComputedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedF64(computedPtr: Long)
     @JvmStatic external fun dropComputedI32(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedColor(computedPtr: Long)
@@ -195,4 +205,17 @@ object WatcherJni {
     @JvmStatic external fun secureFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun layoutContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataSecureId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataGestureId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataOnEventId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataBackgroundId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataForegroundId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
+
+    // ========== OnEvent Handler Functions ==========
+
+    @JvmStatic external fun callOnEvent(handlerPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropOnEvent(handlerPtr: Long)
 }

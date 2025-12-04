@@ -90,6 +90,16 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiSlider()
         registerWuiPicker()
         registerWuiWithEnv()
+
+        // Metadata components
+        registerWuiSecure()
+        registerWuiGesture()
+        registerWuiOnEvent()
+        registerWuiBackground()
+        registerWuiForeground()
+        registerWuiShadow()
+        registerWuiFocused()
+        registerWuiIgnoreSafeArea()
     }
     builder.components to builder.metadataTypes
 }
