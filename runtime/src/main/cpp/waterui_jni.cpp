@@ -11,6 +11,8 @@
 
 #include "waterui.h"
 #include <android/log.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -202,7 +204,12 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_navigation_stack)                                         \
   X(waterui_force_as_navigation_view)                                          \
   X(waterui_force_as_tabs)                                                     \
-  X(waterui_tab_content)
+  X(waterui_tab_content)                                                       \
+  X(waterui_gpu_surface_id)                                                    \
+  X(waterui_force_as_gpu_surface)                                              \
+  X(waterui_gpu_surface_init)                                                  \
+  X(waterui_gpu_surface_render)                                                \
+  X(waterui_gpu_surface_drop)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -2622,6 +2629,75 @@ Java_dev_waterui_android_ffi_WatcherJni_tabContent(JNIEnv *env, jclass,
   jobject obj = env->NewObject(cls, ctor, barObj, ptr_to_jlong(navView.content));
   env->DeleteLocalRef(cls);
   return obj;
+}
+
+// ========== GpuSurface Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_gpu_surface_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsGpuSurface(JNIEnv *env, jclass,
+                                                          jlong viewPtr) {
+  WuiGpuSurface gpuSurface =
+      g_sym.waterui_force_as_gpu_surface(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/GpuSurfaceStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(gpuSurface.renderer));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceInit(JNIEnv *env, jclass,
+                                                        jlong rendererPtr,
+                                                        jobject javaSurface,
+                                                        jint width,
+                                                        jint height) {
+  if (javaSurface == nullptr || rendererPtr == 0) {
+    return 0;
+  }
+
+  // Extract ANativeWindow from Java Surface
+  ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, javaSurface);
+  if (nativeWindow == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to get ANativeWindow from Surface");
+    return 0;
+  }
+
+  // Create a temporary WuiGpuSurface struct to pass to init
+  WuiGpuSurface surface{};
+  surface.renderer = jlong_to_ptr<void>(rendererPtr);
+  WuiGpuSurfaceState *state = g_sym.waterui_gpu_surface_init(
+      &surface, nativeWindow, static_cast<uint32_t>(width),
+      static_cast<uint32_t>(height));
+
+  // Note: We don't release the ANativeWindow here because wgpu needs it
+  // for the lifetime of the surface. It will be released when the surface
+  // is destroyed.
+
+  return ptr_to_jlong(state);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceRender(JNIEnv *, jclass,
+                                                          jlong statePtr,
+                                                          jint width,
+                                                          jint height) {
+  bool result = g_sym.waterui_gpu_surface_render(
+      jlong_to_ptr<WuiGpuSurfaceState>(statePtr), static_cast<uint32_t>(width),
+      static_cast<uint32_t>(height));
+  return result ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceDrop(JNIEnv *, jclass,
+                                                        jlong statePtr) {
+  g_sym.waterui_gpu_surface_drop(jlong_to_ptr<WuiGpuSurfaceState>(statePtr));
 }
 
 } // extern "C"

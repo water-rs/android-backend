@@ -91,6 +91,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiPicker()
         registerWuiWithEnv()
         registerWuiVideoPlayer()
+        registerWuiGpuSurface()
 
         // Navigation components
         registerWuiNavigationStack()

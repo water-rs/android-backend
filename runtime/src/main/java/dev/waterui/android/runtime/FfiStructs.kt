@@ -394,6 +394,13 @@ data class VideoStruct(val url: String)
  */
 data class VideoPlayerStruct(val videoPtr: Long, val volumePtr: Long)
 
+/**
+ * GpuSurface component data.
+ * - rendererPtr: Opaque pointer to the boxed GpuRenderer trait object.
+ *                This is consumed during init and should not be used after.
+ */
+data class GpuSurfaceStruct(val rendererPtr: Long)
+
 // ========== Resolved Value Structs ==========
 
 data class ResolvedColorStruct(val red: Float, val green: Float, val blue: Float, val opacity: Float)
