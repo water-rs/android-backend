@@ -248,4 +248,12 @@ object WatcherJni {
     // ========== Retain Functions ==========
 
     @JvmStatic external fun dropRetain(retainPtr: Long)
+
+    // ========== GpuSurface Functions ==========
+
+    @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
+    @JvmStatic external fun gpuSurfaceInit(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
+    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 }
