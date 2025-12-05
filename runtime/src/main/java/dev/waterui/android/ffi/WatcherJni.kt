@@ -58,6 +58,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
+    @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
 
     // ========== Drop Functions ==========
@@ -223,10 +224,15 @@ object WatcherJni {
     @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== OnEvent Handler Functions ==========
 
     @JvmStatic external fun callOnEvent(handlerPtr: Long, envPtr: Long)
     @JvmStatic external fun dropOnEvent(handlerPtr: Long)
+
+    // ========== Retain Functions ==========
+
+    @JvmStatic external fun dropRetain(retainPtr: Long)
 }

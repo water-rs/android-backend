@@ -1,6 +1,7 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
+import android.content.res.Configuration
 import android.util.AttributeSet
 import android.view.ContextThemeWrapper
 import android.view.ViewGroup
@@ -27,6 +28,7 @@ class WaterUiRootView @JvmOverloads constructor(
     private var environment: WuiEnvironment? = null
     private var rootPtr: Long = 0L
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
+    private var colorSchemeSignalPtr: Long = 0L
     private var materialThemeInstalled = false
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
@@ -56,21 +58,30 @@ class WaterUiRootView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         removeAllViews()
-        
+
+        // 0. Reset the root theme controller first
+        RootThemeController.reset()
+
         // 1. Close the theme watcher first (depends on environment)
         backgroundTheme?.close()
         backgroundTheme = null
-        
+
         // 2. Drop the native root view (depends on environment/runtime)
         if (rootPtr != 0L) {
             NativeBindings.waterui_drop_anyview(rootPtr)
             rootPtr = 0L
         }
 
-        // 3. Finally, close the environment itself
+        // 3. Drop the color scheme signal
+        if (colorSchemeSignalPtr != 0L) {
+            NativeBindings.waterui_drop_computed_color_scheme(colorSchemeSignalPtr)
+            colorSchemeSignalPtr = 0L
+        }
+
+        // 4. Finally, close the environment itself
         environment?.close()
         environment = null
-        
+
         materialThemeInstalled = false
     }
 
@@ -99,6 +110,11 @@ class WaterUiRootView @JvmOverloads constructor(
         // that pin root view to all edges of the parent
         val params = LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         addView(child, params)
+
+        // Setup RootThemeController after the view hierarchy is created
+        // This watches the color scheme from the first non-metadata component's environment
+        // and applies it to the Activity's window
+        RootThemeController.setup(this)
         android.util.Log.d("WaterUI.RootView", "renderRoot: done")
     }
 
@@ -116,13 +132,30 @@ class WaterUiRootView @JvmOverloads constructor(
             installColorSlot(env, ColorSlot.Accent, palette.accent)
             installColorSlot(env, ColorSlot.AccentForeground, palette.accentForeground)
             android.util.Log.d("WaterUI.RootView", "ensureTheme: color slots installed")
+
+            // Install system color scheme into the environment
+            // Rust code can override this via .install(Theme::new().color_scheme(...))
+            val systemScheme = getSystemColorScheme()
+            android.util.Log.d("WaterUI.RootView", "ensureTheme: installing color scheme $systemScheme (0=Light, 1=Dark)")
+            val scheme = if (systemScheme == 1) ColorScheme.Dark else ColorScheme.Light
+            colorSchemeSignalPtr = ThemeBridge.createConstantColorSchemeSignal(scheme)
+            ThemeBridge.installColorScheme(env, colorSchemeSignalPtr)
+
             materialThemeInstalled = true
-            
+
             // Set static background color for now (skip reactive observation to debug hang)
             android.util.Log.d("WaterUI.RootView", "ensureTheme: setting static background to ${palette.background}")
             setBackgroundColor(palette.background)
         }
         android.util.Log.d("WaterUI.RootView", "ensureTheme: done")
+    }
+
+    private fun getSystemColorScheme(): Int {
+        val nightModeFlags = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return when (nightModeFlags) {
+            Configuration.UI_MODE_NIGHT_YES -> 1 // Dark
+            else -> 0 // Light
+        }
     }
 
     private fun installColorSlot(env: WuiEnvironment, slot: ColorSlot, argb: Int) {

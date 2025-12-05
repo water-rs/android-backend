@@ -97,6 +97,31 @@ typedef enum WuiKeyboardType {
   WuiKeyboardType_PhoneNumber,
 } WuiKeyboardType;
 
+/**
+ * FFI representation of photo events.
+ */
+typedef enum WuiPhotoEventType {
+  WuiPhotoEventType_Loaded = 0,
+  WuiPhotoEventType_Error = 1,
+} WuiPhotoEventType;
+
+typedef enum WuiAspectRatio {
+  WuiAspectRatio_Fit = 0,
+  WuiAspectRatio_Fill = 1,
+  WuiAspectRatio_Stretch = 2,
+} WuiAspectRatio;
+
+/**
+ * FFI representation of video player events.
+ */
+typedef enum WuiVideoEventType {
+  WuiVideoEventType_ReadyToPlay = 0,
+  WuiVideoEventType_Ended = 1,
+  WuiVideoEventType_Error = 2,
+  WuiVideoEventType_Buffering = 3,
+  WuiVideoEventType_BufferingEnded = 4,
+} WuiVideoEventType;
+
 typedef enum WuiProgressStyle {
   WuiProgressStyle_Linear,
   WuiProgressStyle_Circular,
@@ -836,6 +861,28 @@ typedef struct WuiMetadata_WuiIgnoreSafeArea {
  */
 typedef struct WuiMetadata_WuiIgnoreSafeArea WuiMetadataIgnoreSafeArea;
 
+/**
+ * FFI-safe representation of Retain metadata.
+ * The actual retained value is opaque - renderers just need to keep it alive.
+ */
+typedef struct WuiRetain {
+  /**
+   * Opaque pointer to the retained value (Box<dyn Any>).
+   * This must be kept alive and dropped when the view is disposed.
+   */
+  void *_opaque;
+} WuiRetain;
+
+typedef struct WuiMetadata_WuiRetain {
+  struct WuiAnyView *content;
+  struct WuiRetain value;
+} WuiMetadata_WuiRetain;
+
+/**
+ * Type alias for Metadata<Retain> FFI struct
+ */
+typedef struct WuiMetadata_WuiRetain WuiMetadataRetain;
+
 typedef struct WuiResolvedColor {
   float red;
   float green;
@@ -1191,18 +1238,62 @@ typedef struct WuiNavigationView {
 
 typedef struct WuiStr Url;
 
+/**
+ * FFI representation of a photo event.
+ */
+typedef struct WuiPhotoEvent {
+  enum WuiPhotoEventType event_type;
+  struct WuiStr error_message;
+} WuiPhotoEvent;
+
+/**
+ * A C-compatible function wrapper that can be called multiple times.
+ *
+ * This structure wraps a Rust `Fn` closure to allow it to be passed across
+ * the FFI boundary while maintaining proper memory management.
+ */
+typedef struct WuiFn_WuiPhotoEvent {
+  void *data;
+  void (*call)(const void*, struct WuiPhotoEvent);
+  void (*drop)(void*);
+} WuiFn_WuiPhotoEvent;
+
 typedef struct WuiPhoto {
   Url source;
   struct WuiAnyView *placeholder;
+  struct WuiFn_WuiPhotoEvent on_event;
 } WuiPhoto;
 
 typedef struct Computed_Video WuiComputed_Video;
 
 typedef struct Binding_Volume WuiBinding_Volume;
 
+/**
+ * FFI representation of a video player event.
+ */
+typedef struct WuiVideoEvent {
+  enum WuiVideoEventType event_type;
+  struct WuiStr error_message;
+} WuiVideoEvent;
+
+/**
+ * A C-compatible function wrapper that can be called multiple times.
+ *
+ * This structure wraps a Rust `Fn` closure to allow it to be passed across
+ * the FFI boundary while maintaining proper memory management.
+ */
+typedef struct WuiFn_WuiVideoEvent {
+  void *data;
+  void (*call)(const void*, struct WuiVideoEvent);
+  void (*drop)(void*);
+} WuiFn_WuiVideoEvent;
+
 typedef struct WuiVideoPlayer {
   WuiComputed_Video *video;
   WuiBinding_Volume *volume;
+  enum WuiAspectRatio aspect_ratio;
+  bool show_controls;
+  struct WuiFn_WuiVideoEvent on_event;
 } WuiVideoPlayer;
 
 typedef struct Computed_LivePhotoSource WuiComputed_LivePhotoSource;
@@ -1542,6 +1633,30 @@ struct WuiTypeId waterui_metadata_ignore_safe_area_id(void);
  * that contains a `Metadata<$ty>`.
  */
 WuiMetadataIgnoreSafeArea waterui_force_as_metadata_ignore_safe_area(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
+struct WuiTypeId waterui_metadata_retain_id(void);
+
+/**
+ * Force-casts an AnyView to this metadata type
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to an `AnyView`
+ * that contains a `Metadata<$ty>`.
+ */
+WuiMetadataRetain waterui_force_as_metadata_retain(struct WuiAnyView *view);
+
+/**
+ * Drops the retained value.
+ *
+ * # Safety
+ * The caller must ensure that `retain` is a valid pointer returned from
+ * `waterui_force_as_metadata_retain` and has not been dropped before.
+ */
+void waterui_drop_retain(struct WuiRetain retain);
 
 /**
  * # Safety

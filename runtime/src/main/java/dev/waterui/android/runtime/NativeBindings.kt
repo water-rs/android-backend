@@ -218,6 +218,7 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_shadow(viewPtr: Long): MetadataShadowStruct = WatcherJni.forceAsMetadataShadow(viewPtr)
     fun waterui_force_as_metadata_focused(viewPtr: Long): MetadataFocusedStruct = WatcherJni.forceAsMetadataFocused(viewPtr)
     fun waterui_force_as_metadata_ignore_safe_area(viewPtr: Long): MetadataIgnoreSafeAreaStruct = WatcherJni.forceAsMetadataIgnoreSafeArea(viewPtr)
+    fun waterui_force_as_metadata_retain(viewPtr: Long): MetadataRetainStruct = WatcherJni.forceAsMetadataRetain(viewPtr)
     fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)
 
     // ========== Metadata Type IDs ==========
@@ -230,12 +231,17 @@ internal object NativeBindings {
     fun waterui_metadata_shadow_id(): TypeIdStruct = WatcherJni.metadataShadowId()
     fun waterui_metadata_focused_id(): TypeIdStruct = WatcherJni.metadataFocusedId()
     fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
+    fun waterui_metadata_retain_id(): TypeIdStruct = WatcherJni.metadataRetainId()
     fun waterui_video_player_id(): TypeIdStruct = WatcherJni.videoPlayerId()
 
     // ========== OnEvent Handler ==========
 
     fun waterui_call_on_event(handlerPtr: Long, envPtr: Long) = WatcherJni.callOnEvent(handlerPtr, envPtr)
     fun waterui_drop_on_event(handlerPtr: Long) = WatcherJni.dropOnEvent(handlerPtr)
+
+    // ========== Retain ==========
+
+    fun waterui_drop_retain(retainPtr: Long) = WatcherJni.dropRetain(retainPtr)
 
     // ========== Reactive State Creation (for theme) ==========
     
