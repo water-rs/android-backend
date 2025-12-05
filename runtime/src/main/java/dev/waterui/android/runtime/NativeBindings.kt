@@ -221,6 +221,19 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_retain(viewPtr: Long): MetadataRetainStruct = WatcherJni.forceAsMetadataRetain(viewPtr)
     fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)
 
+    // ========== Navigation Type IDs ==========
+
+    fun waterui_navigation_stack_id(): TypeIdStruct = WatcherJni.navigationStackId()
+    fun waterui_navigation_view_id(): TypeIdStruct = WatcherJni.navigationViewId()
+    fun waterui_tabs_id(): TypeIdStruct = WatcherJni.tabsId()
+
+    // ========== Navigation Force-As Functions ==========
+
+    fun waterui_force_as_navigation_stack(viewPtr: Long): NavigationStackStruct = WatcherJni.forceAsNavigationStack(viewPtr)
+    fun waterui_force_as_navigation_view(viewPtr: Long): NavigationViewStruct = WatcherJni.forceAsNavigationView(viewPtr)
+    fun waterui_force_as_tabs(viewPtr: Long): TabsStruct = WatcherJni.forceAsTabs(viewPtr)
+    fun waterui_tab_content(contentPtr: Long): NavigationViewStruct = WatcherJni.tabContent(contentPtr)
+
     // ========== Metadata Type IDs ==========
 
     fun waterui_metadata_secure_id(): TypeIdStruct = WatcherJni.metadataSecureId()
