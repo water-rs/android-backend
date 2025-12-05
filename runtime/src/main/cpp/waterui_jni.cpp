@@ -179,6 +179,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_focused)                                         \
   X(waterui_metadata_ignore_safe_area_id)                                      \
   X(waterui_force_as_metadata_ignore_safe_area)                                \
+  X(waterui_metadata_retain_id)                                                \
+  X(waterui_force_as_metadata_retain)                                          \
+  X(waterui_drop_retain)                                                       \
   X(waterui_call_on_event)                                                     \
   X(waterui_drop_on_event)                                                     \
   X(waterui_read_computed_color)                                               \
@@ -1602,6 +1605,7 @@ DEFINE_TYPE_ID_FN(metadataForegroundId, waterui_metadata_foreground_id)
 DEFINE_TYPE_ID_FN(metadataShadowId, waterui_metadata_shadow_id)
 DEFINE_TYPE_ID_FN(metadataFocusedId, waterui_metadata_focused_id)
 DEFINE_TYPE_ID_FN(metadataIgnoreSafeAreaId, waterui_metadata_ignore_safe_area_id)
+DEFINE_TYPE_ID_FN(metadataRetainId, waterui_metadata_retain_id)
 
 #undef DEFINE_TYPE_ID_FN
 
@@ -2030,6 +2034,20 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataIgnoreSafeArea(JNIEnv *en
   return obj;
 }
 
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataRetain(JNIEnv *env, jclass,
+                                                              jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_retain(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataRetainStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value._opaque));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
 // ========== OnEvent Handler Functions ==========
 
 JNIEXPORT void JNICALL
@@ -2046,6 +2064,17 @@ Java_dev_waterui_android_ffi_WatcherJni_dropOnEvent(JNIEnv *, jclass,
 }
 
 // ========== Drop Functions ==========
+
+// ========== Retain Functions ==========
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropRetain(JNIEnv *, jclass,
+                                                    jlong retainPtr) {
+  // The retainPtr is the _opaque pointer from WuiRetain struct
+  WuiRetain retain;
+  retain._opaque = jlong_to_ptr<void>(retainPtr);
+  g_sym.waterui_drop_retain(retain);
+}
 
 // ========== AnyViews Functions ==========
 
@@ -2367,7 +2396,7 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedColorScheme(
 JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_videoPlayerId(JNIEnv *env, jclass) {
   auto id = g_sym.waterui_video_player_id();
-  return makeTypeIdStruct(env, id);
+  return new_type_id_struct(env, id);
 }
 
 JNIEXPORT jobject JNICALL
@@ -2435,9 +2464,8 @@ Java_dev_waterui_android_ffi_WatcherJni_readComputedVideo(JNIEnv *env, jclass,
   // Convert WuiVideo to VideoStruct
   jclass cls = env->FindClass("dev/waterui/android/runtime/VideoStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
-  // Convert WuiStr (url) to Java String
-  jstring urlStr = env->NewStringUTF(
-      reinterpret_cast<const char *>(video.url._0.ptr));
+  // Convert WuiStr (url) to Java String using proper helper
+  jstring urlStr = wui_str_to_jstring(env, video.url);
   jobject obj = env->NewObject(cls, ctor, urlStr);
   env->DeleteLocalRef(cls);
   env->DeleteLocalRef(urlStr);

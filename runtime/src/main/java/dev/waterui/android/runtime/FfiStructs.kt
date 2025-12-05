@@ -347,6 +347,15 @@ data class MetadataIgnoreSafeAreaStruct(
     val trailing: Boolean
 )
 
+/**
+ * Metadata<Retain> struct for keeping values alive.
+ * The retainPtr is opaque - we just hold onto it and drop it when disposed.
+ */
+data class MetadataRetainStruct(
+    val contentPtr: Long,
+    val retainPtr: Long
+)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {

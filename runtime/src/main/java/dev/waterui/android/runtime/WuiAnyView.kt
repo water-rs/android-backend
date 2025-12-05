@@ -15,6 +15,9 @@ const val TAG_STRETCH_AXIS = 0x57554901 // "WUI\x01" as int
  * concrete Android [android.view.View].
  *
  * The returned View will have its stretch axis stored as a tag (TAG_STRETCH_AXIS).
+ *
+ * When the first non-metadata component is encountered, its environment is captured
+ * for the [RootThemeController] to watch the color scheme and apply it to the Activity.
  */
 fun inflateAnyView(
     context: Context,
@@ -29,10 +32,16 @@ fun inflateAnyView(
     if (renderer != null) {
         // Get stretch axis BEFORE createView - the pointer is consumed/invalidated by createView!
         // Metadata types don't implement NativeView, they propagate stretch axis from content.
-        val stretchAxis = if (!registry.isMetadata(typeId)) {
+        val isMetadata = registry.isMetadata(typeId)
+        val stretchAxis = if (!isMetadata) {
             StretchAxis.fromInt(NativeBindings.waterui_view_stretch_axis(pointer))
         } else {
             null
+        }
+
+        // If this is the first non-metadata component, capture its env for root theme
+        if (!isMetadata) {
+            RootThemeController.markAsRootContentEnv(environment)
         }
 
         // Create the view (this consumes the pointer via force_as_* FFI functions)
