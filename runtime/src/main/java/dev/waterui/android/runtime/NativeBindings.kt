@@ -256,6 +256,16 @@ internal object NativeBindings {
 
     fun waterui_drop_retain(retainPtr: Long) = WatcherJni.dropRetain(retainPtr)
 
+    // ========== GpuSurface ==========
+
+    fun waterui_gpu_surface_id(): TypeIdStruct = WatcherJni.gpuSurfaceId()
+    fun waterui_force_as_gpu_surface(viewPtr: Long): GpuSurfaceStruct = WatcherJni.forceAsGpuSurface(viewPtr)
+    fun waterui_gpu_surface_init(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long =
+        WatcherJni.gpuSurfaceInit(rendererPtr, surface, width, height)
+    fun waterui_gpu_surface_render(statePtr: Long, width: Int, height: Int): Boolean =
+        WatcherJni.gpuSurfaceRender(statePtr, width, height)
+    fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)
+
     // ========== Reactive State Creation (for theme) ==========
     
     fun waterui_create_reactive_color_state(argb: Int): Long = WatcherJni.createReactiveColorState(argb)
