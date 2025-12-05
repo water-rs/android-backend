@@ -195,7 +195,14 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_read_computed_video)                                               \
   X(waterui_watch_computed_video)                                              \
   X(waterui_drop_computed_video)                                               \
-  X(waterui_new_watcher_video)
+  X(waterui_new_watcher_video)                                                 \
+  X(waterui_navigation_stack_id)                                               \
+  X(waterui_navigation_view_id)                                                \
+  X(waterui_tabs_id)                                                           \
+  X(waterui_force_as_navigation_stack)                                         \
+  X(waterui_force_as_navigation_view)                                          \
+  X(waterui_force_as_tabs)                                                     \
+  X(waterui_tab_content)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -2494,6 +2501,125 @@ Java_dev_waterui_android_ffi_WatcherJni_createVideoWatcher(JNIEnv *env, jclass,
   jclass cls = env->FindClass("dev/waterui/android/runtime/WatcherStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJ)V");
   jobject obj = env->NewObject(cls, ctor, 0L, 0L, 0L);
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+// ========== Navigation Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_navigationStackId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_navigation_stack_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_navigationViewId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_navigation_view_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_tabsId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_tabs_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsNavigationStack(JNIEnv *env,
+                                                                jclass,
+                                                                jlong viewPtr) {
+  WuiNavigationStack navStack = g_sym.waterui_force_as_navigation_stack(
+      jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls =
+      env->FindClass("dev/waterui/android/runtime/NavigationStackStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(navStack.root));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsNavigationView(JNIEnv *env,
+                                                               jclass,
+                                                               jlong viewPtr) {
+  WuiNavigationView navView = g_sym.waterui_force_as_navigation_view(
+      jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  // Create BarStruct
+  jclass barCls = env->FindClass("dev/waterui/android/runtime/BarStruct");
+  jmethodID barCtor = env->GetMethodID(barCls, "<init>", "(JJJ)V");
+  jobject barObj = env->NewObject(
+      barCls, barCtor, ptr_to_jlong(navView.bar.title.content),
+      ptr_to_jlong(navView.bar.color), ptr_to_jlong(navView.bar.hidden));
+  env->DeleteLocalRef(barCls);
+
+  // Create NavigationViewStruct
+  jclass cls =
+      env->FindClass("dev/waterui/android/runtime/NavigationViewStruct");
+  jmethodID ctor = env->GetMethodID(
+      cls, "<init>", "(Ldev/waterui/android/runtime/BarStruct;J)V");
+  jobject obj = env->NewObject(cls, ctor, barObj, ptr_to_jlong(navView.content));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsTabs(JNIEnv *env, jclass,
+                                                     jlong viewPtr) {
+  WuiTabs tabsData =
+      g_sym.waterui_force_as_tabs(jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  // Get tab array slice
+  WuiArraySlice_WuiTab slice = tabsData.tabs.vtable.slice(tabsData.tabs.data);
+
+  // Create TabStruct array
+  jclass tabCls = env->FindClass("dev/waterui/android/runtime/TabStruct");
+  jmethodID tabCtor = env->GetMethodID(tabCls, "<init>", "(JJJ)V");
+  jobjectArray tabArray =
+      env->NewObjectArray(static_cast<jsize>(slice.len), tabCls, nullptr);
+
+  for (size_t i = 0; i < slice.len; i++) {
+    WuiTab *tab = slice.head + i;
+    jobject tabObj = env->NewObject(tabCls, tabCtor,
+                                    static_cast<jlong>(tab->id),
+                                    ptr_to_jlong(tab->label),
+                                    ptr_to_jlong(tab->content));
+    env->SetObjectArrayElement(tabArray, static_cast<jsize>(i), tabObj);
+    env->DeleteLocalRef(tabObj);
+  }
+  env->DeleteLocalRef(tabCls);
+
+  // Create TabsStruct
+  jclass cls = env->FindClass("dev/waterui/android/runtime/TabsStruct");
+  jmethodID ctor = env->GetMethodID(
+      cls, "<init>", "(J[Ldev/waterui/android/runtime/TabStruct;I)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(tabsData.selection),
+                               tabArray, static_cast<jint>(tabsData.position));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_tabContent(JNIEnv *env, jclass,
+                                                    jlong contentPtr) {
+  WuiNavigationView navView = g_sym.waterui_tab_content(
+      jlong_to_ptr<WuiTabContent>(contentPtr));
+
+  // Create BarStruct
+  jclass barCls = env->FindClass("dev/waterui/android/runtime/BarStruct");
+  jmethodID barCtor = env->GetMethodID(barCls, "<init>", "(JJJ)V");
+  jobject barObj = env->NewObject(
+      barCls, barCtor, ptr_to_jlong(navView.bar.title.content),
+      ptr_to_jlong(navView.bar.color), ptr_to_jlong(navView.bar.hidden));
+  env->DeleteLocalRef(barCls);
+
+  // Create NavigationViewStruct
+  jclass cls =
+      env->FindClass("dev/waterui/android/runtime/NavigationViewStruct");
+  jmethodID ctor = env->GetMethodID(
+      cls, "<init>", "(Ldev/waterui/android/runtime/BarStruct;J)V");
+  jobject obj = env->NewObject(cls, ctor, barObj, ptr_to_jlong(navView.content));
   env->DeleteLocalRef(cls);
   return obj;
 }
