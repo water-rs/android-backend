@@ -413,3 +413,79 @@ data class TypeIdStruct(val low: Long, val high: Long) {
     fun toTypeId(): WuiTypeId = WuiTypeId(low, high)
 }
 
+// ========== Navigation Structs ==========
+
+/**
+ * Tab position enum matching WuiTabPosition in FFI.
+ */
+enum class TabPosition(val value: Int) {
+    /** Tab bar at top of container */
+    TOP(0),
+    /** Tab bar at bottom of container */
+    BOTTOM(1);
+
+    companion object {
+        fun fromInt(value: Int): TabPosition = entries.firstOrNull { it.value == value } ?: BOTTOM
+    }
+}
+
+/**
+ * NavigationStack component data.
+ * Contains the root view of the navigation stack.
+ */
+data class NavigationStackStruct(val rootPtr: Long)
+
+/**
+ * Navigation bar configuration.
+ * - titleContentPtr: Computed<StyledStr> pointer for title text
+ * - colorPtr: Computed<Color> pointer for bar color
+ * - hiddenPtr: Computed<bool> pointer for bar visibility
+ */
+data class BarStruct(
+    val titleContentPtr: Long,
+    val colorPtr: Long,
+    val hiddenPtr: Long
+)
+
+/**
+ * NavigationView component data.
+ * Contains bar configuration and content view.
+ */
+data class NavigationViewStruct(
+    val bar: BarStruct,
+    val contentPtr: Long
+)
+
+/**
+ * Individual tab data.
+ * - id: Unique tab identifier (u64)
+ * - labelPtr: AnyView pointer for tab label
+ * - contentPtr: WuiTabContent pointer for lazy content building
+ */
+data class TabStruct(
+    val id: Long,
+    val labelPtr: Long,
+    val contentPtr: Long
+)
+
+/**
+ * Tabs component data.
+ * - selectionPtr: Binding<Id> pointer for selected tab
+ * - tabs: Array of tab data
+ * - position: Tab bar position (top/bottom)
+ */
+data class TabsStruct(
+    val selectionPtr: Long,
+    val tabs: Array<TabStruct>,
+    val position: Int
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is TabsStruct) return false
+        return selectionPtr == other.selectionPtr &&
+               tabs.contentEquals(other.tabs) &&
+               position == other.position
+    }
+    override fun hashCode(): Int = 31 * (31 * selectionPtr.hashCode() + tabs.contentHashCode()) + position
+}
+

@@ -227,6 +227,19 @@ object WatcherJni {
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
 
+    // ========== Navigation Type IDs ==========
+
+    @JvmStatic external fun navigationStackId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun navigationViewId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun tabsId(): dev.waterui.android.runtime.TypeIdStruct
+
+    // ========== Navigation Force-As Functions ==========
+
+    @JvmStatic external fun forceAsNavigationStack(viewPtr: Long): NavigationStackStruct
+    @JvmStatic external fun forceAsNavigationView(viewPtr: Long): NavigationViewStruct
+    @JvmStatic external fun forceAsTabs(viewPtr: Long): TabsStruct
+    @JvmStatic external fun tabContent(contentPtr: Long): NavigationViewStruct
+
     // ========== OnEvent Handler Functions ==========
 
     @JvmStatic external fun callOnEvent(handlerPtr: Long, envPtr: Long)
