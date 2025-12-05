@@ -2406,7 +2406,7 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsVideoPlayer(JNIEnv *env, jclass,
       g_sym.waterui_force_as_video_player(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/VideoPlayerStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
-  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(vp.video),
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(vp.source),
                                ptr_to_jlong(vp.volume));
   env->DeleteLocalRef(cls);
   return obj;
