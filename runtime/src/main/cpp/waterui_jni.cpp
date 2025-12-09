@@ -187,8 +187,14 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_call_on_event)                                                     \
   X(waterui_drop_on_event)                                                     \
   X(waterui_read_computed_color)                                               \
+  X(waterui_photo_id)                                                          \
+  X(waterui_force_as_photo)                                                    \
+  X(waterui_video_id)                                                          \
+  X(waterui_force_as_video)                                                    \
   X(waterui_video_player_id)                                                   \
   X(waterui_force_as_video_player)                                             \
+  X(waterui_media_picker_id)                                                   \
+  X(waterui_force_as_media_picker)                                             \
   X(waterui_read_binding_f32)                                                  \
   X(waterui_set_binding_f32)                                                   \
   X(waterui_drop_binding_f32)                                                  \
@@ -2405,6 +2411,51 @@ Java_dev_waterui_android_ffi_WatcherJni_dropComputedColorScheme(
       jlong_to_ptr<WuiComputed_ColorScheme>(computedPtr));
 }
 
+// ========== Photo Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_photoId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_photo_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsPhoto(JNIEnv *env, jclass,
+                                                      jlong viewPtr) {
+  auto photo = g_sym.waterui_force_as_photo(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/PhotoStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
+  jstring sourceStr = wui_str_to_jstring(env, photo.source);
+  jobject obj = env->NewObject(cls, ctor, sourceStr);
+  env->DeleteLocalRef(cls);
+  env->DeleteLocalRef(sourceStr);
+  return obj;
+}
+
+// ========== Video (Raw) Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_videoId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_video_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsVideo(JNIEnv *env, jclass,
+                                                      jlong viewPtr) {
+  auto video = g_sym.waterui_force_as_video(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/VideoStruct2");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJIZZ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(video.source),
+                               ptr_to_jlong(video.volume),
+                               static_cast<jint>(video.aspect_ratio),
+                               static_cast<jboolean>(video.loops),
+                               static_cast<jboolean>(false)); // show_controls = false for raw video
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
 // ========== VideoPlayer Functions ==========
 
 JNIEXPORT jobject JNICALL
@@ -2422,6 +2473,29 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsVideoPlayer(JNIEnv *env, jclass,
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
   jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(vp.source),
                                ptr_to_jlong(vp.volume));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+// ========== MediaPicker Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_mediaPickerId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_media_picker_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMediaPicker(JNIEnv *env, jclass,
+                                                            jlong viewPtr) {
+  auto mp = g_sym.waterui_force_as_media_picker(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MediaPickerStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(IJJ)V");
+  jobject obj = env->NewObject(
+      cls, ctor,
+      static_cast<jint>(mp.filter),
+      reinterpret_cast<jlong>(mp.on_selection.data),
+      reinterpret_cast<jlong>(mp.on_selection.call));
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -2698,6 +2772,181 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceDrop(JNIEnv *, jclass,
                                                         jlong statePtr) {
   g_sym.waterui_gpu_surface_drop(jlong_to_ptr<WuiGpuSurfaceState>(statePtr));
+}
+
+// ============================================================================
+// Media Loading
+// ============================================================================
+
+// ============================================================================
+// Media Loading Types
+// ============================================================================
+// These types must match the Rust definitions in waterui_media::media_picker
+
+/**
+ * Result of loading media from the platform.
+ * For Live Photos / Motion Photos, both url_ptr (image) and video_url_ptr (video)
+ * are populated. For regular images/videos, only url_ptr is used.
+ */
+struct MediaLoadResult {
+  const uint8_t *url_ptr;
+  size_t url_len;
+  const uint8_t *video_url_ptr;
+  size_t video_url_len;
+  uint8_t media_type;
+};
+
+/**
+ * Callback for receiving loaded media from native code.
+ */
+struct MediaLoadCallback {
+  void *data;
+  void (*call)(void *, MediaLoadResult);
+};
+
+// Cache for MediaLoader class and method
+static jclass gMediaLoaderClass = nullptr;
+static jmethodID gMediaLoaderLoadMethod = nullptr;
+
+/**
+ * Initialize MediaLoader JNI references.
+ * Called lazily on first use.
+ */
+static bool initMediaLoaderJni(JNIEnv *env) {
+  if (gMediaLoaderClass != nullptr && gMediaLoaderLoadMethod != nullptr) {
+    return true;
+  }
+
+  jclass localClass = env->FindClass("dev/waterui/android/runtime/MediaLoader");
+  if (localClass == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find MediaLoader class");
+    return false;
+  }
+
+  gMediaLoaderClass = (jclass)env->NewGlobalRef(localClass);
+  env->DeleteLocalRef(localClass);
+
+  gMediaLoaderLoadMethod = env->GetStaticMethodID(
+      gMediaLoaderClass, "loadMedia", "(IJJ)V");
+  if (gMediaLoaderLoadMethod == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find MediaLoader.loadMedia method");
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * C function called by Rust when Selected::load() is invoked.
+ * This is the implementation of the extern "C" fn waterui_load_media.
+ */
+void waterui_load_media(uint32_t id, MediaLoadCallback callback) {
+  ScopedEnv scoped;
+  JNIEnv *env = scoped.env;
+  if (env == nullptr) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "waterui_load_media: failed to get JNIEnv");
+    std::abort();
+  }
+
+  if (!initMediaLoaderJni(env)) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "waterui_load_media: failed to init MediaLoader JNI");
+    std::abort();
+  }
+
+  // Call MediaLoader.loadMedia(id, callbackData, callFnPtr)
+  // We pass the callback data and function pointer separately
+  env->CallStaticVoidMethod(
+      gMediaLoaderClass, gMediaLoaderLoadMethod,
+      static_cast<jint>(id),
+      reinterpret_cast<jlong>(callback.data),
+      reinterpret_cast<jlong>(callback.call));
+}
+
+/**
+ * JNI function called by MediaLoader.kt when media loading completes.
+ * Invokes the Rust callback with the file URL(s).
+ *
+ * For Motion Photos / Live Photos, both imageUrl and videoUrl are provided.
+ * For regular images/videos, videoUrl is null.
+ */
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_MediaLoader_nativeCompleteMediaLoad(
+    JNIEnv *env, jclass, jlong callbackData, jlong callFnPtr,
+    jstring imageUrl, jstring videoUrl, jbyte mediaType) {
+  // Get the callback function pointer
+  auto callFn = reinterpret_cast<void (*)(void *, MediaLoadResult)>(callFnPtr);
+  void *data = reinterpret_cast<void *>(callbackData);
+
+  // Convert Java strings to C strings
+  const char *imageCStr = env->GetStringUTFChars(imageUrl, nullptr);
+  if (imageCStr == nullptr) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "nativeCompleteMediaLoad: imageUrl is null");
+    std::abort();
+  }
+  size_t imageLen = strlen(imageCStr);
+  if (imageLen == 0) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "nativeCompleteMediaLoad: imageUrl is empty");
+    env->ReleaseStringUTFChars(imageUrl, imageCStr);
+    std::abort();
+  }
+
+  const char *videoCStr = nullptr;
+  size_t videoLen = 0;
+  if (videoUrl != nullptr) {
+    videoCStr = env->GetStringUTFChars(videoUrl, nullptr);
+    if (videoCStr != nullptr) {
+      videoLen = strlen(videoCStr);
+    }
+  }
+
+  // For motion photos, video URL is required
+  if (mediaType == 2 && (videoCStr == nullptr || videoLen == 0)) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "nativeCompleteMediaLoad: videoUrl is null/empty for Motion Photo");
+    env->ReleaseStringUTFChars(imageUrl, imageCStr);
+    if (videoCStr != nullptr) {
+      env->ReleaseStringUTFChars(videoUrl, videoCStr);
+    }
+    std::abort();
+  }
+
+  // Create result
+  MediaLoadResult result{};
+  result.url_ptr = reinterpret_cast<const uint8_t *>(imageCStr);
+  result.url_len = imageLen;
+  result.video_url_ptr = videoCStr ? reinterpret_cast<const uint8_t *>(videoCStr) : nullptr;
+  result.video_url_len = videoLen;
+  result.media_type = static_cast<uint8_t>(mediaType);
+
+  // Call the Rust callback
+  callFn(data, result);
+
+  // Release the strings
+  env->ReleaseStringUTFChars(imageUrl, imageCStr);
+  if (videoCStr != nullptr) {
+    env->ReleaseStringUTFChars(videoUrl, videoCStr);
+  }
+}
+
+/**
+ * JNI function to call the onSelection callback when media is selected.
+ */
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_NativeBindings_callOnSelection(
+    JNIEnv *, jclass, jlong dataPtr, jlong callPtr, jint selectionId) {
+  auto callFn = reinterpret_cast<void (*)(void *, WuiSelected)>(callPtr);
+  void *data = reinterpret_cast<void *>(dataPtr);
+
+  WuiSelected selected{};
+  selected.id = static_cast<uint32_t>(selectionId);
+
+  callFn(data, selected);
 }
 
 } // extern "C"

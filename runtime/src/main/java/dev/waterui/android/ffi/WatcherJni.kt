@@ -59,7 +59,10 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
+    @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
+    @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
+    @JvmStatic external fun forceAsMediaPicker(viewPtr: Long): MediaPickerStruct
 
     // ========== Drop Functions ==========
     
@@ -225,7 +228,10 @@ object WatcherJni {
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun mediaPickerId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
 

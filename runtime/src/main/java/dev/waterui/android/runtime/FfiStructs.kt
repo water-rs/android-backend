@@ -380,15 +380,39 @@ data class TextStyleStruct(
 
 data class PickerItemStruct(val tag: Int, val label: StyledStrStruct)
 
+// ========== Photo Structs ==========
+
+/**
+ * Photo component data.
+ * - source: URL of the image to display
+ */
+data class PhotoStruct(val source: String)
+
 // ========== Video Structs ==========
 
 /**
- * Video source struct with URL.
+ * Video source struct with URL (used for Computed<Video>).
  */
 data class VideoStruct(val url: String)
 
 /**
- * VideoPlayer component data.
+ * Video (raw) component data - video without native controls.
+ * - sourcePtr: Computed<Str> pointer for reactive URL
+ * - volumePtr: Binding<Volume> pointer (f32)
+ * - aspectRatio: 0=Fit, 1=Fill, 2=Stretch
+ * - loops: Whether to loop playback
+ * - showControls: Always false for raw video
+ */
+data class VideoStruct2(
+    val sourcePtr: Long,
+    val volumePtr: Long,
+    val aspectRatio: Int,
+    val loops: Boolean,
+    val showControls: Boolean
+)
+
+/**
+ * VideoPlayer component data - video with native controls.
  * - videoPtr: Computed<Video> pointer
  * - volumePtr: Binding<Volume> pointer (f32)
  */
@@ -400,6 +424,40 @@ data class VideoPlayerStruct(val videoPtr: Long, val volumePtr: Long)
  *                This is consumed during init and should not be used after.
  */
 data class GpuSurfaceStruct(val rendererPtr: Long)
+
+// ========== MediaPicker Structs ==========
+
+/**
+ * Media filter type enum matching WuiMediaFilterType in FFI.
+ */
+enum class MediaFilterType(val value: Int) {
+    /** Filter for live photos only */
+    LIVE_PHOTO(0),
+    /** Filter for videos only */
+    VIDEO(1),
+    /** Filter for images only */
+    IMAGE(2),
+    /** Filter for all media types */
+    ALL(3);
+
+    companion object {
+        fun fromInt(value: Int): MediaFilterType = entries.firstOrNull { it.value == value } ?: ALL
+    }
+}
+
+/**
+ * MediaPicker component data.
+ * - filter: Media filter type (image, video, all, etc.)
+ */
+data class MediaPickerStruct(
+    val filter: Int,
+    val onSelectionDataPtr: Long,
+    val onSelectionCallPtr: Long
+) {
+    fun filterType(): MediaFilterType = MediaFilterType.fromInt(filter)
+    fun onSelectionDataPtr(): Long = onSelectionDataPtr
+    fun onSelectionCallPtr(): Long = onSelectionCallPtr
+}
 
 // ========== Resolved Value Structs ==========
 
