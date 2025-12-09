@@ -219,7 +219,14 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_focused(viewPtr: Long): MetadataFocusedStruct = WatcherJni.forceAsMetadataFocused(viewPtr)
     fun waterui_force_as_metadata_ignore_safe_area(viewPtr: Long): MetadataIgnoreSafeAreaStruct = WatcherJni.forceAsMetadataIgnoreSafeArea(viewPtr)
     fun waterui_force_as_metadata_retain(viewPtr: Long): MetadataRetainStruct = WatcherJni.forceAsMetadataRetain(viewPtr)
+    fun waterui_force_as_photo(viewPtr: Long): PhotoStruct = WatcherJni.forceAsPhoto(viewPtr)
+    fun waterui_force_as_video(viewPtr: Long): VideoStruct2 = WatcherJni.forceAsVideo(viewPtr)
     fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)
+
+    // ========== Media Type IDs ==========
+
+    fun waterui_photo_id(): TypeIdStruct = WatcherJni.photoId()
+    fun waterui_video_id(): TypeIdStruct = WatcherJni.videoId()
 
     // ========== Navigation Type IDs ==========
 
@@ -246,6 +253,13 @@ internal object NativeBindings {
     fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
     fun waterui_metadata_retain_id(): TypeIdStruct = WatcherJni.metadataRetainId()
     fun waterui_video_player_id(): TypeIdStruct = WatcherJni.videoPlayerId()
+    fun waterui_media_picker_id(): TypeIdStruct = WatcherJni.mediaPickerId()
+    fun waterui_force_as_media_picker(viewPtr: Long): MediaPickerStruct = WatcherJni.forceAsMediaPicker(viewPtr)
+
+    // ========== Media Selection Callback ==========
+
+    @JvmStatic
+    external fun callOnSelection(dataPtr: Long, callPtr: Long, selectionId: Int)
 
     // ========== OnEvent Handler ==========
 
