@@ -63,9 +63,6 @@ private val metadataFocusedRenderer = WuiRenderer { context, node, env, registry
     container.disposeWith {
         container.viewTreeObserver.removeOnGlobalFocusChangeListener(focusChangeListener)
         focusBinding.close()
-        if (metadata.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(metadata.contentPtr)
-        }
     }
 
     container

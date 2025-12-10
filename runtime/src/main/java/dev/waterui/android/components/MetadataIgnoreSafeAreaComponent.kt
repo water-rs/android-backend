@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -31,7 +32,12 @@ private val metadataIgnoreSafeAreaRenderer = WuiRenderer { context, node, env, r
     // Inflate the content
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
-        container.addView(child)
+        // Child should fill the container - use MATCH_PARENT for both dimensions
+        val params = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        container.addView(child, params)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
     }
 

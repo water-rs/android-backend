@@ -91,8 +91,6 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_clone_env)                                                         \
   X(waterui_drop_env)                                                          \
   X(waterui_drop_anyview)                                                      \
-  X(waterui_configure_hot_reload_endpoint)                                     \
-  X(waterui_configure_hot_reload_directory)                                    \
   X(waterui_force_as_button)                                                   \
   X(waterui_force_as_text)                                                     \
   X(waterui_force_as_color)                                                    \
@@ -200,6 +198,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_binding_f32)                                                  \
   X(waterui_new_watcher_f32)                                                   \
   X(waterui_watch_binding_f32)                                                 \
+  X(waterui_read_computed_str)                                                 \
+  X(waterui_watch_computed_str)                                                \
+  X(waterui_drop_computed_str)                                                 \
   X(waterui_read_computed_video)                                               \
   X(waterui_watch_computed_video)                                              \
   X(waterui_drop_computed_video)                                               \
@@ -1665,22 +1666,24 @@ JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropAnyview(
 }
 
 JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_configureHotReloadEndpoint(JNIEnv *env,
-                                                                   jclass,
-                                                                   jstring host,
-                                                                   jint port) {
-  const char *hostChars = env->GetStringUTFChars(host, nullptr);
-  g_sym.waterui_configure_hot_reload_endpoint(hostChars,
-                                              static_cast<uint16_t>(port));
-  env->ReleaseStringUTFChars(host, hostChars);
+Java_dev_waterui_android_ffi_WatcherJni_configureHotReloadEndpoint(
+    JNIEnv *env, jclass, jstring host, jint port) {
+  // TODO: Hot reload not yet implemented for Android FFI
+  (void)env;
+  (void)host;
+  (void)port;
+  __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
+                      "Hot reload endpoint configuration not yet implemented");
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_configureHotReloadDirectory(
     JNIEnv *env, jclass, jstring path) {
-  const char *pathChars = env->GetStringUTFChars(path, nullptr);
-  g_sym.waterui_configure_hot_reload_directory(pathChars);
-  env->ReleaseStringUTFChars(path, pathChars);
+  // TODO: Hot reload not yet implemented for Android FFI
+  (void)env;
+  (void)path;
+  __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
+                      "Hot reload directory configuration not yet implemented");
 }
 
 // ========== Force-As Functions ==========
@@ -2470,9 +2473,11 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsVideoPlayer(JNIEnv *env, jclass,
   auto vp =
       g_sym.waterui_force_as_video_player(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/VideoPlayerStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJIZ)V");
   jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(vp.source),
-                               ptr_to_jlong(vp.volume));
+                               ptr_to_jlong(vp.volume),
+                               static_cast<jint>(vp.aspect_ratio),
+                               static_cast<jboolean>(vp.show_controls));
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -2540,6 +2545,33 @@ Java_dev_waterui_android_ffi_WatcherJni_createFloatWatcher(JNIEnv *env, jclass,
   jobject obj = env->NewObject(cls, ctor, 0L, 0L, 0L);
   env->DeleteLocalRef(cls);
   return obj;
+}
+
+// ========== String Computed Functions ==========
+
+JNIEXPORT jstring JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readComputedStr(JNIEnv *env, jclass,
+                                                        jlong computedPtr) {
+  auto str = g_sym.waterui_read_computed_str(
+      jlong_to_ptr<WuiComputed_Str>(computedPtr));
+  return wui_str_to_jstring(env, str);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchComputedStr(JNIEnv *env, jclass,
+                                                         jlong computedPtr,
+                                                         jobject watcher) {
+  auto *computed = jlong_to_ptr<WuiComputed_Str>(computedPtr);
+  WatcherStructFields fields = watcher_struct_from_java(env, watcher);
+  auto *w = create_watcher<WuiWatcher_Str, WuiStr>(
+      fields, g_sym.waterui_new_watcher_str);
+  return ptr_to_jlong(g_sym.waterui_watch_computed_str(computed, w));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropComputedStr(JNIEnv *, jclass,
+                                                        jlong computedPtr) {
+  g_sym.waterui_drop_computed_str(jlong_to_ptr<WuiComputed_Str>(computedPtr));
 }
 
 // ========== Video Computed Functions ==========
@@ -2783,26 +2815,7 @@ Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceDrop(JNIEnv *, jclass,
 // ============================================================================
 // These types must match the Rust definitions in waterui_media::media_picker
 
-/**
- * Result of loading media from the platform.
- * For Live Photos / Motion Photos, both url_ptr (image) and video_url_ptr (video)
- * are populated. For regular images/videos, only url_ptr is used.
- */
-struct MediaLoadResult {
-  const uint8_t *url_ptr;
-  size_t url_len;
-  const uint8_t *video_url_ptr;
-  size_t video_url_len;
-  uint8_t media_type;
-};
-
-/**
- * Callback for receiving loaded media from native code.
- */
-struct MediaLoadCallback {
-  void *data;
-  void (*call)(void *, MediaLoadResult);
-};
+// MediaLoadResult and MediaLoadCallback are defined in waterui.h
 
 // Cache for MediaLoader class and method
 static jclass gMediaLoaderClass = nullptr;
