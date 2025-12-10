@@ -5,7 +5,7 @@ import dev.waterui.android.runtime.*
 
 /**
  * JNI interface for all WaterUI FFI functions.
- * 
+ *
  * This object provides access to the Rust WaterUI library via JNI.
  * The native library is loaded via dlopen/dlsym to support dynamic loading.
  */
@@ -20,7 +20,7 @@ object WatcherJni {
     private external fun nativeInit()
 
     // ========== Core Functions ==========
-    
+
     @JvmStatic external fun init(): Long
     @JvmStatic external fun main(): Long
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
@@ -33,7 +33,7 @@ object WatcherJni {
     @JvmStatic external fun configureHotReloadDirectory(path: String)
 
     // ========== Force-As Functions ==========
-    
+
     @JvmStatic external fun forceAsPlain(viewPtr: Long): PlainStruct
     @JvmStatic external fun forceAsText(viewPtr: Long): Long
     @JvmStatic external fun forceAsButton(viewPtr: Long): ButtonStruct
@@ -65,7 +65,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMediaPicker(viewPtr: Long): MediaPickerStruct
 
     // ========== Drop Functions ==========
-    
+
     @JvmStatic external fun dropLayout(layoutPtr: Long)
     @JvmStatic external fun dropAction(actionPtr: Long)
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
@@ -78,14 +78,14 @@ object WatcherJni {
     @JvmStatic external fun getAnimation(metadataPtr: Long): Int
 
     // ========== AnyViews Functions ==========
-    
+
     @JvmStatic external fun anyViewsLen(handle: Long): Int
     @JvmStatic external fun anyViewsGetView(handle: Long, index: Int): Long
     @JvmStatic external fun anyViewsGetId(handle: Long, index: Int): Int
     @JvmStatic external fun dropAnyViews(handle: Long)
 
     // ========== Binding Read/Write/Drop ==========
-    
+
     @JvmStatic external fun readBindingBool(bindingPtr: Long): Boolean
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
@@ -104,7 +104,7 @@ object WatcherJni {
     @JvmStatic external fun dropBindingFloat(bindingPtr: Long)
 
     // ========== Computed Read/Drop ==========
-    
+
     @JvmStatic external fun readComputedF64(computedPtr: Long): Double
     @JvmStatic external fun readComputedI32(computedPtr: Long): Int
     @JvmStatic external fun readComputedResolvedColor(computedPtr: Long): ResolvedColorStruct
@@ -123,7 +123,7 @@ object WatcherJni {
     @JvmStatic external fun dropComputedColorScheme(computedPtr: Long)
 
     // ========== Watcher Creation ==========
-    
+
     @JvmStatic external fun createBoolWatcher(callback: WatcherCallback<Boolean>): WatcherStruct
     @JvmStatic external fun createIntWatcher(callback: WatcherCallback<Int>): WatcherStruct
     @JvmStatic external fun createDoubleWatcher(callback: WatcherCallback<Double>): WatcherStruct
@@ -137,7 +137,7 @@ object WatcherJni {
     @JvmStatic external fun createPickerItemsWatcher(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct
 
     // ========== Watch Binding ==========
-    
+
     @JvmStatic external fun watchBindingBool(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingInt(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDouble(bindingPtr: Long, watcher: WatcherStruct): Long
@@ -145,7 +145,7 @@ object WatcherJni {
     @JvmStatic external fun watchBindingFloat(bindingPtr: Long, watcher: WatcherStruct): Long
 
     // ========== Watch Computed ==========
-    
+
     @JvmStatic external fun watchComputedF64(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedI32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedStyledStr(computedPtr: Long, watcher: WatcherStruct): Long
@@ -153,16 +153,19 @@ object WatcherJni {
     @JvmStatic external fun watchComputedResolvedFont(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedPickerItems(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedColorScheme(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun readComputedStr(computedPtr: Long): String
+    @JvmStatic external fun watchComputedStr(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun dropComputedStr(computedPtr: Long)
     @JvmStatic external fun readComputedVideo(computedPtr: Long): VideoStruct
     @JvmStatic external fun watchComputedVideo(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun dropComputedVideo(computedPtr: Long)
 
     // ========== Dynamic Connect ==========
-    
+
     @JvmStatic external fun dynamicConnect(dynamicPtr: Long, watcher: WatcherStruct)
 
     // ========== Reactive State Creation ==========
-    
+
     @JvmStatic external fun createReactiveColorState(argb: Int): Long
     @JvmStatic external fun reactiveColorStateToComputed(statePtr: Long): Long
     @JvmStatic external fun reactiveColorStateSet(statePtr: Long, argb: Int)
@@ -171,7 +174,7 @@ object WatcherJni {
     @JvmStatic external fun reactiveFontStateSet(statePtr: Long, size: Float, weight: Int)
 
     // ========== Theme Functions ==========
-    
+
     @JvmStatic external fun themeColorBackground(envPtr: Long): Long
     @JvmStatic external fun themeColorSurface(envPtr: Long): Long
     @JvmStatic external fun themeColorSurfaceVariant(envPtr: Long): Long

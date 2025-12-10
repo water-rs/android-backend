@@ -11,6 +11,7 @@ target_include_directories(
 )
 
 find_library(LOG_LIB log)
+find_library(ANDROID_LIB android)
 
 target_link_options(
     waterui_android
@@ -23,6 +24,7 @@ target_link_libraries(
     waterui_android
     PRIVATE
     ${LOG_LIB}
+    ${ANDROID_LIB}
 )
 
 # Note: SWIG integration is available but disabled for now.

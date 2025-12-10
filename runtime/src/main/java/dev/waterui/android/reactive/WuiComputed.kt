@@ -54,7 +54,7 @@ class WuiComputed<T>(
             // IMPORTANT: Extract animation IMMEDIATELY before posting, because the metadata
             // pointer may become invalid after this callback returns to Rust
             val animation = metadata.animation
-            
+
             // Post to main thread using Handler - this queues the message and returns immediately
             // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
             mainHandler.post {
@@ -171,6 +171,16 @@ class WuiComputed<T>(
                 watcherFactory = { _, callback -> WatcherStructFactory.resolvedFont(callback) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedFont(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedResolvedFont(p) },
+                env = env
+            )
+
+        fun string(ptr: Long, env: WuiEnvironment): WuiComputed<String> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedStr(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.string(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedStr(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedStr(p) },
                 env = env
             )
 
