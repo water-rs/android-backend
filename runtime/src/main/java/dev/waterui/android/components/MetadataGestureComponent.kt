@@ -140,9 +140,6 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
 
     // Cleanup
     container.disposeWith {
-        if (gestureData.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(gestureData.contentPtr)
-        }
         NativeBindings.waterui_drop_action(gestureData.actionPtr)
     }
 

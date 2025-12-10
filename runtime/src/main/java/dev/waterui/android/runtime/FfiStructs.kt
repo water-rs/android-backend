@@ -2,7 +2,7 @@ package dev.waterui.android.runtime
 
 /**
  * Data classes that mirror native FFI structs.
- * 
+ *
  * These are used for marshalling data between Kotlin and native code.
  */
 
@@ -129,7 +129,7 @@ data class SafeAreaEdgesStruct(val bits: Int) {
         val VERTICAL = SafeAreaEdgesStruct(TOP.bits or BOTTOM.bits)
         val ALL = SafeAreaEdgesStruct(HORIZONTAL.bits or VERTICAL.bits)
     }
-    
+
     operator fun plus(other: SafeAreaEdgesStruct) = SafeAreaEdgesStruct(bits or other.bits)
     fun contains(other: SafeAreaEdgesStruct) = (bits and other.bits) == other.bits
 }
@@ -413,10 +413,17 @@ data class VideoStruct2(
 
 /**
  * VideoPlayer component data - video with native controls.
- * - videoPtr: Computed<Video> pointer
+ * - sourcePtr: Computed<Str> pointer for reactive URL (note: NOT Computed<Video>)
  * - volumePtr: Binding<Volume> pointer (f32)
+ * - aspectRatio: 0=Fit, 1=Fill, 2=Stretch
+ * - showControls: Whether to show native playback controls
  */
-data class VideoPlayerStruct(val videoPtr: Long, val volumePtr: Long)
+data class VideoPlayerStruct(
+    val sourcePtr: Long,
+    val volumePtr: Long,
+    val aspectRatio: Int,
+    val showControls: Boolean
+)
 
 /**
  * GpuSurface component data.
@@ -553,4 +560,3 @@ data class TabsStruct(
     }
     override fun hashCode(): Int = 31 * (31 * selectionPtr.hashCode() + tabs.contentHashCode()) + position
 }
-

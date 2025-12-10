@@ -66,9 +66,6 @@ private val metadataBackgroundRenderer = WuiRenderer { context, node, env, regis
     // Cleanup
     container.disposeWith {
         colorComputed?.close()
-        if (metadata.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(metadata.contentPtr)
-        }
     }
 
     container

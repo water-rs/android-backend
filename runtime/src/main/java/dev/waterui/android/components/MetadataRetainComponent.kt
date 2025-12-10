@@ -37,9 +37,6 @@ private val metadataRetainRenderer = WuiRenderer { context, node, env, registry 
         if (metadata.retainPtr != 0L) {
             NativeBindings.waterui_drop_retain(metadata.retainPtr)
         }
-        if (metadata.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(metadata.contentPtr)
-        }
     }
 
     container

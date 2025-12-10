@@ -43,10 +43,6 @@ private val metadataEnvRenderer = WuiRenderer { context, node, _, registry ->
 
     // Cleanup when the container is detached
     container.disposeWith {
-        // Drop the content view pointer
-        if (metadata.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(metadata.contentPtr)
-        }
         // Close the environment (this drops the env pointer)
         newEnv.close()
     }
