@@ -9,8 +9,10 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.ViewGroup
+import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.MediaController
+import dev.waterui.android.layout.PassThroughFrameLayout
 
 /**
  * Aspect ratio modes matching WuiAspectRatio enum.
@@ -83,18 +85,19 @@ class WuiVideoTextureView(
 
         // Set up media controller if controls are enabled
         if (showControls) {
+            // Create MediaController and set anchor view to this FrameLayout
             mediaController = MediaController(context).apply {
                 setAnchorView(this@WuiVideoTextureView)
             }
 
-            // Handle touch to show/hide controls
-            setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_DOWN) {
+            // Handle touch on the texture view area to toggle controls
+            // Mark as wanting touches for iOS-like hit-testing
+            textureView.setTag(PassThroughFrameLayout.TAG_WANTS_TOUCHES, true)
+            textureView.setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_UP) {
                     toggleMediaController()
-                    true
-                } else {
-                    false
                 }
+                true
             }
         }
     }
@@ -144,7 +147,10 @@ class WuiVideoTextureView(
 
     private fun startPlayback(url: String, surface: Surface) {
         try {
+            // Hide and detach media controller before releasing player
+            mediaController?.hide()
             releasePlayer()
+
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(context, Uri.parse(url))
                 setSurface(surface)
@@ -159,20 +165,35 @@ class WuiVideoTextureView(
                     updateVideoTransform()
                 }
                 setOnPreparedListener { mp ->
-                    // Attach media controller to player
+                    // Attach media controller to player with safe wrapper
+                    // All methods check if the player is still current and catch exceptions
                     mediaController?.let { mc ->
                         mc.setMediaPlayer(object : MediaController.MediaPlayerControl {
-                            override fun start() = mp.start()
-                            override fun pause() = mp.pause()
-                            override fun getDuration() = mp.duration
-                            override fun getCurrentPosition() = mp.currentPosition
-                            override fun seekTo(pos: Int) = mp.seekTo(pos)
-                            override fun isPlaying() = mp.isPlaying
+                            override fun start() {
+                                try { if (mediaPlayer === mp) mp.start() } catch (_: Exception) {}
+                            }
+                            override fun pause() {
+                                try { if (mediaPlayer === mp) mp.pause() } catch (_: Exception) {}
+                            }
+                            override fun getDuration(): Int {
+                                return try { if (mediaPlayer === mp) mp.duration else 0 } catch (_: Exception) { 0 }
+                            }
+                            override fun getCurrentPosition(): Int {
+                                return try { if (mediaPlayer === mp) mp.currentPosition else 0 } catch (_: Exception) { 0 }
+                            }
+                            override fun seekTo(pos: Int) {
+                                try { if (mediaPlayer === mp) mp.seekTo(pos) } catch (_: Exception) {}
+                            }
+                            override fun isPlaying(): Boolean {
+                                return try { mediaPlayer === mp && mp.isPlaying } catch (_: Exception) { false }
+                            }
                             override fun getBufferPercentage() = 0
                             override fun canPause() = true
                             override fun canSeekBackward() = true
                             override fun canSeekForward() = true
-                            override fun getAudioSessionId() = mp.audioSessionId
+                            override fun getAudioSessionId(): Int {
+                                return try { if (mediaPlayer === mp) mp.audioSessionId else 0 } catch (_: Exception) { 0 }
+                            }
                         })
                         // Show controls briefly when video starts
                         mc.show(3000)

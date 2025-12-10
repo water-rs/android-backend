@@ -1,7 +1,7 @@
 package dev.waterui.android.components
 
 import android.view.View
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.EventType
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -25,7 +25,7 @@ private val metadataOnEventTypeId: WuiTypeId by lazy {
 private val metadataOnEventRenderer = WuiRenderer { context, node, env, registry ->
     val onEventData = NativeBindings.waterui_force_as_metadata_on_event(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
     val envPtr = env.raw()
     var hasCalledHandler = false
     var handlerPtr: Long? = onEventData.handlerPtr
