@@ -1,6 +1,6 @@
 package dev.waterui.android.components
 
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WatcherStructFactory
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -14,7 +14,7 @@ private val dynamicTypeId: WuiTypeId by lazy { NativeBindings.waterui_dynamic_id
 
 private val dynamicRenderer = WuiRenderer { context, node, env, registry ->
     val dynamic = NativeBindings.waterui_force_as_dynamic(node.rawPtr)
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
 
     val watcher = WatcherStructFactory.anyView { pointer, _ ->
         container.post {

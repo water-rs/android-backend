@@ -2,8 +2,10 @@ package dev.waterui.android.layout
 
 import android.content.Context
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Space
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
@@ -132,6 +134,77 @@ class RustLayoutViewGroup @JvmOverloads constructor(
             val childBottom = childTop + allocatedHeight
             child.layout(childLeft, childTop, childRight, childBottom)
         }
+    }
+
+    /**
+     * WaterUI iOS-like hit-testing for ZStack behavior.
+     *
+     * Performs hit-testing to find the deepest interactive view at a touch point,
+     * checking children from top to bottom (last to first in child order).
+     * If no interactive view is found in any child, the touch passes through.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.action == MotionEvent.ACTION_DOWN) {
+            android.util.Log.d("WaterUI", "Touch.RustLayoutViewGroup: childCount=$childCount, point=(${ev.x.toInt()}, ${ev.y.toInt()})")
+        }
+
+        // iOS-like hit-testing: find the child containing an interactive view
+        for (i in childCount - 1 downTo 0) {
+            val child = getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
+
+            // Check if point is within child bounds
+            if (!isPointInView(child, ev.x, ev.y)) {
+                if (ev.action == MotionEvent.ACTION_DOWN) {
+                    android.util.Log.d("WaterUI", "  [$i] ${child.javaClass.simpleName}: not in bounds")
+                }
+                continue
+            }
+
+            // Transform to child coordinates
+            val childX = ev.x - child.left
+            val childY = ev.y - child.top
+
+            // Check if this child has an interactive view at this point
+            val interactiveView = PassThroughFrameLayout.findInteractiveViewIn(child, childX, childY)
+
+            if (ev.action == MotionEvent.ACTION_DOWN) {
+                android.util.Log.d("WaterUI.Touch", "  [$i] ${child.javaClass.simpleName}: interactive=${interactiveView?.javaClass?.simpleName ?: "null"}")
+            }
+
+            if (interactiveView != null) {
+                // This child has an interactive target - dispatch to it
+                val childEvent = MotionEvent.obtain(ev)
+                childEvent.offsetLocation(-child.left.toFloat(), -child.top.toFloat())
+                val handled = child.dispatchTouchEvent(childEvent)
+                childEvent.recycle()
+
+                if (ev.action == MotionEvent.ACTION_DOWN) {
+                    android.util.Log.d("WaterUI.Touch", "  [$i] dispatched, handled=$handled")
+                }
+
+                if (handled) return true
+            }
+            // No interactive view in this child, continue to next child (pass-through)
+        }
+
+        // No interactive view found in any child
+        if (ev.action == MotionEvent.ACTION_DOWN) {
+            android.util.Log.d("WaterUI.Touch", "  No interactive view found")
+        }
+        return false
+    }
+
+    private fun isPointInView(view: View, x: Float, y: Float): Boolean {
+        return x >= view.left && x < view.right && y >= view.top && y < view.bottom
+    }
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        return false
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        return false
     }
 }
 

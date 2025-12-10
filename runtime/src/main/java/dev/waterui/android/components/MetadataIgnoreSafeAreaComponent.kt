@@ -1,10 +1,10 @@
 package dev.waterui.android.components
 
-import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
@@ -27,7 +27,7 @@ private val metadataIgnoreSafeAreaTypeId: WuiTypeId by lazy {
 private val metadataIgnoreSafeAreaRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_ignore_safe_area(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
 
     // Inflate the content
     if (metadata.contentPtr != 0L) {

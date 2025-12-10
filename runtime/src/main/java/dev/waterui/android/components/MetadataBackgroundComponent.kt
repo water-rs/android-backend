@@ -2,7 +2,7 @@ package dev.waterui.android.components
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.BackgroundType
 import dev.waterui.android.runtime.NativeBindings
@@ -28,7 +28,7 @@ private val metadataBackgroundTypeId: WuiTypeId by lazy {
 private val metadataBackgroundRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_background(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
     var colorComputed: WuiComputed<ResolvedColorStruct>? = null
 
     // Inflate the content
@@ -71,7 +71,7 @@ private val metadataBackgroundRenderer = WuiRenderer { context, node, env, regis
     container
 }
 
-private fun applyBackgroundColor(container: FrameLayout, color: ResolvedColorStruct) {
+private fun applyBackgroundColor(container: PassThroughFrameLayout, color: ResolvedColorStruct) {
     val argb = Color.argb(
         (color.opacity * 255).toInt(),
         (color.red * 255).toInt(),

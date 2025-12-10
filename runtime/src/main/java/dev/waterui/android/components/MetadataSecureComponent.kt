@@ -2,7 +2,7 @@ package dev.waterui.android.components
 
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
@@ -29,7 +29,7 @@ private val metadataSecureTypeId: WuiTypeId by lazy {
 private val metadataSecureRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_secure(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
 
     // Inflate the content
     if (metadata.contentPtr != 0L) {

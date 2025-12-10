@@ -1,6 +1,6 @@
 package dev.waterui.android.components
 
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
@@ -31,7 +31,7 @@ private val metadataEnvRenderer = WuiRenderer { context, node, _, registry ->
     val newEnv = WuiEnvironment(metadata.envPtr)
 
     // Container view
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
 
     // Inflate the content with the new environment
     if (metadata.contentPtr != 0L) {

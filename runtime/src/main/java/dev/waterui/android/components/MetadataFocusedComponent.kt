@@ -2,7 +2,7 @@ package dev.waterui.android.components
 
 import android.view.View
 import android.view.ViewTreeObserver
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -26,7 +26,7 @@ private val metadataFocusedTypeId: WuiTypeId by lazy {
 private val metadataFocusedRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_focused(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
 
     // Inflate the content
     if (metadata.contentPtr != 0L) {

@@ -1,6 +1,6 @@
 package dev.waterui.android.components
 
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
@@ -23,7 +23,7 @@ private val metadataRetainTypeId: WuiTypeId by lazy {
 private val metadataRetainRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_retain(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context)
 
     // Inflate the content
     if (metadata.contentPtr != 0L) {
