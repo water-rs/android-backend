@@ -4,6 +4,17 @@ project(waterui_android)
 # Build the JNI library
 add_library(waterui_android SHARED waterui_jni.cpp)
 
+# Optimize for size: disable exceptions, RTTI, and use -Os
+target_compile_options(
+    waterui_android
+    PRIVATE
+    -fno-exceptions
+    -fno-rtti
+    -Os
+    -ffunction-sections
+    -fdata-sections
+)
+
 target_include_directories(
     waterui_android
     PRIVATE
@@ -18,6 +29,8 @@ target_link_options(
     PRIVATE
     "-Wl,--allow-shlib-undefined"
     "-Wl,--unresolved-symbols=ignore-all"
+    "-Wl,--gc-sections"
+    "-Wl,--strip-all"
 )
 
 target_link_libraries(
