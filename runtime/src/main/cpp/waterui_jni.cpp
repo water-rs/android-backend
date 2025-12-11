@@ -216,7 +216,11 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_gpu_surface)                                              \
   X(waterui_gpu_surface_init)                                                  \
   X(waterui_gpu_surface_render)                                                \
-  X(waterui_gpu_surface_drop)
+  X(waterui_gpu_surface_drop)                                                  \
+  X(waterui_list_id)                                                           \
+  X(waterui_list_item_id)                                                      \
+  X(waterui_force_as_list)                                                     \
+  X(waterui_force_as_list_item)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -2804,6 +2808,42 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceDrop(JNIEnv *, jclass,
                                                         jlong statePtr) {
   g_sym.waterui_gpu_surface_drop(jlong_to_ptr<WuiGpuSurfaceState>(statePtr));
+}
+
+// ========== List Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_listId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_list_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_listItemId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_list_item_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsList(JNIEnv *env, jclass,
+                                                     jlong viewPtr) {
+  WuiList list = g_sym.waterui_force_as_list(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/ListStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(list.contents));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsListItem(JNIEnv *env, jclass,
+                                                         jlong viewPtr) {
+  WuiListItem item = g_sym.waterui_force_as_list_item(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/ListItemStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(J)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(item.content));
+  env->DeleteLocalRef(cls);
+  return obj;
 }
 
 // ============================================================================

@@ -560,3 +560,17 @@ data class TabsStruct(
     }
     override fun hashCode(): Int = 31 * (31 * selectionPtr.hashCode() + tabs.contentHashCode()) + position
 }
+
+// ========== List Structs ==========
+
+/**
+ * List component data.
+ * - contentsPtr: WuiAnyViews pointer containing ListItem views
+ */
+data class ListStruct(val contentsPtr: Long)
+
+/**
+ * ListItem component data.
+ * - contentPtr: AnyView pointer for item content
+ */
+data class ListItemStruct(val contentPtr: Long)
