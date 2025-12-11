@@ -242,6 +242,16 @@ object WatcherJni {
     @JvmStatic external fun navigationViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun tabsId(): dev.waterui.android.runtime.TypeIdStruct
 
+    // ========== List Type IDs ==========
+
+    @JvmStatic external fun listId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun listItemId(): dev.waterui.android.runtime.TypeIdStruct
+
+    // ========== List Force-As Functions ==========
+
+    @JvmStatic external fun forceAsList(viewPtr: Long): dev.waterui.android.runtime.ListStruct
+    @JvmStatic external fun forceAsListItem(viewPtr: Long): dev.waterui.android.runtime.ListItemStruct
+
     // ========== Navigation Force-As Functions ==========
 
     @JvmStatic external fun forceAsNavigationStack(viewPtr: Long): NavigationStackStruct
