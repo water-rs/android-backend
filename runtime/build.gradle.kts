@@ -28,6 +28,8 @@ android {
         minSdk = 24
         targetSdk = 35
         consumerProguardFiles("consumer-rules.pro")
+
+
     }
 
     buildFeatures {
