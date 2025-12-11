@@ -21,12 +21,12 @@ val javacppParser: Configuration by configurations.creating {
 
 android {
     namespace = "dev.waterui.android.runtime"
-    compileSdk = 34
+    compileSdk = 35
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         consumerProguardFiles("consumer-rules.pro")
     }
 
@@ -71,12 +71,20 @@ kotlin {
     jvmToolchain(21)
 }
 
+// Media3 ExoPlayer version
+val media3Version = "1.5.0"
+
 dependencies {
-    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // Media3 ExoPlayer for video playback
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-ui:$media3Version")
+    implementation("androidx.media3:media3-common:$media3Version")
 
     // JavaCPP for native bindings
     implementation("org.bytedeco:javacpp:$javacppVersion")
@@ -96,13 +104,13 @@ val javacppClassesDir = layout.buildDirectory.dir("javacpp/classes")
 tasks.register<JavaCompile>("compileJavaCPPConfig") {
     group = "build"
     description = "Compiles the JavaCPP configuration class"
-    
+
     source = fileTree("src/main/java/dev/waterui/android/ffi") {
         include("WaterUIConfig.java")
     }
     classpath = javacppParser
     destinationDirectory.set(javacppClassesDir)
-    
+
     sourceCompatibility = "21"
     targetCompatibility = "21"
 }
@@ -112,18 +120,18 @@ tasks.register<JavaExec>("generateJavaCPP") {
     group = "build"
     description = "Generates Java bindings from waterui.h using JavaCPP"
     dependsOn("compileJavaCPPConfig")
-    
+
     // Input: WaterUIConfig.java and waterui.h
     inputs.file("src/main/java/dev/waterui/android/ffi/WaterUIConfig.java")
     inputs.file("src/main/cpp/waterui.h")
-    
+
     // Output: generated Java files
     outputs.dir(javacppOutputDir)
-    
+
     // Use JavaCPP Builder which handles parsing
     mainClass.set("org.bytedeco.javacpp.tools.Builder")
     classpath = javacppParser + files(javacppClassesDir)
-    
+
     // Builder arguments: parse the config class and output Java files
     args = listOf(
         "-classpath", (javacppParser + files(javacppClassesDir)).asPath,
@@ -132,7 +140,7 @@ tasks.register<JavaExec>("generateJavaCPP") {
         "-nodelete",   // Keep generated files
         javacppConfigClass
     )
-    
+
     doFirst {
         javacppOutputDir.get().asFile.mkdirs()
     }
