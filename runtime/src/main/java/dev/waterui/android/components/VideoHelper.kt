@@ -100,13 +100,20 @@ class WuiVideoTextureView(
      * Release all resources. Call this when the view is no longer needed.
      */
     fun release() {
-        exoPlayer?.release()
+        exoPlayer?.let { player ->
+            // Stop playback immediately to prevent audio from continuing
+            player.stop()
+            player.clearMediaItems()
+            player.release()
+        }
         exoPlayer = null
         player = null
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        // Immediately pause to stop audio before full cleanup
+        exoPlayer?.pause()
         release()
     }
 
