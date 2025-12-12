@@ -8,10 +8,9 @@ import android.view.ViewGroup
 import dev.waterui.android.runtime.GpuSurfaceStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
-import dev.waterui.android.runtime.StretchAxis
-import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.dp
 
 private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_surface_id().toTypeId() }
 
@@ -59,9 +58,6 @@ private class GpuSurfaceView(
     private var surfaceHeight: Int = 0
 
     init {
-        // Set stretch axis - GpuSurface fills all available space by default
-        setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
-
         // Set layout params to fill parent
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -139,14 +135,16 @@ private class GpuSurfaceView(
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
         val heightSize = MeasureSpec.getSize(heightMeasureSpec)
 
+        val defaultSizePx = DEFAULT_SIZE_DP.dp(context).toInt()
+
         val measuredWidth = when (widthMode) {
             MeasureSpec.EXACTLY, MeasureSpec.AT_MOST -> widthSize
-            else -> DEFAULT_SIZE
+            else -> defaultSizePx
         }
 
         val measuredHeight = when (heightMode) {
             MeasureSpec.EXACTLY, MeasureSpec.AT_MOST -> heightSize
-            else -> DEFAULT_SIZE
+            else -> defaultSizePx
         }
 
         setMeasuredDimension(measuredWidth, measuredHeight)
@@ -159,7 +157,7 @@ private class GpuSurfaceView(
     }
 
     companion object {
-        private const val DEFAULT_SIZE = 100
+        private const val DEFAULT_SIZE_DP = 100f
     }
 }
 

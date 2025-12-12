@@ -8,6 +8,7 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
 import com.google.android.material.shape.MaterialShapeDrawable
+import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -37,22 +38,9 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val binding = WuiBinding.str(struct.valuePtr, env)
     val promptComputed = struct.promptPtr.takeIf { it != 0L }?.let { WuiComputed.styledString(it, env) }
 
-    // TextField is axis-expanding: expands width to fill available space
-    val container = object : LinearLayout(context) {
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            // Expand to fill available width (axis-expanding behavior)
-            val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-            val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-            val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
-                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
-            } else {
-                widthMeasureSpec
-            }
-            super.onMeasure(expandedWidthSpec, heightMeasureSpec)
-        }
-    }.apply {
-        orientation = LinearLayout.VERTICAL
-    }
+    // TextField is StretchAxis::Horizontal (Rust-defined):
+    // report a minimum usable width in size_that_fits, then expand during place.
+    val container = AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)

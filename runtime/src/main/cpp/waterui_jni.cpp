@@ -191,8 +191,6 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_video)                                                    \
   X(waterui_video_player_id)                                                   \
   X(waterui_force_as_video_player)                                             \
-  X(waterui_media_picker_id)                                                   \
-  X(waterui_force_as_media_picker)                                             \
   X(waterui_read_binding_f32)                                                  \
   X(waterui_set_binding_f32)                                                   \
   X(waterui_drop_binding_f32)                                                  \
@@ -221,7 +219,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_list_item_id)                                                      \
   X(waterui_force_as_list)                                                     \
   X(waterui_force_as_list_item)                                                \
-  X(waterui_env_install_media_loader)
+  X(waterui_env_install_media_picker_manager)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -993,6 +991,10 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
 
 extern "C" {
 
+// Rust -> Android callbacks for MediaPickerManager
+void waterui_present_media_picker(WuiMediaFilterType filter, MediaPickerPresentCallback callback);
+void waterui_load_media(uint32_t id, MediaLoadCallback callback);
+
 // Bootstrap - loads symbols from libwaterui_app.so
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_nativeInit(JNIEnv *env, jclass) {
@@ -1648,10 +1650,10 @@ JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_main(JNIEnv *,
 }
 
 JNIEXPORT void JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_envInstallMediaLoader(JNIEnv *, jclass,
-                                                              jlong envPtr) {
+Java_dev_waterui_android_ffi_WatcherJni_envInstallMediaPickerManager(JNIEnv *, jclass,
+                                                                     jlong envPtr) {
   auto *env = jlong_to_ptr<WuiEnv>(envPtr);
-  g_sym.waterui_env_install_media_loader(env, waterui_load_media);
+  g_sym.waterui_env_install_media_picker_manager(env, waterui_present_media_picker, waterui_load_media);
 }
 
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewBody(
@@ -2497,26 +2499,7 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsVideoPlayer(JNIEnv *env, jclass,
 
 // ========== MediaPicker Functions ==========
 
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_mediaPickerId(JNIEnv *env, jclass) {
-  auto id = g_sym.waterui_media_picker_id();
-  return new_type_id_struct(env, id);
-}
-
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsMediaPicker(JNIEnv *env, jclass,
-                                                            jlong viewPtr) {
-  auto mp = g_sym.waterui_force_as_media_picker(jlong_to_ptr<WuiAnyView>(viewPtr));
-  jclass cls = env->FindClass("dev/waterui/android/runtime/MediaPickerStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(IJJ)V");
-  jobject obj = env->NewObject(
-      cls, ctor,
-      static_cast<jint>(mp.filter),
-      reinterpret_cast<jlong>(mp.on_selection.data),
-      reinterpret_cast<jlong>(mp.on_selection.call));
-  env->DeleteLocalRef(cls);
-  return obj;
-}
+// MediaPicker removed - now uses Button wrapper in Rust (no longer a native component)
 
 // ========== Float Binding Functions ==========
 
@@ -2904,6 +2887,78 @@ static bool initMediaLoaderJni(JNIEnv *env) {
  * C function called by Rust when Selected::load() is invoked.
  * This is the implementation of the extern "C" fn waterui_load_media.
  */
+// MediaPickerManager JNI globals
+static jclass gMediaPickerManagerClass = nullptr;
+static jmethodID gMediaPickerPresentMethod = nullptr;
+
+static bool initMediaPickerManagerJni(JNIEnv *env) {
+  if (gMediaPickerManagerClass != nullptr) {
+    return true; // Already initialized
+  }
+
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MediaPickerManager");
+  if (cls == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find MediaPickerManager class");
+    return false;
+  }
+  gMediaPickerManagerClass = reinterpret_cast<jclass>(env->NewGlobalRef(cls));
+  env->DeleteLocalRef(cls);
+
+  gMediaPickerPresentMethod = env->GetStaticMethodID(
+      gMediaPickerManagerClass, "presentPicker", "(IJJ)V");
+  if (gMediaPickerPresentMethod == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find MediaPickerManager.presentPicker method");
+    return false;
+  }
+
+  return true;
+}
+
+// Present media picker - calls into Kotlin MediaPickerManager
+void waterui_present_media_picker(WuiMediaFilterType filter, MediaPickerPresentCallback callback) {
+  ScopedEnv scoped;
+  JNIEnv *env = scoped.env;
+  if (env == nullptr) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "waterui_present_media_picker: failed to get JNIEnv");
+    std::abort();
+  }
+
+  if (!initMediaPickerManagerJni(env)) {
+    __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
+                        "waterui_present_media_picker: failed to init MediaPickerManager JNI");
+    std::abort();
+  }
+
+  // Call MediaPickerManager.presentPicker(filter, callbackData, callFnPtr)
+  env->CallStaticVoidMethod(
+      gMediaPickerManagerClass, gMediaPickerPresentMethod,
+      static_cast<jint>(filter),
+      reinterpret_cast<jlong>(callback.data),
+      reinterpret_cast<jlong>(callback.call));
+}
+
+/**
+ * JNI function called by MediaPickerManager.kt when user selects media.
+ * Invokes the Rust callback with the selected media ID.
+ */
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_runtime_MediaPickerManager_nativeCompletePresentCallback(
+    JNIEnv *, jclass, jlong callbackData, jlong callbackFn, jint selectedId) {
+  // Get the callback function pointer
+  auto callFn = reinterpret_cast<void (*)(void *, WuiSelected)>(callbackFn);
+  void *data = reinterpret_cast<void *>(callbackData);
+
+  // Create WuiSelected struct
+  WuiSelected selected;
+  selected.id = static_cast<uint32_t>(selectedId);
+
+  // Call the Rust callback
+  callFn(data, selected);
+}
+
 void waterui_load_media(uint32_t id, MediaLoadCallback callback) {
   ScopedEnv scoped;
   JNIEnv *env = scoped.env;

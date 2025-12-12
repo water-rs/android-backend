@@ -5,25 +5,19 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.view.ViewGroup
-import android.widget.Button
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.material.button.MaterialButton
 import dev.waterui.android.runtime.MediaFilterType
 import dev.waterui.android.runtime.MediaLoader
 import dev.waterui.android.runtime.MediaPickerStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
-import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 
 private val mediaPickerTypeId: WuiTypeId by lazy { NativeBindings.waterui_media_picker_id().toTypeId() }
-
-/**
- * Tag key for stretch axis.
- */
-private const val TAG_STRETCH_AXIS = 0x7f0f0001
 
 /**
  * Stores the onSelection callback for the current picker session.
@@ -45,8 +39,8 @@ private val mediaPickerRenderer = WuiRenderer { context, node, env, registry ->
     // Initialize MediaLoader with context
     MediaLoader.init(context)
 
-    // Create a button to launch the picker
-    val button = Button(context).apply {
+    // Create a Material 3 button to launch the picker
+    val button = MaterialButton(context).apply {
         text = when (filterType) {
             MediaFilterType.IMAGE -> "Select Image"
             MediaFilterType.VIDEO -> "Select Video"
@@ -57,7 +51,6 @@ private val mediaPickerRenderer = WuiRenderer { context, node, env, registry ->
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
-        setTag(TAG_STRETCH_AXIS, StretchAxis.NONE)
     }
 
     // Find the activity to register the picker launcher

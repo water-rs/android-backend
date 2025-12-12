@@ -5,9 +5,9 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
-import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,6 +28,7 @@ private val photoRenderer = WuiRenderer { context, node, env, registry ->
 
     val imageView = object : ImageView(context) {
         private var loadJob: Job? = null
+        private val defaultSizePx: Int = 200f.dp(context).toInt()
 
         init {
             scaleType = ScaleType.FIT_CENTER
@@ -35,7 +36,6 @@ private val photoRenderer = WuiRenderer { context, node, env, registry ->
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
 
             // Start loading the image
             loadImage(struct.source)
@@ -77,27 +77,22 @@ private val photoRenderer = WuiRenderer { context, node, env, registry ->
             val heightMode = MeasureSpec.getMode(heightMeasureSpec)
             val heightSize = MeasureSpec.getSize(heightMeasureSpec)
 
-            val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
-                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
-            } else {
-                MeasureSpec.makeMeasureSpec(200, MeasureSpec.EXACTLY) // Default width
+            val measuredWidth = when (widthMode) {
+                MeasureSpec.EXACTLY, MeasureSpec.AT_MOST -> widthSize
+                else -> defaultSizePx
             }
 
-            val expandedHeightSpec = if (heightMode == MeasureSpec.AT_MOST || heightMode == MeasureSpec.EXACTLY) {
-                MeasureSpec.makeMeasureSpec(heightSize, MeasureSpec.EXACTLY)
-            } else {
-                MeasureSpec.makeMeasureSpec(200, MeasureSpec.EXACTLY) // Default height
+            val measuredHeight = when (heightMode) {
+                MeasureSpec.EXACTLY, MeasureSpec.AT_MOST -> heightSize
+                else -> defaultSizePx
             }
 
-            super.onMeasure(expandedWidthSpec, expandedHeightSpec)
+            setMeasuredDimension(measuredWidth, measuredHeight)
         }
     }
 
     imageView
 }
-
-// Tag for stretch axis
-private const val TAG_STRETCH_AXIS = 0x7f0f0001
 
 internal fun RegistryBuilder.registerWuiPhoto() {
     register({ photoTypeId }, photoRenderer)
