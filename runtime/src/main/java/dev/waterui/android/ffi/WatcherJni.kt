@@ -23,6 +23,7 @@ object WatcherJni {
 
     @JvmStatic external fun init(): Long
     @JvmStatic external fun main(): Long
+    @JvmStatic external fun envInstallMediaLoader(envPtr: Long)
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int

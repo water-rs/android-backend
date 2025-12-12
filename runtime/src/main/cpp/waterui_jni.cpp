@@ -220,7 +220,8 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_list_id)                                                           \
   X(waterui_list_item_id)                                                      \
   X(waterui_force_as_list)                                                     \
-  X(waterui_force_as_list_item)
+  X(waterui_force_as_list_item)                                                \
+  X(waterui_env_install_media_loader)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -1646,6 +1647,13 @@ JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_main(JNIEnv *,
   return ptr_to_jlong(g_sym.waterui_main());
 }
 
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_envInstallMediaLoader(JNIEnv *, jclass,
+                                                              jlong envPtr) {
+  auto *env = jlong_to_ptr<WuiEnv>(envPtr);
+  g_sym.waterui_env_install_media_loader(env, waterui_load_media);
+}
+
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewBody(
     JNIEnv *, jclass, jlong viewPtr, jlong envPtr) {
   auto *view = jlong_to_ptr<WuiAnyView>(viewPtr);
@@ -1703,9 +1711,10 @@ JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsButton(
   auto button =
       g_sym.waterui_force_as_button(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = env->FindClass("dev/waterui/android/runtime/ButtonStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJI)V");
   jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(button.label),
-                               ptr_to_jlong(button.action));
+                               ptr_to_jlong(button.action),
+                               static_cast<jint>(button.style));
   env->DeleteLocalRef(cls);
   return obj;
 }
