@@ -13,7 +13,12 @@ class WuiEnvironment(
     envPtr: Long
 ) : NativePointer(envPtr) {
     companion object {
-        fun create(): WuiEnvironment = WuiEnvironment(NativeBindings.waterui_init())
+        fun create(): WuiEnvironment {
+            val envPtr = NativeBindings.waterui_init()
+            // Install media loader so Selected::load() works
+            NativeBindings.waterui_env_install_media_loader(envPtr)
+            return WuiEnvironment(envPtr)
+        }
     }
 
     /** Coroutine scope tied to the environment lifetime for asynchronous watchers. */
