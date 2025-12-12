@@ -164,7 +164,7 @@ data class WatcherStruct(val dataPtr: Long, val callPtr: Long, val dropPtr: Long
 
 // ========== View Structs ==========
 
-data class ButtonStruct(val labelPtr: Long, val actionPtr: Long)
+data class ButtonStruct(val labelPtr: Long, val actionPtr: Long, val style: Int)
 
 data class TextStruct(val contentPtr: Long)
 

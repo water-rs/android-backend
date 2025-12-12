@@ -24,6 +24,7 @@ internal object NativeBindings {
 
     fun waterui_init(): Long = WatcherJni.init()
     fun waterui_main(): Long = WatcherJni.main()
+    fun waterui_env_install_media_loader(envPtr: Long) = WatcherJni.envInstallMediaLoader(envPtr)
     fun waterui_view_id(anyViewPtr: Long): TypeIdStruct = WatcherJni.viewId(anyViewPtr)
     fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long = WatcherJni.viewBody(anyViewPtr, envPtr)
     fun waterui_view_stretch_axis(anyViewPtr: Long): Int = WatcherJni.viewStretchAxis(anyViewPtr)
