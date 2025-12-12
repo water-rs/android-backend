@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -27,24 +28,11 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
 
     val isLinear = struct.style != PROGRESS_STYLE_CIRCULAR
     
-    // Linear progress is axis-expanding: expands width to fill available space
-    // Circular progress is fixed-size: uses intrinsic size
+    // Linear progress is StretchAxis::Horizontal (Rust-defined):
+    // report a minimum usable width in size_that_fits, then expand during place.
+    // Circular progress is StretchAxis::None: content-sized.
     val container = if (isLinear) {
-        object : LinearLayout(context) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                // Expand to fill available width (axis-expanding behavior)
-                val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-                val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-                val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
-                    MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
-                } else {
-                    widthMeasureSpec
-                }
-                super.onMeasure(expandedWidthSpec, heightMeasureSpec)
-            }
-        }.apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     } else {
         LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL

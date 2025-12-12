@@ -27,6 +27,12 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
+    init {
+        // Match UIKit/SwiftUI default behavior: allow shadows/overlays to draw outside bounds.
+        clipChildren = false
+        clipToPadding = false
+    }
+
     /**
      * When true, this view itself is interactive and will consume touches.
      * Set this when a gesture handler is attached to this view.

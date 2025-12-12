@@ -16,7 +16,7 @@ class WuiEnvironment(
         fun create(): WuiEnvironment {
             val envPtr = NativeBindings.waterui_init()
             // Install media loader so Selected::load() works
-            NativeBindings.waterui_env_install_media_loader(envPtr)
+            NativeBindings.waterui_env_install_media_picker_manager(envPtr)
             return WuiEnvironment(envPtr)
         }
     }

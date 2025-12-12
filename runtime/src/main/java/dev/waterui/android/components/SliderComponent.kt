@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.view.Gravity
 import android.widget.LinearLayout
 import com.google.android.material.slider.Slider
+import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -23,22 +24,9 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_slider(node.rawPtr)
     val binding = WuiBinding.double(struct.bindingPtr, env)
 
-    // Slider is axis-expanding: expands width to fill available space
-    val container = object : LinearLayout(context) {
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            // Expand to fill available width (axis-expanding behavior)
-            val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-            val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-            val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
-                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
-            } else {
-                widthMeasureSpec
-            }
-            super.onMeasure(expandedWidthSpec, heightMeasureSpec)
-        }
-    }.apply {
-        orientation = LinearLayout.VERTICAL
-    }
+    // Slider is StretchAxis::Horizontal (Rust-defined):
+    // report a minimum usable width in size_that_fits, then expand during place.
+    val container = AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)

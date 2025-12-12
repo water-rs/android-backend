@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.util.AttributeSet
 import android.view.ContextThemeWrapper
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.google.android.material.color.DynamicColors
@@ -53,6 +54,45 @@ class WaterUiRootView @JvmOverloads constructor(
             environment = WuiEnvironment.create()
         }
         renderRoot()
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // Ensure this view reports correct measured size when embedded in native layouts.
+        // This mirrors iOS: the hosting view sizes itself based on content unless
+        // the parent imposes exact constraints.
+        val child = getChildAt(0)
+        if (child == null) {
+            setMeasuredDimension(
+                View.resolveSize(0, widthMeasureSpec),
+                View.resolveSize(0, heightMeasureSpec)
+            )
+            return
+        }
+
+        val availableWidth = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val availableHeight = (View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+
+        val childWidthSpec = when (View.MeasureSpec.getMode(widthMeasureSpec)) {
+            View.MeasureSpec.EXACTLY -> View.MeasureSpec.makeMeasureSpec(availableWidth, View.MeasureSpec.EXACTLY)
+            View.MeasureSpec.AT_MOST -> View.MeasureSpec.makeMeasureSpec(availableWidth, View.MeasureSpec.AT_MOST)
+            else -> View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        }
+
+        val childHeightSpec = when (View.MeasureSpec.getMode(heightMeasureSpec)) {
+            View.MeasureSpec.EXACTLY -> View.MeasureSpec.makeMeasureSpec(availableHeight, View.MeasureSpec.EXACTLY)
+            View.MeasureSpec.AT_MOST -> View.MeasureSpec.makeMeasureSpec(availableHeight, View.MeasureSpec.AT_MOST)
+            else -> View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        }
+
+        child.measure(childWidthSpec, childHeightSpec)
+
+        val desiredWidth = child.measuredWidth + paddingLeft + paddingRight
+        val desiredHeight = child.measuredHeight + paddingTop + paddingBottom
+
+        setMeasuredDimension(
+            View.resolveSize(desiredWidth, widthMeasureSpec),
+            View.resolveSize(desiredHeight, heightMeasureSpec)
+        )
     }
 
     override fun onDetachedFromWindow() {
@@ -106,9 +146,9 @@ class WaterUiRootView @JvmOverloads constructor(
         android.util.Log.d("WaterUI.RootView", "renderRoot: inflating view")
         val child = inflateAnyView(context, rootPtr, env, registry)
         android.util.Log.d("WaterUI.RootView", "renderRoot: view inflated, adding to layout")
-        // Use MATCH_PARENT to fill the available space, matching iOS Auto Layout constraints
-        // that pin root view to all edges of the parent
-        val params = LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        // Use WRAP_CONTENT here: WaterUiRootView's onMeasure forwards constraints to
+        // the Rust-driven root view, so the hosting Android layout can size correctly.
+        val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         addView(child, params)
 
         // Setup RootThemeController after the view hierarchy is created

@@ -15,9 +15,7 @@ import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedColorStruct
-import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.TabPosition
-import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
@@ -54,7 +52,6 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
     }
 
     if (struct.rootPtr != 0L) {
@@ -88,7 +85,6 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
     }
 
     // Create navigation bar
@@ -210,7 +206,6 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
     }
 
     // Content container

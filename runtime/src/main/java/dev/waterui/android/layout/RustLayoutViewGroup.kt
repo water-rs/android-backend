@@ -29,6 +29,12 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     private val descriptors: List<ChildDescriptor> = emptyList()
 ) : ViewGroup(context, attrs) {
 
+    init {
+        // Match UIKit/SwiftUI default behavior: allow shadows/overlays to draw outside bounds.
+        clipChildren = false
+        clipToPadding = false
+    }
+
     /** Screen density for converting between dp (Rust) and pixels (Android) */
     private val density: Float = context.resources.displayMetrics.density
 

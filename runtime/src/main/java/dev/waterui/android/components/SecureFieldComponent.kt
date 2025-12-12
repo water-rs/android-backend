@@ -8,6 +8,7 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
 import com.google.android.material.shape.MaterialShapeDrawable
+import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -25,22 +26,9 @@ private val secureFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_secure
 private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_secure_field(node.rawPtr)
 
-    // SecureField is axis-expanding: expands width to fill available space
-    val container = object : LinearLayout(context) {
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            // Expand to fill available width (axis-expanding behavior)
-            val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-            val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-            val expandedWidthSpec = if (widthMode == MeasureSpec.AT_MOST || widthMode == MeasureSpec.EXACTLY) {
-                MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY)
-            } else {
-                widthMeasureSpec
-            }
-            super.onMeasure(expandedWidthSpec, heightMeasureSpec)
-        }
-    }.apply {
-        orientation = LinearLayout.VERTICAL
-    }
+    // SecureField is StretchAxis::Horizontal (Rust-defined):
+    // report a minimum usable width in size_that_fits, then expand during place.
+    val container = AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)

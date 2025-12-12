@@ -93,7 +93,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiPhoto()
         registerWuiVideo()
         registerWuiVideoPlayer()
-        registerWuiMediaPicker()
+        // MediaPicker removed - now uses Button wrapper in Rust
+        // registerWuiMediaPicker()
         registerWuiGpuSurface()
 
         // Navigation components

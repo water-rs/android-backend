@@ -9,13 +9,11 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
-import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.RenderRegistry
-import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 
 private val listTypeId: WuiTypeId by lazy { NativeBindings.waterui_list_id().toTypeId() }
 
@@ -32,8 +30,6 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        // List is greedy - fills available space
-        setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
     }
 
     // Load items from WuiAnyViews
