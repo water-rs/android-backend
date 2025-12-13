@@ -27,10 +27,12 @@ object MediaType {
  * 2. Loading media from content:// URIs to temp files
  * 3. Motion Photo detection and splitting
  * 4. Callback to Rust when loading completes
+ * 5. Caching of loaded results to allow multiple loads of the same selection
  */
 object MediaLoader {
     private val nextId = AtomicInteger(1)
     private val pendingMedia = ConcurrentHashMap<Int, PendingMedia>()
+    private val loadedResults = ConcurrentHashMap<Int, LoadResult>()
     private val executor = Executors.newCachedThreadPool()
 
     private var appContext: Context? = null
@@ -75,6 +77,7 @@ object MediaLoader {
     /**
      * Load media by ID and invoke callback when done.
      * Called from JNI when Rust's Selected::load() is invoked.
+     * Supports multiple loads of the same selection via caching.
      *
      * @param id The media selection ID
      * @param callbackData Opaque pointer to callback data
@@ -82,7 +85,20 @@ object MediaLoader {
      */
     @JvmStatic
     fun loadMedia(id: Int, callbackData: Long, callFnPtr: Long) {
-        val pending = pendingMedia.remove(id)
+        // Check cache first for repeated loads
+        val cachedResult = loadedResults[id]
+        if (cachedResult != null) {
+            nativeCompleteMediaLoad(
+                callbackData,
+                callFnPtr,
+                cachedResult.imageUrl,
+                cachedResult.videoUrl,
+                cachedResult.mediaType
+            )
+            return
+        }
+
+        val pending = pendingMedia[id]
             ?: error("MediaLoader.loadMedia: no media found for id $id")
 
         val context = appContext
@@ -91,6 +107,8 @@ object MediaLoader {
         // Load asynchronously
         executor.execute {
             val result = loadMediaSync(context, pending)
+            // Cache the result for future loads
+            loadedResults[id] = result
             nativeCompleteMediaLoad(
                 callbackData,
                 callFnPtr,
