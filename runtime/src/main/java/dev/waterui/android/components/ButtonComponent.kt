@@ -72,8 +72,9 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
                 labelView.setTextColor(Color.WHITE)
             }
             else -> {
-                // Other styles use accent foreground color
-                val contentColor = ThemeBridge.accentForeground(env)
+                // Other styles use accent color (primary color) for text
+                // Note: accentForeground is for text ON accent background (e.g., filled buttons)
+                val contentColor = ThemeBridge.accent(env)
                 contentColor.observe { color ->
                     labelView.setTextColor(color.toColorInt())
                 }

@@ -1918,7 +1918,7 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataGesture(JNIEnv *env, jcla
 
   // Create GestureDataStruct
   jclass gestureDataCls = env->FindClass("dev/waterui/android/runtime/GestureDataStruct");
-  jmethodID gestureDataCtor = env->GetMethodID(gestureDataCls, "<init>", "(IIFFF JJ)V");
+  jmethodID gestureDataCtor = env->GetMethodID(gestureDataCls, "<init>", "(IIFFFJJ)V");
 
   // Extract gesture data based on tag
   int tapCount = 1;
