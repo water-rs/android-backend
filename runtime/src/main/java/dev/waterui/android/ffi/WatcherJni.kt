@@ -22,7 +22,7 @@ object WatcherJni {
     // ========== Core Functions ==========
 
     @JvmStatic external fun init(): Long
-    @JvmStatic external fun main(): Long
+    @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
     @JvmStatic external fun envInstallMediaPickerManager(envPtr: Long)
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct

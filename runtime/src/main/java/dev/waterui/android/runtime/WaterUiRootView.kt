@@ -27,7 +27,7 @@ class WaterUiRootView @JvmOverloads constructor(
 
     private var registry: RenderRegistry = RenderRegistry.default()
     private var environment: WuiEnvironment? = null
-    private var rootPtr: Long = 0L
+    private var app: AppStruct? = null
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
     private var colorSchemeSignalPtr: Long = 0L
     private var materialThemeInstalled = false
@@ -106,11 +106,14 @@ class WaterUiRootView @JvmOverloads constructor(
         backgroundTheme?.close()
         backgroundTheme = null
 
-        // 2. Drop the native root view (depends on environment/runtime)
-        if (rootPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(rootPtr)
-            rootPtr = 0L
+        // 2. Drop the main window content view (depends on environment/runtime)
+        app?.let { appStruct ->
+            val mainWindow = appStruct.mainWindow()
+            if (mainWindow.contentPtr != 0L) {
+                NativeBindings.waterui_drop_anyview(mainWindow.contentPtr)
+            }
         }
+        app = null
 
         // 3. Drop the color scheme signal
         if (colorSchemeSignalPtr != 0L) {
@@ -126,25 +129,38 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     private fun renderRoot() {
-        val env = checkNotNull(environment) { "renderRoot called without environment" }
+        val initEnv = checkNotNull(environment) { "renderRoot called without environment" }
         android.util.Log.d("WaterUI.RootView", "renderRoot: ensureTheme start")
-        ensureTheme(env)
+        // Install theme BEFORE calling waterui_app so user code sees the theme
+        ensureTheme(initEnv)
         android.util.Log.d("WaterUI.RootView", "renderRoot: ensureTheme done")
-        // Create the root view AFTER environment and theme are initialized.
-        // waterui_main() may create reactive signals that depend on the executor
-        // initialized by waterui_init() (called in WuiEnvironment.create()).
-        if (rootPtr == 0L) {
-            android.util.Log.d("WaterUI.RootView", "renderRoot: calling waterui_main()")
-            rootPtr = NativeBindings.waterui_main()
-            android.util.Log.d("WaterUI.RootView", "renderRoot: waterui_main() returned $rootPtr")
+        // Create the app by calling waterui_app(env).
+        // The user's app(env) receives the environment with theme installed,
+        // creates App::new(content, env), and returns App { windows, env }
+        // Native takes ownership of the environment and gets it back in the App.
+        if (app == null) {
+            android.util.Log.d("WaterUI.RootView", "renderRoot: calling waterui_app()")
+            app = NativeBindings.waterui_app(initEnv.raw())
+            android.util.Log.d("WaterUI.RootView", "renderRoot: waterui_app() returned app with ${app?.windows?.size} windows")
         }
         removeAllViews()
+        val appStruct = app
+        if (appStruct == null || appStruct.windows.isEmpty()) {
+            android.util.Log.w("WaterUI.RootView", "renderRoot: app is null or has no windows, skipping")
+            return
+        }
+        // Use the environment returned from the app for rendering
+        // (App::new injects FullScreenOverlayManager into it)
+        val renderEnv = WuiEnvironment(appStruct.envPtr)
+        // Extract main window content
+        val mainWindow = appStruct.mainWindow()
+        val rootPtr = mainWindow.contentPtr
         if (rootPtr == 0L) {
-            android.util.Log.w("WaterUI.RootView", "renderRoot: rootPtr is null, skipping")
+            android.util.Log.w("WaterUI.RootView", "renderRoot: main window contentPtr is null, skipping")
             return
         }
         android.util.Log.d("WaterUI.RootView", "renderRoot: inflating view")
-        val child = inflateAnyView(context, rootPtr, env, registry)
+        val child = inflateAnyView(context, rootPtr, renderEnv, registry)
         android.util.Log.d("WaterUI.RootView", "renderRoot: view inflated, adding to layout")
         // Use WRAP_CONTENT here: WaterUiRootView's onMeasure forwards constraints to
         // the Rust-driven root view, so the hosting Android layout can size correctly.

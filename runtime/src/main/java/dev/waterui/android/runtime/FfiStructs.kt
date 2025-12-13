@@ -575,3 +575,70 @@ data class ListStruct(val contentsPtr: Long)
  * - contentPtr: AnyView pointer for item content
  */
 data class ListItemStruct(val contentPtr: Long)
+
+// ========== Window and App Structs ==========
+
+/**
+ * Window style enum matching WuiWindowStyle in FFI.
+ */
+enum class WindowStyle(val value: Int) {
+    /** Standard window with title bar and controls */
+    TITLED(0),
+    /** Borderless window without title bar */
+    BORDERLESS(1),
+    /** Window where content extends into the title bar area */
+    FULL_SIZE_CONTENT_VIEW(2);
+
+    companion object {
+        fun fromInt(value: Int): WindowStyle = entries.firstOrNull { it.value == value } ?: TITLED
+    }
+}
+
+/**
+ * Window struct matching WuiWindow in FFI.
+ * Represents a single application window.
+ */
+data class WindowStruct(
+    /** Computed<Str> pointer for window title */
+    val titlePtr: Long,
+    /** Whether the window can be closed */
+    val closable: Boolean,
+    /** Whether the window can be resized */
+    val resizable: Boolean,
+    /** Binding<Rect> pointer for window frame */
+    val framePtr: Long,
+    /** AnyView pointer for window content */
+    val contentPtr: Long,
+    /** Binding<WindowState> pointer for window state */
+    val statePtr: Long,
+    /** AnyView pointer for toolbar content (0 if none) */
+    val toolbarPtr: Long,
+    /** Window style */
+    val style: Int
+) {
+    fun windowStyle(): WindowStyle = WindowStyle.fromInt(style)
+}
+
+/**
+ * App struct matching WuiApp in FFI.
+ * Returned by waterui_app(env).
+ *
+ * The environment is returned inside the App struct for native to use during rendering.
+ * App::new injects FullScreenOverlayManager into the environment.
+ */
+data class AppStruct(
+    /** Array of windows - first window is main window */
+    val windows: Array<WindowStruct>,
+    /** Environment pointer returned from the app (with FullScreenOverlayManager injected) */
+    val envPtr: Long
+) {
+    /** Get the main window (first window) */
+    fun mainWindow(): WindowStruct = windows.first()
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is AppStruct) return false
+        return windows.contentEquals(other.windows) && envPtr == other.envPtr
+    }
+    override fun hashCode(): Int = 31 * windows.contentHashCode() + envPtr.hashCode()
+}

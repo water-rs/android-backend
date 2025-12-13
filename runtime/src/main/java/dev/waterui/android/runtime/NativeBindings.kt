@@ -23,7 +23,7 @@ internal object NativeBindings {
     // ========== Core Functions ==========
 
     fun waterui_init(): Long = WatcherJni.init()
-    fun waterui_main(): Long = WatcherJni.main()
+    fun waterui_app(envPtr: Long): AppStruct = WatcherJni.app(envPtr)
     fun waterui_env_install_media_picker_manager(envPtr: Long) = WatcherJni.envInstallMediaPickerManager(envPtr)
     fun waterui_view_id(anyViewPtr: Long): TypeIdStruct = WatcherJni.viewId(anyViewPtr)
     fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long = WatcherJni.viewBody(anyViewPtr, envPtr)

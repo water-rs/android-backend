@@ -86,7 +86,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_picker_id)                                                         \
   X(waterui_layout_container_id)                                               \
   X(waterui_init)                                                              \
-  X(waterui_main)                                                              \
+  X(waterui_app)                                                               \
   X(waterui_view_body)                                                         \
   X(waterui_clone_env)                                                         \
   X(waterui_drop_env)                                                          \
@@ -1644,9 +1644,45 @@ JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_init(JNIEnv *,
   return ptr_to_jlong(g_sym.waterui_init());
 }
 
-JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_main(JNIEnv *,
-                                                                     jclass) {
-  return ptr_to_jlong(g_sym.waterui_main());
+JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_app(
+    JNIEnv *env, jclass, jlong envPtr) {
+  // Call waterui_app(env) which returns WuiApp by value
+  WuiApp wuiApp = g_sym.waterui_app(jlong_to_ptr<WuiEnv>(envPtr));
+
+  // Get window array slice
+  WuiArraySlice_WuiWindow slice = wuiApp.windows.vtable.slice(wuiApp.windows.data);
+
+  // Create WindowStruct class and array
+  jclass windowCls = env->FindClass("dev/waterui/android/runtime/WindowStruct");
+  jmethodID windowCtor = env->GetMethodID(windowCls, "<init>", "(JZZJJJJI)V");
+  jobjectArray windowArray =
+      env->NewObjectArray(static_cast<jsize>(slice.len), windowCls, nullptr);
+
+  for (size_t i = 0; i < slice.len; i++) {
+    WuiWindow *window = slice.head + i;
+    jobject windowObj = env->NewObject(
+        windowCls, windowCtor,
+        ptr_to_jlong(window->title),
+        static_cast<jboolean>(window->closable),
+        static_cast<jboolean>(window->resizable),
+        ptr_to_jlong(window->frame),
+        ptr_to_jlong(window->content),
+        ptr_to_jlong(window->state),
+        ptr_to_jlong(window->toolbar),
+        static_cast<jint>(window->style));
+    env->SetObjectArrayElement(windowArray, static_cast<jsize>(i), windowObj);
+    env->DeleteLocalRef(windowObj);
+  }
+  env->DeleteLocalRef(windowCls);
+
+  // Create AppStruct with env returned from the app
+  jclass appCls = env->FindClass("dev/waterui/android/runtime/AppStruct");
+  jmethodID appCtor = env->GetMethodID(
+      appCls, "<init>", "([Ldev/waterui/android/runtime/WindowStruct;J)V");
+  jobject appObj = env->NewObject(appCls, appCtor, windowArray, ptr_to_jlong(wuiApp.env));
+  env->DeleteLocalRef(appCls);
+
+  return appObj;
 }
 
 JNIEXPORT void JNICALL
