@@ -156,3 +156,9 @@ tasks.matching { it.name.startsWith("compile") && it.name.contains("Java") && !i
 tasks.matching { it.name.startsWith("compile") && it.name.contains("Kotlin") }.configureEach {
     dependsOn("generateJavaCPP")
 }
+
+tasks.configureEach {
+    if (name == "releaseSourcesJar") {
+        dependsOn("generateJavaCPP")
+    }
+}
