@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("maven-publish")
 }
 
 group = "dev.waterui.android"
@@ -65,6 +66,20 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"])
+                
+                groupId = "dev.waterui.android"
+                artifactId = "runtime"
+                version = "0.2.0"
+            }
         }
     }
 }
