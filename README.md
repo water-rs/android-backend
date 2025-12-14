@@ -1,5 +1,9 @@
 # WaterUI Android Backend
 
+[![](https://jitpack.io/v/water-rs/android-backend.svg)](https://jitpack.io/#water-rs/android-backend)
+[![License](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
+
 This Gradle project hosts the Android runtime glue that renders WaterUI view trees
 with the platform View system. The design mirrors the Swift backend: Rust
 defines the UI, exports a C ABI via `waterui-ffi`, and the native platform
