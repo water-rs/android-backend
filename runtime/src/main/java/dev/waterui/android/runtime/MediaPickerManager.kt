@@ -1,9 +1,5 @@
 package dev.waterui.android.runtime
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.Intent
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
@@ -28,14 +24,16 @@ object MediaPickerManager {
      */
     fun initialize(activity: ComponentActivity) {
         currentActivity = activity
+        MediaLoader.init(activity)
 
         // Register the photo picker launcher
         pickerLauncher = activity.registerForActivityResult(
             ActivityResultContracts.PickVisualMedia()
         ) { uri ->
             if (uri != null) {
-                // Register the URI and get a unique ID
-                val id = MediaRegistry.register(uri)
+                // Register the URI and get a unique ID for Selected::load()
+                val mimeType = activity.contentResolver.getType(uri)
+                val id = MediaLoader.register(uri, mimeType)
 
                 // Call the native callback
                 if (pendingCallbackFn != 0L) {
