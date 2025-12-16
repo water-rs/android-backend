@@ -252,6 +252,15 @@ internal object NativeBindings {
     fun waterui_force_as_tabs(viewPtr: Long): TabsStruct = WatcherJni.forceAsTabs(viewPtr)
     fun waterui_tab_content(contentPtr: Long): NavigationViewStruct = WatcherJni.tabContent(contentPtr)
 
+    // ========== Navigation Controller Functions ==========
+
+    fun waterui_navigation_controller_new(callback: NavigationControllerCallback): Long =
+        WatcherJni.navigationControllerNew(callback)
+    fun waterui_env_install_navigation_controller(envPtr: Long, controllerPtr: Long) =
+        WatcherJni.envInstallNavigationController(envPtr, controllerPtr)
+    fun waterui_drop_navigation_controller(ptr: Long) =
+        WatcherJni.dropNavigationController(ptr)
+
     // ========== Metadata Type IDs ==========
 
     fun waterui_metadata_secure_id(): TypeIdStruct = WatcherJni.metadataSecureId()

@@ -210,6 +210,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_navigation_view)                                          \
   X(waterui_force_as_tabs)                                                     \
   X(waterui_tab_content)                                                       \
+  X(waterui_navigation_controller_new)                                         \
+  X(waterui_env_install_navigation_controller)                                 \
+  X(waterui_drop_navigation_controller)                                        \
   X(waterui_gpu_surface_id)                                                    \
   X(waterui_force_as_gpu_surface)                                              \
   X(waterui_gpu_surface_init)                                                  \
@@ -2767,6 +2770,133 @@ Java_dev_waterui_android_ffi_WatcherJni_tabContent(JNIEnv *env, jclass,
   jobject obj = env->NewObject(cls, ctor, barObj, ptr_to_jlong(navView.content));
   env->DeleteLocalRef(cls);
   return obj;
+}
+
+// ========== Navigation Controller Functions ==========
+
+// Callback context for navigation controller
+struct NavigationControllerContext {
+  JavaVM *jvm;
+  jobject callback;  // Global reference to Kotlin callback object
+};
+
+// C callback that forwards to Kotlin
+static void navigation_push_callback(void *data, WuiNavigationView navView) {
+  auto *ctx = static_cast<NavigationControllerContext *>(data);
+  JNIEnv *env = nullptr;
+  bool attached = false;
+
+  jint result = ctx->jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (result == JNI_EDETACHED) {
+    ctx->jvm->AttachCurrentThread(&env, nullptr);
+    attached = true;
+  }
+
+  if (env != nullptr) {
+    // Create BarStruct
+    jclass barCls = env->FindClass("dev/waterui/android/runtime/BarStruct");
+    jmethodID barCtor = env->GetMethodID(barCls, "<init>", "(JJJ)V");
+    jobject barObj = env->NewObject(
+        barCls, barCtor, ptr_to_jlong(navView.bar.title.content),
+        ptr_to_jlong(navView.bar.color), ptr_to_jlong(navView.bar.hidden));
+    env->DeleteLocalRef(barCls);
+
+    // Create NavigationViewStruct
+    jclass navViewCls =
+        env->FindClass("dev/waterui/android/runtime/NavigationViewStruct");
+    jmethodID navViewCtor = env->GetMethodID(
+        navViewCls, "<init>", "(Ldev/waterui/android/runtime/BarStruct;J)V");
+    jobject navViewObj =
+        env->NewObject(navViewCls, navViewCtor, barObj, ptr_to_jlong(navView.content));
+    env->DeleteLocalRef(navViewCls);
+
+    // Call Kotlin callback
+    jclass callbackCls = env->GetObjectClass(ctx->callback);
+    jmethodID pushMethod = env->GetMethodID(
+        callbackCls, "onPush", "(Ldev/waterui/android/runtime/NavigationViewStruct;)V");
+    env->CallVoidMethod(ctx->callback, pushMethod, navViewObj);
+    env->DeleteLocalRef(callbackCls);
+    env->DeleteLocalRef(navViewObj);
+    env->DeleteLocalRef(barObj);
+  }
+
+  if (attached) {
+    ctx->jvm->DetachCurrentThread();
+  }
+}
+
+static void navigation_pop_callback(void *data) {
+  auto *ctx = static_cast<NavigationControllerContext *>(data);
+  JNIEnv *env = nullptr;
+  bool attached = false;
+
+  jint result = ctx->jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (result == JNI_EDETACHED) {
+    ctx->jvm->AttachCurrentThread(&env, nullptr);
+    attached = true;
+  }
+
+  if (env != nullptr) {
+    jclass callbackCls = env->GetObjectClass(ctx->callback);
+    jmethodID popMethod = env->GetMethodID(callbackCls, "onPop", "()V");
+    env->CallVoidMethod(ctx->callback, popMethod);
+    env->DeleteLocalRef(callbackCls);
+  }
+
+  if (attached) {
+    ctx->jvm->DetachCurrentThread();
+  }
+}
+
+static void navigation_drop_callback(void *data) {
+  auto *ctx = static_cast<NavigationControllerContext *>(data);
+  JNIEnv *env = nullptr;
+  bool attached = false;
+
+  jint result = ctx->jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+  if (result == JNI_EDETACHED) {
+    ctx->jvm->AttachCurrentThread(&env, nullptr);
+    attached = true;
+  }
+
+  if (env != nullptr) {
+    env->DeleteGlobalRef(ctx->callback);
+  }
+
+  if (attached) {
+    ctx->jvm->DetachCurrentThread();
+  }
+
+  delete ctx;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_navigationControllerNew(
+    JNIEnv *env, jclass, jobject callback) {
+  JavaVM *jvm;
+  env->GetJavaVM(&jvm);
+
+  auto *ctx = new NavigationControllerContext{jvm, env->NewGlobalRef(callback)};
+
+  return ptr_to_jlong(g_sym.waterui_navigation_controller_new(
+      ctx, navigation_push_callback, navigation_pop_callback,
+      navigation_drop_callback));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_envInstallNavigationController(
+    JNIEnv *, jclass, jlong envPtr, jlong controllerPtr) {
+  g_sym.waterui_env_install_navigation_controller(
+      jlong_to_ptr<WuiEnv>(envPtr),
+      jlong_to_ptr<WuiNavigationController>(controllerPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropNavigationController(JNIEnv *,
+                                                                  jclass,
+                                                                  jlong ptr) {
+  g_sym.waterui_drop_navigation_controller(
+      jlong_to_ptr<WuiNavigationController>(ptr));
 }
 
 // ========== GpuSurface Functions ==========
