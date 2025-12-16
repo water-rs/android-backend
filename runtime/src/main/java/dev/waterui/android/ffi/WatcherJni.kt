@@ -260,6 +260,12 @@ object WatcherJni {
     @JvmStatic external fun forceAsTabs(viewPtr: Long): TabsStruct
     @JvmStatic external fun tabContent(contentPtr: Long): NavigationViewStruct
 
+    // ========== Navigation Controller Functions ==========
+
+    @JvmStatic external fun navigationControllerNew(callback: NavigationControllerCallback): Long
+    @JvmStatic external fun envInstallNavigationController(envPtr: Long, controllerPtr: Long)
+    @JvmStatic external fun dropNavigationController(ptr: Long)
+
     // ========== OnEvent Handler Functions ==========
 
     @JvmStatic external fun callOnEvent(handlerPtr: Long, envPtr: Long)

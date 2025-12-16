@@ -530,6 +530,23 @@ data class NavigationViewStruct(
 )
 
 /**
+ * Callback interface for navigation controller push/pop events.
+ * This is called from native code when Rust triggers navigation.
+ */
+interface NavigationControllerCallback {
+    /**
+     * Called when a view is pushed onto the navigation stack.
+     * @param navView The navigation view to push
+     */
+    fun onPush(navView: NavigationViewStruct)
+
+    /**
+     * Called when the top view should be popped from the navigation stack.
+     */
+    fun onPop()
+}
+
+/**
  * Individual tab data.
  * - id: Unique tab identifier (u64)
  * - labelPtr: AnyView pointer for tab label

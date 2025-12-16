@@ -41,7 +41,8 @@ private val tabsTypeId: WuiTypeId by lazy {
 /**
  * NavigationStack component renderer.
  *
- * Displays a navigation stack with the root view.
+ * Displays a navigation stack with full push/pop support.
+ * Creates a NavigationController that receives push/pop callbacks from Rust.
  * Expands to fill available space (StretchAxis.BOTH).
  */
 private val navigationStackRenderer = WuiRenderer { context, node, env, registry ->
@@ -54,16 +55,164 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
         )
     }
 
+    // Clone environment for child views
+    val childEnvPtr = NativeBindings.waterui_clone_env(env.ptr)
+    val childEnv = WuiEnvironment(childEnvPtr)
+
+    // View stack for managing pushed views
+    val viewStack = mutableListOf<View>()
+
+    // Create navigation controller callback
+    val callback = object : NavigationControllerCallback {
+        override fun onPush(navView: NavigationViewStruct) {
+            container.post {
+                // Hide current view
+                viewStack.lastOrNull()?.visibility = View.GONE
+
+                // Extract title
+                var titleString = ""
+                if (navView.bar.titleContentPtr != 0L) {
+                    val styledStr = NativeBindings.waterui_read_computed_styled_str(navView.bar.titleContentPtr)
+                    titleString = styledStr.chunks.joinToString("") { it.text }
+                }
+
+                // Create navigation view layout
+                val navViewContainer = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                }
+
+                // Add navigation bar with back button
+                val navBar = createNavBarWithBackButton(context, titleString) {
+                    // Back button clicked - call pop
+                    onPop()
+                }
+                navViewContainer.addView(navBar)
+
+                // Content area
+                val contentContainer = FrameLayout(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0,
+                        1f
+                    )
+                }
+
+                if (navView.contentPtr != 0L) {
+                    val contentView = inflateAnyView(context, navView.contentPtr, childEnv, registry)
+                    contentView.layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                    contentContainer.addView(contentView)
+                }
+
+                navViewContainer.addView(contentContainer)
+
+                // Animate in
+                navViewContainer.translationX = container.width.toFloat()
+                container.addView(navViewContainer)
+                viewStack.add(navViewContainer)
+
+                navViewContainer.animate()
+                    .translationX(0f)
+                    .setDuration(250)
+                    .start()
+            }
+        }
+
+        override fun onPop() {
+            container.post {
+                if (viewStack.size <= 1) return@post
+
+                val currentView = viewStack.removeLastOrNull() ?: return@post
+
+                // Animate out
+                currentView.animate()
+                    .translationX(container.width.toFloat())
+                    .setDuration(250)
+                    .withEndAction {
+                        container.removeView(currentView)
+                    }
+                    .start()
+
+                // Show previous view
+                viewStack.lastOrNull()?.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    // Create and install navigation controller
+    val controllerPtr = NativeBindings.waterui_navigation_controller_new(callback)
+    NativeBindings.waterui_env_install_navigation_controller(childEnvPtr, controllerPtr)
+
+    // Render root view with child environment
     if (struct.rootPtr != 0L) {
-        val rootView = inflateAnyView(context, struct.rootPtr, env, registry)
+        val rootView = inflateAnyView(context, struct.rootPtr, childEnv, registry)
         rootView.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
         container.addView(rootView)
+        viewStack.add(rootView)
+    }
+
+    // Cleanup
+    container.disposeWith {
+        NativeBindings.waterui_env_drop(childEnvPtr)
     }
 
     container
+}
+
+private fun createNavBarWithBackButton(
+    context: android.content.Context,
+    title: String,
+    onBackClick: () -> Unit
+): LinearLayout {
+    val density = context.resources.displayMetrics.density
+
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = (56 * density).toInt()
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        setBackgroundColor(Color.parseColor("#F5F5F5"))
+        setPadding(
+            (8 * density).toInt(),
+            (8 * density).toInt(),
+            (16 * density).toInt(),
+            (8 * density).toInt()
+        )
+
+        // Back button
+        val backButton = TextView(context).apply {
+            text = "←"
+            textSize = 24f
+            setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
+            setOnClickListener { onBackClick() }
+        }
+        addView(backButton)
+
+        // Title
+        val titleView = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = title
+            textSize = 18f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.BLACK)
+        }
+        addView(titleView)
+    }
 }
 
 // ========== NavigationView Renderer ==========
