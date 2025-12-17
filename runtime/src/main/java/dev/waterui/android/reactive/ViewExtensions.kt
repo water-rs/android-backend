@@ -60,7 +60,7 @@ fun <T> WuiComputed<T>.bindTo(view: View, block: View.(T) -> Unit): WuiDisposabl
  */
 fun <T> WuiComputed<T>.animateTo(view: View, block: View.(T, WuiAnimation) -> Unit): WuiDisposable {
     // Initial value (no animation)
-    view.block(current(), WuiAnimation.NONE)
+    view.block(current(), WuiAnimation.None)
     
     // Observe changes with animation
     observeWithAnimation { value, animation ->

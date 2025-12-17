@@ -39,7 +39,7 @@ class WuiComputed<T>(
 
     fun observeWithAnimation(onValue: (T, WuiAnimation) -> Unit) {
         observer = onValue
-        onValue(currentValue, WuiAnimation.NONE)
+        onValue(currentValue, WuiAnimation.None)
         ensureWatcher()
     }
 

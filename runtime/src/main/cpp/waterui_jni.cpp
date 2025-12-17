@@ -182,6 +182,8 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_metadata_retain_id)                                                \
   X(waterui_force_as_metadata_retain)                                          \
   X(waterui_drop_retain)                                                       \
+  X(waterui_metadata_transform_id)                                             \
+  X(waterui_force_as_metadata_transform)                                       \
   X(waterui_call_on_event)                                                     \
   X(waterui_drop_on_event)                                                     \
   X(waterui_read_computed_color)                                               \
@@ -196,6 +198,9 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_binding_f32)                                                  \
   X(waterui_new_watcher_f32)                                                   \
   X(waterui_watch_binding_f32)                                                 \
+  X(waterui_read_computed_f32)                                                 \
+  X(waterui_watch_computed_f32)                                                \
+  X(waterui_drop_computed_f32)                                                 \
   X(waterui_read_computed_str)                                                 \
   X(waterui_watch_computed_str)                                                \
   X(waterui_drop_computed_str)                                                 \
@@ -1115,6 +1120,17 @@ Java_dev_waterui_android_ffi_WatcherJni_watchComputedF64(JNIEnv *env, jclass,
 }
 
 JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchComputedF32(JNIEnv *env, jclass,
+                                                         jlong computedPtr,
+                                                         jobject watcher) {
+  auto *computed = jlong_to_ptr<WuiComputed_f32>(computedPtr);
+  WatcherStructFields fields = watcher_struct_from_java(env, watcher);
+  auto *w = create_watcher<WuiWatcher_f32, float>(
+      fields, g_sym.waterui_new_watcher_f32);
+  return ptr_to_jlong(g_sym.waterui_watch_computed_f32(computed, w));
+}
+
+JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_watchComputedI32(JNIEnv *env, jclass,
                                                          jlong computedPtr,
                                                          jobject watcher) {
@@ -1637,6 +1653,7 @@ DEFINE_TYPE_ID_FN(metadataShadowId, waterui_metadata_shadow_id)
 DEFINE_TYPE_ID_FN(metadataFocusedId, waterui_metadata_focused_id)
 DEFINE_TYPE_ID_FN(metadataIgnoreSafeAreaId, waterui_metadata_ignore_safe_area_id)
 DEFINE_TYPE_ID_FN(metadataRetainId, waterui_metadata_retain_id)
+DEFINE_TYPE_ID_FN(metadataTransformId, waterui_metadata_transform_id)
 
 #undef DEFINE_TYPE_ID_FN
 
@@ -2125,6 +2142,24 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataRetain(JNIEnv *env, jclas
   return obj;
 }
 
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataTransform(JNIEnv *env, jclass,
+                                                                  jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_transform(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataTransformStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJJJJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.scale_x),
+                               ptr_to_jlong(metadata.value.scale_y),
+                               ptr_to_jlong(metadata.value.rotation),
+                               ptr_to_jlong(metadata.value.translate_x),
+                               ptr_to_jlong(metadata.value.translate_y));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
 // ========== OnEvent Handler Functions ==========
 
 JNIEXPORT void JNICALL
@@ -2253,6 +2288,13 @@ Java_dev_waterui_android_ffi_WatcherJni_readComputedF64(JNIEnv *, jclass,
       jlong_to_ptr<WuiComputed_f64>(computedPtr));
 }
 
+JNIEXPORT jfloat JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readComputedF32(JNIEnv *, jclass,
+                                                        jlong computedPtr) {
+  return g_sym.waterui_read_computed_f32(
+      jlong_to_ptr<WuiComputed_f32>(computedPtr));
+}
+
 JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_readComputedI32(
     JNIEnv *, jclass, jlong computedPtr) {
   return g_sym.waterui_read_computed_i32(
@@ -2278,6 +2320,11 @@ Java_dev_waterui_android_ffi_WatcherJni_readComputedResolvedFont(
 JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedF64(
     JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_f64(jlong_to_ptr<WuiComputed_f64>(computedPtr));
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedF32(
+    JNIEnv *, jclass, jlong computedPtr) {
+  g_sym.waterui_drop_computed_f32(jlong_to_ptr<WuiComputed_f32>(computedPtr));
 }
 
 JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedI32(
@@ -2369,10 +2416,61 @@ JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropWatcherGuard(
   g_sym.waterui_drop_box_watcher_guard(jlong_to_ptr<WuiWatcherGuard>(guardPtr));
 }
 
+// Legacy getAnimation - returns tag as int (deprecated)
 JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_getAnimation(
     JNIEnv *, jclass, jlong metadataPtr) {
-  return static_cast<jint>(g_sym.waterui_get_animation(
-      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr)));
+  WuiAnimation anim = g_sym.waterui_get_animation(
+      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr));
+  return static_cast<jint>(anim.tag);
+}
+
+// Get animation tag from metadata
+JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_getAnimationTag(
+    JNIEnv *, jclass, jlong metadataPtr) {
+  WuiAnimation anim = g_sym.waterui_get_animation(
+      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr));
+  return static_cast<jint>(anim.tag);
+}
+
+// Get animation duration in milliseconds (for timed animations)
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_getAnimationDurationMs(
+    JNIEnv *, jclass, jlong metadataPtr) {
+  WuiAnimation anim = g_sym.waterui_get_animation(
+      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr));
+  switch (anim.tag) {
+    case WuiAnimation_Linear:
+      return static_cast<jlong>(anim.linear.duration_ms);
+    case WuiAnimation_EaseIn:
+      return static_cast<jlong>(anim.ease_in.duration_ms);
+    case WuiAnimation_EaseOut:
+      return static_cast<jlong>(anim.ease_out.duration_ms);
+    case WuiAnimation_EaseInOut:
+      return static_cast<jlong>(anim.ease_in_out.duration_ms);
+    default:
+      return 0;
+  }
+}
+
+// Get spring stiffness (for spring animations)
+JNIEXPORT jfloat JNICALL Java_dev_waterui_android_ffi_WatcherJni_getAnimationStiffness(
+    JNIEnv *, jclass, jlong metadataPtr) {
+  WuiAnimation anim = g_sym.waterui_get_animation(
+      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr));
+  if (anim.tag == WuiAnimation_Spring) {
+    return anim.spring.stiffness;
+  }
+  return 0.0f;
+}
+
+// Get spring damping (for spring animations)
+JNIEXPORT jfloat JNICALL Java_dev_waterui_android_ffi_WatcherJni_getAnimationDamping(
+    JNIEnv *, jclass, jlong metadataPtr) {
+  WuiAnimation anim = g_sym.waterui_get_animation(
+      jlong_to_ptr<WuiWatcherMetadata>(metadataPtr));
+  if (anim.tag == WuiAnimation_Spring) {
+    return anim.spring.damping;
+  }
+  return 0.0f;
 }
 
 // ========== Theme Functions ==========
