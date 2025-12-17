@@ -40,7 +40,7 @@ class WuiBinding<T>(
 
     fun observeWithAnimation(onValue: (T, WuiAnimation) -> Unit) {
         observer = onValue
-        onValue(currentValue, WuiAnimation.NONE)
+        onValue(currentValue, WuiAnimation.None)
         ensureWatcher()
     }
 
@@ -88,7 +88,7 @@ class WuiBinding<T>(
         try {
             currentValue = value
             // Notify observer immediately so UI updates
-            observer?.invoke(value, WuiAnimation.NONE)
+            observer?.invoke(value, WuiAnimation.None)
             // Write to Rust
             writer(raw(), value)
         } finally {

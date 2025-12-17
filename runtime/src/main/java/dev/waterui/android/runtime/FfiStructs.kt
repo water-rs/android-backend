@@ -357,6 +357,19 @@ data class MetadataRetainStruct(
     val retainPtr: Long
 )
 
+/**
+ * Metadata<Transform> struct for 2D transforms.
+ * Contains computed f32 pointers for scale, rotation, and translation.
+ */
+data class MetadataTransformStruct(
+    val contentPtr: Long,
+    val scaleXPtr: Long,
+    val scaleYPtr: Long,
+    val rotationPtr: Long,
+    val translateXPtr: Long,
+    val translateYPtr: Long
+)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {

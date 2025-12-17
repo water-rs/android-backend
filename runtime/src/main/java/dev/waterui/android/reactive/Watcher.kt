@@ -14,7 +14,7 @@ class WatcherGuard(pointer: Long) : NativePointer(pointer) {
 }
 
 data class WuiWatcherMetadata(val pointer: Long) {
-    val animation: WuiAnimation get() = WuiAnimation.fromNative(NativeBindings.waterui_get_animation(pointer))
+    val animation: WuiAnimation get() = NativeBindings.waterui_get_animation(pointer)
 }
 
 fun interface WatcherCallback<T> {

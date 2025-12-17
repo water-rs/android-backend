@@ -12,7 +12,10 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.tabs.TabLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.BarStruct
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.NavigationControllerCallback
+import dev.waterui.android.runtime.NavigationViewStruct
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.TabPosition
@@ -56,7 +59,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
     }
 
     // Clone environment for child views
-    val childEnvPtr = NativeBindings.waterui_clone_env(env.ptr)
+    val childEnvPtr = NativeBindings.waterui_clone_env(env.raw())
     val childEnv = WuiEnvironment(childEnvPtr)
 
     // View stack for managing pushed views

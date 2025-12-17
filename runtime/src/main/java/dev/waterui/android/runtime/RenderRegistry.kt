@@ -115,6 +115,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiFocused()
         registerWuiIgnoreSafeArea()
         registerWuiRetain()
+        registerWuiTransform()
     }
     builder.components to builder.metadataTypes
 }

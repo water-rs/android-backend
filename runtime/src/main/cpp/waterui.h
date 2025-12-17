@@ -83,11 +83,6 @@ typedef enum WuiEvent {
   WuiEvent_Disappear,
 } WuiEvent;
 
-typedef enum WuiAnimation {
-  WuiAnimation_Default,
-  WuiAnimation_None,
-} WuiAnimation;
-
 typedef enum WuiAxis {
   WuiAxis_Horizontal,
   WuiAxis_Vertical,
@@ -122,6 +117,24 @@ typedef enum WuiKeyboardType {
   WuiKeyboardType_Number,
   WuiKeyboardType_PhoneNumber,
 } WuiKeyboardType;
+
+/**
+ * The display mode for the navigation bar title (FFI-compatible).
+ */
+typedef enum WuiNavigationTitleDisplayMode {
+  /**
+   * System decides based on context.
+   */
+  WuiNavigationTitleDisplayMode_Automatic = 0,
+  /**
+   * Always use inline (small) title.
+   */
+  WuiNavigationTitleDisplayMode_Inline = 1,
+  /**
+   * Always use large title.
+   */
+  WuiNavigationTitleDisplayMode_Large = 2,
+} WuiNavigationTitleDisplayMode;
 
 /**
  * Position of the tab bar within the tab container.
@@ -923,6 +936,45 @@ typedef struct WuiMetadata_WuiShadow {
  */
 typedef struct WuiMetadata_WuiShadow WuiMetadataShadow;
 
+typedef struct Computed_f32 WuiComputed_f32;
+
+/**
+ * FFI-safe representation of a 2D transform.
+ * All values are reactive (Computed) and can be animated.
+ */
+typedef struct WuiTransform {
+  /**
+   * Scale factor along X axis (1.0 = no scale)
+   */
+  WuiComputed_f32 *scale_x;
+  /**
+   * Scale factor along Y axis (1.0 = no scale)
+   */
+  WuiComputed_f32 *scale_y;
+  /**
+   * Rotation angle in degrees (positive = clockwise)
+   */
+  WuiComputed_f32 *rotation;
+  /**
+   * Translation offset along X axis in points
+   */
+  WuiComputed_f32 *translate_x;
+  /**
+   * Translation offset along Y axis in points
+   */
+  WuiComputed_f32 *translate_y;
+} WuiTransform;
+
+typedef struct WuiMetadata_WuiTransform {
+  struct WuiAnyView *content;
+  struct WuiTransform value;
+} WuiMetadata_WuiTransform;
+
+/**
+ * Type alias for Metadata<Transform> FFI struct
+ */
+typedef struct WuiMetadata_WuiTransform WuiMetadataTransform;
+
 typedef struct Binding_bool WuiBinding_bool;
 
 /**
@@ -1008,6 +1060,95 @@ typedef struct WuiMetadata_WuiRetain {
  * Type alias for Metadata<Retain> FFI struct
  */
 typedef struct WuiMetadata_WuiRetain WuiMetadataRetain;
+
+/**
+ * FFI-safe representation of an animation.
+ *
+ * cbindgen generates a tagged union with:
+ * - `WuiAnimation_Tag` enum for variant discrimination
+ * - Body structs for each variant with data
+ * - `WuiAnimation` struct with tag field and anonymous union
+ */
+typedef enum WuiAnimation_Tag {
+  /**
+   * No animation - changes apply immediately
+   */
+  WuiAnimation_None,
+  /**
+   * Default animation (0.25s ease-in-out)
+   */
+  WuiAnimation_Default,
+  /**
+   * Linear animation with constant velocity
+   */
+  WuiAnimation_Linear,
+  /**
+   * Ease-in animation that starts slow and accelerates
+   */
+  WuiAnimation_EaseIn,
+  /**
+   * Ease-out animation that starts fast and decelerates
+   */
+  WuiAnimation_EaseOut,
+  /**
+   * Ease-in-out animation that starts and ends slowly
+   */
+  WuiAnimation_EaseInOut,
+  /**
+   * Spring animation with physics-based movement
+   */
+  WuiAnimation_Spring,
+} WuiAnimation_Tag;
+
+typedef struct WuiAnimation_Linear_Body {
+  /**
+   * Duration in milliseconds
+   */
+  uint64_t duration_ms;
+} WuiAnimation_Linear_Body;
+
+typedef struct WuiAnimation_EaseIn_Body {
+  /**
+   * Duration in milliseconds
+   */
+  uint64_t duration_ms;
+} WuiAnimation_EaseIn_Body;
+
+typedef struct WuiAnimation_EaseOut_Body {
+  /**
+   * Duration in milliseconds
+   */
+  uint64_t duration_ms;
+} WuiAnimation_EaseOut_Body;
+
+typedef struct WuiAnimation_EaseInOut_Body {
+  /**
+   * Duration in milliseconds
+   */
+  uint64_t duration_ms;
+} WuiAnimation_EaseInOut_Body;
+
+typedef struct WuiAnimation_Spring_Body {
+  /**
+   * Stiffness of the spring (higher = faster)
+   */
+  float stiffness;
+  /**
+   * Damping factor (higher = less bounce)
+   */
+  float damping;
+} WuiAnimation_Spring_Body;
+
+typedef struct WuiAnimation {
+  WuiAnimation_Tag tag;
+  union {
+    WuiAnimation_Linear_Body linear;
+    WuiAnimation_EaseIn_Body ease_in;
+    WuiAnimation_EaseOut_Body ease_out;
+    WuiAnimation_EaseInOut_Body ease_in_out;
+    WuiAnimation_Spring_Body spring;
+  };
+} WuiAnimation;
 
 typedef struct WuiResolvedColor {
   float red;
@@ -1351,6 +1492,7 @@ typedef struct WuiBar {
   struct WuiText title;
   WuiComputed_Color *color;
   WuiComputed_bool *hidden;
+  enum WuiNavigationTitleDisplayMode display_mode;
 } WuiBar;
 
 typedef struct WuiNavigationView {
@@ -1719,8 +1861,6 @@ typedef struct Computed_AnyView WuiComputed_AnyView;
 
 typedef struct Binding_f32 WuiBinding_f32;
 
-typedef struct Computed_f32 WuiComputed_f32;
-
 typedef struct WuiPickerItem {
   struct WuiId tag;
   struct WuiText content;
@@ -2037,6 +2177,21 @@ WuiMetadataShadow waterui_force_as_metadata_shadow(struct WuiAnyView *view);
  * Returns the type ID as a 128-bit value for O(1) comparison.
  * Uses TypeId in normal builds, type_name hash in hot reload builds.
  */
+struct WuiTypeId waterui_metadata_transform_id(void);
+
+/**
+ * Force-casts an AnyView to this metadata type
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to an `AnyView`
+ * that contains a `Metadata<$ty>`.
+ */
+WuiMetadataTransform waterui_force_as_metadata_transform(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
 struct WuiTypeId waterui_metadata_focused_id(void);
 
 /**
@@ -2103,7 +2258,13 @@ void waterui_drop_action(struct WuiAction *value);
  */
 void waterui_call_action(struct WuiAction *action, const struct WuiEnv *env);
 
-enum WuiAnimation waterui_get_animation(const struct WuiWatcherMetadata *metadata);
+/**
+ * Extracts animation metadata from a watcher context.
+ *
+ * # Safety
+ * The metadata pointer must be valid and point to a properly initialized metadata object.
+ */
+struct WuiAnimation waterui_get_animation(const struct WuiWatcherMetadata *metadata);
 
 /**
  * # Safety
@@ -2747,6 +2908,29 @@ void waterui_env_install_navigation_controller(struct WuiEnv *env,
  * - `controller` must not have been previously dropped or consumed
  */
 void waterui_drop_navigation_controller(struct WuiNavigationController *controller);
+
+/**
+ * Checks if a navigation controller is installed in the environment.
+ *
+ * Returns true if a NavigationController is available, false otherwise.
+ * Use this to determine whether to show a back button in navigation views.
+ *
+ * # Safety
+ *
+ * - `env` must be a valid pointer to a `WuiEnv`
+ */
+bool waterui_env_has_navigation_controller(const struct WuiEnv *env);
+
+/**
+ * Pops the top view from the navigation stack.
+ *
+ * If no NavigationController is installed in the environment, this function does nothing.
+ *
+ * # Safety
+ *
+ * - `env` must be a valid pointer to a `WuiEnv`
+ */
+void waterui_navigation_pop(const struct WuiEnv *env);
 
 /**
  * # Safety

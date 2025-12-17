@@ -60,6 +60,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
+    @JvmStatic external fun forceAsMetadataTransform(viewPtr: Long): MetadataTransformStruct
     @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
@@ -76,6 +77,23 @@ object WatcherJni {
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
     @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
     @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
+
+    // ========== Animation Functions ==========
+
+    /** Get animation tag from metadata (matches WuiAnimation_Tag enum values) */
+    @JvmStatic external fun getAnimationTag(metadataPtr: Long): Int
+
+    /** Get animation duration in milliseconds (for timed animations) */
+    @JvmStatic external fun getAnimationDurationMs(metadataPtr: Long): Long
+
+    /** Get spring stiffness (for spring animations) */
+    @JvmStatic external fun getAnimationStiffness(metadataPtr: Long): Float
+
+    /** Get spring damping (for spring animations) */
+    @JvmStatic external fun getAnimationDamping(metadataPtr: Long): Float
+
+    /** Legacy: Get animation type as int (deprecated, use getAnimationTag instead) */
+    @Deprecated("Use getAnimationTag instead for full animation support")
     @JvmStatic external fun getAnimation(metadataPtr: Long): Int
 
     // ========== AnyViews Functions ==========
@@ -107,6 +125,7 @@ object WatcherJni {
     // ========== Computed Read/Drop ==========
 
     @JvmStatic external fun readComputedF64(computedPtr: Long): Double
+    @JvmStatic external fun readComputedF32(computedPtr: Long): Float
     @JvmStatic external fun readComputedI32(computedPtr: Long): Int
     @JvmStatic external fun readComputedResolvedColor(computedPtr: Long): ResolvedColorStruct
     @JvmStatic external fun readComputedResolvedFont(computedPtr: Long): ResolvedFontStruct
@@ -116,6 +135,7 @@ object WatcherJni {
     @JvmStatic external fun readComputedColor(computedPtr: Long): Long
     @JvmStatic external fun dropComputedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedF64(computedPtr: Long)
+    @JvmStatic external fun dropComputedF32(computedPtr: Long)
     @JvmStatic external fun dropComputedI32(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedFont(computedPtr: Long)
@@ -148,6 +168,7 @@ object WatcherJni {
     // ========== Watch Computed ==========
 
     @JvmStatic external fun watchComputedF64(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchComputedF32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedI32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedStyledStr(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedColor(computedPtr: Long, watcher: WatcherStruct): Long
@@ -232,6 +253,7 @@ object WatcherJni {
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataTransformId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
