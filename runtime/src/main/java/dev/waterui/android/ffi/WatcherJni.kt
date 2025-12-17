@@ -61,6 +61,13 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
     @JvmStatic external fun forceAsMetadataTransform(viewPtr: Long): MetadataTransformStruct
+    @JvmStatic external fun forceAsMetadataBlur(viewPtr: Long): MetadataBlurStruct
+    @JvmStatic external fun forceAsMetadataBrightness(viewPtr: Long): MetadataBrightnessStruct
+    @JvmStatic external fun forceAsMetadataSaturation(viewPtr: Long): MetadataSaturationStruct
+    @JvmStatic external fun forceAsMetadataContrast(viewPtr: Long): MetadataContrastStruct
+    @JvmStatic external fun forceAsMetadataHueRotation(viewPtr: Long): MetadataHueRotationStruct
+    @JvmStatic external fun forceAsMetadataGrayscale(viewPtr: Long): MetadataGrayscaleStruct
+    @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
     @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
@@ -254,6 +261,13 @@ object WatcherJni {
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataTransformId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataBlurId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataBrightnessId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataSaturationId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataContrastId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataHueRotationId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataGrayscaleId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct

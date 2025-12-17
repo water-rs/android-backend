@@ -370,6 +370,71 @@ data class MetadataTransformStruct(
     val translateYPtr: Long
 )
 
+// ========== Filter Metadata Structs ==========
+
+/**
+ * Metadata<Blur> struct for blur filter.
+ * Contains computed f32 pointer for blur radius.
+ */
+data class MetadataBlurStruct(
+    val contentPtr: Long,
+    val radiusPtr: Long
+)
+
+/**
+ * Metadata<Brightness> struct for brightness filter.
+ * Contains computed f32 pointer for brightness amount.
+ */
+data class MetadataBrightnessStruct(
+    val contentPtr: Long,
+    val amountPtr: Long
+)
+
+/**
+ * Metadata<Saturation> struct for saturation filter.
+ * Contains computed f32 pointer for saturation amount.
+ */
+data class MetadataSaturationStruct(
+    val contentPtr: Long,
+    val amountPtr: Long
+)
+
+/**
+ * Metadata<Contrast> struct for contrast filter.
+ * Contains computed f32 pointer for contrast amount.
+ */
+data class MetadataContrastStruct(
+    val contentPtr: Long,
+    val amountPtr: Long
+)
+
+/**
+ * Metadata<HueRotation> struct for hue rotation filter.
+ * Contains computed f32 pointer for rotation angle.
+ */
+data class MetadataHueRotationStruct(
+    val contentPtr: Long,
+    val anglePtr: Long
+)
+
+/**
+ * Metadata<Grayscale> struct for grayscale filter.
+ * Contains computed f32 pointer for grayscale intensity.
+ */
+data class MetadataGrayscaleStruct(
+    val contentPtr: Long,
+    val intensityPtr: Long
+)
+
+/**
+ * Metadata<Opacity> struct for opacity filter.
+ * Contains computed f32 pointer for opacity value.
+ */
+data class MetadataOpacityStruct(
+    val contentPtr: Long,
+    val valuePtr: Long
+)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {
