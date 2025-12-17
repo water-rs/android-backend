@@ -184,6 +184,20 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_retain)                                                       \
   X(waterui_metadata_transform_id)                                             \
   X(waterui_force_as_metadata_transform)                                       \
+  X(waterui_metadata_blur_id)                                                  \
+  X(waterui_force_as_metadata_blur)                                            \
+  X(waterui_metadata_brightness_id)                                            \
+  X(waterui_force_as_metadata_brightness)                                      \
+  X(waterui_metadata_saturation_id)                                            \
+  X(waterui_force_as_metadata_saturation)                                      \
+  X(waterui_metadata_contrast_id)                                              \
+  X(waterui_force_as_metadata_contrast)                                        \
+  X(waterui_metadata_hue_rotation_id)                                          \
+  X(waterui_force_as_metadata_hue_rotation)                                    \
+  X(waterui_metadata_grayscale_id)                                             \
+  X(waterui_force_as_metadata_grayscale)                                       \
+  X(waterui_metadata_opacity_id)                                               \
+  X(waterui_force_as_metadata_opacity)                                         \
   X(waterui_call_on_event)                                                     \
   X(waterui_drop_on_event)                                                     \
   X(waterui_read_computed_color)                                               \
@@ -1654,6 +1668,13 @@ DEFINE_TYPE_ID_FN(metadataFocusedId, waterui_metadata_focused_id)
 DEFINE_TYPE_ID_FN(metadataIgnoreSafeAreaId, waterui_metadata_ignore_safe_area_id)
 DEFINE_TYPE_ID_FN(metadataRetainId, waterui_metadata_retain_id)
 DEFINE_TYPE_ID_FN(metadataTransformId, waterui_metadata_transform_id)
+DEFINE_TYPE_ID_FN(metadataBlurId, waterui_metadata_blur_id)
+DEFINE_TYPE_ID_FN(metadataBrightnessId, waterui_metadata_brightness_id)
+DEFINE_TYPE_ID_FN(metadataSaturationId, waterui_metadata_saturation_id)
+DEFINE_TYPE_ID_FN(metadataContrastId, waterui_metadata_contrast_id)
+DEFINE_TYPE_ID_FN(metadataHueRotationId, waterui_metadata_hue_rotation_id)
+DEFINE_TYPE_ID_FN(metadataGrayscaleId, waterui_metadata_grayscale_id)
+DEFINE_TYPE_ID_FN(metadataOpacityId, waterui_metadata_opacity_id)
 
 #undef DEFINE_TYPE_ID_FN
 
@@ -2156,6 +2177,106 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataTransform(JNIEnv *env, jc
                                ptr_to_jlong(metadata.value.rotation),
                                ptr_to_jlong(metadata.value.translate_x),
                                ptr_to_jlong(metadata.value.translate_y));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+// ========== Filter Metadata Force-As Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataBlur(JNIEnv *env, jclass,
+                                                            jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_blur(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataBlurStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.radius));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataBrightness(JNIEnv *env, jclass,
+                                                                   jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_brightness(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataBrightnessStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.amount));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataSaturation(JNIEnv *env, jclass,
+                                                                   jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_saturation(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataSaturationStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.amount));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataContrast(JNIEnv *env, jclass,
+                                                                 jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_contrast(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataContrastStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.amount));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataHueRotation(JNIEnv *env, jclass,
+                                                                    jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_hue_rotation(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataHueRotationStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.angle));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataGrayscale(JNIEnv *env, jclass,
+                                                                  jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_grayscale(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataGrayscaleStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.intensity));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataOpacity(JNIEnv *env, jclass,
+                                                                jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_opacity(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataOpacityStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.value));
   env->DeleteLocalRef(cls);
   return obj;
 }

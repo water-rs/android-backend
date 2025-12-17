@@ -116,6 +116,15 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiIgnoreSafeArea()
         registerWuiRetain()
         registerWuiTransform()
+
+        // Filter components
+        registerWuiBlur()
+        registerWuiOpacity()
+        registerWuiBrightness()
+        registerWuiSaturation()
+        registerWuiContrast()
+        registerWuiHueRotation()
+        registerWuiGrayscale()
     }
     builder.components to builder.metadataTypes
 }
