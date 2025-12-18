@@ -435,6 +435,72 @@ data class MetadataOpacityStruct(
     val valuePtr: Long
 )
 
+// ========== Path and ClipShape Structs ==========
+
+/**
+ * Path command type enum matching WuiPathCommand_Tag in FFI.
+ */
+enum class PathCommandType(val value: Int) {
+    MOVE_TO(0),
+    LINE_TO(1),
+    QUAD_TO(2),
+    CUBIC_TO(3),
+    ARC(4),
+    CLOSE(5);
+
+    companion object {
+        fun fromValue(value: Int): PathCommandType =
+            entries.find { it.value == value } ?: CLOSE
+    }
+}
+
+/**
+ * Path command struct matching WuiPathCommand in FFI.
+ * Contains all possible coordinates for different command types.
+ */
+data class PathCommandStruct(
+    val tag: Int,
+    // MoveTo / LineTo: x, y
+    val x: Float,
+    val y: Float,
+    // QuadTo: cx, cy (control), x, y (end)
+    val cx: Float,
+    val cy: Float,
+    // CubicTo: c1x, c1y (control1), c2x, c2y (control2), x, y (end)
+    val c1x: Float,
+    val c1y: Float,
+    val c2x: Float,
+    val c2y: Float,
+    // Arc: cx, cy (center), rx, ry (radii), start, sweep (angles)
+    val rx: Float,
+    val ry: Float,
+    val start: Float,
+    val sweep: Float
+) {
+    val type: PathCommandType get() = PathCommandType.fromValue(tag)
+}
+
+/**
+ * Metadata<ClipShape> struct for view clipping.
+ * Contains the content view and an array of path commands defining the clip shape.
+ */
+data class MetadataClipShapeStruct(
+    val contentPtr: Long,
+    val commands: Array<PathCommandStruct>
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is MetadataClipShapeStruct) return false
+        if (contentPtr != other.contentPtr) return false
+        return commands.contentEquals(other.commands)
+    }
+    override fun hashCode(): Int {
+        var result = contentPtr.hashCode()
+        result = 31 * result + commands.contentHashCode()
+        return result
+    }
+}
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {
@@ -736,4 +802,28 @@ data class AppStruct(
         return windows.contentEquals(other.windows) && envPtr == other.envPtr
     }
     override fun hashCode(): Int = 31 * windows.contentHashCode() + envPtr.hashCode()
+}
+
+// ========== FilledShape Struct ==========
+
+/**
+ * FilledShape component data.
+ * A shape filled with a color, rendered as a native view.
+ * Contains path commands defining the shape and a fill color.
+ */
+data class FilledShapeStruct(
+    val commands: Array<PathCommandStruct>,
+    val fillPtr: Long
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is FilledShapeStruct) return false
+        if (fillPtr != other.fillPtr) return false
+        return commands.contentEquals(other.commands)
+    }
+    override fun hashCode(): Int {
+        var result = fillPtr.hashCode()
+        result = 31 * result + commands.contentHashCode()
+        return result
+    }
 }

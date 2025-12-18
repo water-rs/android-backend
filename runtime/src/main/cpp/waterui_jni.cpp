@@ -1675,6 +1675,8 @@ DEFINE_TYPE_ID_FN(metadataContrastId, waterui_metadata_contrast_id)
 DEFINE_TYPE_ID_FN(metadataHueRotationId, waterui_metadata_hue_rotation_id)
 DEFINE_TYPE_ID_FN(metadataGrayscaleId, waterui_metadata_grayscale_id)
 DEFINE_TYPE_ID_FN(metadataOpacityId, waterui_metadata_opacity_id)
+DEFINE_TYPE_ID_FN(metadataClipShapeId, waterui_metadata_clip_shape_id)
+DEFINE_TYPE_ID_FN(filledShapeId, waterui_filled_shape_id)
 
 #undef DEFINE_TYPE_ID_FN
 
@@ -2278,6 +2280,157 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataOpacity(JNIEnv *env, jcla
                                ptr_to_jlong(metadata.content),
                                ptr_to_jlong(metadata.value.value));
   env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataClipShape(JNIEnv *env, jclass,
+                                                                  jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_clip_shape(jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  // Get path commands array
+  WuiArraySlice_WuiPathCommand slice = metadata.value.commands.vtable.slice(metadata.value.commands.data);
+
+  // Create PathCommandStruct class and array
+  jclass cmdCls = env->FindClass("dev/waterui/android/runtime/PathCommandStruct");
+  // Constructor: (tag, x, y, cx, cy, c1x, c1y, c2x, c2y, rx, ry, start, sweep)
+  jmethodID cmdCtor = env->GetMethodID(cmdCls, "<init>", "(IFFFFFFFFFFFF)V");
+
+  jobjectArray cmdArray = env->NewObjectArray(static_cast<jsize>(slice.len), cmdCls, nullptr);
+
+  for (size_t i = 0; i < slice.len; i++) {
+    WuiPathCommand cmd = slice.head[i];
+    float x = 0, y = 0, cx = 0, cy = 0, c1x = 0, c1y = 0, c2x = 0, c2y = 0;
+    float rx = 0, ry = 0, start = 0, sweep = 0;
+
+    switch (cmd.tag) {
+      case WuiPathCommand_MoveTo:
+        x = cmd.move_to.x;
+        y = cmd.move_to.y;
+        break;
+      case WuiPathCommand_LineTo:
+        x = cmd.line_to.x;
+        y = cmd.line_to.y;
+        break;
+      case WuiPathCommand_QuadTo:
+        cx = cmd.quad_to.cx;
+        cy = cmd.quad_to.cy;
+        x = cmd.quad_to.x;
+        y = cmd.quad_to.y;
+        break;
+      case WuiPathCommand_CubicTo:
+        c1x = cmd.cubic_to.c1x;
+        c1y = cmd.cubic_to.c1y;
+        c2x = cmd.cubic_to.c2x;
+        c2y = cmd.cubic_to.c2y;
+        x = cmd.cubic_to.x;
+        y = cmd.cubic_to.y;
+        break;
+      case WuiPathCommand_Arc:
+        cx = cmd.arc.cx;
+        cy = cmd.arc.cy;
+        rx = cmd.arc.rx;
+        ry = cmd.arc.ry;
+        start = cmd.arc.start;
+        sweep = cmd.arc.sweep;
+        break;
+      case WuiPathCommand_Close:
+        // No additional data needed
+        break;
+    }
+
+    jobject cmdObj = env->NewObject(cmdCls, cmdCtor,
+                                    static_cast<jint>(cmd.tag),
+                                    x, y, cx, cy, c1x, c1y, c2x, c2y, rx, ry, start, sweep);
+    env->SetObjectArrayElement(cmdArray, static_cast<jsize>(i), cmdObj);
+    env->DeleteLocalRef(cmdObj);
+  }
+
+  // Create MetadataClipShapeStruct
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataClipShapeStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(J[Ldev/waterui/android/runtime/PathCommandStruct;)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               cmdArray);
+
+  env->DeleteLocalRef(cmdCls);
+  env->DeleteLocalRef(cmdArray);
+  env->DeleteLocalRef(cls);
+
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsFilledShape(JNIEnv *env, jclass,
+                                                            jlong viewPtr) {
+  auto filled = g_sym.waterui_force_as_filled_shape(jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  // Get path commands array
+  WuiArraySlice_WuiPathCommand slice = filled.commands.vtable.slice(filled.commands.data);
+
+  // Create PathCommandStruct class and array
+  jclass cmdCls = env->FindClass("dev/waterui/android/runtime/PathCommandStruct");
+  jmethodID cmdCtor = env->GetMethodID(cmdCls, "<init>", "(IFFFFFFFFFFFF)V");
+
+  jobjectArray cmdArray = env->NewObjectArray(static_cast<jsize>(slice.len), cmdCls, nullptr);
+
+  for (size_t i = 0; i < slice.len; i++) {
+    WuiPathCommand cmd = slice.head[i];
+    float x = 0, y = 0, cx = 0, cy = 0, c1x = 0, c1y = 0, c2x = 0, c2y = 0;
+    float rx = 0, ry = 0, start = 0, sweep = 0;
+
+    switch (cmd.tag) {
+      case WuiPathCommand_MoveTo:
+        x = cmd.move_to.x;
+        y = cmd.move_to.y;
+        break;
+      case WuiPathCommand_LineTo:
+        x = cmd.line_to.x;
+        y = cmd.line_to.y;
+        break;
+      case WuiPathCommand_QuadTo:
+        cx = cmd.quad_to.cx;
+        cy = cmd.quad_to.cy;
+        x = cmd.quad_to.x;
+        y = cmd.quad_to.y;
+        break;
+      case WuiPathCommand_CubicTo:
+        c1x = cmd.cubic_to.c1x;
+        c1y = cmd.cubic_to.c1y;
+        c2x = cmd.cubic_to.c2x;
+        c2y = cmd.cubic_to.c2y;
+        x = cmd.cubic_to.x;
+        y = cmd.cubic_to.y;
+        break;
+      case WuiPathCommand_Arc:
+        cx = cmd.arc.cx;
+        cy = cmd.arc.cy;
+        rx = cmd.arc.rx;
+        ry = cmd.arc.ry;
+        start = cmd.arc.start;
+        sweep = cmd.arc.sweep;
+        break;
+      case WuiPathCommand_Close:
+        break;
+    }
+
+    jobject cmdObj = env->NewObject(cmdCls, cmdCtor,
+                                    static_cast<jint>(cmd.tag),
+                                    x, y, cx, cy, c1x, c1y, c2x, c2y, rx, ry, start, sweep);
+    env->SetObjectArrayElement(cmdArray, static_cast<jsize>(i), cmdObj);
+    env->DeleteLocalRef(cmdObj);
+  }
+
+  // Create FilledShapeStruct
+  jclass cls = env->FindClass("dev/waterui/android/runtime/FilledShapeStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "([Ldev/waterui/android/runtime/PathCommandStruct;J)V");
+  jobject obj = env->NewObject(cls, ctor, cmdArray, ptr_to_jlong(filled.fill));
+
+  env->DeleteLocalRef(cmdCls);
+  env->DeleteLocalRef(cmdArray);
+  env->DeleteLocalRef(cls);
+
   return obj;
 }
 

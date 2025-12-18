@@ -68,6 +68,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataHueRotation(viewPtr: Long): MetadataHueRotationStruct
     @JvmStatic external fun forceAsMetadataGrayscale(viewPtr: Long): MetadataGrayscaleStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
+    @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
+    @JvmStatic external fun forceAsFilledShape(viewPtr: Long): FilledShapeStruct
     @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
@@ -268,6 +270,8 @@ object WatcherJni {
     @JvmStatic external fun metadataHueRotationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataGrayscaleId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataClipShapeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun filledShapeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
