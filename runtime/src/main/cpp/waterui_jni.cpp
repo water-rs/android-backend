@@ -241,7 +241,11 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_list_item_id)                                                      \
   X(waterui_force_as_list)                                                     \
   X(waterui_force_as_list_item)                                                \
-  X(waterui_env_install_media_picker_manager)
+  X(waterui_env_install_media_picker_manager)                                  \
+  X(waterui_metadata_clip_shape_id)                                            \
+  X(waterui_force_as_metadata_clip_shape)                                      \
+  X(waterui_filled_shape_id)                                                   \
+  X(waterui_force_as_filled_shape)
 
 struct WatcherSymbols {
 #define DECLARE_SYMBOL(name) decltype(&::name) name = nullptr;
@@ -3485,15 +3489,12 @@ void waterui_present_media_picker(WuiMediaFilterType filter, MediaPickerPresentC
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_MediaPickerManager_nativeCompletePresentCallback(
     JNIEnv *, jclass, jlong callbackData, jlong callbackFn, jint selectedId) {
-  // Get the callback function pointer
-  auto callFn = reinterpret_cast<void (*)(void *, WuiSelected)>(callbackFn);
+  // Get the callback function pointer - SelectedId is uint32_t
+  auto callFn = reinterpret_cast<void (*)(void *, SelectedId)>(callbackFn);
   void *data = reinterpret_cast<void *>(callbackData);
 
-  // Create WuiSelected struct
-  WuiSelected selected;
-  selected.id = static_cast<uint32_t>(selectedId);
-
-  // Call the Rust callback
+  // Call the Rust callback with the selected ID
+  SelectedId selected = static_cast<SelectedId>(selectedId);
   callFn(data, selected);
 }
 
@@ -3595,12 +3596,11 @@ Java_dev_waterui_android_runtime_MediaLoader_nativeCompleteMediaLoad(
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_runtime_NativeBindings_callOnSelection(
     JNIEnv *, jclass, jlong dataPtr, jlong callPtr, jint selectionId) {
-  auto callFn = reinterpret_cast<void (*)(void *, WuiSelected)>(callPtr);
+  // SelectedId is uint32_t
+  auto callFn = reinterpret_cast<void (*)(void *, SelectedId)>(callPtr);
   void *data = reinterpret_cast<void *>(dataPtr);
 
-  WuiSelected selected{};
-  selected.id = static_cast<uint32_t>(selectionId);
-
+  SelectedId selected = static_cast<SelectedId>(selectionId);
   callFn(data, selected);
 }
 
