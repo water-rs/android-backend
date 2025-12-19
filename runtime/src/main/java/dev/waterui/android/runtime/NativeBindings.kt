@@ -40,6 +40,7 @@ internal object NativeBindings {
     fun waterui_color_id(): TypeIdStruct = WatcherJni.colorId()
     fun waterui_text_field_id(): TypeIdStruct = WatcherJni.textFieldId()
     fun waterui_stepper_id(): TypeIdStruct = WatcherJni.stepperId()
+    fun waterui_date_picker_id(): TypeIdStruct = WatcherJni.datePickerId()
     fun waterui_progress_id(): TypeIdStruct = WatcherJni.progressId()
     fun waterui_dynamic_id(): TypeIdStruct = WatcherJni.dynamicId()
     fun waterui_scroll_view_id(): TypeIdStruct = WatcherJni.scrollViewId()
@@ -148,6 +149,13 @@ internal object NativeBindings {
     fun waterui_drop_binding_double(bindingPtr: Long) = WatcherJni.dropBindingDouble(bindingPtr)
     fun waterui_drop_binding_str(bindingPtr: Long) = WatcherJni.dropBindingStr(bindingPtr)
 
+    // Date binding functions
+    fun waterui_read_binding_date(bindingPtr: Long): DateStruct = WatcherJni.readBindingDate(bindingPtr)
+    fun waterui_set_binding_date(bindingPtr: Long, date: DateStruct) = WatcherJni.setBindingDate(bindingPtr, date.year, date.month, date.day)
+    fun waterui_drop_binding_date(bindingPtr: Long) = WatcherJni.dropBindingDate(bindingPtr)
+    fun waterui_watch_binding_date(bindingPtr: Long, watcher: WatcherStruct): Long = WatcherJni.watchBindingDate(bindingPtr, watcher)
+    fun waterui_create_date_watcher(callback: WatcherCallback<DateStruct>): WatcherStruct = WatcherJni.createDateWatcher(callback)
+
     // ========== Computed accessors ==========
 
     fun waterui_read_computed_f64(computedPtr: Long): Double = WatcherJni.readComputedF64(computedPtr)
@@ -224,6 +232,7 @@ internal object NativeBindings {
     fun waterui_force_as_toggle(viewPtr: Long): ToggleStruct = WatcherJni.forceAsToggle(viewPtr)
     fun waterui_force_as_slider(viewPtr: Long): SliderStruct = WatcherJni.forceAsSlider(viewPtr)
     fun waterui_force_as_stepper(viewPtr: Long): StepperStruct = WatcherJni.forceAsStepper(viewPtr)
+    fun waterui_force_as_date_picker(viewPtr: Long): DatePickerStruct = WatcherJni.forceAsDatePicker(viewPtr)
     fun waterui_force_as_progress(viewPtr: Long): ProgressStruct = WatcherJni.forceAsProgress(viewPtr)
     fun waterui_force_as_scroll(viewPtr: Long): ScrollStruct = WatcherJni.forceAsScrollView(viewPtr)
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)

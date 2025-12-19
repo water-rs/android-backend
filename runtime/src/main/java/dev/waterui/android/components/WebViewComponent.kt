@@ -346,7 +346,7 @@ class WebViewWrapper(context: Context) {
  * 2. WuiWebViewHandle struct with function pointers:
  *    - go_back, go_forward, go_to, stop, refresh
  *    - can_go_back, can_go_forward
- *    - set_user_agent, inject_script
+ *    - set_user_agent, set_redirects_enabled, inject_script
  *    - watch (set event callback)
  *    - run_javascript
  *    - drop

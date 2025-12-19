@@ -76,6 +76,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_color_id)                                                          \
   X(waterui_text_field_id)                                                     \
   X(waterui_stepper_id)                                                        \
+  X(waterui_date_picker_id)                                                    \
   X(waterui_progress_id)                                                       \
   X(waterui_dynamic_id)                                                        \
   X(waterui_scroll_view_id)                                                    \
@@ -98,6 +99,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_toggle)                                                   \
   X(waterui_force_as_slider)                                                   \
   X(waterui_force_as_stepper)                                                  \
+  X(waterui_force_as_date_picker)                                              \
   X(waterui_force_as_progress)                                                 \
   X(waterui_force_as_scroll_view)                                              \
   X(waterui_force_as_picker)                                                   \
@@ -128,6 +130,11 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_binding_f64)                                                  \
   X(waterui_drop_binding_i32)                                                  \
   X(waterui_drop_binding_str)                                                  \
+  X(waterui_read_binding_date)                                                 \
+  X(waterui_set_binding_date)                                                  \
+  X(waterui_drop_binding_date)                                                 \
+  X(waterui_watch_binding_date)                                                \
+  X(waterui_new_watcher_date)                                                  \
   X(waterui_read_computed_f64)                                                 \
   X(waterui_read_computed_i32)                                                 \
   X(waterui_read_computed_resolved_color)                                      \
@@ -1651,6 +1658,7 @@ DEFINE_TYPE_ID_FN(buttonId, waterui_button_id)
 DEFINE_TYPE_ID_FN(colorId, waterui_color_id)
 DEFINE_TYPE_ID_FN(textFieldId, waterui_text_field_id)
 DEFINE_TYPE_ID_FN(stepperId, waterui_stepper_id)
+DEFINE_TYPE_ID_FN(datePickerId, waterui_date_picker_id)
 DEFINE_TYPE_ID_FN(progressId, waterui_progress_id)
 DEFINE_TYPE_ID_FN(dynamicId, waterui_dynamic_id)
 DEFINE_TYPE_ID_FN(scrollViewId, waterui_scroll_view_id)
@@ -1876,6 +1884,49 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsStepper(JNIEnv *env, jclass,
       cls, ctor, ptr_to_jlong(stepper.value), ptr_to_jlong(stepper.step),
       ptr_to_jlong(stepper.label), static_cast<jint>(stepper.range.start),
       static_cast<jint>(stepper.range.end));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsDatePicker(JNIEnv *env, jclass,
+                                                          jlong viewPtr) {
+  auto picker =
+      g_sym.waterui_force_as_date_picker(jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  // Create DateStruct for start
+  jclass dateStructCls = env->FindClass("dev/waterui/android/runtime/DateStruct");
+  jmethodID dateStructCtor = env->GetMethodID(dateStructCls, "<init>", "(III)V");
+  jobject startDate = env->NewObject(dateStructCls, dateStructCtor,
+                                     static_cast<jint>(picker.range.start.year),
+                                     static_cast<jint>(picker.range.start.month),
+                                     static_cast<jint>(picker.range.start.day));
+  jobject endDate = env->NewObject(dateStructCls, dateStructCtor,
+                                   static_cast<jint>(picker.range.end.year),
+                                   static_cast<jint>(picker.range.end.month),
+                                   static_cast<jint>(picker.range.end.day));
+
+  // Create DateRangeStruct
+  jclass dateRangeStructCls = env->FindClass("dev/waterui/android/runtime/DateRangeStruct");
+  jmethodID dateRangeStructCtor = env->GetMethodID(dateRangeStructCls, "<init>",
+      "(Ldev/waterui/android/runtime/DateStruct;Ldev/waterui/android/runtime/DateStruct;)V");
+  jobject range = env->NewObject(dateRangeStructCls, dateRangeStructCtor, startDate, endDate);
+
+  // Create DatePickerStruct
+  jclass cls = env->FindClass("dev/waterui/android/runtime/DatePickerStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>",
+      "(JJLdev/waterui/android/runtime/DateRangeStruct;I)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(picker.label),
+                               ptr_to_jlong(picker.value),
+                               range,
+                               static_cast<jint>(picker.ty));
+
+  env->DeleteLocalRef(dateStructCls);
+  env->DeleteLocalRef(startDate);
+  env->DeleteLocalRef(endDate);
+  env->DeleteLocalRef(dateRangeStructCls);
+  env->DeleteLocalRef(range);
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -2954,6 +3005,111 @@ Java_dev_waterui_android_ffi_WatcherJni_createFloatWatcher(JNIEnv *env, jclass,
   jclass cls = env->FindClass("dev/waterui/android/runtime/WatcherStruct");
   jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJ)V");
   jobject obj = env->NewObject(cls, ctor, 0L, 0L, 0L);
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+// ========== Date Binding Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readBindingDate(JNIEnv *env, jclass,
+                                                        jlong bindingPtr) {
+  auto date = g_sym.waterui_read_binding_date(
+      jlong_to_ptr<WuiBinding_Date>(bindingPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/DateStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(III)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               static_cast<jint>(date.year),
+                               static_cast<jint>(date.month),
+                               static_cast<jint>(date.day));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_setBindingDate(JNIEnv *, jclass,
+                                                       jlong bindingPtr,
+                                                       jint year, jint month, jint day) {
+  WuiDate date;
+  date.year = year;
+  date.month = static_cast<uint8_t>(month);
+  date.day = static_cast<uint8_t>(day);
+  g_sym.waterui_set_binding_date(jlong_to_ptr<WuiBinding_Date>(bindingPtr), date);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropBindingDate(JNIEnv *, jclass,
+                                                        jlong bindingPtr) {
+  g_sym.waterui_drop_binding_date(jlong_to_ptr<WuiBinding_Date>(bindingPtr));
+}
+
+static void date_watcher_call(void *data, WuiDate value,
+                              WuiWatcherMetadata *metadata) {
+  CallbackData *cb = static_cast<CallbackData *>(data);
+  JNIEnv *env = cb->env;
+
+  // Create DateStruct
+  jclass dateStructCls = env->FindClass("dev/waterui/android/runtime/DateStruct");
+  jmethodID dateStructCtor = env->GetMethodID(dateStructCls, "<init>", "(III)V");
+  jobject dateObj = env->NewObject(dateStructCls, dateStructCtor,
+                                   static_cast<jint>(value.year),
+                                   static_cast<jint>(value.month),
+                                   static_cast<jint>(value.day));
+
+  // Create WatcherMetadata
+  jclass metadataCls = env->FindClass("dev/waterui/android/reactive/WatcherMetadata");
+  jmethodID metadataCtor = env->GetMethodID(metadataCls, "<init>", "(J)V");
+  jobject metadataObj = env->NewObject(metadataCls, metadataCtor, ptr_to_jlong(metadata));
+
+  // Call the callback
+  jclass callbackCls = env->GetObjectClass(cb->callback);
+  jmethodID invokeMethod = env->GetMethodID(callbackCls, "invoke",
+      "(Ljava/lang/Object;Ldev/waterui/android/reactive/WatcherMetadata;)V");
+  env->CallVoidMethod(cb->callback, invokeMethod, dateObj, metadataObj);
+
+  env->DeleteLocalRef(dateStructCls);
+  env->DeleteLocalRef(dateObj);
+  env->DeleteLocalRef(metadataCls);
+  env->DeleteLocalRef(metadataObj);
+  env->DeleteLocalRef(callbackCls);
+}
+
+static void date_watcher_drop(void *data) {
+  CallbackData *cb = static_cast<CallbackData *>(data);
+  JNIEnv *env = cb->env;
+  env->DeleteGlobalRef(cb->callback);
+  delete cb;
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchBindingDate(JNIEnv *env, jclass,
+                                                         jlong bindingPtr,
+                                                         jobject watcher) {
+  auto *binding = jlong_to_ptr<WuiBinding_Date>(bindingPtr);
+  WatcherStructFields fields = watcher_struct_from_java(env, watcher);
+  auto *w = reinterpret_cast<WuiWatcher_Date *>(
+      g_sym.waterui_new_watcher_date(fields.data,
+                                     reinterpret_cast<void (*)(void *, WuiDate, WuiWatcherMetadata *)>(fields.call),
+                                     fields.drop));
+  return ptr_to_jlong(g_sym.waterui_watch_binding_date(binding, w));
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_createDateWatcher(JNIEnv *env, jclass,
+                                                          jobject callback) {
+  CallbackData *data = new CallbackData{env, env->NewGlobalRef(callback)};
+
+  auto *watcher = g_sym.waterui_new_watcher_date(
+      data,
+      date_watcher_call,
+      date_watcher_drop);
+
+  jclass cls = env->FindClass("dev/waterui/android/runtime/WatcherStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(data),
+                               ptr_to_jlong(reinterpret_cast<void *>(date_watcher_call)),
+                               ptr_to_jlong(reinterpret_cast<void *>(date_watcher_drop)));
   env->DeleteLocalRef(cls);
   return obj;
 }

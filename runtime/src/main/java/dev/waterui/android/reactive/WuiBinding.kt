@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ResolvedFontStruct
@@ -167,6 +168,17 @@ class WuiBinding<T>(
                 dropper = { ptr -> WatcherJni.dropBindingFloat(ptr) },
                 env = env
             )
+
+        fun date(bindingPtr: Long, env: WuiEnvironment): WuiBinding<DateStruct> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingDate(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingDate(ptr, value.year, value.month, value.day) },
+                watcherFactory = { _, callback -> WatcherStructFactory.date(callback) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDate(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingDate(ptr) },
+                env = env
+            )
     }
 }
 
@@ -216,5 +228,9 @@ object WatcherStructFactory {
 
     fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
         return WatcherJni.createPickerItemsWatcher(callback)
+    }
+
+    fun date(callback: WatcherCallback<DateStruct>): WatcherStruct {
+        return WatcherJni.createDateWatcher(callback)
     }
 }
