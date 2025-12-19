@@ -43,6 +43,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsToggle(viewPtr: Long): ToggleStruct
     @JvmStatic external fun forceAsSlider(viewPtr: Long): SliderStruct
     @JvmStatic external fun forceAsStepper(viewPtr: Long): StepperStruct
+    @JvmStatic external fun forceAsDatePicker(viewPtr: Long): DatePickerStruct
     @JvmStatic external fun forceAsProgress(viewPtr: Long): ProgressStruct
     @JvmStatic external fun forceAsScrollView(viewPtr: Long): ScrollStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
@@ -130,6 +131,11 @@ object WatcherJni {
     @JvmStatic external fun readBindingFloat(bindingPtr: Long): Float
     @JvmStatic external fun setBindingFloat(bindingPtr: Long, value: Float)
     @JvmStatic external fun dropBindingFloat(bindingPtr: Long)
+    @JvmStatic external fun readBindingDate(bindingPtr: Long): DateStruct
+    @JvmStatic external fun setBindingDate(bindingPtr: Long, year: Int, month: Int, day: Int)
+    @JvmStatic external fun dropBindingDate(bindingPtr: Long)
+    @JvmStatic external fun watchBindingDate(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun createDateWatcher(callback: WatcherCallback<DateStruct>): WatcherStruct
 
     // ========== Computed Read/Drop ==========
 
@@ -242,6 +248,7 @@ object WatcherJni {
     @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun textFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun stepperId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun datePickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun progressId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct

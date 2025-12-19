@@ -202,6 +202,51 @@ data class StepperStruct(
     val rangeEnd: Int
 )
 
+/**
+ * Date value struct matching WuiDate in FFI.
+ * Uses year/month/day representation.
+ */
+data class DateStruct(
+    val year: Int,
+    val month: Int,
+    val day: Int
+)
+
+/**
+ * Date range struct matching WuiRange_WuiDate in FFI.
+ */
+data class DateRangeStruct(
+    val start: DateStruct,
+    val end: DateStruct
+)
+
+/**
+ * DatePicker type enum matching WuiDatePickerType in FFI.
+ */
+enum class DatePickerType(val value: Int) {
+    DATE(0),
+    HOUR_AND_MINUTE(1),
+    HOUR_MINUTE_AND_SECOND(2),
+    DATE_HOUR_AND_MINUTE(3),
+    DATE_HOUR_MINUTE_AND_SECOND(4);
+
+    companion object {
+        fun fromInt(value: Int): DatePickerType = entries.firstOrNull { it.value == value } ?: DATE_HOUR_AND_MINUTE
+    }
+}
+
+/**
+ * DatePicker component data.
+ */
+data class DatePickerStruct(
+    val labelPtr: Long,
+    val valuePtr: Long,
+    val range: DateRangeStruct,
+    val pickerType: Int
+) {
+    fun type(): DatePickerType = DatePickerType.fromInt(pickerType)
+}
+
 data class ProgressStruct(val labelPtr: Long, val valueLabelPtr: Long, val valuePtr: Long, val style: Int)
 
 data class ScrollStruct(val axis: Int, val contentPtr: Long)
