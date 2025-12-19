@@ -322,4 +322,13 @@ object WatcherJni {
     @JvmStatic external fun gpuSurfaceInit(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
     @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
+
+    // ========== WebView Functions ==========
+    // Note: WebView uses a controller pattern with complex bidirectional callbacks.
+    // Full implementation requires additional JNI trampolines in waterui_jni.cpp.
+    // The Kotlin WebViewWrapper in WebViewComponent.kt is ready for integration.
+    //
+    // TODO: Implement these JNI functions:
+    // @JvmStatic external fun envInstallWebViewController(envPtr: Long, factory: WebViewFactory)
+    // @JvmStatic external fun webviewId(): dev.waterui.android.runtime.TypeIdStruct
 }
