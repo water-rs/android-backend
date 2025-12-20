@@ -55,7 +55,9 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
+    @JvmStatic external fun forceAsMetadataLifeCycleHook(viewPtr: Long): MetadataLifeCycleHookStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
+    @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
     @JvmStatic external fun forceAsMetadataBackground(viewPtr: Long): MetadataBackgroundStruct
     @JvmStatic external fun forceAsMetadataForeground(viewPtr: Long): MetadataForegroundStruct
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
@@ -269,7 +271,9 @@ object WatcherJni {
     @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataSecureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataGestureId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataLifeCycleHookId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOnEventId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataCursorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataBackgroundId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataForegroundId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
@@ -321,10 +325,22 @@ object WatcherJni {
     @JvmStatic external fun envInstallNavigationController(envPtr: Long, controllerPtr: Long)
     @JvmStatic external fun dropNavigationController(ptr: Long)
 
+    // ========== LifeCycleHook Handler Functions ==========
+
+    @JvmStatic external fun callLifeCycleHook(handlerPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropLifeCycleHook(handlerPtr: Long)
+
     // ========== OnEvent Handler Functions ==========
 
     @JvmStatic external fun callOnEvent(handlerPtr: Long, envPtr: Long)
     @JvmStatic external fun dropOnEvent(handlerPtr: Long)
+
+    // ========== Cursor Style Computed Functions ==========
+
+    @JvmStatic external fun readComputedCursorStyle(computedPtr: Long): Int
+    @JvmStatic external fun watchComputedCursorStyle(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun dropComputedCursorStyle(computedPtr: Long)
+    @JvmStatic external fun createCursorStyleWatcher(callback: WatcherCallback<Int>): WatcherStruct
 
     // ========== Retain Functions ==========
 

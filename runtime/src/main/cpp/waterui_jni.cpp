@@ -176,8 +176,12 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_secure)                                          \
   X(waterui_metadata_gesture_id)                                               \
   X(waterui_force_as_metadata_gesture)                                         \
+  X(waterui_metadata_lifecycle_hook_id)                                        \
+  X(waterui_force_as_metadata_lifecycle_hook)                                  \
   X(waterui_metadata_on_event_id)                                              \
   X(waterui_force_as_metadata_on_event)                                        \
+  X(waterui_metadata_cursor_id)                                                \
+  X(waterui_force_as_metadata_cursor)                                          \
   X(waterui_metadata_background_id)                                            \
   X(waterui_force_as_metadata_background)                                      \
   X(waterui_metadata_foreground_id)                                            \
@@ -207,8 +211,14 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_grayscale)                                       \
   X(waterui_metadata_opacity_id)                                               \
   X(waterui_force_as_metadata_opacity)                                         \
+  X(waterui_call_lifecycle_hook)                                               \
+  X(waterui_drop_lifecycle_hook)                                               \
   X(waterui_call_on_event)                                                     \
   X(waterui_drop_on_event)                                                     \
+  X(waterui_read_computed_cursor_style)                                        \
+  X(waterui_watch_computed_cursor_style)                                       \
+  X(waterui_drop_computed_cursor_style)                                        \
+  X(waterui_new_watcher_cursor_style)                                          \
   X(waterui_read_computed_color)                                               \
   X(waterui_photo_id)                                                          \
   X(waterui_force_as_photo)                                                    \
@@ -1681,7 +1691,9 @@ DEFINE_TYPE_ID_FN(layoutContainerId, waterui_layout_container_id)
 DEFINE_TYPE_ID_FN(metadataEnvId, waterui_metadata_env_id)
 DEFINE_TYPE_ID_FN(metadataSecureId, waterui_metadata_secure_id)
 DEFINE_TYPE_ID_FN(metadataGestureId, waterui_metadata_gesture_id)
+DEFINE_TYPE_ID_FN(metadataLifeCycleHookId, waterui_metadata_lifecycle_hook_id)
 DEFINE_TYPE_ID_FN(metadataOnEventId, waterui_metadata_on_event_id)
+DEFINE_TYPE_ID_FN(metadataCursorId, waterui_metadata_cursor_id)
 DEFINE_TYPE_ID_FN(metadataBackgroundId, waterui_metadata_background_id)
 DEFINE_TYPE_ID_FN(metadataForegroundId, waterui_metadata_foreground_id)
 DEFINE_TYPE_ID_FN(metadataShadowId, waterui_metadata_shadow_id)
@@ -2132,6 +2144,21 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataGesture(JNIEnv *env, jcla
 }
 
 JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataLifeCycleHook(JNIEnv *env, jclass,
+                                                                      jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_lifecycle_hook(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataLifeCycleHookStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JIJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               static_cast<jint>(metadata.value.lifecycle),
+                               ptr_to_jlong(metadata.value.handler));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataOnEvent(JNIEnv *env, jclass,
                                                                 jlong viewPtr) {
   auto metadata =
@@ -2142,6 +2169,20 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataOnEvent(JNIEnv *env, jcla
                                ptr_to_jlong(metadata.content),
                                static_cast<jint>(metadata.value.event),
                                ptr_to_jlong(metadata.value.handler));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataCursor(JNIEnv *env, jclass,
+                                                               jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_cursor(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataCursorStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.style));
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -2585,6 +2626,19 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsFilledShape(JNIEnv *env, jclass,
 // ========== OnEvent Handler Functions ==========
 
 JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_callLifeCycleHook(JNIEnv *, jclass,
+                                                          jlong handlerPtr, jlong envPtr) {
+  g_sym.waterui_call_lifecycle_hook(jlong_to_ptr<WuiLifeCycleHookHandler>(handlerPtr),
+                                    jlong_to_ptr<WuiEnv>(envPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropLifeCycleHook(JNIEnv *, jclass,
+                                                          jlong handlerPtr) {
+  g_sym.waterui_drop_lifecycle_hook(jlong_to_ptr<WuiLifeCycleHookHandler>(handlerPtr));
+}
+
+JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_callOnEvent(JNIEnv *, jclass,
                                                      jlong handlerPtr, jlong envPtr) {
   g_sym.waterui_call_on_event(jlong_to_ptr<WuiOnEventHandler>(handlerPtr),
@@ -2595,6 +2649,38 @@ JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_dropOnEvent(JNIEnv *, jclass,
                                                      jlong handlerPtr) {
   g_sym.waterui_drop_on_event(jlong_to_ptr<WuiOnEventHandler>(handlerPtr));
+}
+
+// ========== Cursor Style Computed Functions ==========
+
+JNIEXPORT jint JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readComputedCursorStyle(JNIEnv *, jclass,
+                                                                 jlong computedPtr) {
+  return static_cast<jint>(g_sym.waterui_read_computed_cursor_style(
+      jlong_to_ptr<WuiComputed_CursorStyle>(computedPtr)));
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchComputedCursorStyle(JNIEnv *env, jclass,
+                                                                  jlong computedPtr,
+                                                                  jobject watcher) {
+  auto w = jni_watcher_to_native(env, watcher);
+  auto guard = g_sym.waterui_watch_computed_cursor_style(
+      jlong_to_ptr<WuiComputed_CursorStyle>(computedPtr),
+      reinterpret_cast<WuiWatcher_CursorStyle*>(w));
+  return ptr_to_jlong(guard);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropComputedCursorStyle(JNIEnv *, jclass,
+                                                                 jlong computedPtr) {
+  g_sym.waterui_drop_computed_cursor_style(jlong_to_ptr<WuiComputed_CursorStyle>(computedPtr));
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_createCursorStyleWatcher(JNIEnv *env, jclass,
+                                                                  jobject callback) {
+  return create_typed_watcher<jint>(env, callback, g_sym.waterui_new_watcher_cursor_style);
 }
 
 // ========== Drop Functions ==========

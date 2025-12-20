@@ -111,7 +111,9 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         // Metadata components
         registerWuiSecure()
         registerWuiGesture()
+        registerWuiLifeCycleHook()
         registerWuiOnEvent()
+        registerWuiCursor()
         registerWuiBackground()
         registerWuiForeground()
         registerWuiShadow()
