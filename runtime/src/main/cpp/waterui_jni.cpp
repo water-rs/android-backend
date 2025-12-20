@@ -253,6 +253,12 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_env_install_media_picker_manager)                                  \
   X(waterui_metadata_clip_shape_id)                                            \
   X(waterui_force_as_metadata_clip_shape)                                      \
+  X(waterui_metadata_context_menu_id)                                          \
+  X(waterui_force_as_metadata_context_menu)                                    \
+  X(waterui_read_computed_menu_items)                                          \
+  X(waterui_drop_computed_menu_items)                                          \
+  X(waterui_call_shared_action)                                                \
+  X(waterui_drop_shared_action)                                                \
   X(waterui_filled_shape_id)                                                   \
   X(waterui_force_as_filled_shape)
 
@@ -1691,6 +1697,7 @@ DEFINE_TYPE_ID_FN(metadataHueRotationId, waterui_metadata_hue_rotation_id)
 DEFINE_TYPE_ID_FN(metadataGrayscaleId, waterui_metadata_grayscale_id)
 DEFINE_TYPE_ID_FN(metadataOpacityId, waterui_metadata_opacity_id)
 DEFINE_TYPE_ID_FN(metadataClipShapeId, waterui_metadata_clip_shape_id)
+DEFINE_TYPE_ID_FN(metadataContextMenuId, waterui_metadata_context_menu_id)
 DEFINE_TYPE_ID_FN(filledShapeId, waterui_filled_shape_id)
 
 #undef DEFINE_TYPE_ID_FN
@@ -2434,6 +2441,72 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataClipShape(JNIEnv *env, jc
   env->DeleteLocalRef(cls);
 
   return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataContextMenu(JNIEnv *env, jclass,
+                                                                    jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_context_menu(jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  // Create MetadataContextMenuStruct
+  jclass cls = env->FindClass("dev/waterui/android/runtime/MetadataContextMenuStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.items));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobjectArray JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readComputedMenuItems(JNIEnv *env, jclass,
+                                                               jlong computedPtr) {
+  auto items = g_sym.waterui_read_computed_menu_items(
+      jlong_to_ptr<Computed_MenuItems>(computedPtr));
+
+  // Get the array slice
+  auto slice = items.vtable.slice(items.data);
+
+  // Create MenuItemStruct class and array
+  jclass itemCls = env->FindClass("dev/waterui/android/runtime/MenuItemStruct");
+  jmethodID itemCtor = env->GetMethodID(itemCls, "<init>", "(JJ)V");
+  jobjectArray itemArray = env->NewObjectArray(static_cast<jsize>(slice.len), itemCls, nullptr);
+
+  for (size_t i = 0; i < slice.len; i++) {
+    WuiMenuItem item = slice.head[i];
+    jobject itemObj = env->NewObject(itemCls, itemCtor,
+                                     ptr_to_jlong(item.label.content),
+                                     ptr_to_jlong(item.action));
+    env->SetObjectArrayElement(itemArray, static_cast<jsize>(i), itemObj);
+    env->DeleteLocalRef(itemObj);
+  }
+
+  env->DeleteLocalRef(itemCls);
+  return itemArray;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropComputedMenuItems(JNIEnv *, jclass,
+                                                               jlong computedPtr) {
+  g_sym.waterui_drop_computed_menu_items(
+      jlong_to_ptr<Computed_MenuItems>(computedPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_callSharedAction(JNIEnv *, jclass,
+                                                          jlong actionPtr,
+                                                          jlong envPtr) {
+  g_sym.waterui_call_shared_action(
+      jlong_to_ptr<WuiSharedAction>(actionPtr),
+      jlong_to_ptr<WuiEnv>(envPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropSharedAction(JNIEnv *, jclass,
+                                                          jlong actionPtr) {
+  g_sym.waterui_drop_shared_action(
+      jlong_to_ptr<WuiSharedAction>(actionPtr));
 }
 
 JNIEXPORT jobject JNICALL
