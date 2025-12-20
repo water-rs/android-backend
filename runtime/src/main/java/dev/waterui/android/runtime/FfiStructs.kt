@@ -327,24 +327,84 @@ data class GestureDataStruct(
 )
 
 /**
- * Event type enum matching WuiEvent in FFI.
+ * Lifecycle type enum matching WuiLifeCycle in FFI.
  */
-enum class EventType(val value: Int) {
+enum class LifeCycleType(val value: Int) {
     APPEAR(0),
     DISAPPEAR(1);
 
     companion object {
-        fun fromInt(value: Int): EventType = entries.firstOrNull { it.value == value } ?: APPEAR
+        fun fromInt(value: Int): LifeCycleType = entries.firstOrNull { it.value == value } ?: APPEAR
     }
 }
 
 /**
- * Metadata<OnEvent> struct for lifecycle event handlers.
+ * Event type enum matching WuiEvent in FFI.
+ * Used for repeatable interaction events like hover.
+ */
+enum class EventType(val value: Int) {
+    HOVER_ENTER(0),
+    HOVER_EXIT(1);
+
+    companion object {
+        fun fromInt(value: Int): EventType = entries.firstOrNull { it.value == value } ?: HOVER_ENTER
+    }
+}
+
+/**
+ * Cursor style enum matching WuiCursorStyle in FFI.
+ * Maps to Android PointerIcon types (API 24+).
+ */
+enum class CursorStyle(val value: Int) {
+    ARROW(0),
+    POINTING_HAND(1),
+    IBEAM(2),
+    CROSSHAIR(3),
+    OPEN_HAND(4),
+    CLOSED_HAND(5),
+    NOT_ALLOWED(6),
+    RESIZE_LEFT(7),
+    RESIZE_RIGHT(8),
+    RESIZE_UP(9),
+    RESIZE_DOWN(10),
+    RESIZE_LEFT_RIGHT(11),
+    RESIZE_UP_DOWN(12),
+    MOVE(13),
+    WAIT(14),
+    COPY(15);
+
+    companion object {
+        fun fromInt(value: Int): CursorStyle = entries.firstOrNull { it.value == value } ?: ARROW
+    }
+}
+
+/**
+ * Metadata<LifeCycleHook> struct for lifecycle event handlers.
+ * The handler is called once (FnOnce) when the lifecycle event occurs.
+ */
+data class MetadataLifeCycleHookStruct(
+    val contentPtr: Long,
+    val lifecycleType: Int,
+    val handlerPtr: Long
+)
+
+/**
+ * Metadata<OnEvent> struct for interaction event handlers.
+ * The handler can be called multiple times (Fn) when the event occurs.
  */
 data class MetadataOnEventStruct(
     val contentPtr: Long,
     val eventType: Int,
     val handlerPtr: Long
+)
+
+/**
+ * Metadata<Cursor> struct for cursor style.
+ * Contains a Computed<CursorStyle> for reactive cursor updates.
+ */
+data class MetadataCursorStruct(
+    val contentPtr: Long,
+    val stylePtr: Long
 )
 
 /**

@@ -242,7 +242,9 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
+    fun waterui_force_as_metadata_lifecycle_hook(viewPtr: Long): MetadataLifeCycleHookStruct = WatcherJni.forceAsMetadataLifeCycleHook(viewPtr)
     fun waterui_force_as_metadata_on_event(viewPtr: Long): MetadataOnEventStruct = WatcherJni.forceAsMetadataOnEvent(viewPtr)
+    fun waterui_force_as_metadata_cursor(viewPtr: Long): MetadataCursorStruct = WatcherJni.forceAsMetadataCursor(viewPtr)
     fun waterui_force_as_metadata_background(viewPtr: Long): MetadataBackgroundStruct = WatcherJni.forceAsMetadataBackground(viewPtr)
     fun waterui_force_as_metadata_foreground(viewPtr: Long): MetadataForegroundStruct = WatcherJni.forceAsMetadataForeground(viewPtr)
     fun waterui_force_as_metadata_shadow(viewPtr: Long): MetadataShadowStruct = WatcherJni.forceAsMetadataShadow(viewPtr)
@@ -311,7 +313,9 @@ internal object NativeBindings {
 
     fun waterui_metadata_secure_id(): TypeIdStruct = WatcherJni.metadataSecureId()
     fun waterui_metadata_gesture_id(): TypeIdStruct = WatcherJni.metadataGestureId()
+    fun waterui_metadata_lifecycle_hook_id(): TypeIdStruct = WatcherJni.metadataLifeCycleHookId()
     fun waterui_metadata_on_event_id(): TypeIdStruct = WatcherJni.metadataOnEventId()
+    fun waterui_metadata_cursor_id(): TypeIdStruct = WatcherJni.metadataCursorId()
     fun waterui_metadata_background_id(): TypeIdStruct = WatcherJni.metadataBackgroundId()
     fun waterui_metadata_foreground_id(): TypeIdStruct = WatcherJni.metadataForegroundId()
     fun waterui_metadata_shadow_id(): TypeIdStruct = WatcherJni.metadataShadowId()
@@ -336,10 +340,22 @@ internal object NativeBindings {
     @JvmStatic
     external fun callOnSelection(dataPtr: Long, callPtr: Long, selectionId: Int)
 
+    // ========== LifeCycleHook Handler ==========
+
+    fun waterui_call_lifecycle_hook(handlerPtr: Long, envPtr: Long) = WatcherJni.callLifeCycleHook(handlerPtr, envPtr)
+    fun waterui_drop_lifecycle_hook(handlerPtr: Long) = WatcherJni.dropLifeCycleHook(handlerPtr)
+
     // ========== OnEvent Handler ==========
 
     fun waterui_call_on_event(handlerPtr: Long, envPtr: Long) = WatcherJni.callOnEvent(handlerPtr, envPtr)
     fun waterui_drop_on_event(handlerPtr: Long) = WatcherJni.dropOnEvent(handlerPtr)
+
+    // ========== Cursor Style Computed ==========
+
+    fun waterui_read_computed_cursor_style(computedPtr: Long): Int = WatcherJni.readComputedCursorStyle(computedPtr)
+    fun waterui_watch_computed_cursor_style(computedPtr: Long, watcher: WatcherStruct): Long = WatcherJni.watchComputedCursorStyle(computedPtr, watcher)
+    fun waterui_drop_computed_cursor_style(computedPtr: Long) = WatcherJni.dropComputedCursorStyle(computedPtr)
+    fun waterui_create_cursor_style_watcher(callback: dev.waterui.android.reactive.WatcherCallback<Int>): WatcherStruct = WatcherJni.createCursorStyleWatcher(callback)
 
     // ========== Retain ==========
 
