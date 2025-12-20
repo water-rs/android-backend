@@ -71,6 +71,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataGrayscale(viewPtr: Long): MetadataGrayscaleStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
     @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
+    @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
     @JvmStatic external fun forceAsFilledShape(viewPtr: Long): FilledShapeStruct
     @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
@@ -82,6 +83,10 @@ object WatcherJni {
     @JvmStatic external fun dropLayout(layoutPtr: Long)
     @JvmStatic external fun dropAction(actionPtr: Long)
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
+    @JvmStatic external fun callSharedAction(actionPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropSharedAction(actionPtr: Long)
+    @JvmStatic external fun readComputedMenuItems(computedPtr: Long): Array<MenuItemStruct>
+    @JvmStatic external fun dropComputedMenuItems(computedPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
     @JvmStatic external fun dropFont(fontPtr: Long)
@@ -280,6 +285,7 @@ object WatcherJni {
     @JvmStatic external fun metadataGrayscaleId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataClipShapeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun filledShapeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct

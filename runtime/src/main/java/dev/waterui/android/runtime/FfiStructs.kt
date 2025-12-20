@@ -560,6 +560,24 @@ data class MetadataClipShapeStruct(
     }
 }
 
+/**
+ * MenuItem struct for context menu items.
+ * Contains a label (styled text pointer) and an action pointer.
+ */
+data class MenuItemStruct(
+    val labelPtr: Long,
+    val actionPtr: Long
+)
+
+/**
+ * Metadata<ContextMenu> struct for context menu.
+ * Contains the content view and a computed list of menu items.
+ */
+data class MetadataContextMenuStruct(
+    val contentPtr: Long,
+    val itemsPtr: Long
+)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {
