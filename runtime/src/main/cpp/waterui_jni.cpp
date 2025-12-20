@@ -77,6 +77,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_text_field_id)                                                     \
   X(waterui_stepper_id)                                                        \
   X(waterui_date_picker_id)                                                    \
+  X(waterui_color_picker_id)                                                   \
   X(waterui_progress_id)                                                       \
   X(waterui_dynamic_id)                                                        \
   X(waterui_scroll_view_id)                                                    \
@@ -100,6 +101,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_slider)                                                   \
   X(waterui_force_as_stepper)                                                  \
   X(waterui_force_as_date_picker)                                              \
+  X(waterui_force_as_color_picker)                                             \
   X(waterui_force_as_progress)                                                 \
   X(waterui_force_as_scroll_view)                                              \
   X(waterui_force_as_picker)                                                   \
@@ -1659,6 +1661,7 @@ DEFINE_TYPE_ID_FN(colorId, waterui_color_id)
 DEFINE_TYPE_ID_FN(textFieldId, waterui_text_field_id)
 DEFINE_TYPE_ID_FN(stepperId, waterui_stepper_id)
 DEFINE_TYPE_ID_FN(datePickerId, waterui_date_picker_id)
+DEFINE_TYPE_ID_FN(colorPickerId, waterui_color_picker_id)
 DEFINE_TYPE_ID_FN(progressId, waterui_progress_id)
 DEFINE_TYPE_ID_FN(dynamicId, waterui_dynamic_id)
 DEFINE_TYPE_ID_FN(scrollViewId, waterui_scroll_view_id)
@@ -1927,6 +1930,23 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsDatePicker(JNIEnv *env, jclass,
   env->DeleteLocalRef(endDate);
   env->DeleteLocalRef(dateRangeStructCls);
   env->DeleteLocalRef(range);
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsColorPicker(JNIEnv *env, jclass,
+                                                            jlong viewPtr) {
+  auto picker =
+      g_sym.waterui_force_as_color_picker(jlong_to_ptr<WuiAnyView>(viewPtr));
+
+  jclass cls = env->FindClass("dev/waterui/android/runtime/ColorPickerStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJZZ)V");
+  jobject obj = env->NewObject(cls, ctor,
+                               ptr_to_jlong(picker.label),
+                               ptr_to_jlong(picker.value),
+                               static_cast<jboolean>(picker.support_alpha),
+                               static_cast<jboolean>(picker.support_hdr));
   env->DeleteLocalRef(cls);
   return obj;
 }

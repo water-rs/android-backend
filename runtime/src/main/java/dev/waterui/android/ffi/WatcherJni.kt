@@ -44,6 +44,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsSlider(viewPtr: Long): SliderStruct
     @JvmStatic external fun forceAsStepper(viewPtr: Long): StepperStruct
     @JvmStatic external fun forceAsDatePicker(viewPtr: Long): DatePickerStruct
+    @JvmStatic external fun forceAsColorPicker(viewPtr: Long): ColorPickerStruct
     @JvmStatic external fun forceAsProgress(viewPtr: Long): ProgressStruct
     @JvmStatic external fun forceAsScrollView(viewPtr: Long): ScrollStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
@@ -249,6 +250,7 @@ object WatcherJni {
     @JvmStatic external fun textFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun stepperId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun datePickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun colorPickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun progressId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct

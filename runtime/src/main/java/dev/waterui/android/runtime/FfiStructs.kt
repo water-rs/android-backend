@@ -255,6 +255,20 @@ data class DynamicStruct(val dynamicPtr: Long)
 
 data class PickerStruct(val itemsPtr: Long, val selectionPtr: Long)
 
+/**
+ * ColorPicker component data.
+ * - labelPtr: AnyView pointer for label
+ * - valuePtr: Binding<Color> pointer
+ * - supportAlpha: Whether to allow alpha channel selection
+ * - supportHdr: Whether to allow HDR color selection
+ */
+data class ColorPickerStruct(
+    val labelPtr: Long,
+    val valuePtr: Long,
+    val supportAlpha: Boolean,
+    val supportHdr: Boolean
+)
+
 // Alias for container struct returned by force_as_layout_container
 data class ContainerStruct(val layoutPtr: Long, val contentsPtr: Long)
 
