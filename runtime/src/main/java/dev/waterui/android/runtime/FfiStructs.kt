@@ -638,6 +638,15 @@ data class MetadataContextMenuStruct(
     val itemsPtr: Long
 )
 
+/**
+ * Menu component struct for dropdown menus.
+ * Contains a label view and a computed list of menu items.
+ */
+data class MenuStruct(
+    val labelPtr: Long,
+    val itemsPtr: Long
+)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {
@@ -865,14 +874,26 @@ data class TabsStruct(
 /**
  * List component data.
  * - contentsPtr: WuiAnyViews pointer containing ListItem views
+ * - editingPtr: WuiComputed<bool> pointer for edit mode state (0 if not provided)
+ * - onDeletePtr: WuiIndexAction pointer for delete callback (0 if not provided)
+ * - onMovePtr: WuiMoveAction pointer for move/reorder callback (0 if not provided)
  */
-data class ListStruct(val contentsPtr: Long)
+data class ListStruct(
+    val contentsPtr: Long,
+    val editingPtr: Long,
+    val onDeletePtr: Long,
+    val onMovePtr: Long
+)
 
 /**
  * ListItem component data.
  * - contentPtr: AnyView pointer for item content
+ * - deletablePtr: WuiComputed<bool> pointer for deletable state (0 if not provided)
  */
-data class ListItemStruct(val contentPtr: Long)
+data class ListItemStruct(
+    val contentPtr: Long,
+    val deletablePtr: Long
+)
 
 // ========== Window and App Structs ==========
 

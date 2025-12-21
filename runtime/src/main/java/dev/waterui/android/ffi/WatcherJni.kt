@@ -79,6 +79,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
     @JvmStatic external fun forceAsMediaPicker(viewPtr: Long): MediaPickerStruct
+    @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
 
     // ========== Drop Functions ==========
 
@@ -87,6 +88,13 @@ object WatcherJni {
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
     @JvmStatic external fun callSharedAction(actionPtr: Long, envPtr: Long)
     @JvmStatic external fun dropSharedAction(actionPtr: Long)
+
+    // ========== Index/Move Action Functions ==========
+
+    @JvmStatic external fun dropIndexAction(actionPtr: Long)
+    @JvmStatic external fun callIndexAction(actionPtr: Long, envPtr: Long, index: Long)
+    @JvmStatic external fun dropMoveAction(actionPtr: Long)
+    @JvmStatic external fun callMoveAction(actionPtr: Long, envPtr: Long, fromIndex: Long, toIndex: Long)
     @JvmStatic external fun readComputedMenuItems(computedPtr: Long): Array<MenuItemStruct>
     @JvmStatic external fun dropComputedMenuItems(computedPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
@@ -295,6 +303,7 @@ object WatcherJni {
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun mediaPickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
 
