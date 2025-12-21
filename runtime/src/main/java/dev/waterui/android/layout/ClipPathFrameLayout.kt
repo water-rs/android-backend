@@ -2,14 +2,14 @@ package dev.waterui.android.layout
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.widget.FrameLayout
 import dev.waterui.android.runtime.PathCommandStruct
 import dev.waterui.android.runtime.PathCommandType
 import kotlin.math.abs
-import kotlin.math.ceil
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * A FrameLayout that clips its children to a path defined by normalized path commands.
@@ -22,6 +22,10 @@ class ClipPathFrameLayout(
 ) : FrameLayout(context) {
 
     private val clipPath = Path()
+    private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+    }
 
     init {
         // Enable hardware layer for better clipping performance
@@ -74,7 +78,6 @@ class ClipPathFrameLayout(
 
     /**
      * Adds an arc to the path.
-     * For elliptical arcs, approximates with cubic bezier curves.
      */
     private fun addArc(
         path: Path,
@@ -82,83 +85,29 @@ class ClipPathFrameLayout(
         rx: Float, ry: Float,
         startAngle: Float, sweepAngle: Float
     ) {
-        if (abs(rx - ry) < 0.001f) {
-            // Circular arc - can use Android's arcTo directly
-            // arcTo expects a bounding rect, start angle in degrees, and sweep in degrees
-            val left = cx - rx
-            val top = cy - ry
-            val right = cx + rx
-            val bottom = cy + ry
-            val startDegrees = Math.toDegrees(startAngle.toDouble()).toFloat()
-            val sweepDegrees = Math.toDegrees(sweepAngle.toDouble()).toFloat()
-            path.arcTo(left, top, right, bottom, startDegrees, sweepDegrees, false)
-        } else {
-            // Elliptical arc - approximate with bezier curves
-            addEllipticalArc(path, cx, cy, rx, ry, startAngle, sweepAngle)
+        if (rx <= 0f || ry <= 0f) return
+
+        val left = cx - rx
+        val top = cy - ry
+        val right = cx + rx
+        val bottom = cy + ry
+        val startDegrees = Math.toDegrees(startAngle.toDouble()).toFloat()
+        val sweepDegrees = Math.toDegrees(sweepAngle.toDouble()).toFloat()
+
+        if (abs(sweepDegrees) >= 360f) {
+            path.addOval(left, top, right, bottom, Path.Direction.CW)
+            return
         }
-    }
 
-    /**
-     * Approximates an elliptical arc with cubic bezier curves.
-     * Splits the arc into 90-degree segments for better approximation.
-     */
-    private fun addEllipticalArc(
-        path: Path,
-        cx: Float, cy: Float,
-        rx: Float, ry: Float,
-        startAngle: Float, sweepAngle: Float
-    ) {
-        val segments = maxOf(1, ceil(abs(sweepAngle) / (Math.PI / 2)).toInt())
-        val segmentAngle = sweepAngle / segments
-
-        var currentAngle = startAngle
-
-        for (i in 0 until segments) {
-            val endAngle = currentAngle + segmentAngle
-            addEllipticalArcSegment(path, cx, cy, rx, ry, currentAngle, endAngle)
-            currentAngle = endAngle
-        }
-    }
-
-    /**
-     * Adds a single segment of an elliptical arc using cubic bezier approximation.
-     */
-    private fun addEllipticalArcSegment(
-        path: Path,
-        cx: Float, cy: Float,
-        rx: Float, ry: Float,
-        startAngle: Float, endAngle: Float
-    ) {
-        val alpha = (endAngle - startAngle) / 2
-        val cosAlpha = cos(alpha)
-        val sinAlpha = sin(alpha)
-        val cotAlpha = if (sinAlpha != 0f) cosAlpha / sinAlpha else 0f
-
-        val phi = (startAngle + endAngle) / 2
-        val cosPhi = cos(phi)
-        val sinPhi = sin(phi)
-
-        val lambda = (4f - cosAlpha) / 3f
-
-        val p1x = cx + rx * cos(startAngle)
-        val p1y = cy + ry * sin(startAngle)
-        val p2x = cx + rx * cos(endAngle)
-        val p2y = cy + ry * sin(endAngle)
-
-        val c1x = p1x + lambda * rx * sinAlpha * (-sinPhi - cotAlpha * cosPhi)
-        val c1y = p1y + lambda * ry * sinAlpha * (cosPhi - cotAlpha * sinPhi)
-        val c2x = p2x + lambda * rx * sinAlpha * (sinPhi - cotAlpha * cosPhi)
-        val c2y = p2y + lambda * ry * sinAlpha * (-cosPhi - cotAlpha * sinPhi)
-
-        path.cubicTo(c1x, c1y, c2x, c2y, p2x, p2y)
+        path.arcTo(left, top, right, bottom, startDegrees, sweepDegrees, path.isEmpty)
     }
 
     override fun dispatchDraw(canvas: Canvas) {
         if (!clipPath.isEmpty) {
-            canvas.save()
-            canvas.clipPath(clipPath)
+            val saveCount = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
             super.dispatchDraw(canvas)
-            canvas.restore()
+            canvas.drawPath(clipPath, maskPaint)
+            canvas.restoreToCount(saveCount)
         } else {
             super.dispatchDraw(canvas)
         }

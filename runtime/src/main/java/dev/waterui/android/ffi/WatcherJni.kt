@@ -24,6 +24,7 @@ object WatcherJni {
     @JvmStatic external fun init(): Long
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
     @JvmStatic external fun envInstallMediaPickerManager(envPtr: Long)
+    @JvmStatic external fun envInstallWebViewController(envPtr: Long)
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
@@ -78,6 +79,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
+    @JvmStatic external fun forceAsWebView(viewPtr: Long): Long
     @JvmStatic external fun forceAsMediaPicker(viewPtr: Long): MediaPickerStruct
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
 
@@ -100,6 +102,7 @@ object WatcherJni {
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
     @JvmStatic external fun dropFont(fontPtr: Long)
+    @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
     @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
     @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
@@ -302,6 +305,7 @@ object WatcherJni {
     @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun webviewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun mediaPickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
 
@@ -364,11 +368,6 @@ object WatcherJni {
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 
     // ========== WebView Functions ==========
-    // Note: WebView uses a controller pattern with complex bidirectional callbacks.
-    // Full implementation requires additional JNI trampolines in waterui_jni.cpp.
-    // The Kotlin WebViewWrapper in WebViewComponent.kt is ready for integration.
-    //
-    // TODO: Implement these JNI functions:
-    // @JvmStatic external fun envInstallWebViewController(envPtr: Long, factory: WebViewFactory)
-    // @JvmStatic external fun webviewId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun webviewNativeHandle(webviewPtr: Long): Long
+    @JvmStatic external fun webviewNativeView(handlePtr: Long): android.webkit.WebView?
 }

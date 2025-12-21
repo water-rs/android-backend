@@ -4,7 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.http.SslError
+import android.os.Build
+import android.os.Looper
 import android.view.ViewGroup
+import android.widget.TextView
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
@@ -12,7 +15,12 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.WuiRenderer
+import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import java.lang.ref.WeakReference
 import java.nio.charset.StandardCharsets
 
 /**
@@ -67,6 +75,49 @@ interface JsResultCallback {
     fun onResult(success: Boolean, result: String)
 }
 
+internal class NativeWebViewEventCallback(private val nativePtr: Long) : WebViewEventCallback {
+    override fun onEvent(
+        eventType: Int,
+        url: String,
+        url2: String,
+        message: String,
+        progress: Float,
+        canGoBack: Boolean,
+        canGoForward: Boolean
+    ) {
+        nativeOnEvent(nativePtr, eventType, url, url2, message, progress, canGoBack, canGoForward)
+    }
+
+    private external fun nativeOnEvent(
+        nativePtr: Long,
+        eventType: Int,
+        url: String,
+        url2: String,
+        message: String,
+        progress: Float,
+        canGoBack: Boolean,
+        canGoForward: Boolean
+    )
+}
+
+object WebViewManager {
+    private var contextRef: WeakReference<Context>? = null
+    private var appContext: Context? = null
+
+    @JvmStatic
+    fun init(context: Context) {
+        contextRef = WeakReference(context)
+        appContext = context.applicationContext
+    }
+
+    @JvmStatic
+    fun create(): WebViewWrapper {
+        val ctx = contextRef?.get() ?: appContext
+            ?: error("WebViewManager not initialized")
+        return WebViewWrapper(ctx)
+    }
+}
+
 /**
  * Wrapper around Android WebView that implements the WaterUI WebViewHandle interface.
  *
@@ -100,6 +151,8 @@ class WebViewWrapper(context: Context) {
     private var eventCallback: WebViewEventCallback? = null
     private val injectedScripts = mutableListOf<Pair<String, ScriptInjectionTime>>()
     private val jsHandlers = mutableMapOf<String, (ByteArray) -> ByteArray>()
+    private var redirectsEnabled = true
+    private var currentUrl: String = ""
 
     init {
         setupWebViewClient()
@@ -109,27 +162,31 @@ class WebViewWrapper(context: Context) {
     // ========== Navigation ==========
 
     fun goBack() {
-        if (webView.canGoBack()) {
-            webView.goBack()
+        runOnUiThread {
+            if (webView.canGoBack()) {
+                webView.goBack()
+            }
         }
     }
 
     fun goForward() {
-        if (webView.canGoForward()) {
-            webView.goForward()
+        runOnUiThread {
+            if (webView.canGoForward()) {
+                webView.goForward()
+            }
         }
     }
 
     fun goTo(url: String) {
-        webView.loadUrl(url)
+        runOnUiThread { webView.loadUrl(url) }
     }
 
     fun stop() {
-        webView.stopLoading()
+        runOnUiThread { webView.stopLoading() }
     }
 
     fun refresh() {
-        webView.reload()
+        runOnUiThread { webView.reload() }
     }
 
     // ========== State Queries ==========
@@ -141,23 +198,33 @@ class WebViewWrapper(context: Context) {
     // ========== Configuration ==========
 
     fun setUserAgent(userAgent: String) {
-        webView.settings.userAgentString = userAgent
+        runOnUiThread { webView.settings.userAgentString = userAgent }
     }
 
     fun injectScript(script: String, time: ScriptInjectionTime) {
-        injectedScripts.add(script to time)
+        runOnUiThread {
+            injectedScripts.add(script to time)
 
-        // If time is DOCUMENT_END and we have a loaded page, inject immediately
-        if (time == ScriptInjectionTime.DOCUMENT_END) {
-            webView.evaluateJavascript(script, null)
+            // If time is DOCUMENT_END and we have a loaded page, inject immediately
+            if (time == ScriptInjectionTime.DOCUMENT_END) {
+                webView.evaluateJavascript(script, null)
+            }
+            // DOCUMENT_START scripts are injected in onPageStarted
         }
-        // DOCUMENT_START scripts are injected in onPageStarted
+    }
+
+    fun injectScript(script: String, time: Int) {
+        injectScript(script, ScriptInjectionTime.fromInt(time))
+    }
+
+    fun setRedirectsEnabled(enabled: Boolean) {
+        runOnUiThread { redirectsEnabled = enabled }
     }
 
     // ========== Event Watching ==========
 
     fun setEventCallback(callback: WebViewEventCallback?) {
-        this.eventCallback = callback
+        runOnUiThread { eventCallback = callback }
     }
 
     private fun emitEvent(
@@ -193,40 +260,64 @@ class WebViewWrapper(context: Context) {
     // ========== JavaScript Execution ==========
 
     fun runJavaScript(script: String, callback: JsResultCallback) {
-        webView.evaluateJavascript(script) { result ->
-            // Result is a JSON string or "null"
-            callback.onResult(true, result ?: "null")
+        runOnUiThread {
+            webView.evaluateJavascript(script) { result ->
+                // Result is a JSON string or "null"
+                callback.onResult(true, result ?: "null")
+            }
         }
+    }
+
+    fun runJavaScript(script: String, callbackData: Long, callbackFn: Long) {
+        runJavaScript(script, object : JsResultCallback {
+            override fun onResult(success: Boolean, result: String) {
+                nativeCompleteJsResult(callbackData, callbackFn, success, result)
+            }
+        })
     }
 
     // ========== JS-to-Native Handlers ==========
 
     fun addHandler(name: String, handler: (ByteArray) -> ByteArray) {
-        jsHandlers[name] = handler
+        runOnUiThread {
+            jsHandlers[name] = handler
 
-        // Add JavaScript interface
-        webView.addJavascriptInterface(object {
-            @JavascriptInterface
-            fun postMessage(data: String) {
-                val inputBytes = data.toByteArray(StandardCharsets.UTF_8)
-                val resultBytes = handler(inputBytes)
-                // Note: Sending response back to JS requires additional work
-            }
-        }, name)
+            // Add JavaScript interface
+            webView.addJavascriptInterface(object {
+                @JavascriptInterface
+                fun postMessage(data: String) {
+                    val inputBytes = data.toByteArray(StandardCharsets.UTF_8)
+                    val resultBytes = handler(inputBytes)
+                    // Note: Sending response back to JS requires additional work
+                }
+            }, name)
+        }
     }
 
     fun removeHandler(name: String) {
-        jsHandlers.remove(name)
-        webView.removeJavascriptInterface(name)
+        runOnUiThread {
+            jsHandlers.remove(name)
+            webView.removeJavascriptInterface(name)
+        }
     }
 
     // ========== Cleanup ==========
 
     fun release() {
-        webView.stopLoading()
-        webView.clearCache(true)
-        webView.clearHistory()
-        webView.destroy()
+        runOnUiThread {
+            webView.stopLoading()
+            webView.clearCache(true)
+            webView.clearHistory()
+            webView.destroy()
+        }
+    }
+
+    private fun runOnUiThread(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+        } else {
+            webView.post { action() }
+        }
     }
 
     // ========== Private Setup ==========
@@ -235,6 +326,7 @@ class WebViewWrapper(context: Context) {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                currentUrl = url ?: currentUrl
 
                 // Inject DOCUMENT_START scripts
                 injectedScripts
@@ -249,6 +341,7 @@ class WebViewWrapper(context: Context) {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                currentUrl = url ?: currentUrl
 
                 // Inject DOCUMENT_END scripts
                 injectedScripts
@@ -311,6 +404,14 @@ class WebViewWrapper(context: Context) {
             ): Boolean {
                 // Let the WebView handle all HTTP/HTTPS URLs
                 val url = request?.url?.toString() ?: return false
+                val isRedirect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+                    request.isRedirect
+                if (isRedirect) {
+                    emitEvent(WebViewEventType.REDIRECT, url = currentUrl, url2 = url)
+                    if (!redirectsEnabled) {
+                        return true
+                    }
+                }
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     return false
                 }
@@ -332,35 +433,36 @@ class WebViewWrapper(context: Context) {
             }
         }
     }
+
+    private external fun nativeCompleteJsResult(
+        callbackData: Long,
+        callbackFn: Long,
+        success: Boolean,
+        result: String
+    )
 }
 
-// ========== WebView Controller Installation ==========
+// ========== WebView Renderer ==========
 
-/**
- * TODO: Implement full JNI integration for WebView controller.
- *
- * The FFI layer expects:
- * 1. waterui_env_install_webview_controller(env, create_fn)
- *    - create_fn: C function pointer that returns WuiWebViewHandle
- *
- * 2. WuiWebViewHandle struct with function pointers:
- *    - go_back, go_forward, go_to, stop, refresh
- *    - can_go_back, can_go_forward
- *    - set_user_agent, set_redirects_enabled, inject_script
- *    - watch (set event callback)
- *    - run_javascript
- *    - drop
- *
- * Implementation would require:
- * 1. JNI functions in waterui_jni.cpp to create trampolines
- * 2. A global registry of WebViewWrapper instances
- * 3. Callback conversion from C function pointers to JNI calls
- *
- * For now, WebView is not fully integrated on Android.
- * The Kotlin wrapper (WebViewWrapper) is ready for integration.
- */
+private val webViewTypeId: WuiTypeId by lazy { NativeBindings.waterui_webview_id().toTypeId() }
 
-// Placeholder for future JNI integration
-// fun installWebViewController(envPtr: Long) {
-//     NativeBindings.waterui_env_install_webview_controller(envPtr, ...)
-// }
+private val webViewRenderer = WuiRenderer { context, node, _, _ ->
+    val webview = NativeBindings.waterui_force_as_webview(node.rawPtr)
+    val handlePtr = NativeBindings.waterui_webview_native_handle(webview.webviewPtr)
+    val view = NativeBindings.waterui_webview_native_view(handlePtr)
+
+    if (view == null) {
+        NativeBindings.waterui_drop_web_view(webview.webviewPtr)
+        return@WuiRenderer TextView(context).apply {
+            text = "WebView not available"
+        }
+    }
+
+    (view.parent as? ViewGroup)?.removeView(view)
+    view.disposeWith { NativeBindings.waterui_drop_web_view(webview.webviewPtr) }
+    view
+}
+
+internal fun RegistryBuilder.registerWuiWebView() {
+    register({ webViewTypeId }, webViewRenderer)
+}

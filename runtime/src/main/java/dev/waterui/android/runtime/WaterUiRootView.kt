@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
+import dev.waterui.android.components.WebViewManager
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.ReactiveColorSignal
@@ -51,6 +52,7 @@ class WaterUiRootView @JvmOverloads constructor(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (environment == null) {
+            WebViewManager.init(context)
             environment = WuiEnvironment.create()
         }
         renderRoot()

@@ -717,6 +717,12 @@ data class VideoPlayerStruct(
 )
 
 /**
+ * WebView raw component pointer.
+ * Holds the opaque WuiWebView pointer for lifecycle management.
+ */
+data class WebViewStruct(val webviewPtr: Long)
+
+/**
  * GpuSurface component data.
  * - rendererPtr: Opaque pointer to the boxed GpuRenderer trait object.
  *                This is consumed during init and should not be used after.
