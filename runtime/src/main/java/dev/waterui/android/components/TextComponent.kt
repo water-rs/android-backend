@@ -21,7 +21,10 @@ private val textTypeId: WuiTypeId by lazy {
 private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
     val computed = WuiComputed.styledString(struct.contentPtr, env)
-    val textView = TextView(context)
+    val textView = TextView(context).apply {
+        includeFontPadding = false
+        setLineSpacing(0f, 1f)
+    }
     val foreground = ThemeBridge.foreground(env)
     foreground.observe { color ->
         textView.setTextColor(color.toColorInt())

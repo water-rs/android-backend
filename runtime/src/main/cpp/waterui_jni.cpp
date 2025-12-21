@@ -230,6 +230,10 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_video)                                                    \
   X(waterui_video_player_id)                                                   \
   X(waterui_force_as_video_player)                                             \
+  X(waterui_webview_id)                                                        \
+  X(waterui_force_as_webview)                                                  \
+  X(waterui_webview_native_handle)                                             \
+  X(waterui_drop_web_view)                                                     \
   X(waterui_read_binding_f32)                                                  \
   X(waterui_set_binding_f32)                                                   \
   X(waterui_drop_binding_f32)                                                  \
@@ -255,6 +259,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_navigation_controller_new)                                         \
   X(waterui_env_install_navigation_controller)                                 \
   X(waterui_drop_navigation_controller)                                        \
+  X(waterui_env_install_webview_controller)                                    \
   X(waterui_gpu_surface_id)                                                    \
   X(waterui_force_as_gpu_surface)                                              \
   X(waterui_gpu_surface_init)                                                  \
@@ -302,6 +307,28 @@ static jclass gWatcherStructClass = nullptr;
 static jmethodID gWatcherStructCtor = nullptr;
 static jclass gTypeIdStructClass = nullptr;
 static jmethodID gTypeIdStructCtor = nullptr;
+static jclass gWebViewManagerClass = nullptr;
+static jmethodID gWebViewManagerCreate = nullptr;
+static jclass gWebViewWrapperClass = nullptr;
+static jmethodID gWebViewWrapperGetView = nullptr;
+static jmethodID gWebViewWrapperGoBack = nullptr;
+static jmethodID gWebViewWrapperGoForward = nullptr;
+static jmethodID gWebViewWrapperGoTo = nullptr;
+static jmethodID gWebViewWrapperStop = nullptr;
+static jmethodID gWebViewWrapperRefresh = nullptr;
+static jmethodID gWebViewWrapperCanGoBack = nullptr;
+static jmethodID gWebViewWrapperCanGoForward = nullptr;
+static jmethodID gWebViewWrapperSetUserAgent = nullptr;
+static jmethodID gWebViewWrapperSetRedirectsEnabled = nullptr;
+static jmethodID gWebViewWrapperInjectScript = nullptr;
+static jmethodID gWebViewWrapperSetEventCallback = nullptr;
+static jmethodID gWebViewWrapperRunJavaScript = nullptr;
+static jmethodID gWebViewWrapperRelease = nullptr;
+static jclass gNativeWebViewEventCallbackClass = nullptr;
+static jmethodID gNativeWebViewEventCallbackCtor = nullptr;
+static jobject gAppClassLoader = nullptr;
+static jmethodID gClassLoaderLoadClass = nullptr;
+static jmethodID gClassGetClassLoader = nullptr;
 
 void throw_unsatisfied(JNIEnv *env, const std::string &message) {
   jclass errorClass = env->FindClass("java/lang/UnsatisfiedLinkError");
@@ -310,6 +337,99 @@ void throw_unsatisfied(JNIEnv *env, const std::string &message) {
     return;
   }
   env->ThrowNew(errorClass, message.c_str());
+}
+
+void clear_jni_exception(JNIEnv *env, const char *context) {
+  if (!env->ExceptionCheck()) {
+    return;
+  }
+  env->ExceptionClear();
+  __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
+                      "Cleared JNI exception while %s", context);
+}
+
+bool init_app_class_loader(JNIEnv *env, jclass clazz) {
+  if (gAppClassLoader != nullptr && gClassLoaderLoadClass != nullptr) {
+    return true;
+  }
+  if (clazz == nullptr) {
+    return false;
+  }
+
+  jclass classClass = env->FindClass("java/lang/Class");
+  if (classClass == nullptr) {
+    clear_jni_exception(env, "finding java/lang/Class");
+    return false;
+  }
+
+  if (gClassGetClassLoader == nullptr) {
+    gClassGetClassLoader = env->GetMethodID(
+        classClass, "getClassLoader", "()Ljava/lang/ClassLoader;");
+    if (gClassGetClassLoader == nullptr) {
+      clear_jni_exception(env, "resolving Class.getClassLoader");
+      return false;
+    }
+  }
+
+  jobject loader = env->CallObjectMethod(clazz, gClassGetClassLoader);
+  if (env->ExceptionCheck()) {
+    clear_jni_exception(env, "getting app ClassLoader");
+    return false;
+  }
+  if (loader == nullptr) {
+    return false;
+  }
+
+  jclass classLoaderClass = env->FindClass("java/lang/ClassLoader");
+  if (classLoaderClass == nullptr) {
+    clear_jni_exception(env, "finding java/lang/ClassLoader");
+    env->DeleteLocalRef(loader);
+    return false;
+  }
+
+  if (gClassLoaderLoadClass == nullptr) {
+    gClassLoaderLoadClass = env->GetMethodID(
+        classLoaderClass, "loadClass",
+        "(Ljava/lang/String;)Ljava/lang/Class;");
+    if (gClassLoaderLoadClass == nullptr) {
+      clear_jni_exception(env, "resolving ClassLoader.loadClass");
+      env->DeleteLocalRef(loader);
+      return false;
+    }
+  }
+
+  gAppClassLoader = env->NewGlobalRef(loader);
+  env->DeleteLocalRef(loader);
+  return gAppClassLoader != nullptr;
+}
+
+jclass find_app_class(JNIEnv *env, const char *name) {
+  if (gAppClassLoader != nullptr && gClassLoaderLoadClass != nullptr) {
+    std::string dotted(name);
+    for (auto &ch : dotted) {
+      if (ch == '/') {
+        ch = '.';
+      }
+    }
+    jstring jname = env->NewStringUTF(dotted.c_str());
+    if (jname == nullptr) {
+      return nullptr;
+    }
+    auto *cls_obj = env->CallObjectMethod(
+        gAppClassLoader, gClassLoaderLoadClass, jname);
+    env->DeleteLocalRef(jname);
+    if (env->ExceptionCheck()) {
+      clear_jni_exception(env, "loading class via ClassLoader");
+      return nullptr;
+    }
+    return static_cast<jclass>(cls_obj);
+  }
+
+  jclass cls = env->FindClass(name);
+  if (cls == nullptr) {
+    clear_jni_exception(env, "finding class");
+  }
+  return cls;
 }
 
 class ScopedEnv {
@@ -418,6 +538,33 @@ WuiStr str_from_byte_array(JNIEnv *env, jbyteArray array) {
   WuiStr str{};
   str._0 = ffiArray;
   return str;
+}
+
+WuiStr str_from_jstring(JNIEnv *env, jstring str) {
+  auto *holder =
+      static_cast<ByteArrayHolder *>(std::malloc(sizeof(ByteArrayHolder)));
+  holder->len = 0;
+  holder->data = nullptr;
+
+  if (str != nullptr) {
+    const char *chars = env->GetStringUTFChars(str, nullptr);
+    jsize len = env->GetStringUTFLength(str);
+    holder->len = static_cast<size_t>(len);
+    if (holder->len > 0) {
+      holder->data = static_cast<uint8_t *>(std::malloc(holder->len));
+      std::memcpy(holder->data, chars, holder->len);
+    }
+    env->ReleaseStringUTFChars(str, chars);
+  }
+
+  WuiArray_u8 ffiArray{};
+  ffiArray.data = holder;
+  ffiArray.vtable.slice = byte_slice;
+  ffiArray.vtable.drop = byte_drop;
+
+  WuiStr result{};
+  result._0 = ffiArray;
+  return result;
 }
 
 // ============================================================================
@@ -966,6 +1113,146 @@ create_watcher(const WatcherStructFields &fields,
               reinterpret_cast<void (*)(void *)>(fields.drop));
 }
 
+struct WebViewHandleContext {
+  jobject wrapper;
+  WuiFn_WuiWebViewEvent watcher;
+  bool has_watcher;
+};
+
+static bool init_webview_manager_jni(JNIEnv *env) {
+  if (gWebViewManagerClass != nullptr && gWebViewManagerCreate != nullptr) {
+    return true;
+  }
+
+  jclass cls =
+      find_app_class(env, "dev/waterui/android/components/WebViewManager");
+  if (cls == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find WebViewManager class");
+    return false;
+  }
+
+  gWebViewManagerClass = reinterpret_cast<jclass>(env->NewGlobalRef(cls));
+  env->DeleteLocalRef(cls);
+
+  gWebViewManagerCreate = env->GetStaticMethodID(
+      gWebViewManagerClass, "create",
+      "()Ldev/waterui/android/components/WebViewWrapper;");
+  if (gWebViewManagerCreate == nullptr) {
+    clear_jni_exception(env, "resolving WebViewManager.create");
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find WebViewManager.create method");
+    return false;
+  }
+
+  return true;
+}
+
+static bool init_webview_wrapper_jni(JNIEnv *env) {
+  if (gWebViewWrapperClass != nullptr && gWebViewWrapperGoBack != nullptr) {
+    return true;
+  }
+
+  jclass cls =
+      find_app_class(env, "dev/waterui/android/components/WebViewWrapper");
+  if (cls == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find WebViewWrapper class");
+    return false;
+  }
+
+  gWebViewWrapperClass = reinterpret_cast<jclass>(env->NewGlobalRef(cls));
+  env->DeleteLocalRef(cls);
+
+  gWebViewWrapperGetView = env->GetMethodID(
+      gWebViewWrapperClass, "getWebView", "()Landroid/webkit/WebView;");
+  gWebViewWrapperGoBack =
+      env->GetMethodID(gWebViewWrapperClass, "goBack", "()V");
+  gWebViewWrapperGoForward =
+      env->GetMethodID(gWebViewWrapperClass, "goForward", "()V");
+  gWebViewWrapperGoTo =
+      env->GetMethodID(gWebViewWrapperClass, "goTo", "(Ljava/lang/String;)V");
+  gWebViewWrapperStop =
+      env->GetMethodID(gWebViewWrapperClass, "stop", "()V");
+  gWebViewWrapperRefresh =
+      env->GetMethodID(gWebViewWrapperClass, "refresh", "()V");
+  gWebViewWrapperCanGoBack =
+      env->GetMethodID(gWebViewWrapperClass, "canGoBack", "()Z");
+  gWebViewWrapperCanGoForward =
+      env->GetMethodID(gWebViewWrapperClass, "canGoForward", "()Z");
+  gWebViewWrapperSetUserAgent = env->GetMethodID(
+      gWebViewWrapperClass, "setUserAgent", "(Ljava/lang/String;)V");
+  gWebViewWrapperSetRedirectsEnabled = env->GetMethodID(
+      gWebViewWrapperClass, "setRedirectsEnabled", "(Z)V");
+  gWebViewWrapperInjectScript = env->GetMethodID(
+      gWebViewWrapperClass, "injectScript", "(Ljava/lang/String;I)V");
+  gWebViewWrapperSetEventCallback = env->GetMethodID(
+      gWebViewWrapperClass, "setEventCallback",
+      "(Ldev/waterui/android/components/WebViewEventCallback;)V");
+  gWebViewWrapperRunJavaScript = env->GetMethodID(
+      gWebViewWrapperClass, "runJavaScript", "(Ljava/lang/String;JJ)V");
+  gWebViewWrapperRelease =
+      env->GetMethodID(gWebViewWrapperClass, "release", "()V");
+
+  if (!gWebViewWrapperGetView || !gWebViewWrapperGoBack ||
+      !gWebViewWrapperGoForward || !gWebViewWrapperGoTo ||
+      !gWebViewWrapperStop || !gWebViewWrapperRefresh ||
+      !gWebViewWrapperCanGoBack || !gWebViewWrapperCanGoForward ||
+      !gWebViewWrapperSetUserAgent || !gWebViewWrapperSetRedirectsEnabled ||
+      !gWebViewWrapperInjectScript || !gWebViewWrapperSetEventCallback ||
+      !gWebViewWrapperRunJavaScript || !gWebViewWrapperRelease) {
+    clear_jni_exception(env, "resolving WebViewWrapper methods");
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to resolve WebViewWrapper methods");
+    return false;
+  }
+
+  return true;
+}
+
+static bool init_webview_callback_jni(JNIEnv *env) {
+  if (gNativeWebViewEventCallbackClass != nullptr &&
+      gNativeWebViewEventCallbackCtor != nullptr) {
+    return true;
+  }
+
+  jclass cls = find_app_class(
+      env, "dev/waterui/android/components/NativeWebViewEventCallback");
+  if (cls == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find NativeWebViewEventCallback class");
+    return false;
+  }
+
+  gNativeWebViewEventCallbackClass =
+      reinterpret_cast<jclass>(env->NewGlobalRef(cls));
+  env->DeleteLocalRef(cls);
+
+  gNativeWebViewEventCallbackCtor = env->GetMethodID(
+      gNativeWebViewEventCallbackClass, "<init>", "(J)V");
+  if (gNativeWebViewEventCallbackCtor == nullptr) {
+    clear_jni_exception(env, "resolving NativeWebViewEventCallback ctor");
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to find NativeWebViewEventCallback constructor");
+    return false;
+  }
+
+  return true;
+}
+
+static jobject create_webview_wrapper(JNIEnv *env) {
+  if (!init_webview_manager_jni(env)) {
+    return nullptr;
+  }
+  jobject wrapper =
+      env->CallStaticObjectMethod(gWebViewManagerClass, gWebViewManagerCreate);
+  if (env->ExceptionCheck()) {
+    clear_jni_exception(env, "creating WebViewWrapper");
+    return nullptr;
+  }
+  return wrapper;
+}
+
 } // namespace
 
 // ============================================================================
@@ -1034,6 +1321,12 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
       cls = nullptr;
     }
   };
+  auto release_obj = [&](jobject &obj) {
+    if (obj != nullptr) {
+      scoped.env->DeleteGlobalRef(obj);
+      obj = nullptr;
+    }
+  };
   release(gBooleanClass);
   release(gIntegerClass);
   release(gDoubleClass);
@@ -1041,6 +1334,10 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
   release(gMetadataClass);
   release(gWatcherStructClass);
   release(gTypeIdStructClass);
+  release(gWebViewManagerClass);
+  release(gWebViewWrapperClass);
+  release(gNativeWebViewEventCallbackClass);
+  release_obj(gAppClassLoader);
   gBooleanValueOf = nullptr;
   gIntegerValueOf = nullptr;
   gDoubleValueOf = nullptr;
@@ -1048,6 +1345,24 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *, void *) {
   gMetadataCtor = nullptr;
   gWatcherStructCtor = nullptr;
   gTypeIdStructCtor = nullptr;
+  gWebViewManagerCreate = nullptr;
+  gWebViewWrapperGetView = nullptr;
+  gWebViewWrapperGoBack = nullptr;
+  gWebViewWrapperGoForward = nullptr;
+  gWebViewWrapperGoTo = nullptr;
+  gWebViewWrapperStop = nullptr;
+  gWebViewWrapperRefresh = nullptr;
+  gWebViewWrapperCanGoBack = nullptr;
+  gWebViewWrapperCanGoForward = nullptr;
+  gWebViewWrapperSetUserAgent = nullptr;
+  gWebViewWrapperSetRedirectsEnabled = nullptr;
+  gWebViewWrapperInjectScript = nullptr;
+  gWebViewWrapperSetEventCallback = nullptr;
+  gWebViewWrapperRunJavaScript = nullptr;
+  gWebViewWrapperRelease = nullptr;
+  gNativeWebViewEventCallbackCtor = nullptr;
+  gClassLoaderLoadClass = nullptr;
+  gClassGetClassLoader = nullptr;
   g_vm = nullptr;
 }
 
@@ -1060,6 +1375,7 @@ extern "C" {
 // Rust -> Android callbacks for MediaPickerManager
 void waterui_present_media_picker(WuiMediaFilterType filter, MediaPickerPresentCallback callback);
 void waterui_load_media(uint32_t id, MediaLoadCallback callback);
+static WuiWebViewHandle create_webview_handle();
 
 // Bootstrap - loads symbols from libwaterui_app.so
 JNIEXPORT void JNICALL
@@ -1783,6 +2099,18 @@ Java_dev_waterui_android_ffi_WatcherJni_envInstallMediaPickerManager(JNIEnv *, j
                                                                      jlong envPtr) {
   auto *env = jlong_to_ptr<WuiEnv>(envPtr);
   g_sym.waterui_env_install_media_picker_manager(env, waterui_present_media_picker, waterui_load_media);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_envInstallWebViewController(JNIEnv *env,
+                                                                    jclass clazz,
+                                                                    jlong envPtr) {
+  init_app_class_loader(env, clazz);
+  init_webview_manager_jni(env);
+  init_webview_wrapper_jni(env);
+  init_webview_callback_jni(env);
+  auto *wui_env = jlong_to_ptr<WuiEnv>(envPtr);
+  g_sym.waterui_env_install_webview_controller(wui_env, create_webview_handle);
 }
 
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewBody(
@@ -3201,6 +3529,340 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsVideoPlayer(JNIEnv *env, jclass,
                                static_cast<jboolean>(vp.show_controls));
   env->DeleteLocalRef(cls);
   return obj;
+}
+
+// ========== WebView Functions ==========
+
+static void drop_wui_str(WuiStr value) {
+  value._0.vtable.drop(value._0.data);
+}
+
+static void webview_go_back(void *data) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return;
+  }
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperGoBack);
+}
+
+static void webview_go_forward(void *data) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return;
+  }
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperGoForward);
+}
+
+static void webview_go_to(void *data, WuiStr url) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    drop_wui_str(url);
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    drop_wui_str(url);
+    return;
+  }
+  std::string url_str = wui_str_to_std_string(url);
+  jstring jurl = scoped.env->NewStringUTF(url_str.c_str());
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperGoTo, jurl);
+  scoped.env->DeleteLocalRef(jurl);
+}
+
+static void webview_stop(void *data) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return;
+  }
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperStop);
+}
+
+static void webview_refresh(void *data) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return;
+  }
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperRefresh);
+}
+
+static bool webview_can_go_back(const void *data) {
+  auto *ctx = static_cast<const WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return false;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return false;
+  }
+  return scoped.env->CallBooleanMethod(ctx->wrapper, gWebViewWrapperCanGoBack) == JNI_TRUE;
+}
+
+static bool webview_can_go_forward(const void *data) {
+  auto *ctx = static_cast<const WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return false;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return false;
+  }
+  return scoped.env->CallBooleanMethod(ctx->wrapper, gWebViewWrapperCanGoForward) == JNI_TRUE;
+}
+
+static void webview_set_user_agent(void *data, WuiStr user_agent) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    drop_wui_str(user_agent);
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    drop_wui_str(user_agent);
+    return;
+  }
+  std::string ua = wui_str_to_std_string(user_agent);
+  jstring jua = scoped.env->NewStringUTF(ua.c_str());
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperSetUserAgent, jua);
+  scoped.env->DeleteLocalRef(jua);
+}
+
+static void webview_set_redirects_enabled(void *data, bool enabled) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    return;
+  }
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperSetRedirectsEnabled,
+                             static_cast<jboolean>(enabled));
+}
+
+static void webview_inject_script(void *data, WuiStr script,
+                                  WuiScriptInjectionTime time) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    drop_wui_str(script);
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    drop_wui_str(script);
+    return;
+  }
+  std::string script_str = wui_str_to_std_string(script);
+  jstring jscript = scoped.env->NewStringUTF(script_str.c_str());
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperInjectScript, jscript,
+                             static_cast<jint>(time));
+  scoped.env->DeleteLocalRef(jscript);
+}
+
+static void webview_watch(void *data, WuiFn_WuiWebViewEvent callback) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    callback.drop(callback.data);
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr ||
+      !init_webview_wrapper_jni(scoped.env) ||
+      !init_webview_callback_jni(scoped.env)) {
+    callback.drop(callback.data);
+    return;
+  }
+
+  if (ctx->has_watcher) {
+    ctx->watcher.drop(ctx->watcher.data);
+    scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperSetEventCallback,
+                               nullptr);
+  }
+
+  ctx->watcher = callback;
+  ctx->has_watcher = true;
+
+  jobject cb_obj = scoped.env->NewObject(
+      gNativeWebViewEventCallbackClass, gNativeWebViewEventCallbackCtor,
+      reinterpret_cast<jlong>(ctx));
+  if (cb_obj == nullptr) {
+    ctx->watcher.drop(ctx->watcher.data);
+    ctx->has_watcher = false;
+    return;
+  }
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperSetEventCallback,
+                             cb_obj);
+  scoped.env->DeleteLocalRef(cb_obj);
+}
+
+static void webview_run_javascript(void *data, WuiStr script,
+                                   WuiJsCallback callback) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    drop_wui_str(script);
+    return;
+  }
+  ScopedEnv scoped;
+  if (scoped.env == nullptr || !init_webview_wrapper_jni(scoped.env)) {
+    drop_wui_str(script);
+    return;
+  }
+  std::string script_str = wui_str_to_std_string(script);
+  jstring jscript = scoped.env->NewStringUTF(script_str.c_str());
+  scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperRunJavaScript, jscript,
+                             reinterpret_cast<jlong>(callback.data),
+                             reinterpret_cast<jlong>(callback.call));
+  scoped.env->DeleteLocalRef(jscript);
+}
+
+static void webview_drop(void *data) {
+  auto *ctx = static_cast<WebViewHandleContext *>(data);
+  if (ctx == nullptr) {
+    return;
+  }
+
+  ScopedEnv scoped;
+  if (scoped.env != nullptr && init_webview_wrapper_jni(scoped.env)) {
+    if (ctx->wrapper != nullptr) {
+      scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperSetEventCallback,
+                                 nullptr);
+      scoped.env->CallVoidMethod(ctx->wrapper, gWebViewWrapperRelease);
+      scoped.env->DeleteGlobalRef(ctx->wrapper);
+    }
+  }
+
+  if (ctx->has_watcher) {
+    ctx->watcher.drop(ctx->watcher.data);
+  }
+
+  delete ctx;
+}
+
+static WuiWebViewHandle create_webview_handle() {
+  WuiWebViewHandle handle{};
+  handle.data = nullptr;
+  handle.go_back = webview_go_back;
+  handle.go_forward = webview_go_forward;
+  handle.go_to = webview_go_to;
+  handle.stop = webview_stop;
+  handle.refresh = webview_refresh;
+  handle.can_go_back = webview_can_go_back;
+  handle.can_go_forward = webview_can_go_forward;
+  handle.set_user_agent = webview_set_user_agent;
+  handle.set_redirects_enabled = webview_set_redirects_enabled;
+  handle.inject_script = webview_inject_script;
+  handle.watch = webview_watch;
+  handle.run_javascript = webview_run_javascript;
+  handle.drop = webview_drop;
+
+  ScopedEnv scoped;
+  if (scoped.env == nullptr ||
+      !init_webview_wrapper_jni(scoped.env)) {
+    return handle;
+  }
+
+  jobject wrapper = create_webview_wrapper(scoped.env);
+  if (wrapper == nullptr) {
+    return handle;
+  }
+
+  auto *ctx = new WebViewHandleContext{
+      scoped.env->NewGlobalRef(wrapper), {}, false};
+  scoped.env->DeleteLocalRef(wrapper);
+  handle.data = ctx;
+  return handle;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_webviewId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_webview_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsWebView(JNIEnv *, jclass,
+                                                        jlong viewPtr) {
+  auto webview =
+      g_sym.waterui_force_as_webview(jlong_to_ptr<WuiAnyView>(viewPtr));
+  return ptr_to_jlong(webview);
+}
+
+JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_webviewNativeHandle(JNIEnv *, jclass,
+                                                             jlong webviewPtr) {
+  return ptr_to_jlong(
+      g_sym.waterui_webview_native_handle(jlong_to_ptr<WuiWebView>(webviewPtr)));
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_webviewNativeView(JNIEnv *env, jclass,
+                                                           jlong handlePtr) {
+  auto *ctx = jlong_to_ptr<WebViewHandleContext>(handlePtr);
+  if (ctx == nullptr || ctx->wrapper == nullptr) {
+    return nullptr;
+  }
+  if (!init_webview_wrapper_jni(env)) {
+    return nullptr;
+  }
+  return env->CallObjectMethod(ctx->wrapper, gWebViewWrapperGetView);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropWebView(JNIEnv *, jclass,
+                                                     jlong webviewPtr) {
+  g_sym.waterui_drop_web_view(jlong_to_ptr<WuiWebView>(webviewPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_components_NativeWebViewEventCallback_nativeOnEvent(
+    JNIEnv *env, jobject, jlong nativePtr, jint eventType, jstring url,
+    jstring url2, jstring message, jfloat progress, jboolean canGoBack,
+    jboolean canGoForward) {
+  auto *ctx = jlong_to_ptr<WebViewHandleContext>(nativePtr);
+  if (ctx == nullptr || !ctx->has_watcher) {
+    return;
+  }
+
+  WuiWebViewEvent event{};
+  event.event_type = static_cast<WuiWebViewEventType>(eventType);
+  event.url = str_from_jstring(env, url);
+  event.url2 = str_from_jstring(env, url2);
+  event.message = str_from_jstring(env, message);
+  event.progress = progress;
+  event.can_go_back = (canGoBack == JNI_TRUE);
+  event.can_go_forward = (canGoForward == JNI_TRUE);
+
+  ctx->watcher.call(ctx->watcher.data, event);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_components_WebViewWrapper_nativeCompleteJsResult(
+    JNIEnv *env, jobject, jlong callbackData, jlong callbackFn,
+    jboolean success, jstring result) {
+  auto call_fn =
+      reinterpret_cast<void (*)(void *, bool, WuiStr)>(callbackFn);
+  if (call_fn == nullptr) {
+    return;
+  }
+  WuiStr result_str = str_from_jstring(env, result);
+  call_fn(reinterpret_cast<void *>(callbackData),
+          success == JNI_TRUE, result_str);
 }
 
 // ========== MediaPicker Functions ==========
