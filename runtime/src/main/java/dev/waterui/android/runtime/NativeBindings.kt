@@ -198,6 +198,13 @@ internal object NativeBindings {
     fun waterui_call_action(actionPtr: Long, envPtr: Long) = WatcherJni.callAction(actionPtr, envPtr)
     fun waterui_drop_action(actionPtr: Long) = WatcherJni.dropAction(actionPtr)
 
+    // ========== Index/Move Action ==========
+
+    fun waterui_drop_index_action(actionPtr: Long) = WatcherJni.dropIndexAction(actionPtr)
+    fun waterui_call_index_action(actionPtr: Long, envPtr: Long, index: Long) = WatcherJni.callIndexAction(actionPtr, envPtr, index)
+    fun waterui_drop_move_action(actionPtr: Long) = WatcherJni.dropMoveAction(actionPtr)
+    fun waterui_call_move_action(actionPtr: Long, envPtr: Long, fromIndex: Long, toIndex: Long) = WatcherJni.callMoveAction(actionPtr, envPtr, fromIndex, toIndex)
+
     // ========== Watcher guard ==========
 
     fun waterui_drop_watcher_guard(guardPtr: Long) = WatcherJni.dropWatcherGuard(guardPtr)
@@ -334,6 +341,8 @@ internal object NativeBindings {
     fun waterui_video_player_id(): TypeIdStruct = WatcherJni.videoPlayerId()
     fun waterui_media_picker_id(): TypeIdStruct = WatcherJni.mediaPickerId()
     fun waterui_force_as_media_picker(viewPtr: Long): MediaPickerStruct = WatcherJni.forceAsMediaPicker(viewPtr)
+    fun waterui_menu_id(): TypeIdStruct = WatcherJni.menuId()
+    fun waterui_force_as_menu(viewPtr: Long): MenuStruct = WatcherJni.forceAsMenu(viewPtr)
 
     // ========== Media Selection Callback ==========
 
