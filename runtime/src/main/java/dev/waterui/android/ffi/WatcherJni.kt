@@ -392,4 +392,17 @@ object WatcherJni {
     // ========== WebView Functions ==========
     @JvmStatic external fun webviewNativeHandle(webviewPtr: Long): Long
     @JvmStatic external fun webviewNativeView(handlePtr: Long): android.webkit.WebView?
+
+    // ========== Drag and Drop Functions ==========
+
+    @JvmStatic external fun metadataDraggableId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataDropDestinationId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsMetadataDraggable(viewPtr: Long): dev.waterui.android.components.MetadataDraggableStruct
+    @JvmStatic external fun forceAsMetadataDropDestination(viewPtr: Long): dev.waterui.android.components.MetadataDropDestinationStruct
+    @JvmStatic external fun draggableGetData(draggablePtr: Long): dev.waterui.android.components.DragDataStruct
+    @JvmStatic external fun dropDraggable(draggablePtr: Long)
+    @JvmStatic external fun dropDropDestination(dropDestPtr: Long)
+    @JvmStatic external fun callDropHandler(dropDestPtr: Long, envPtr: Long, dataTag: Int, dataValue: String)
+    @JvmStatic external fun callDropEnterHandler(dropDestPtr: Long, envPtr: Long)
+    @JvmStatic external fun callDropExitHandler(dropDestPtr: Long, envPtr: Long)
 }
