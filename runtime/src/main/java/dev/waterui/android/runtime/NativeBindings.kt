@@ -57,6 +57,12 @@ internal object NativeBindings {
 
     // ========== Theme: Color Scheme ==========
 
+    fun waterui_create_reactive_color_scheme_state(scheme: Int): Long =
+        WatcherJni.createReactiveColorSchemeState(scheme)
+    fun waterui_reactive_color_scheme_state_to_computed(statePtr: Long): Long =
+        WatcherJni.reactiveColorSchemeStateToComputed(statePtr)
+    fun waterui_reactive_color_scheme_state_set(statePtr: Long, scheme: Int) =
+        WatcherJni.reactiveColorSchemeStateSet(statePtr, scheme)
     fun waterui_computed_color_scheme_constant(scheme: Int): Long = WatcherJni.computedColorSchemeConstant(scheme)
     fun waterui_read_computed_color_scheme(ptr: Long): Int = WatcherJni.readComputedColorScheme(ptr)
     fun waterui_drop_computed_color_scheme(ptr: Long) = WatcherJni.dropComputedColorScheme(ptr)
@@ -142,14 +148,17 @@ internal object NativeBindings {
     fun waterui_set_binding_double(bindingPtr: Long, value: Double) = WatcherJni.setBindingDouble(bindingPtr, value)
     fun waterui_set_binding_str(bindingPtr: Long, bytes: ByteArray) = WatcherJni.setBindingStr(bindingPtr, bytes)
     fun waterui_set_binding_secure(bindingPtr: Long, bytes: ByteArray) = WatcherJni.setBindingSecure(bindingPtr, bytes)
+    fun waterui_set_binding_color(bindingPtr: Long, colorPtr: Long) = WatcherJni.setBindingColor(bindingPtr, colorPtr)
     fun waterui_read_binding_bool(bindingPtr: Long): Boolean = WatcherJni.readBindingBool(bindingPtr)
     fun waterui_read_binding_int(bindingPtr: Long): Int = WatcherJni.readBindingInt(bindingPtr)
     fun waterui_read_binding_double(bindingPtr: Long): Double = WatcherJni.readBindingDouble(bindingPtr)
     fun waterui_read_binding_str(bindingPtr: Long): ByteArray = WatcherJni.readBindingStr(bindingPtr)
+    fun waterui_read_binding_color(bindingPtr: Long): Long = WatcherJni.readBindingColor(bindingPtr)
     fun waterui_drop_binding_bool(bindingPtr: Long) = WatcherJni.dropBindingBool(bindingPtr)
     fun waterui_drop_binding_int(bindingPtr: Long) = WatcherJni.dropBindingInt(bindingPtr)
     fun waterui_drop_binding_double(bindingPtr: Long) = WatcherJni.dropBindingDouble(bindingPtr)
     fun waterui_drop_binding_str(bindingPtr: Long) = WatcherJni.dropBindingStr(bindingPtr)
+    fun waterui_drop_binding_color(bindingPtr: Long) = WatcherJni.dropBindingColor(bindingPtr)
 
     // Date binding functions
     fun waterui_read_binding_date(bindingPtr: Long): DateStruct = WatcherJni.readBindingDate(bindingPtr)
@@ -183,6 +192,15 @@ internal object NativeBindings {
 
     fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long = WatcherJni.resolveColor(colorPtr, envPtr)
     fun waterui_drop_color(colorPtr: Long) = WatcherJni.dropColor(colorPtr)
+    fun waterui_color_from_srgba(red: Float, green: Float, blue: Float, alpha: Float): Long =
+        WatcherJni.colorFromSrgba(red, green, blue, alpha)
+    fun waterui_color_from_linear_rgba_headroom(
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float,
+        headroom: Float
+    ): Long = WatcherJni.colorFromLinearRgbaHeadroom(red, green, blue, alpha, headroom)
     fun waterui_read_computed_resolved_color(computedPtr: Long): ResolvedColorStruct = WatcherJni.readComputedResolvedColor(computedPtr)
     fun waterui_drop_computed_resolved_color(computedPtr: Long) = WatcherJni.dropComputedResolvedColor(computedPtr)
     fun waterui_read_computed_color(computedPtr: Long): Long = WatcherJni.readComputedColor(computedPtr)
@@ -249,6 +267,10 @@ internal object NativeBindings {
     fun waterui_force_as_secure_field(viewPtr: Long): SecureFieldStruct = WatcherJni.forceAsSecureField(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
+    fun waterui_force_as_metadata_standard_dynamic_range(viewPtr: Long): MetadataStandardDynamicRangeStruct =
+        WatcherJni.forceAsMetadataStandardDynamicRange(viewPtr)
+    fun waterui_force_as_metadata_high_dynamic_range(viewPtr: Long): MetadataHighDynamicRangeStruct =
+        WatcherJni.forceAsMetadataHighDynamicRange(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
     fun waterui_force_as_metadata_lifecycle_hook(viewPtr: Long): MetadataLifeCycleHookStruct = WatcherJni.forceAsMetadataLifeCycleHook(viewPtr)
     fun waterui_force_as_metadata_on_event(viewPtr: Long): MetadataOnEventStruct = WatcherJni.forceAsMetadataOnEvent(viewPtr)
@@ -259,7 +281,9 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_focused(viewPtr: Long): MetadataFocusedStruct = WatcherJni.forceAsMetadataFocused(viewPtr)
     fun waterui_force_as_metadata_ignore_safe_area(viewPtr: Long): MetadataIgnoreSafeAreaStruct = WatcherJni.forceAsMetadataIgnoreSafeArea(viewPtr)
     fun waterui_force_as_metadata_retain(viewPtr: Long): MetadataRetainStruct = WatcherJni.forceAsMetadataRetain(viewPtr)
-    fun waterui_force_as_metadata_transform(viewPtr: Long): MetadataTransformStruct = WatcherJni.forceAsMetadataTransform(viewPtr)
+    fun waterui_force_as_metadata_scale(viewPtr: Long): MetadataScaleStruct = WatcherJni.forceAsMetadataScale(viewPtr)
+    fun waterui_force_as_metadata_rotation(viewPtr: Long): MetadataRotationStruct = WatcherJni.forceAsMetadataRotation(viewPtr)
+    fun waterui_force_as_metadata_offset(viewPtr: Long): MetadataOffsetStruct = WatcherJni.forceAsMetadataOffset(viewPtr)
     fun waterui_force_as_metadata_blur(viewPtr: Long): MetadataBlurStruct = WatcherJni.forceAsMetadataBlur(viewPtr)
     fun waterui_force_as_metadata_brightness(viewPtr: Long): MetadataBrightnessStruct = WatcherJni.forceAsMetadataBrightness(viewPtr)
     fun waterui_force_as_metadata_saturation(viewPtr: Long): MetadataSaturationStruct = WatcherJni.forceAsMetadataSaturation(viewPtr)
@@ -325,6 +349,8 @@ internal object NativeBindings {
     // ========== Metadata Type IDs ==========
 
     fun waterui_metadata_secure_id(): TypeIdStruct = WatcherJni.metadataSecureId()
+    fun waterui_metadata_standard_dynamic_range_id(): TypeIdStruct = WatcherJni.metadataStandardDynamicRangeId()
+    fun waterui_metadata_high_dynamic_range_id(): TypeIdStruct = WatcherJni.metadataHighDynamicRangeId()
     fun waterui_metadata_gesture_id(): TypeIdStruct = WatcherJni.metadataGestureId()
     fun waterui_metadata_lifecycle_hook_id(): TypeIdStruct = WatcherJni.metadataLifeCycleHookId()
     fun waterui_metadata_on_event_id(): TypeIdStruct = WatcherJni.metadataOnEventId()
@@ -335,7 +361,9 @@ internal object NativeBindings {
     fun waterui_metadata_focused_id(): TypeIdStruct = WatcherJni.metadataFocusedId()
     fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
     fun waterui_metadata_retain_id(): TypeIdStruct = WatcherJni.metadataRetainId()
-    fun waterui_metadata_transform_id(): TypeIdStruct = WatcherJni.metadataTransformId()
+    fun waterui_metadata_scale_id(): TypeIdStruct = WatcherJni.metadataScaleId()
+    fun waterui_metadata_rotation_id(): TypeIdStruct = WatcherJni.metadataRotationId()
+    fun waterui_metadata_offset_id(): TypeIdStruct = WatcherJni.metadataOffsetId()
     fun waterui_metadata_blur_id(): TypeIdStruct = WatcherJni.metadataBlurId()
     fun waterui_metadata_brightness_id(): TypeIdStruct = WatcherJni.metadataBrightnessId()
     fun waterui_metadata_saturation_id(): TypeIdStruct = WatcherJni.metadataSaturationId()

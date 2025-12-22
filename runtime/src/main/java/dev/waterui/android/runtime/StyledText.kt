@@ -138,7 +138,7 @@ internal class WuiColor(
     fun resolveOnce(env: WuiEnvironment): ResolvedColorStruct {
         val computedPtr = NativeBindings.waterui_resolve_color(raw(), env.raw())
         if (computedPtr == 0L) {
-            return ResolvedColorStruct(0f, 0f, 0f, 1f)
+            return ResolvedColorStruct(0f, 0f, 0f, 1f, 0f)
         }
         val color = NativeBindings.waterui_read_computed_resolved_color(computedPtr)
         NativeBindings.waterui_drop_computed_resolved_color(computedPtr)

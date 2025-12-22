@@ -1,6 +1,5 @@
 package dev.waterui.android.runtime
 
-import android.graphics.Color
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
 
@@ -19,6 +18,30 @@ enum class ColorScheme(val value: Int) {
             1 -> Dark
             else -> Light
         }
+    }
+}
+
+/**
+ * A reactive color scheme signal that stores a value and notifies WaterUI watchers when updated.
+ */
+class ReactiveColorSchemeSignal(initialScheme: ColorScheme) : Closeable {
+    private val statePtr: Long =
+        NativeBindings.waterui_create_reactive_color_scheme_state(initialScheme.value)
+    private var computedPtr: Long = 0L
+
+    fun toComputed(): Long {
+        if (computedPtr == 0L) {
+            computedPtr = NativeBindings.waterui_reactive_color_scheme_state_to_computed(statePtr)
+        }
+        return computedPtr
+    }
+
+    fun setValue(scheme: ColorScheme) {
+        NativeBindings.waterui_reactive_color_scheme_state_set(statePtr, scheme.value)
+    }
+
+    override fun close() {
+        // State is owned by the computed signal
     }
 }
 
@@ -66,10 +89,11 @@ class ReactiveColorSignal(initialArgb: Int) : Closeable {
  * A reactive font signal that stores a font and notifies WaterUI watchers when updated.
  *
  * Note: WuiResolvedFont only contains size and weight. Family is not currently supported.
+ * Weight uses the WuiFontWeight enum index (0=Thin ... 8=Black).
  */
 class ReactiveFontSignal(
     size: Float = 16f,
-    weight: Int = 400 // Maps to WuiFontWeight enum
+    weight: Int = 3 // WuiFontWeight_Normal
 ) : Closeable {
     private val statePtr: Long = NativeBindings.waterui_create_reactive_font_state(size, weight)
     private var computedPtr: Long = 0L

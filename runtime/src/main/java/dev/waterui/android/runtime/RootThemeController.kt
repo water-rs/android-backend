@@ -17,7 +17,7 @@ import dev.waterui.android.reactive.WatcherStructFactory
  * This mirrors the Apple `RootThemeController` behavior:
  * 1. System theme is injected into WaterUI root environment
  * 2. Rust code can override via `.install(Theme::new().color_scheme(...))`
- * 3. This controller reads from the first non-metadata component's env
+ * 3. This controller reads from the App's environment
  * 4. The color scheme is applied back to the Android Activity/Window
  *
  * This enables Rust code to control whether the app appears in light/dark mode,
@@ -33,32 +33,11 @@ class RootThemeController private constructor(
         /** The singleton controller (one per app) */
         private var instance: RootThemeController? = null
 
-        /** The pending root environment (captured from first non-metadata component) */
-        private var pendingRootEnv: WuiEnvironment? = null
-
-        /**
-         * Marks an environment as the root content's env (for theme setup).
-         * Only captures the first one.
-         */
-        fun markAsRootContentEnv(env: WuiEnvironment) {
-            if (pendingRootEnv == null) {
-                pendingRootEnv = env
-                // Debug: check what color scheme this env has
-                val signalPtr = NativeBindings.waterui_theme_color_scheme(env.raw())
-                if (signalPtr != 0L) {
-                    val scheme = NativeBindings.waterui_read_computed_color_scheme(signalPtr)
-                    Log.d(TAG, "Captured env with color scheme: $scheme (0=Light, 1=Dark)")
-                    // Don't drop - we'll use it later
-                }
-            }
-        }
-
         /**
          * Sets up the root theme controller when the view is added to window.
          */
-        fun setup(view: View) {
+        fun setup(view: View, env: WuiEnvironment) {
             if (instance != null) return
-            val env = pendingRootEnv ?: return
             instance = RootThemeController(env, view)
         }
 
@@ -75,7 +54,6 @@ class RootThemeController private constructor(
         fun reset() {
             instance?.close()
             instance = null
-            pendingRootEnv = null
         }
     }
 

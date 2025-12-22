@@ -195,9 +195,10 @@ import dev.waterui.android.runtime.*;
 } % typemap(out) struct WuiResolvedColor % {
   jclass cls = JCALL1(FindClass, jenv,
                       "dev/waterui/android/runtime/ResolvedColorStruct");
-  jmethodID ctor = JCALL3(GetMethodID, jenv, cls, "<init>", "(FFFF)V");
+  jmethodID ctor = JCALL3(GetMethodID, jenv, cls, "<init>", "(FFFFF)V");
   $result =
-      JCALL6(NewObject, jenv, cls, ctor, $1.red, $1.green, $1.blue, $1.opacity);
+      JCALL7(NewObject, jenv, cls, ctor, $1.red, $1.green, $1.blue, $1.opacity,
+             $1.headroom);
   JCALL1(DeleteLocalRef, jenv, cls);
   %
 }

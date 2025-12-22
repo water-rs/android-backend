@@ -22,6 +22,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import java.lang.ref.WeakReference
 import java.nio.charset.StandardCharsets
+import org.json.JSONTokener
 
 /**
  * WebView event types matching WuiWebViewEventType in FFI.
@@ -262,8 +263,9 @@ class WebViewWrapper(context: Context) {
     fun runJavaScript(script: String, callback: JsResultCallback) {
         runOnUiThread {
             webView.evaluateJavascript(script) { result ->
-                // Result is a JSON string or "null"
-                callback.onResult(true, result ?: "null")
+                // Result is JSON-encoded (strings include quotes).
+                val normalized = decodeJsResult(result)
+                callback.onResult(true, normalized)
             }
         }
     }
@@ -317,6 +319,23 @@ class WebViewWrapper(context: Context) {
             action()
         } else {
             webView.post { action() }
+        }
+    }
+
+    private fun decodeJsResult(raw: String?): String {
+        val value = raw ?: "null"
+        if (value == "null") {
+            return value
+        }
+        return try {
+            val decoded = JSONTokener(value).nextValue()
+            when (decoded) {
+                null -> "null"
+                is String -> decoded
+                else -> decoded.toString()
+            }
+        } catch (_: Exception) {
+            value
         }
     }
 

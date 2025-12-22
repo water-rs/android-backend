@@ -55,6 +55,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
+    @JvmStatic external fun forceAsMetadataStandardDynamicRange(viewPtr: Long): MetadataStandardDynamicRangeStruct
+    @JvmStatic external fun forceAsMetadataHighDynamicRange(viewPtr: Long): MetadataHighDynamicRangeStruct
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
     @JvmStatic external fun forceAsMetadataLifeCycleHook(viewPtr: Long): MetadataLifeCycleHookStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
@@ -65,7 +67,9 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
-    @JvmStatic external fun forceAsMetadataTransform(viewPtr: Long): MetadataTransformStruct
+    @JvmStatic external fun forceAsMetadataScale(viewPtr: Long): MetadataScaleStruct
+    @JvmStatic external fun forceAsMetadataRotation(viewPtr: Long): MetadataRotationStruct
+    @JvmStatic external fun forceAsMetadataOffset(viewPtr: Long): MetadataOffsetStruct
     @JvmStatic external fun forceAsMetadataBlur(viewPtr: Long): MetadataBlurStruct
     @JvmStatic external fun forceAsMetadataBrightness(viewPtr: Long): MetadataBrightnessStruct
     @JvmStatic external fun forceAsMetadataSaturation(viewPtr: Long): MetadataSaturationStruct
@@ -101,6 +105,14 @@ object WatcherJni {
     @JvmStatic external fun dropComputedMenuItems(computedPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
+    @JvmStatic external fun colorFromSrgba(red: Float, green: Float, blue: Float, alpha: Float): Long
+    @JvmStatic external fun colorFromLinearRgbaHeadroom(
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float,
+        headroom: Float
+    ): Long
     @JvmStatic external fun dropFont(fontPtr: Long)
     @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
@@ -138,15 +150,18 @@ object WatcherJni {
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
     @JvmStatic external fun readBindingStr(bindingPtr: Long): ByteArray
+    @JvmStatic external fun readBindingColor(bindingPtr: Long): Long
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
     @JvmStatic external fun setBindingStr(bindingPtr: Long, bytes: ByteArray)
     @JvmStatic external fun setBindingSecure(bindingPtr: Long, bytes: ByteArray)
+    @JvmStatic external fun setBindingColor(bindingPtr: Long, colorPtr: Long)
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
     @JvmStatic external fun dropBindingStr(bindingPtr: Long)
+    @JvmStatic external fun dropBindingColor(bindingPtr: Long)
     @JvmStatic external fun readBindingFloat(bindingPtr: Long): Float
     @JvmStatic external fun setBindingFloat(bindingPtr: Long, value: Float)
     @JvmStatic external fun dropBindingFloat(bindingPtr: Long)
@@ -222,6 +237,9 @@ object WatcherJni {
 
     // ========== Reactive State Creation ==========
 
+    @JvmStatic external fun createReactiveColorSchemeState(scheme: Int): Long
+    @JvmStatic external fun reactiveColorSchemeStateToComputed(statePtr: Long): Long
+    @JvmStatic external fun reactiveColorSchemeStateSet(statePtr: Long, scheme: Int)
     @JvmStatic external fun createReactiveColorState(argb: Int): Long
     @JvmStatic external fun reactiveColorStateToComputed(statePtr: Long): Long
     @JvmStatic external fun reactiveColorStateSet(statePtr: Long, argb: Int)
@@ -281,6 +299,8 @@ object WatcherJni {
     @JvmStatic external fun layoutContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataSecureId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataStandardDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataHighDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataGestureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataLifeCycleHookId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOnEventId(): dev.waterui.android.runtime.TypeIdStruct
@@ -291,7 +311,9 @@ object WatcherJni {
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun metadataTransformId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataScaleId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataRotationId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataOffsetId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataBlurId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataBrightnessId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataSaturationId(): dev.waterui.android.runtime.TypeIdStruct

@@ -16,8 +16,7 @@ const val TAG_STRETCH_AXIS = 0x57554901 // "WUI\x01" as int
  *
  * The returned View will have its stretch axis stored as a tag (TAG_STRETCH_AXIS).
  *
- * When the first non-metadata component is encountered, its environment is captured
- * for the [RootThemeController] to watch the color scheme and apply it to the Activity.
+ * The returned view uses the provided environment for rendering and layout.
  */
 fun inflateAnyView(
     context: Context,
@@ -37,11 +36,6 @@ fun inflateAnyView(
             StretchAxis.fromInt(NativeBindings.waterui_view_stretch_axis(pointer))
         } else {
             null
-        }
-
-        // If this is the first non-metadata component, capture its env for root theme
-        if (!isMetadata) {
-            RootThemeController.markAsRootContentEnv(environment)
         }
 
         // Create the view (this consumes the pointer via force_as_* FFI functions)
