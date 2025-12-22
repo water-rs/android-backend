@@ -422,6 +422,25 @@ internal object NativeBindings {
     fun waterui_create_reactive_font_state(size: Float, weight: Int): Long = WatcherJni.createReactiveFontState(size, weight)
     fun waterui_reactive_font_state_to_computed(statePtr: Long): Long = WatcherJni.reactiveFontStateToComputed(statePtr)
     fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int) = WatcherJni.reactiveFontStateSet(statePtr, size, weight)
+
+    // ========== Drag and Drop ==========
+
+    fun waterui_metadata_draggable_id(): TypeIdStruct = WatcherJni.metadataDraggableId()
+    fun waterui_metadata_drop_destination_id(): TypeIdStruct = WatcherJni.metadataDropDestinationId()
+    fun waterui_force_as_metadata_draggable(viewPtr: Long): dev.waterui.android.components.MetadataDraggableStruct =
+        WatcherJni.forceAsMetadataDraggable(viewPtr)
+    fun waterui_force_as_metadata_drop_destination(viewPtr: Long): dev.waterui.android.components.MetadataDropDestinationStruct =
+        WatcherJni.forceAsMetadataDropDestination(viewPtr)
+    fun waterui_draggable_get_data(draggablePtr: Long): dev.waterui.android.components.DragDataStruct =
+        WatcherJni.draggableGetData(draggablePtr)
+    fun waterui_drop_draggable(draggablePtr: Long) = WatcherJni.dropDraggable(draggablePtr)
+    fun waterui_drop_drop_destination(dropDestPtr: Long) = WatcherJni.dropDropDestination(dropDestPtr)
+    fun waterui_call_drop_handler(dropDestPtr: Long, envPtr: Long, dataTag: Int, dataValue: String) =
+        WatcherJni.callDropHandler(dropDestPtr, envPtr, dataTag, dataValue)
+    fun waterui_call_drop_enter_handler(dropDestPtr: Long, envPtr: Long) =
+        WatcherJni.callDropEnterHandler(dropDestPtr, envPtr)
+    fun waterui_call_drop_exit_handler(dropDestPtr: Long, envPtr: Long) =
+        WatcherJni.callDropExitHandler(dropDestPtr, envPtr)
 }
 
 fun bootstrapWaterUiRuntime() {

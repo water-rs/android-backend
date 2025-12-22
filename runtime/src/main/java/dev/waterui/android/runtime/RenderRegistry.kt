@@ -138,6 +138,10 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiContrast()
         registerWuiHueRotation()
         registerWuiGrayscale()
+
+        // Drag and drop components
+        registerWuiDraggable()
+        registerWuiDropDestination()
     }
     builder.components to builder.metadataTypes
 }
