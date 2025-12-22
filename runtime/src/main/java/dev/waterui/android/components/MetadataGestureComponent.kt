@@ -3,8 +3,7 @@ package dev.waterui.android.components
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
-import android.view.View
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.GestureType
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -29,7 +28,10 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
     val metadata = NativeBindings.waterui_metadata_gesture_id()
     val gestureData = NativeBindings.waterui_force_as_metadata_gesture(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context).apply {
+        consumesTouches = true
+        setTag(PassThroughFrameLayout.TAG_WANTS_TOUCHES, true)
+    }
     val envPtr = env.raw()
 
     // Inflate the content
@@ -47,14 +49,20 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
     // Attach gesture recognizer based on type
     when (GestureType.fromInt(gestureData.gestureType)) {
         GestureType.TAP -> {
+            val requiredTaps = gestureData.gestureData.tapCount.coerceAtLeast(1)
             val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    callAction()
-                    return true
+                override fun onDown(e: MotionEvent): Boolean = true
+
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
+                    if (requiredTaps <= 1) {
+                        callAction()
+                        return true
+                    }
+                    return false
                 }
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
-                    if (gestureData.gestureData.tapCount >= 2) {
+                    if (requiredTaps >= 2) {
                         callAction()
                         return true
                     }
@@ -70,6 +78,8 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
 
         GestureType.LONG_PRESS -> {
             val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+
                 override fun onLongPress(e: MotionEvent) {
                     callAction()
                 }
@@ -82,14 +92,29 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
         }
 
         GestureType.DRAG -> {
+            val density = context.resources.displayMetrics.density
+            val minDistancePx = gestureData.gestureData.dragMinDistance * density
+            val minDistanceSq = minDistancePx * minDistancePx
+            var dragStarted = false
             val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean {
+                    dragStarted = false
+                    return true
+                }
+
                 override fun onScroll(
                     e1: MotionEvent?,
                     e2: MotionEvent,
                     distanceX: Float,
                     distanceY: Float
                 ): Boolean {
-                    // Call action when drag exceeds minimum distance
+                    val start = e1 ?: return true
+                    val dx = e2.x - start.x
+                    val dy = e2.y - start.y
+                    if (!dragStarted && (dx * dx + dy * dy) < minDistanceSq) {
+                        return true
+                    }
+                    dragStarted = true
                     callAction()
                     return true
                 }

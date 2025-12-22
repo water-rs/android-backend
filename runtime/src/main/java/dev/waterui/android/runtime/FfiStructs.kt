@@ -287,6 +287,16 @@ data class MetadataEnvStruct(val contentPtr: Long, val envPtr: Long)
 data class MetadataSecureStruct(val contentPtr: Long)
 
 /**
+ * Metadata<StandardDynamicRange> struct for SDR rendering.
+ */
+data class MetadataStandardDynamicRangeStruct(val contentPtr: Long)
+
+/**
+ * Metadata<HighDynamicRange> struct for HDR rendering.
+ */
+data class MetadataHighDynamicRangeStruct(val contentPtr: Long)
+
+/**
  * Gesture type enum matching WuiGesture_Tag in FFI.
  */
 enum class GestureType(val value: Int) {
@@ -477,16 +487,36 @@ data class MetadataRetainStruct(
 )
 
 /**
- * Metadata<Transform> struct for 2D transforms.
- * Contains computed f32 pointers for scale, rotation, and translation.
+ * Metadata<Scale> struct for scale transforms.
+ * Contains computed f32 pointers for scale and anchor values.
  */
-data class MetadataTransformStruct(
+data class MetadataScaleStruct(
     val contentPtr: Long,
     val scaleXPtr: Long,
     val scaleYPtr: Long,
-    val rotationPtr: Long,
-    val translateXPtr: Long,
-    val translateYPtr: Long
+    val anchorX: Float,
+    val anchorY: Float
+)
+
+/**
+ * Metadata<Rotation> struct for rotation transforms.
+ * Contains computed f32 pointer for rotation and anchor values.
+ */
+data class MetadataRotationStruct(
+    val contentPtr: Long,
+    val anglePtr: Long,
+    val anchorX: Float,
+    val anchorY: Float
+)
+
+/**
+ * Metadata<Offset> struct for offset transforms.
+ * Contains computed f32 pointers for translation.
+ */
+data class MetadataOffsetStruct(
+    val contentPtr: Long,
+    val offsetXPtr: Long,
+    val offsetYPtr: Long
 )
 
 // ========== Filter Metadata Structs ==========
@@ -765,7 +795,13 @@ data class MediaPickerStruct(
 
 // ========== Resolved Value Structs ==========
 
-data class ResolvedColorStruct(val red: Float, val green: Float, val blue: Float, val opacity: Float)
+data class ResolvedColorStruct(
+    val red: Float,
+    val green: Float,
+    val blue: Float,
+    val opacity: Float,
+    val headroom: Float
+)
 
 data class ResolvedFontStruct(val size: Float, val weight: Int)
 

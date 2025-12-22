@@ -6,11 +6,16 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import com.google.android.material.shape.MaterialShapeDrawable
+import com.google.android.material.shape.ShapeAppearanceModel
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
@@ -39,22 +44,35 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_button(node.rawPtr)
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
 
+    if (labelView is TextView) {
+        labelView.includeFontPadding = false
+        labelView.setLineSpacing(0f, 1f)
+    }
+    labelView.isClickable = false
+    labelView.isFocusable = false
+
     val container = FrameLayout(context).apply {
         isClickable = true
         isFocusable = true
+        clipToPadding = false
 
-        // Apply style-based appearance following Material Design guidelines
+        // Apply style-based appearance matching WaterUI's cross-platform defaults.
         when (struct.style) {
             ButtonStyle.AUTOMATIC -> applyAutomaticStyle(this, context, env)
-            ButtonStyle.PLAIN -> applyPlainStyle(this, context)
-            ButtonStyle.LINK -> applyLinkStyle(this, labelView, context)
+            ButtonStyle.PLAIN -> applyPlainStyle(this, context, env)
+            ButtonStyle.LINK -> applyLinkStyle(this, labelView, context, env)
             ButtonStyle.BORDERLESS -> applyBorderlessStyle(this, context, env)
             ButtonStyle.BORDERED -> applyBorderedStyle(this, context, env)
             ButtonStyle.BORDERED_PROMINENT -> applyBorderedProminentStyle(this, context, env)
             else -> applyAutomaticStyle(this, context, env)
         }
 
-        addView(labelView)
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER
+        )
+        addView(labelView, params)
         setOnClickListener {
             NativeBindings.waterui_call_action(struct.actionPtr, env.raw())
         }
@@ -62,25 +80,19 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
 
     // If label is text, apply appropriate text color based on style
     if (labelView is TextView) {
-        when (struct.style) {
-            ButtonStyle.LINK -> {
-                // Link style uses blue text color
-                labelView.setTextColor(Color.parseColor("#1976D2"))
-            }
-            ButtonStyle.BORDERED_PROMINENT -> {
-                // Prominent style uses white text on colored background
-                labelView.setTextColor(Color.WHITE)
-            }
-            else -> {
-                // Other styles use accent color (primary color) for text
-                // Note: accentForeground is for text ON accent background (e.g., filled buttons)
-                val contentColor = ThemeBridge.accent(env)
-                contentColor.observe { color ->
-                    labelView.setTextColor(color.toColorInt())
-                }
-                contentColor.attachTo(labelView)
-            }
+        val contentColor = when (struct.style) {
+            ButtonStyle.AUTOMATIC -> ThemeBridge.foreground(env)
+            ButtonStyle.BORDERED_PROMINENT -> ThemeBridge.accentForeground(env)
+            ButtonStyle.BORDERED -> ThemeBridge.accent(env)
+            ButtonStyle.BORDERLESS -> ThemeBridge.accent(env)
+            ButtonStyle.PLAIN -> ThemeBridge.accent(env)
+            ButtonStyle.LINK -> ThemeBridge.accent(env)
+            else -> ThemeBridge.accent(env)
         }
+        contentColor.observe { color ->
+            labelView.setTextColor(color.toColorInt())
+        }
+        contentColor.attachTo(labelView)
     }
 
     container.disposeWith {
@@ -90,50 +102,51 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
 }
 
 /**
- * Automatic style: Standard Material button with ripple effect.
- * Uses accent color for ripple, standard padding.
+ * Automatic style: Material 3 filled tonal button with ripple feedback.
+ * Layout metrics align with iOS sizing.
  */
 private fun applyAutomaticStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 16f.dp(context).toInt()
-    val vertical = 8f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
+    applyButtonMetrics(view, context, horizontalDp = 8f, verticalDp = 4f)
+    val cornerRadius = 20f.dp(context)
+    val shape = createShapeDrawable(cornerRadius)
+    view.background = shape
 
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.2f))
-        view.foreground = RippleDrawable(rippleColor, null, null)
+    val background = ThemeBridge.surfaceVariant(env)
+    background.observe { color ->
+        shape.fillColor = ColorStateList.valueOf(color.toColorInt())
     }
-    accent.attachTo(view)
+    background.attachTo(view)
+
+    applyRipple(view, ThemeBridge.foreground(env), cornerRadius, 0.12f)
 }
 
 /**
  * Plain style: No background, minimal padding.
  * Text-only appearance for inline actions.
  */
-private fun applyPlainStyle(view: FrameLayout, context: Context) {
-    val padding = 8f.dp(context).toInt()
-    view.setPadding(padding, padding, padding, padding)
-    // No background or foreground effects
+private fun applyPlainStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
+    applyButtonMetrics(view, context, horizontalDp = 8f, verticalDp = 4f)
+    applyRipple(view, ThemeBridge.accent(env), 20f.dp(context), 0.12f)
 }
 
 /**
  * Link style: Blue text, no background, appears as hyperlink.
  * Adds underline effect to TextView labels.
  */
-private fun applyLinkStyle(view: FrameLayout, labelView: View, context: Context) {
-    val horizontal = 4f.dp(context).toInt()
-    val vertical = 4f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
+private fun applyLinkStyle(
+    view: FrameLayout,
+    labelView: View,
+    context: Context,
+    env: WuiEnvironment
+) {
+    applyButtonMetrics(view, context, horizontalDp = 0f, verticalDp = 0f)
 
     // Add underline effect for text labels
     if (labelView is TextView) {
         labelView.paintFlags = labelView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
     }
 
-    // Subtle ripple on tap
-    val rippleColor = ColorStateList.valueOf(adjustAlpha(Color.parseColor("#1976D2"), 0.1f))
-    view.foreground = RippleDrawable(rippleColor, null, null)
+    applyRipple(view, ThemeBridge.accent(env), 20f.dp(context), 0.1f)
 }
 
 /**
@@ -141,17 +154,8 @@ private fun applyLinkStyle(view: FrameLayout, labelView: View, context: Context)
  * Good for toolbar actions and secondary buttons.
  */
 private fun applyBorderlessStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 12f.dp(context).toInt()
-    val vertical = 8f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
-
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.15f))
-        view.foreground = RippleDrawable(rippleColor, null, null)
-    }
-    accent.attachTo(view)
+    applyButtonMetrics(view, context, horizontalDp = 8f, verticalDp = 4f)
+    applyRipple(view, ThemeBridge.accent(env), 20f.dp(context), 0.12f)
 }
 
 /**
@@ -159,31 +163,21 @@ private fun applyBorderlessStyle(view: FrameLayout, context: Context, env: WuiEn
  * Material Design "Outlined Button" style.
  */
 private fun applyBorderedStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 16f.dp(context).toInt()
-    val vertical = 8f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
-
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val strokeWidth = 1.5f.dp(context).toInt()
-        val cornerRadius = 8f.dp(context)
-
-        val border = GradientDrawable().apply {
-            setStroke(strokeWidth, colorInt)
-            setCornerRadius(cornerRadius)
-            setColor(Color.TRANSPARENT)
-        }
-        view.background = border
-
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.15f))
-        val mask = GradientDrawable().apply {
-            setCornerRadius(cornerRadius)
-            setColor(Color.WHITE)
-        }
-        view.foreground = RippleDrawable(rippleColor, null, mask)
+    applyButtonMetrics(view, context, horizontalDp = 8f, verticalDp = 4f)
+    val cornerRadius = 20f.dp(context)
+    val strokeWidth = 1f.dp(context)
+    val shape = createShapeDrawable(cornerRadius).apply {
+        fillColor = ColorStateList.valueOf(Color.TRANSPARENT)
     }
-    accent.attachTo(view)
+    view.background = shape
+
+    val border = ThemeBridge.border(env)
+    border.observe { color ->
+        shape.setStroke(strokeWidth, color.toColorInt())
+    }
+    border.attachTo(view)
+
+    applyRipple(view, ThemeBridge.accent(env), cornerRadius, 0.12f)
 }
 
 /**
@@ -191,30 +185,18 @@ private fun applyBorderedStyle(view: FrameLayout, context: Context, env: WuiEnvi
  * Material Design "Filled Button" or "Primary Button" style.
  */
 private fun applyBorderedProminentStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 20f.dp(context).toInt()
-    val vertical = 10f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
+    applyButtonMetrics(view, context, horizontalDp = 8f, verticalDp = 4f)
+    val cornerRadius = 20f.dp(context)
+    val shape = createShapeDrawable(cornerRadius)
+    view.background = shape
 
     val accent = ThemeBridge.accent(env)
     accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val cornerRadius = 8f.dp(context)
-
-        val bg = GradientDrawable().apply {
-            setColor(colorInt)
-            setCornerRadius(cornerRadius)
-        }
-        view.background = bg
-
-        // White ripple effect on colored background
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(Color.WHITE, 0.25f))
-        val mask = GradientDrawable().apply {
-            setCornerRadius(cornerRadius)
-            setColor(Color.WHITE)
-        }
-        view.foreground = RippleDrawable(rippleColor, null, mask)
+        shape.fillColor = ColorStateList.valueOf(color.toColorInt())
     }
     accent.attachTo(view)
+
+    applyRipple(view, ThemeBridge.accentForeground(env), cornerRadius, 0.2f)
 }
 
 /**
@@ -223,6 +205,42 @@ private fun applyBorderedProminentStyle(view: FrameLayout, context: Context, env
 private fun adjustAlpha(color: Int, factor: Float): Int {
     val alpha = (Color.alpha(color) * factor).toInt().coerceIn(0, 255)
     return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+}
+
+private fun applyButtonMetrics(
+    view: FrameLayout,
+    context: Context,
+    horizontalDp: Float,
+    verticalDp: Float
+) {
+    val horizontal = horizontalDp.dp(context).toInt()
+    val vertical = verticalDp.dp(context).toInt()
+    view.setPadding(horizontal, vertical, horizontal, vertical)
+}
+
+private fun createShapeDrawable(cornerRadius: Float): MaterialShapeDrawable {
+    val shapeModel = ShapeAppearanceModel.builder()
+        .setAllCornerSizes(cornerRadius)
+        .build()
+    return MaterialShapeDrawable(shapeModel)
+}
+
+private fun applyRipple(
+    view: FrameLayout,
+    colorSignal: WuiComputed<ResolvedColorStruct>,
+    cornerRadius: Float,
+    alpha: Float
+) {
+    val mask = GradientDrawable().apply {
+        setCornerRadius(cornerRadius)
+        setColor(Color.WHITE)
+    }
+    colorSignal.observe { color ->
+        val colorInt = color.toColorInt()
+        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, alpha))
+        view.foreground = RippleDrawable(rippleColor, null, mask)
+    }
+    colorSignal.attachTo(view)
 }
 
 internal fun RegistryBuilder.registerWuiButton() {

@@ -14,6 +14,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.srgbToLinear
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.ffi.WatcherJni
 
@@ -54,15 +55,28 @@ private val colorPickerRenderer = WuiRenderer { context, node, env, registry ->
     container.addView(colorButton)
 
     // Read initial color from binding
-    // Note: For color binding, we need to resolve through the theme system
-    // Currently using a simplified approach with theme accent color as fallback
     fun resolveCurrentColor(): ResolvedColorStruct {
-        // For now, use the theme accent color since color binding is complex
-        // Full implementation would need waterui_read_binding_color JNI function
+        val bindingPtr = struct.valuePtr
+        if (bindingPtr != 0L) {
+            val colorPtr = NativeBindings.waterui_read_binding_color(bindingPtr)
+            if (colorPtr != 0L) {
+                val computedPtr = NativeBindings.waterui_resolve_color(colorPtr, env.raw())
+                val resolved = if (computedPtr != 0L) {
+                    NativeBindings.waterui_read_computed_resolved_color(computedPtr)
+                } else {
+                    null
+                }
+                if (computedPtr != 0L) {
+                    NativeBindings.waterui_drop_computed_resolved_color(computedPtr)
+                }
+                NativeBindings.waterui_drop_color(colorPtr)
+                if (resolved != null) {
+                    return resolved
+                }
+            }
+        }
         val accentPtr = WatcherJni.themeColorAccent(env.raw())
-        val resolved = WatcherJni.readComputedResolvedColor(accentPtr)
-        // Don't drop - theme colors are cached
-        return resolved
+        return WatcherJni.readComputedResolvedColor(accentPtr)
     }
 
     fun updateButtonColor() {
@@ -85,16 +99,45 @@ private val colorPickerRenderer = WuiRenderer { context, node, env, registry ->
             val colorPickerClass = Class.forName("android.graphics.ColorSpace")
             // For now, just show a simple toast or use a basic dialog
             showBasicColorPicker(context, initialColor, struct.supportAlpha) { selectedColor ->
-                // Update binding with new color
-                // Note: Full implementation requires waterui_set_binding_color with a new Color
-                // For now, log the selection
-                android.util.Log.d("WuiColorPicker", "Selected color: $selectedColor")
+                val bindingPtr = struct.valuePtr
+                if (bindingPtr != 0L) {
+                    val r = srgbToLinear(Color.red(selectedColor) / 255f)
+                    val g = srgbToLinear(Color.green(selectedColor) / 255f)
+                    val b = srgbToLinear(Color.blue(selectedColor) / 255f)
+                    val a = Color.alpha(selectedColor) / 255f
+                    val colorPtr = NativeBindings.waterui_color_from_linear_rgba_headroom(
+                        r,
+                        g,
+                        b,
+                        a,
+                        0f
+                    )
+                    if (colorPtr != 0L) {
+                        NativeBindings.waterui_set_binding_color(bindingPtr, colorPtr)
+                    }
+                }
                 updateButtonColor()
             }
         } catch (e: Exception) {
             // Fallback to basic color picker
             showBasicColorPicker(context, initialColor, struct.supportAlpha) { selectedColor ->
-                android.util.Log.d("WuiColorPicker", "Selected color: $selectedColor")
+                val bindingPtr = struct.valuePtr
+                if (bindingPtr != 0L) {
+                    val r = srgbToLinear(Color.red(selectedColor) / 255f)
+                    val g = srgbToLinear(Color.green(selectedColor) / 255f)
+                    val b = srgbToLinear(Color.blue(selectedColor) / 255f)
+                    val a = Color.alpha(selectedColor) / 255f
+                    val colorPtr = NativeBindings.waterui_color_from_linear_rgba_headroom(
+                        r,
+                        g,
+                        b,
+                        a,
+                        0f
+                    )
+                    if (colorPtr != 0L) {
+                        NativeBindings.waterui_set_binding_color(bindingPtr, colorPtr)
+                    }
+                }
                 updateButtonColor()
             }
         }

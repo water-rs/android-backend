@@ -7,16 +7,17 @@ import android.graphics.Shader
 import android.os.Build
 import android.view.View
 import dev.waterui.android.layout.PassThroughFrameLayout
+import dev.waterui.android.runtime.AnimatedFloat
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiAnimation
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.withRustAnimator
 
 // ========== Blur Filter ==========
 
@@ -34,30 +35,29 @@ private val metadataBlurRenderer = WuiRenderer { context, node, env, registry ->
         currentRadius = NativeBindings.waterui_read_computed_f32(metadata.radiusPtr)
     }
 
-    var childView: View? = null
+    var blurAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
-    }
-
-    fun applyBlur(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (currentRadius > 0) {
-                        val effect = RenderEffect.createBlurEffect(
-                            currentRadius, currentRadius,
-                            Shader.TileMode.CLAMP
-                        )
-                        view.setRenderEffect(effect)
-                    } else {
-                        view.setRenderEffect(null)
-                    }
+        blurAnimator = AnimatedFloat(currentRadius) { radius ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val clamped = radius.coerceAtLeast(0f)
+                if (clamped > 0f) {
+                    val effect = RenderEffect.createBlurEffect(
+                        clamped, clamped,
+                        Shader.TileMode.CLAMP
+                    )
+                    child.setRenderEffect(effect)
+                } else {
+                    child.setRenderEffect(null)
                 }
             }
         }
+    }
+
+    fun applyBlur(animation: WuiAnimation) {
+        blurAnimator?.apply(currentRadius, animation)
     }
 
     applyBlur(WuiAnimation.None)
@@ -75,6 +75,7 @@ private val metadataBlurRenderer = WuiRenderer { context, node, env, registry ->
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        blurAnimator?.cancel()
         if (metadata.radiusPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.radiusPtr)
     }
 
@@ -107,8 +108,8 @@ private val metadataOpacityRenderer = WuiRenderer { context, node, env, registry
 
     fun applyOpacity(animation: WuiAnimation) {
         childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                view.alpha = currentOpacity
+            view.withRustAnimator(animation) {
+                alpha(currentOpacity)
             }
         }
     }
@@ -150,32 +151,28 @@ private val metadataBrightnessRenderer = WuiRenderer { context, node, env, regis
         currentBrightness = NativeBindings.waterui_read_computed_f32(metadata.amountPtr)
     }
 
-    var childView: View? = null
+    var brightnessAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
+        brightnessAnimator = AnimatedFloat(currentBrightness) { amount ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val brightnessValue = amount * 255f
+                val colorMatrix = ColorMatrix(floatArrayOf(
+                    1f, 0f, 0f, 0f, brightnessValue,
+                    0f, 1f, 0f, 0f, brightnessValue,
+                    0f, 0f, 1f, 0f, brightnessValue,
+                    0f, 0f, 0f, 1f, 0f
+                ))
+                val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
+                child.setRenderEffect(effect)
+            }
+        }
     }
 
     fun applyBrightness(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // Use ColorMatrix for brightness adjustment
-                    // Brightness: add to RGB channels
-                    val brightnessValue = currentBrightness * 255f
-                    val colorMatrix = ColorMatrix(floatArrayOf(
-                        1f, 0f, 0f, 0f, brightnessValue,
-                        0f, 1f, 0f, 0f, brightnessValue,
-                        0f, 0f, 1f, 0f, brightnessValue,
-                        0f, 0f, 0f, 1f, 0f
-                    ))
-                    val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
-                    view.setRenderEffect(effect)
-                }
-            }
-        }
+        brightnessAnimator?.apply(currentBrightness, animation)
     }
 
     applyBrightness(WuiAnimation.None)
@@ -193,6 +190,7 @@ private val metadataBrightnessRenderer = WuiRenderer { context, node, env, regis
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        brightnessAnimator?.cancel()
         if (metadata.amountPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.amountPtr)
     }
 
@@ -215,25 +213,23 @@ private val metadataSaturationRenderer = WuiRenderer { context, node, env, regis
         currentSaturation = NativeBindings.waterui_read_computed_f32(metadata.amountPtr)
     }
 
-    var childView: View? = null
+    var saturationAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
+        saturationAnimator = AnimatedFloat(currentSaturation) { amount ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val colorMatrix = ColorMatrix()
+                colorMatrix.setSaturation(amount)
+                val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
+                child.setRenderEffect(effect)
+            }
+        }
     }
 
     fun applySaturation(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val colorMatrix = ColorMatrix()
-                    colorMatrix.setSaturation(currentSaturation)
-                    val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
-                    view.setRenderEffect(effect)
-                }
-            }
-        }
+        saturationAnimator?.apply(currentSaturation, animation)
     }
 
     applySaturation(WuiAnimation.None)
@@ -251,6 +247,7 @@ private val metadataSaturationRenderer = WuiRenderer { context, node, env, regis
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        saturationAnimator?.cancel()
         if (metadata.amountPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.amountPtr)
     }
 
@@ -273,32 +270,29 @@ private val metadataContrastRenderer = WuiRenderer { context, node, env, registr
         currentContrast = NativeBindings.waterui_read_computed_f32(metadata.amountPtr)
     }
 
-    var childView: View? = null
+    var contrastAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
+        contrastAnimator = AnimatedFloat(currentContrast) { amount ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val scale = amount
+                val translate = (1f - scale) * 0.5f * 255f
+                val colorMatrix = ColorMatrix(floatArrayOf(
+                    scale, 0f, 0f, 0f, translate,
+                    0f, scale, 0f, 0f, translate,
+                    0f, 0f, scale, 0f, translate,
+                    0f, 0f, 0f, 1f, 0f
+                ))
+                val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
+                child.setRenderEffect(effect)
+            }
+        }
     }
 
     fun applyContrast(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // Contrast matrix: scale around 0.5 (128 in 0-255 range)
-                    val scale = currentContrast
-                    val translate = (1f - scale) * 0.5f * 255f
-                    val colorMatrix = ColorMatrix(floatArrayOf(
-                        scale, 0f, 0f, 0f, translate,
-                        0f, scale, 0f, 0f, translate,
-                        0f, 0f, scale, 0f, translate,
-                        0f, 0f, 0f, 1f, 0f
-                    ))
-                    val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
-                    view.setRenderEffect(effect)
-                }
-            }
-        }
+        contrastAnimator?.apply(currentContrast, animation)
     }
 
     applyContrast(WuiAnimation.None)
@@ -316,6 +310,7 @@ private val metadataContrastRenderer = WuiRenderer { context, node, env, registr
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        contrastAnimator?.cancel()
         if (metadata.amountPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.amountPtr)
     }
 
@@ -338,27 +333,25 @@ private val metadataHueRotationRenderer = WuiRenderer { context, node, env, regi
         currentAngle = NativeBindings.waterui_read_computed_f32(metadata.anglePtr)
     }
 
-    var childView: View? = null
+    var hueAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
+        hueAnimator = AnimatedFloat(currentAngle) { angle ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val colorMatrix = ColorMatrix()
+                colorMatrix.setRotate(0, angle)
+                colorMatrix.setRotate(1, angle)
+                colorMatrix.setRotate(2, angle)
+                val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
+                child.setRenderEffect(effect)
+            }
+        }
     }
 
     fun applyHueRotation(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val colorMatrix = ColorMatrix()
-                    colorMatrix.setRotate(0, currentAngle) // Rotate red
-                    colorMatrix.setRotate(1, currentAngle) // Rotate green
-                    colorMatrix.setRotate(2, currentAngle) // Rotate blue
-                    val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
-                    view.setRenderEffect(effect)
-                }
-            }
-        }
+        hueAnimator?.apply(currentAngle, animation)
     }
 
     applyHueRotation(WuiAnimation.None)
@@ -376,6 +369,7 @@ private val metadataHueRotationRenderer = WuiRenderer { context, node, env, regi
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        hueAnimator?.cancel()
         if (metadata.anglePtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.anglePtr)
     }
 
@@ -398,26 +392,24 @@ private val metadataGrayscaleRenderer = WuiRenderer { context, node, env, regist
         currentIntensity = NativeBindings.waterui_read_computed_f32(metadata.intensityPtr)
     }
 
-    var childView: View? = null
+    var grayscaleAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
+        grayscaleAnimator = AnimatedFloat(currentIntensity) { intensity ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val clamped = intensity.coerceIn(0f, 1f)
+                val colorMatrix = ColorMatrix()
+                colorMatrix.setSaturation(1f - clamped)
+                val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
+                child.setRenderEffect(effect)
+            }
+        }
     }
 
     fun applyGrayscale(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.applyRustAnimation(animation) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    // Grayscale: intensity 0 = full color (saturation 1), intensity 1 = grayscale (saturation 0)
-                    val colorMatrix = ColorMatrix()
-                    colorMatrix.setSaturation(1f - currentIntensity)
-                    val effect = RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(colorMatrix))
-                    view.setRenderEffect(effect)
-                }
-            }
-        }
+        grayscaleAnimator?.apply(currentIntensity, animation)
     }
 
     applyGrayscale(WuiAnimation.None)
@@ -435,6 +427,7 @@ private val metadataGrayscaleRenderer = WuiRenderer { context, node, env, regist
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        grayscaleAnimator?.cancel()
         if (metadata.intensityPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.intensityPtr)
     }
 

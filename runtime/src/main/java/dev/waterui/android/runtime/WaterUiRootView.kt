@@ -2,17 +2,22 @@ package dev.waterui.android.runtime
 
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Typeface
+import android.os.Build
 import android.util.AttributeSet
 import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.TextView
+import androidx.core.widget.TextViewCompat
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import dev.waterui.android.components.WebViewManager
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.ReactiveColorSignal
+import java.util.EnumMap
 
 /**
  * Root view that owns the WaterUI environment and inflates the Rust-driven
@@ -30,8 +35,7 @@ class WaterUiRootView @JvmOverloads constructor(
     private var environment: WuiEnvironment? = null
     private var app: AppStruct? = null
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
-    private var colorSchemeSignalPtr: Long = 0L
-    private var materialThemeInstalled = false
+    private var themeBridge: ThemeBridgeController? = null
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
         registry = renderRegistry
@@ -107,6 +111,7 @@ class WaterUiRootView @JvmOverloads constructor(
         // 1. Close the theme watcher first (depends on environment)
         backgroundTheme?.close()
         backgroundTheme = null
+        themeBridge = null
 
         // 2. Drop the main window content view (depends on environment/runtime)
         app?.let { appStruct ->
@@ -117,17 +122,9 @@ class WaterUiRootView @JvmOverloads constructor(
         }
         app = null
 
-        // 3. Drop the color scheme signal
-        if (colorSchemeSignalPtr != 0L) {
-            NativeBindings.waterui_drop_computed_color_scheme(colorSchemeSignalPtr)
-            colorSchemeSignalPtr = 0L
-        }
-
-        // 4. Finally, close the environment itself
+        // 3. Finally, close the environment itself
         environment?.close()
         environment = null
-
-        materialThemeInstalled = false
     }
 
     private fun renderRoot() {
@@ -154,6 +151,7 @@ class WaterUiRootView @JvmOverloads constructor(
         // Use the environment returned from the app for rendering
         // (App::new injects FullScreenOverlayManager into it)
         val renderEnv = WuiEnvironment(appStruct.envPtr)
+        ensureBackground(renderEnv)
         // Extract main window content
         val mainWindow = appStruct.mainWindow()
         val rootPtr = mainWindow.contentPtr
@@ -169,42 +167,26 @@ class WaterUiRootView @JvmOverloads constructor(
         val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         addView(child, params)
 
-        // Setup RootThemeController after the view hierarchy is created
-        // This watches the color scheme from the first non-metadata component's environment
-        // and applies it to the Activity's window
-        RootThemeController.setup(this)
+        // Setup RootThemeController after the view hierarchy is created.
+        // This watches the App environment's color scheme and applies it to the Activity window.
+        RootThemeController.setup(this, renderEnv)
         android.util.Log.d("WaterUI.RootView", "renderRoot: done")
     }
 
     private fun ensureTheme(env: WuiEnvironment) {
-        if (!materialThemeInstalled) {
-            val palette = MaterialThemePalette.from(context)
-            // Install color slots using the new reactive signal API
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: installing color slots")
-            installColorSlot(env, ColorSlot.Background, palette.background)
-            installColorSlot(env, ColorSlot.Surface, palette.surface)
-            installColorSlot(env, ColorSlot.SurfaceVariant, palette.surfaceVariant)
-            installColorSlot(env, ColorSlot.Border, palette.border)
-            installColorSlot(env, ColorSlot.Foreground, palette.foreground)
-            installColorSlot(env, ColorSlot.MutedForeground, palette.mutedForeground)
-            installColorSlot(env, ColorSlot.Accent, palette.accent)
-            installColorSlot(env, ColorSlot.AccentForeground, palette.accentForeground)
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: color slots installed")
-
-            // Install system color scheme into the environment
-            // Rust code can override this via .install(Theme::new().color_scheme(...))
-            val systemScheme = getSystemColorScheme()
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: installing color scheme $systemScheme (0=Light, 1=Dark)")
-            val scheme = if (systemScheme == 1) ColorScheme.Dark else ColorScheme.Light
-            colorSchemeSignalPtr = ThemeBridge.createConstantColorSchemeSignal(scheme)
-            ThemeBridge.installColorScheme(env, colorSchemeSignalPtr)
-
-            materialThemeInstalled = true
-
-            // Set static background color for now (skip reactive observation to debug hang)
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: setting static background to ${palette.background}")
-            setBackgroundColor(palette.background)
+        val palette = MaterialThemePalette.from(context)
+        val fonts = MaterialThemeFonts.from(context)
+        val systemScheme = getSystemColorScheme()
+        val scheme = if (systemScheme == 1) ColorScheme.Dark else ColorScheme.Light
+        if (themeBridge == null) {
+            android.util.Log.d("WaterUI.RootView", "ensureTheme: installing theme tokens")
+            themeBridge = ThemeBridgeController(env, palette, fonts, scheme)
+            android.util.Log.d("WaterUI.RootView", "ensureTheme: theme tokens installed")
+        } else {
+            themeBridge?.update(palette, fonts, scheme)
         }
+
+        setBackgroundColor(palette.background)
         android.util.Log.d("WaterUI.RootView", "ensureTheme: done")
     }
 
@@ -216,9 +198,19 @@ class WaterUiRootView @JvmOverloads constructor(
         }
     }
 
-    private fun installColorSlot(env: WuiEnvironment, slot: ColorSlot, argb: Int) {
-        val signal = ReactiveColorSignal(argb)
-        ThemeBridge.installColor(env, slot, signal.toComputed())
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        environment?.let { ensureTheme(it) }
+    }
+
+    private fun ensureBackground(env: WuiEnvironment) {
+        backgroundTheme?.close()
+        backgroundTheme = ThemeBridge.background(env).also { computed ->
+            computed.observe { color ->
+                setBackgroundColor(color.toColorInt())
+            }
+            computed.attachTo(this)
+        }
     }
 }
 
@@ -284,5 +276,120 @@ private data class MaterialThemePalette(
                 accentForeground = accentForeground
             )
         }
+    }
+}
+
+private data class MaterialThemeFont(
+    val sizeSp: Float,
+    val weight: Int
+)
+
+private data class MaterialThemeFonts(
+    val body: MaterialThemeFont,
+    val title: MaterialThemeFont,
+    val headline: MaterialThemeFont,
+    val subheadline: MaterialThemeFont,
+    val caption: MaterialThemeFont,
+    val footnote: MaterialThemeFont
+) {
+    companion object {
+        fun from(context: Context): MaterialThemeFonts {
+            return MaterialThemeFonts(
+                body = resolveFont(context, com.google.android.material.R.style.TextAppearance_Material3_BodyLarge),
+                title = resolveFont(context, com.google.android.material.R.style.TextAppearance_Material3_TitleLarge),
+                headline = resolveFont(context, com.google.android.material.R.style.TextAppearance_Material3_HeadlineSmall),
+                subheadline = resolveFont(context, com.google.android.material.R.style.TextAppearance_Material3_TitleMedium),
+                caption = resolveFont(context, com.google.android.material.R.style.TextAppearance_Material3_BodySmall),
+                footnote = resolveFont(context, com.google.android.material.R.style.TextAppearance_Material3_LabelSmall)
+            )
+        }
+
+        private fun resolveFont(context: Context, textAppearance: Int): MaterialThemeFont {
+            val textView = TextView(context)
+            TextViewCompat.setTextAppearance(textView, textAppearance)
+            val sizeSp = textView.textSize / context.resources.displayMetrics.scaledDensity
+            val weight = resolveWeight(textView.typeface)
+            return MaterialThemeFont(sizeSp = sizeSp, weight = weight)
+        }
+
+        private fun resolveWeight(typeface: Typeface?): Int {
+            val weightValue = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                typeface?.weight ?: 400
+            } else {
+                val style = typeface?.style ?: Typeface.NORMAL
+                if (style and Typeface.BOLD != 0) 700 else 400
+            }
+            return wuiWeightFromAndroid(weightValue)
+        }
+
+        private fun wuiWeightFromAndroid(weight: Int): Int {
+            val clamped = weight.coerceIn(100, 900)
+            return (clamped / 100 - 1).coerceIn(0, 8)
+        }
+    }
+}
+
+private class ThemeBridgeController(
+    private val env: WuiEnvironment,
+    palette: MaterialThemePalette,
+    fonts: MaterialThemeFonts,
+    scheme: ColorScheme
+) {
+    private val colorSchemeSignal = ReactiveColorSchemeSignal(scheme)
+    private val colorSignals = EnumMap<ColorSlot, ReactiveColorSignal>(ColorSlot::class.java)
+    private val fontSignals = EnumMap<FontSlot, ReactiveFontSignal>(FontSlot::class.java)
+
+    init {
+        install(palette, fonts)
+    }
+
+    fun update(palette: MaterialThemePalette, fonts: MaterialThemeFonts, scheme: ColorScheme) {
+        colorSchemeSignal.setValue(scheme)
+        colorSignals[ColorSlot.Background]?.setValue(palette.background)
+        colorSignals[ColorSlot.Surface]?.setValue(palette.surface)
+        colorSignals[ColorSlot.SurfaceVariant]?.setValue(palette.surfaceVariant)
+        colorSignals[ColorSlot.Border]?.setValue(palette.border)
+        colorSignals[ColorSlot.Foreground]?.setValue(palette.foreground)
+        colorSignals[ColorSlot.MutedForeground]?.setValue(palette.mutedForeground)
+        colorSignals[ColorSlot.Accent]?.setValue(palette.accent)
+        colorSignals[ColorSlot.AccentForeground]?.setValue(palette.accentForeground)
+
+        fontSignals[FontSlot.Body]?.setValue(fonts.body.sizeSp, fonts.body.weight)
+        fontSignals[FontSlot.Title]?.setValue(fonts.title.sizeSp, fonts.title.weight)
+        fontSignals[FontSlot.Headline]?.setValue(fonts.headline.sizeSp, fonts.headline.weight)
+        fontSignals[FontSlot.Subheadline]?.setValue(fonts.subheadline.sizeSp, fonts.subheadline.weight)
+        fontSignals[FontSlot.Caption]?.setValue(fonts.caption.sizeSp, fonts.caption.weight)
+        fontSignals[FontSlot.Footnote]?.setValue(fonts.footnote.sizeSp, fonts.footnote.weight)
+    }
+
+    private fun install(palette: MaterialThemePalette, fonts: MaterialThemeFonts) {
+        ThemeBridge.installColorScheme(env, colorSchemeSignal.toComputed())
+        installColorSlot(ColorSlot.Background, palette.background)
+        installColorSlot(ColorSlot.Surface, palette.surface)
+        installColorSlot(ColorSlot.SurfaceVariant, palette.surfaceVariant)
+        installColorSlot(ColorSlot.Border, palette.border)
+        installColorSlot(ColorSlot.Foreground, palette.foreground)
+        installColorSlot(ColorSlot.MutedForeground, palette.mutedForeground)
+        installColorSlot(ColorSlot.Accent, palette.accent)
+        installColorSlot(ColorSlot.AccentForeground, palette.accentForeground)
+
+        installFontSlot(FontSlot.Body, fonts.body)
+        installFontSlot(FontSlot.Title, fonts.title)
+        installFontSlot(FontSlot.Headline, fonts.headline)
+        installFontSlot(FontSlot.Subheadline, fonts.subheadline)
+        installFontSlot(FontSlot.Caption, fonts.caption)
+        installFontSlot(FontSlot.Footnote, fonts.footnote)
+    }
+
+    private fun installColorSlot(slot: ColorSlot, argb: Int) {
+        val signal = ReactiveColorSignal(argb)
+        ThemeBridge.installColor(env, slot, signal.toComputed())
+        colorSignals[slot] = signal
+    }
+
+    private fun installFontSlot(slot: FontSlot, font: MaterialThemeFont) {
+        val signal = ReactiveFontSignal(font.sizeSp, font.weight)
+        ThemeBridge.installFont(env, slot, signal.toComputed())
+        fontSignals[slot] = signal
     }
 }

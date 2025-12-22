@@ -1,10 +1,13 @@
 package dev.waterui.android.runtime
 
+import android.animation.TimeInterpolator
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import androidx.dynamicanimation.animation.SpringForce
+import kotlin.math.sqrt
 
 /**
  * Applies a Rust animation to a view update.
@@ -21,21 +24,13 @@ fun View.applyRustAnimation(animation: WuiAnimation, update: () -> Unit) {
         return
     }
 
-    val interpolator = when (animation) {
-        is WuiAnimation.Linear -> LinearInterpolator()
-        is WuiAnimation.EaseIn -> AccelerateInterpolator(2.0f)
-        is WuiAnimation.EaseOut -> DecelerateInterpolator(2.0f)
-        is WuiAnimation.EaseInOut, is WuiAnimation.Default -> AccelerateDecelerateInterpolator()
-        is WuiAnimation.Spring -> {
-            // For spring animations, we apply the update immediately
-            // and let AndroidX SpringAnimation handle visual interpolation if needed
-            // This is a simplified implementation; full spring support would use
-            // androidx.dynamicanimation.animation.SpringAnimation
-            update()
-            return
-        }
-        else -> LinearInterpolator()
+    if (animation is WuiAnimation.Spring) {
+        // Spring is handled by components that support it.
+        update()
+        return
     }
+
+    val interpolator = interpolatorFor(animation)
 
     val halfDuration = animation.durationMs / 2
 
@@ -71,22 +66,36 @@ fun View.withRustAnimator(animation: WuiAnimation, configure: android.view.ViewP
         return
     }
 
-    val interpolator = when (animation) {
-        is WuiAnimation.Linear -> LinearInterpolator()
-        is WuiAnimation.EaseIn -> AccelerateInterpolator(2.0f)
-        is WuiAnimation.EaseOut -> DecelerateInterpolator(2.0f)
-        is WuiAnimation.EaseInOut, is WuiAnimation.Default -> AccelerateDecelerateInterpolator()
-        is WuiAnimation.Spring -> {
-            // Spring requires AndroidX dynamicanimation for proper support
-            // Fall back to ease-in-out for now
-            AccelerateDecelerateInterpolator()
-        }
-        else -> LinearInterpolator()
-    }
+    val interpolator = interpolatorFor(animation)
 
     animate()
         .setDuration(animation.durationMs)
         .setInterpolator(interpolator)
         .apply(configure)
         .start()
+}
+
+internal fun springForceFrom(animation: WuiAnimation.Spring): SpringForce {
+    val stiffness = animation.stiffness.coerceAtLeast(1f)
+    val dampingRatio = dampingRatioFrom(stiffness, animation.damping)
+    return SpringForce()
+        .setStiffness(stiffness)
+        .setDampingRatio(dampingRatio)
+}
+
+internal fun interpolatorFor(animation: WuiAnimation): TimeInterpolator = when (animation) {
+    is WuiAnimation.Linear -> LinearInterpolator()
+    is WuiAnimation.EaseIn -> AccelerateInterpolator(2.0f)
+    is WuiAnimation.EaseOut -> DecelerateInterpolator(2.0f)
+    is WuiAnimation.EaseInOut, is WuiAnimation.Default, is WuiAnimation.Spring ->
+        AccelerateDecelerateInterpolator()
+    else -> LinearInterpolator()
+}
+
+private fun dampingRatioFrom(stiffness: Float, damping: Float): Float {
+    if (stiffness <= 0f) {
+        return SpringForce.DAMPING_RATIO_NO_BOUNCY
+    }
+    val ratio = damping / (2f * sqrt(stiffness.toDouble()).toFloat())
+    return ratio.coerceIn(0.05f, 5f)
 }

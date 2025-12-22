@@ -2,7 +2,6 @@ package dev.waterui.android.components
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.view.View
@@ -11,11 +10,13 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.PathCommandType
 import dev.waterui.android.runtime.PathCommandStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.setResolvedColor
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -30,13 +31,13 @@ private val filledShapeTypeId: WuiTypeId by lazy {
 private class FilledShapeView(
     context: Context,
     private val commands: Array<PathCommandStruct>,
-    fillColor: Int
+    fillColor: ResolvedColorStruct
 ) : View(context) {
 
     private val shapePath = Path()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = fillColor
+        setResolvedColor(fillColor)
     }
 
     init {
@@ -135,14 +136,7 @@ private val filledShapeRenderer = WuiRenderer { context, node, env, _ ->
     val resolvedColor = NativeBindings.waterui_read_computed_resolved_color(resolvedColorPtr)
     NativeBindings.waterui_drop_computed_resolved_color(resolvedColorPtr)
 
-    val fillColor = Color.argb(
-        (resolvedColor.opacity * 255).toInt(),
-        (resolvedColor.red * 255).toInt(),
-        (resolvedColor.green * 255).toInt(),
-        (resolvedColor.blue * 255).toInt()
-    )
-
-    val view = FilledShapeView(context, filled.commands, fillColor)
+    val view = FilledShapeView(context, filled.commands, resolvedColor)
 
     view.disposeWith {
         // No additional cleanup needed

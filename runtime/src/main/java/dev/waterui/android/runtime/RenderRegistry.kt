@@ -112,6 +112,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
 
         // Metadata components
         registerWuiSecure()
+        registerWuiStandardDynamicRange()
+        registerWuiHighDynamicRange()
         registerWuiGesture()
         registerWuiLifeCycleHook()
         registerWuiOnEvent()
@@ -124,7 +126,9 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiFocused()
         registerWuiIgnoreSafeArea()
         registerWuiRetain()
-        registerWuiTransform()
+        registerWuiScale()
+        registerWuiRotation()
+        registerWuiOffset()
 
         // Filter components
         registerWuiBlur()
