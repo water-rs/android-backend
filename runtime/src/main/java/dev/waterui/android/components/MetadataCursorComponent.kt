@@ -74,9 +74,6 @@ private val metadataCursorRenderer = WuiRenderer { context, node, env, registry 
 
     // Cleanup
     container.disposeWith {
-        if (cursorData.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(cursorData.contentPtr)
-        }
         if (cursorData.stylePtr != 0L) {
             NativeBindings.waterui_drop_computed_cursor_style(cursorData.stylePtr)
         }

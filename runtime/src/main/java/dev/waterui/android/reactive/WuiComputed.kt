@@ -75,13 +75,13 @@ class WuiComputed<T>(
     }
 
     override fun close() {
+        watcherGuard?.close()
+        watcherGuard = null
+        observer = null
         if (!isReleased) {
             valueReleaser(currentValue)
         }
         super.close()
-        watcherGuard?.close()
-        watcherGuard = null
-        observer = null
     }
 
     override fun release(ptr: Long) {
