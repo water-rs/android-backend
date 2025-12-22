@@ -64,9 +64,6 @@ private val metadataLifeCycleHookRenderer = WuiRenderer { context, node, env, re
 
     // Cleanup
     container.disposeWith {
-        if (hookData.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(hookData.contentPtr)
-        }
         // Drop handler if it was never called
         handlerPtr?.let { ptr ->
             if (!hasCalledHandler) {

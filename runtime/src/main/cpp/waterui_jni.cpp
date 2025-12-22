@@ -978,6 +978,7 @@ struct WatcherEntry {
 struct ReactiveColorState {
   WuiResolvedColor color;
   std::vector<WatcherEntry> watchers;
+  int ref_count = 1;
 
   void set_color(const WuiResolvedColor &new_color) {
     color = new_color;
@@ -1003,6 +1004,26 @@ struct ReactiveColorState {
       watchers[index].watcher = nullptr;
     }
   }
+
+  void clear_watchers() {
+    for (auto &entry : watchers) {
+      entry.active = false;
+      if (entry.watcher != nullptr) {
+        g_sym.waterui_drop_watcher_resolved_color(entry.watcher);
+        entry.watcher = nullptr;
+      }
+    }
+    watchers.clear();
+  }
+
+  void retain() { ++ref_count; }
+
+  void release() {
+    if (--ref_count == 0) {
+      clear_watchers();
+      delete this;
+    }
+  }
 };
 
 struct ReactiveGuardState {
@@ -1019,6 +1040,7 @@ void reactive_guard_drop(void *data) {
   auto *guard_state = static_cast<ReactiveGuardState *>(data);
   if (guard_state->color_state) {
     guard_state->color_state->remove_watcher(guard_state->watcher_index);
+    guard_state->color_state->release();
   }
   delete guard_state;
 }
@@ -1028,12 +1050,16 @@ WuiWatcherGuard *reactive_color_watch(const void *data,
   auto *state = const_cast<ReactiveColorState *>(
       static_cast<const ReactiveColorState *>(data));
   size_t index = state->add_watcher(watcher);
+  state->retain();
   auto *guard_state = new ReactiveGuardState{state, index};
   return g_sym.waterui_new_watcher_guard(guard_state, reactive_guard_drop);
 }
 
 void reactive_color_drop(void *data) {
-  delete static_cast<ReactiveColorState *>(data);
+  auto *state = static_cast<ReactiveColorState *>(data);
+  if (state != nullptr) {
+    state->release();
+  }
 }
 
 // Reactive Font State
@@ -1045,6 +1071,7 @@ struct WatcherEntryFont {
 struct ReactiveFontState {
   WuiResolvedFont font;
   std::vector<WatcherEntryFont> watchers;
+  int ref_count = 1;
 
   void set_font(const WuiResolvedFont &new_font) {
     font = new_font;
@@ -1070,6 +1097,26 @@ struct ReactiveFontState {
       watchers[index].watcher = nullptr;
     }
   }
+
+  void clear_watchers() {
+    for (auto &entry : watchers) {
+      entry.active = false;
+      if (entry.watcher != nullptr) {
+        g_sym.waterui_drop_watcher_resolved_font(entry.watcher);
+        entry.watcher = nullptr;
+      }
+    }
+    watchers.clear();
+  }
+
+  void retain() { ++ref_count; }
+
+  void release() {
+    if (--ref_count == 0) {
+      clear_watchers();
+      delete this;
+    }
+  }
 };
 
 struct ReactiveGuardStateFont {
@@ -1086,6 +1133,7 @@ void reactive_font_guard_drop(void *data) {
   auto *guard_state = static_cast<ReactiveGuardStateFont *>(data);
   if (guard_state->font_state) {
     guard_state->font_state->remove_watcher(guard_state->watcher_index);
+    guard_state->font_state->release();
   }
   delete guard_state;
 }
@@ -1095,12 +1143,16 @@ WuiWatcherGuard *reactive_font_watch(const void *data,
   auto *state = const_cast<ReactiveFontState *>(
       static_cast<const ReactiveFontState *>(data));
   size_t index = state->add_watcher(watcher);
+  state->retain();
   auto *guard_state = new ReactiveGuardStateFont{state, index};
   return g_sym.waterui_new_watcher_guard(guard_state, reactive_font_guard_drop);
 }
 
 void reactive_font_drop(void *data) {
-  delete static_cast<ReactiveFontState *>(data);
+  auto *state = static_cast<ReactiveFontState *>(data);
+  if (state != nullptr) {
+    state->release();
+  }
 }
 
 // Reactive Color Scheme State
@@ -1112,6 +1164,7 @@ struct WatcherEntryScheme {
 struct ReactiveColorSchemeState {
   WuiColorScheme scheme;
   std::vector<WatcherEntryScheme> watchers;
+  int ref_count = 1;
 
   void set_scheme(WuiColorScheme new_scheme) {
     scheme = new_scheme;
@@ -1137,6 +1190,26 @@ struct ReactiveColorSchemeState {
       watchers[index].watcher = nullptr;
     }
   }
+
+  void clear_watchers() {
+    for (auto &entry : watchers) {
+      entry.active = false;
+      if (entry.watcher != nullptr) {
+        g_sym.waterui_drop_watcher_color_scheme(entry.watcher);
+        entry.watcher = nullptr;
+      }
+    }
+    watchers.clear();
+  }
+
+  void retain() { ++ref_count; }
+
+  void release() {
+    if (--ref_count == 0) {
+      clear_watchers();
+      delete this;
+    }
+  }
 };
 
 struct ReactiveGuardStateScheme {
@@ -1153,6 +1226,7 @@ void reactive_color_scheme_guard_drop(void *data) {
   auto *guard_state = static_cast<ReactiveGuardStateScheme *>(data);
   if (guard_state->scheme_state) {
     guard_state->scheme_state->remove_watcher(guard_state->watcher_index);
+    guard_state->scheme_state->release();
   }
   delete guard_state;
 }
@@ -1163,13 +1237,17 @@ reactive_color_scheme_watch(const void *data,
   auto *state = const_cast<ReactiveColorSchemeState *>(
       static_cast<const ReactiveColorSchemeState *>(data));
   size_t index = state->add_watcher(watcher);
+  state->retain();
   auto *guard_state = new ReactiveGuardStateScheme{state, index};
   return g_sym.waterui_new_watcher_guard(guard_state,
                                          reactive_color_scheme_guard_drop);
 }
 
 void reactive_color_scheme_drop(void *data) {
-  delete static_cast<ReactiveColorSchemeState *>(data);
+  auto *state = static_cast<ReactiveColorSchemeState *>(data);
+  if (state != nullptr) {
+    state->release();
+  }
 }
 
 WuiResolvedColor argb_to_resolved_color(jint color) {

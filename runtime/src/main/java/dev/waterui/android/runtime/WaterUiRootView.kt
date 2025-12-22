@@ -113,16 +113,8 @@ class WaterUiRootView @JvmOverloads constructor(
         backgroundTheme = null
         themeBridge = null
 
-        // 2. Drop the main window content view (depends on environment/runtime)
-        app?.let { appStruct ->
-            val mainWindow = appStruct.mainWindow()
-            if (mainWindow.contentPtr != 0L) {
-                NativeBindings.waterui_drop_anyview(mainWindow.contentPtr)
-            }
-        }
+        // 2. Finally, close the environment itself
         app = null
-
-        // 3. Finally, close the environment itself
         environment?.close()
         environment = null
     }

@@ -8,7 +8,6 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
@@ -57,13 +56,6 @@ private val metadataSecureRenderer = WuiRenderer { context, node, env, registry 
             )
         }
     })
-
-    // Cleanup when the container is detached
-    container.disposeWith {
-        if (metadata.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(metadata.contentPtr)
-        }
-    }
 
     container
 }

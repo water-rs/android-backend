@@ -1,6 +1,9 @@
 package dev.waterui.android.runtime
 
 import android.app.Activity
+import android.app.UiModeManager
+import android.content.ContextWrapper
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -107,8 +110,9 @@ class RootThemeController private constructor(
             Log.d(TAG, "applyToWindow: no current scheme")
             return
         }
-        if (findWindow() == null) {
-            Log.d(TAG, "applyToWindow: no window found, view.context=${view.context}")
+        val activity = findActivity()
+        if (activity == null) {
+            Log.d(TAG, "applyToWindow: no activity found, view.context=${view.context}")
             return
         }
 
@@ -123,19 +127,43 @@ class RootThemeController private constructor(
         Log.d(TAG, "Applying night mode: $nightMode (scheme=$scheme)")
 
         // Apply to the local activity only, not globally
-        (view.context as? Activity)?.let { activity ->
-            // Use AppCompatDelegate for proper theme switching
-            if (activity is androidx.appcompat.app.AppCompatActivity) {
-                activity.delegate.localNightMode = nightMode
+        // Use AppCompatDelegate for proper theme switching
+        if (activity is androidx.appcompat.app.AppCompatActivity) {
+            activity.delegate.localNightMode = nightMode
+            activity.delegate.applyDayNight()
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val uiModeManager = activity.getSystemService(UiModeManager::class.java)
+                if (uiModeManager != null) {
+                    val appNightMode = when (scheme) {
+                        0 -> UiModeManager.MODE_NIGHT_NO
+                        1 -> UiModeManager.MODE_NIGHT_YES
+                        else -> UiModeManager.MODE_NIGHT_AUTO
+                    }
+                    uiModeManager.setApplicationNightMode(appNightMode)
+                } else {
+                    AppCompatDelegate.setDefaultNightMode(nightMode)
+                }
             } else {
-                // Fallback: set system-wide (not ideal but works)
                 AppCompatDelegate.setDefaultNightMode(nightMode)
+                activity.recreate()
             }
         }
     }
 
     private fun findWindow(): Window? {
-        return (view.context as? Activity)?.window
+        return findActivity()?.window
+    }
+
+    private fun findActivity(): Activity? {
+        var ctx = view.context
+        while (ctx is ContextWrapper) {
+            if (ctx is Activity) {
+                return ctx
+            }
+            ctx = ctx.baseContext
+        }
+        return null
     }
 
     private fun close() {

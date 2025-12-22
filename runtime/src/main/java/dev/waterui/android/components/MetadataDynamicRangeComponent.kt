@@ -9,7 +9,6 @@ import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
@@ -33,12 +32,6 @@ private fun renderDynamicRange(
         val child = inflateAnyView(context, contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-    }
-
-    container.disposeWith {
-        if (contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(contentPtr)
-        }
     }
 
     return container

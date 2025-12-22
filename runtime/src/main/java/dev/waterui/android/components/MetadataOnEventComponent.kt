@@ -70,9 +70,6 @@ private val metadataOnEventRenderer = WuiRenderer { context, node, env, registry
 
     // Cleanup
     container.disposeWith {
-        if (onEventData.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(onEventData.contentPtr)
-        }
         // Drop the repeatable handler
         NativeBindings.waterui_drop_on_event(handlerPtr)
     }

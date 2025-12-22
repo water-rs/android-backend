@@ -10,7 +10,6 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
@@ -69,13 +68,6 @@ private val metadataIgnoreSafeAreaRenderer = WuiRenderer { context, node, env, r
 
     // Request insets to be applied
     ViewCompat.requestApplyInsets(container)
-
-    // Cleanup
-    container.disposeWith {
-        if (metadata.contentPtr != 0L) {
-            NativeBindings.waterui_drop_anyview(metadata.contentPtr)
-        }
-    }
 
     container
 }

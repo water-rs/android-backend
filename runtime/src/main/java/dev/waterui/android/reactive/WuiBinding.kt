@@ -98,10 +98,10 @@ class WuiBinding<T>(
     }
 
     override fun close() {
-        super.close()
         watcherGuard?.close()
         watcherGuard = null
         observer = null
+        super.close()
     }
 
     override fun release(ptr: Long) {
