@@ -29,9 +29,7 @@ class WuiStyledStr internal constructor(
 
     fun toCharSequence(env: WuiEnvironment): CharSequence {
         val builder = SpannableStringBuilder()
-        android.util.Log.d("WaterUI.StyledStr", "toCharSequence: ${chunks.size} chunks")
-        chunks.forEachIndexed { index, chunk ->
-            android.util.Log.d("WaterUI.StyledStr", "  chunk[$index]: text='${chunk.text}' len=${chunk.text.length}")
+        chunks.forEach { chunk ->
             val start = builder.length
             builder.append(chunk.text)
             val end = builder.length
@@ -39,7 +37,6 @@ class WuiStyledStr internal constructor(
                 chunk.style.applySpans(env, builder, start, end)
             }
         }
-        android.util.Log.d("WaterUI.StyledStr", "toCharSequence result: '${builder}' len=${builder.length}")
         return builder
     }
 
@@ -75,7 +72,6 @@ internal class StyledTextStyle(
         builder.setSpan(AbsoluteSizeSpan(resolvedFont.size.roundToInt(), true), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
         val foregroundColor = foreground?.resolveOnce(env)?.toColorInt()
-        android.util.Log.d("WaterUI.StyledStr", "applySpans: foreground=$foreground foregroundColor=${foregroundColor?.let { Integer.toHexString(it) }}")
         if (foregroundColor != null) {
             builder.setSpan(ForegroundColorSpan(foregroundColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
@@ -118,16 +114,15 @@ internal class WuiFont(
 
     fun resolveOnce(env: WuiEnvironment): ResolvedFontStruct {
         val computedPtr = NativeBindings.waterui_resolve_font(raw(), env.raw())
-        if (computedPtr == 0L) {
-            return ResolvedFontStruct(size = 14f, weight = 3)
-        }
         val resolved = NativeBindings.waterui_read_computed_resolved_font(computedPtr)
         NativeBindings.waterui_drop_computed_resolved_font(computedPtr)
         return resolved
     }
 
     override fun release(ptr: Long) {
-        NativeBindings.waterui_drop_font(ptr)
+        if (ptr != 0L) {
+            NativeBindings.waterui_drop_font(ptr)
+        }
     }
 }
 
@@ -137,16 +132,15 @@ internal class WuiColor(
 
     fun resolveOnce(env: WuiEnvironment): ResolvedColorStruct {
         val computedPtr = NativeBindings.waterui_resolve_color(raw(), env.raw())
-        if (computedPtr == 0L) {
-            return ResolvedColorStruct(0f, 0f, 0f, 1f, 0f)
-        }
         val color = NativeBindings.waterui_read_computed_resolved_color(computedPtr)
         NativeBindings.waterui_drop_computed_resolved_color(computedPtr)
         return color
     }
 
     override fun release(ptr: Long) {
-        NativeBindings.waterui_drop_color(ptr)
+        if (ptr != 0L) {
+            NativeBindings.waterui_drop_color(ptr)
+        }
     }
 }
 

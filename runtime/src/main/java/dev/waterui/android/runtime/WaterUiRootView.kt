@@ -23,6 +23,19 @@ import java.util.EnumMap
  * Root view that owns the WaterUI environment and inflates the Rust-driven
  * view hierarchy into Android's View system.
  *
+ * ## Ownership Model
+ *
+ * The environment ownership follows Apple's pattern:
+ * 1. `waterui_init()` creates an environment (we own it via raw pointer)
+ * 2. Install theme signals into the environment
+ * 3. `waterui_app(env)` transfers ownership to Rust
+ * 4. Rust's `app(env)` can override theme via `env.install(theme)`
+ * 5. `waterui_app` returns `App { windows, env }` - Rust gives back ownership
+ * 6. We use the returned `env` for rendering and theme control
+ *
+ * **IMPORTANT**: After calling `waterui_app()`, the original init env pointer
+ * is invalid. We must use `app.envPtr` for all subsequent operations.
+ *
  * Layout decisions are made by the Rust layout engine - this view only
  * measures and places children according to Rust's instructions.
  */
@@ -31,15 +44,40 @@ class WaterUiRootView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : FrameLayout(createMaterialContext(baseContext), attrs) {
 
+    companion object {
+        private const val TAG = "WaterUI.RootView"
+    }
+
     private var registry: RenderRegistry = RenderRegistry.default()
-    private var environment: WuiEnvironment? = null
+
+    /**
+     * The app struct returned from waterui_app().
+     * Contains the windows and the environment pointer we should use.
+     * This owns the environment after waterui_app() returns.
+     */
     private var app: AppStruct? = null
-    private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
+
+    /**
+     * The rendering environment. This wraps app.envPtr and is the environment
+     * we use for all rendering and theme operations after waterui_app() returns.
+     * This is a "borrowed" view - it should NOT drop the pointer on close.
+     */
+    private var renderEnv: WuiEnvironment? = null
+
+    /**
+     * Theme bridge controller that holds the reactive theme signals.
+     * These signals are installed into the init env and survive the waterui_app() call.
+     */
     private var themeBridge: ThemeBridgeController? = null
+
+    /**
+     * Background color watcher that updates view background reactively.
+     */
+    private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
         registry = renderRegistry
-        if (environment != null) {
+        if (app != null) {
             renderRoot()
         }
     }
@@ -48,16 +86,15 @@ class WaterUiRootView @JvmOverloads constructor(
 
     /** Forces the root tree to be rebuilt. Useful for hot reload flows. */
     fun reload() {
-        if (environment != null) {
+        if (app != null) {
             renderRoot()
         }
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (environment == null) {
-            WebViewManager.init(context)
-            environment = WuiEnvironment.create()
+        if (app == null) {
+            initializeApp()
         }
         renderRoot()
     }
@@ -101,59 +138,114 @@ class WaterUiRootView @JvmOverloads constructor(
         )
     }
 
+    /**
+     * Initializes the WaterUI app:
+     * 1. Create environment via waterui_init()
+     * 2. Install system theme into the environment
+     * 3. Call waterui_app() to create the app (transfers ownership)
+     * 4. Store the returned app and use its environment
+     */
+    private fun initializeApp() {
+        WebViewManager.init(context)
+
+        android.util.Log.d(TAG, "initializeApp: creating environment")
+
+        // Step 1: Create the init environment
+        // NOTE: We use the raw pointer and do NOT wrap it in WuiEnvironment
+        // because waterui_app() will take ownership of it.
+        val initEnvPtr = NativeBindings.waterui_init()
+        android.util.Log.d(TAG, "initializeApp: environment created, ptr=$initEnvPtr")
+
+        // Step 2: Install system theme into the environment
+        val palette = MaterialThemePalette.from(context)
+        val fonts = MaterialThemeFonts.from(context)
+        val systemScheme = getSystemColorScheme()
+        val scheme = if (systemScheme == 1) ColorScheme.Dark else ColorScheme.Light
+
+        android.util.Log.d(TAG, "initializeApp: installing theme (scheme=$scheme)")
+        themeBridge = ThemeBridgeController(initEnvPtr, palette, fonts, scheme)
+        android.util.Log.d(TAG, "initializeApp: theme installed")
+
+        // Also install media picker manager and webview controller
+        NativeBindings.waterui_env_install_media_picker_manager(initEnvPtr)
+        NativeBindings.waterui_env_install_webview_controller(initEnvPtr)
+
+        // Step 3: Call waterui_app() - this TAKES OWNERSHIP of the init env
+        // After this call, initEnvPtr is invalid and we must use app.envPtr
+        android.util.Log.d(TAG, "initializeApp: calling waterui_app()")
+        val appStruct = NativeBindings.waterui_app(initEnvPtr)
+        android.util.Log.d(TAG, "initializeApp: waterui_app() returned app with ${appStruct.windows.size} windows, envPtr=${appStruct.envPtr}")
+
+        // Step 4: Store the app and create a borrowed view of the returned environment
+        app = appStruct
+        renderEnv = WuiEnvironment.borrowed(appStruct.envPtr)
+
+        setBackgroundColor(palette.background)
+        android.util.Log.d(TAG, "initializeApp: done")
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         removeAllViews()
 
-        // 0. Reset the root theme controller first
+        android.util.Log.d(TAG, "onDetachedFromWindow: cleaning up")
+
+        // 1. Reset the root theme controller first (it holds a reference to renderEnv)
         RootThemeController.reset()
 
-        // 1. Close the theme watcher first (depends on environment)
+        // 2. Close the background watcher
         backgroundTheme?.close()
         backgroundTheme = null
+
+        // 3. Clear theme bridge (signals are owned by Rust after install)
         themeBridge = null
 
-        // 2. Finally, close the environment itself
+        // 4. Clear the borrowed env view (does NOT drop the native pointer)
+        renderEnv?.close()
+        renderEnv = null
+
+        // 5. Drop the app which owns the environment
+        app?.let { appStruct ->
+            android.util.Log.d(TAG, "onDetachedFromWindow: dropping app env")
+            NativeBindings.waterui_env_drop(appStruct.envPtr)
+        }
         app = null
-        environment?.close()
-        environment = null
+
+        android.util.Log.d(TAG, "onDetachedFromWindow: cleanup done")
     }
 
     private fun renderRoot() {
-        val initEnv = checkNotNull(environment) { "renderRoot called without environment" }
-        android.util.Log.d("WaterUI.RootView", "renderRoot: ensureTheme start")
-        // Install theme BEFORE calling waterui_app so user code sees the theme
-        ensureTheme(initEnv)
-        android.util.Log.d("WaterUI.RootView", "renderRoot: ensureTheme done")
-        // Create the app by calling waterui_app(env).
-        // The user's app(env) receives the environment with theme installed,
-        // creates App::new(content, env), and returns App { windows, env }
-        // Native takes ownership of the environment and gets it back in the App.
-        if (app == null) {
-            android.util.Log.d("WaterUI.RootView", "renderRoot: calling waterui_app()")
-            app = NativeBindings.waterui_app(initEnv.raw())
-            android.util.Log.d("WaterUI.RootView", "renderRoot: waterui_app() returned app with ${app?.windows?.size} windows")
-        }
-        removeAllViews()
-        val appStruct = app
-        if (appStruct == null || appStruct.windows.isEmpty()) {
-            android.util.Log.w("WaterUI.RootView", "renderRoot: app is null or has no windows, skipping")
+        val appStruct = app ?: run {
+            android.util.Log.w(TAG, "renderRoot: app is null, skipping")
             return
         }
-        // Use the environment returned from the app for rendering
-        // (App::new injects FullScreenOverlayManager into it)
-        val renderEnv = WuiEnvironment(appStruct.envPtr)
-        ensureBackground(renderEnv)
+        val env = renderEnv ?: run {
+            android.util.Log.w(TAG, "renderRoot: renderEnv is null, skipping")
+            return
+        }
+
+        if (appStruct.windows.isEmpty()) {
+            android.util.Log.w(TAG, "renderRoot: app has no windows, skipping")
+            return
+        }
+
+        removeAllViews()
+
+        // Watch background color from the render environment
+        ensureBackground(env)
+
         // Extract main window content
         val mainWindow = appStruct.mainWindow()
         val rootPtr = mainWindow.contentPtr
         if (rootPtr == 0L) {
-            android.util.Log.w("WaterUI.RootView", "renderRoot: main window contentPtr is null, skipping")
+            android.util.Log.w(TAG, "renderRoot: main window contentPtr is null, skipping")
             return
         }
-        android.util.Log.d("WaterUI.RootView", "renderRoot: inflating view")
-        val child = inflateAnyView(context, rootPtr, renderEnv, registry)
-        android.util.Log.d("WaterUI.RootView", "renderRoot: view inflated, adding to layout")
+
+        android.util.Log.d(TAG, "renderRoot: inflating view")
+        val child = inflateAnyView(context, rootPtr, env, registry)
+        android.util.Log.d(TAG, "renderRoot: view inflated, adding to layout")
+
         // Use WRAP_CONTENT here: WaterUiRootView's onMeasure forwards constraints to
         // the Rust-driven root view, so the hosting Android layout can size correctly.
         val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -161,25 +253,9 @@ class WaterUiRootView @JvmOverloads constructor(
 
         // Setup RootThemeController after the view hierarchy is created.
         // This watches the App environment's color scheme and applies it to the Activity window.
-        RootThemeController.setup(this, renderEnv)
-        android.util.Log.d("WaterUI.RootView", "renderRoot: done")
-    }
-
-    private fun ensureTheme(env: WuiEnvironment) {
-        val palette = MaterialThemePalette.from(context)
-        val fonts = MaterialThemeFonts.from(context)
-        val systemScheme = getSystemColorScheme()
-        val scheme = if (systemScheme == 1) ColorScheme.Dark else ColorScheme.Light
-        if (themeBridge == null) {
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: installing theme tokens")
-            themeBridge = ThemeBridgeController(env, palette, fonts, scheme)
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: theme tokens installed")
-        } else {
-            themeBridge?.update(palette, fonts, scheme)
-        }
-
-        setBackgroundColor(palette.background)
-        android.util.Log.d("WaterUI.RootView", "ensureTheme: done")
+        // The color scheme may have been overridden by user's Rust code via env.install(theme).
+        RootThemeController.setup(this, appStruct.envPtr)
+        android.util.Log.d(TAG, "renderRoot: done")
     }
 
     private fun getSystemColorScheme(): Int {
@@ -192,7 +268,14 @@ class WaterUiRootView @JvmOverloads constructor(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        environment?.let { ensureTheme(it) }
+        // Update theme signals when system appearance changes
+        app?.let {
+            val palette = MaterialThemePalette.from(context)
+            val fonts = MaterialThemeFonts.from(context)
+            val systemScheme = getSystemColorScheme()
+            val scheme = if (systemScheme == 1) ColorScheme.Dark else ColorScheme.Light
+            themeBridge?.update(palette, fonts, scheme)
+        }
     }
 
     private fun ensureBackground(env: WuiEnvironment) {
@@ -321,8 +404,20 @@ private data class MaterialThemeFonts(
     }
 }
 
+/**
+ * Controller that manages theme signal installation.
+ *
+ * This class:
+ * 1. Creates reactive signals for system theme values
+ * 2. Installs them into the init environment before waterui_app()
+ * 3. Updates signal values when system appearance changes
+ *
+ * The signals survive the waterui_app() call because they're installed into
+ * the environment. User code can override via env.install(Theme::new()...),
+ * in which case the native signals are replaced.
+ */
 private class ThemeBridgeController(
-    private val env: WuiEnvironment,
+    envPtr: Long,
     palette: MaterialThemePalette,
     fonts: MaterialThemeFonts,
     scheme: ColorScheme
@@ -332,7 +427,7 @@ private class ThemeBridgeController(
     private val fontSignals = EnumMap<FontSlot, ReactiveFontSignal>(FontSlot::class.java)
 
     init {
-        install(palette, fonts)
+        install(envPtr, palette, fonts)
     }
 
     fun update(palette: MaterialThemePalette, fonts: MaterialThemeFonts, scheme: ColorScheme) {
@@ -354,34 +449,38 @@ private class ThemeBridgeController(
         fontSignals[FontSlot.Footnote]?.setValue(fonts.footnote.sizeSp, fonts.footnote.weight)
     }
 
-    private fun install(palette: MaterialThemePalette, fonts: MaterialThemeFonts) {
-        ThemeBridge.installColorScheme(env, colorSchemeSignal.toComputed())
-        installColorSlot(ColorSlot.Background, palette.background)
-        installColorSlot(ColorSlot.Surface, palette.surface)
-        installColorSlot(ColorSlot.SurfaceVariant, palette.surfaceVariant)
-        installColorSlot(ColorSlot.Border, palette.border)
-        installColorSlot(ColorSlot.Foreground, palette.foreground)
-        installColorSlot(ColorSlot.MutedForeground, palette.mutedForeground)
-        installColorSlot(ColorSlot.Accent, palette.accent)
-        installColorSlot(ColorSlot.AccentForeground, palette.accentForeground)
+    private fun install(envPtr: Long, palette: MaterialThemePalette, fonts: MaterialThemeFonts) {
+        // Install color scheme
+        NativeBindings.waterui_theme_install_color_scheme(envPtr, colorSchemeSignal.toComputed())
 
-        installFontSlot(FontSlot.Body, fonts.body)
-        installFontSlot(FontSlot.Title, fonts.title)
-        installFontSlot(FontSlot.Headline, fonts.headline)
-        installFontSlot(FontSlot.Subheadline, fonts.subheadline)
-        installFontSlot(FontSlot.Caption, fonts.caption)
-        installFontSlot(FontSlot.Footnote, fonts.footnote)
+        // Install colors
+        installColorSlot(envPtr, ColorSlot.Background, palette.background)
+        installColorSlot(envPtr, ColorSlot.Surface, palette.surface)
+        installColorSlot(envPtr, ColorSlot.SurfaceVariant, palette.surfaceVariant)
+        installColorSlot(envPtr, ColorSlot.Border, palette.border)
+        installColorSlot(envPtr, ColorSlot.Foreground, palette.foreground)
+        installColorSlot(envPtr, ColorSlot.MutedForeground, palette.mutedForeground)
+        installColorSlot(envPtr, ColorSlot.Accent, palette.accent)
+        installColorSlot(envPtr, ColorSlot.AccentForeground, palette.accentForeground)
+
+        // Install fonts
+        installFontSlot(envPtr, FontSlot.Body, fonts.body)
+        installFontSlot(envPtr, FontSlot.Title, fonts.title)
+        installFontSlot(envPtr, FontSlot.Headline, fonts.headline)
+        installFontSlot(envPtr, FontSlot.Subheadline, fonts.subheadline)
+        installFontSlot(envPtr, FontSlot.Caption, fonts.caption)
+        installFontSlot(envPtr, FontSlot.Footnote, fonts.footnote)
     }
 
-    private fun installColorSlot(slot: ColorSlot, argb: Int) {
+    private fun installColorSlot(envPtr: Long, slot: ColorSlot, argb: Int) {
         val signal = ReactiveColorSignal(argb)
-        ThemeBridge.installColor(env, slot, signal.toComputed())
+        NativeBindings.waterui_theme_install_color(envPtr, slot.value, signal.toComputed())
         colorSignals[slot] = signal
     }
 
-    private fun installFontSlot(slot: FontSlot, font: MaterialThemeFont) {
+    private fun installFontSlot(envPtr: Long, slot: FontSlot, font: MaterialThemeFont) {
         val signal = ReactiveFontSignal(font.sizeSp, font.weight)
-        ThemeBridge.installFont(env, slot, signal.toComputed())
+        NativeBindings.waterui_theme_install_font(envPtr, slot.value, signal.toComputed())
         fontSignals[slot] = signal
     }
 }

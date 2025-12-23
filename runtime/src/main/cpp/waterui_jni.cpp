@@ -126,6 +126,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_font)                                                         \
   X(waterui_resolve_color)                                                     \
   X(waterui_resolve_font)                                                      \
+  X(waterui_resolved_font_new)                                                 \
   X(waterui_drop_box_watcher_guard)                                            \
   X(waterui_get_animation)                                                     \
   X(waterui_anyviews_len)                                                      \
@@ -1078,15 +1079,20 @@ struct WatcherEntryFont {
 };
 
 struct ReactiveFontState {
-  WuiResolvedFont font;
+  // Store primitive values to avoid ownership issues with WuiResolvedFont
+  float size;
+  WuiFontWeight weight;
   std::vector<WatcherEntryFont> watchers;
   int ref_count = 1;
 
-  void set_font(const WuiResolvedFont &new_font) {
-    font = new_font;
+  void set_font(float new_size, WuiFontWeight new_weight) {
+    size = new_size;
+    weight = new_weight;
+    // Create a fresh WuiResolvedFont for each watcher call
     for (auto &entry : watchers) {
       if (entry.active && entry.watcher != nullptr) {
-        g_sym.waterui_call_watcher_resolved_font(entry.watcher, font);
+        g_sym.waterui_call_watcher_resolved_font(
+            entry.watcher, g_sym.waterui_resolved_font_new(size, weight));
       }
     }
   }
@@ -1135,7 +1141,8 @@ struct ReactiveGuardStateFont {
 
 WuiResolvedFont reactive_font_get(const void *data) {
   auto *state = static_cast<const ReactiveFontState *>(data);
-  return state->font;
+  // Create a fresh WuiResolvedFont that Rust can take ownership of
+  return g_sym.waterui_resolved_font_new(state->size, state->weight);
 }
 
 void reactive_font_guard_drop(void *data) {
@@ -1807,6 +1814,9 @@ Java_dev_waterui_android_ffi_WatcherJni_reactiveColorSchemeStateToComputed(
   if (!g_symbols_ready || statePtr == 0)
     return 0;
   auto *state = jlong_to_ptr<ReactiveColorSchemeState>(statePtr);
+  // Retain the state so that when the computed is dropped (e.g., Rust app
+  // installs its own theme), the state survives for Kotlin's continued use
+  state->retain();
   return ptr_to_jlong(g_sym.waterui_new_computed_color_scheme(
       state, reactive_color_scheme_get, reactive_color_scheme_watch,
       reactive_color_scheme_drop));
@@ -1838,6 +1848,9 @@ Java_dev_waterui_android_ffi_WatcherJni_reactiveColorStateToComputed(
   if (!g_symbols_ready || statePtr == 0)
     return 0;
   auto *state = jlong_to_ptr<ReactiveColorState>(statePtr);
+  // Retain the state so that when the computed is dropped (e.g., Rust app
+  // installs its own colors), the state survives for Kotlin's continued use
+  state->retain();
   return ptr_to_jlong(g_sym.waterui_new_computed_resolved_color(
       state, reactive_color_get, reactive_color_watch, reactive_color_drop));
 }
@@ -1860,8 +1873,8 @@ Java_dev_waterui_android_ffi_WatcherJni_createReactiveFontState(JNIEnv *,
   if (!g_symbols_ready)
     return 0;
   auto *state = new ReactiveFontState{};
-  state->font.size = size;
-  state->font.weight = static_cast<WuiFontWeight>(weight);
+  state->size = size;
+  state->weight = static_cast<WuiFontWeight>(weight);
   return ptr_to_jlong(state);
 }
 
@@ -1871,6 +1884,9 @@ Java_dev_waterui_android_ffi_WatcherJni_reactiveFontStateToComputed(
   if (!g_symbols_ready || statePtr == 0)
     return 0;
   auto *state = jlong_to_ptr<ReactiveFontState>(statePtr);
+  // Retain the state so that when the computed is dropped (e.g., Rust app
+  // installs its own fonts), the state survives for Kotlin's continued use
+  state->retain();
   return ptr_to_jlong(g_sym.waterui_new_computed_resolved_font(
       state, reactive_font_get, reactive_font_watch, reactive_font_drop));
 }
@@ -1883,10 +1899,7 @@ Java_dev_waterui_android_ffi_WatcherJni_reactiveFontStateSet(JNIEnv *, jclass,
   if (statePtr == 0)
     return;
   auto *state = jlong_to_ptr<ReactiveFontState>(statePtr);
-  WuiResolvedFont new_font{};
-  new_font.size = size;
-  new_font.weight = static_cast<WuiFontWeight>(weight);
-  state->set_font(new_font);
+  state->set_font(size, static_cast<WuiFontWeight>(weight));
 }
 
 // ========== Complex Struct Accessors ==========
@@ -2838,19 +2851,23 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataBackground(
       jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = find_app_class(
       env, "dev/waterui/android/runtime/MetadataBackgroundStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JIJJ)V");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JIJJI)V");
 
   jlong colorPtr = 0;
   jlong imagePtr = 0;
+  jint materialStyle = 2;  // Default to Regular
   if (metadata.value.tag == WuiBackground_Color) {
     colorPtr = ptr_to_jlong(metadata.value.color.color);
   } else if (metadata.value.tag == WuiBackground_Image) {
     imagePtr = ptr_to_jlong(metadata.value.image.image);
+  } else if (metadata.value.tag == WuiBackground_Material) {
+    materialStyle = static_cast<jint>(metadata.value.material.material);
   }
 
   jobject obj =
       env->NewObject(cls, ctor, ptr_to_jlong(metadata.content),
-                     static_cast<jint>(metadata.value.tag), colorPtr, imagePtr);
+                     static_cast<jint>(metadata.value.tag), colorPtr, imagePtr,
+                     materialStyle);
   env->DeleteLocalRef(cls);
   return obj;
 }
@@ -5008,14 +5025,14 @@ JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_metadataDraggableId(JNIEnv *env,
                                                             jclass) {
   auto id = g_sym.waterui_metadata_draggable_id();
-  return create_type_id_struct(env, id);
+  return new_type_id_struct(env, id);
 }
 
 JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_metadataDropDestinationId(JNIEnv *env,
                                                                   jclass) {
   auto id = g_sym.waterui_metadata_drop_destination_id();
-  return create_type_id_struct(env, id);
+  return new_type_id_struct(env, id);
 }
 
 JNIEXPORT jobject JNICALL
@@ -5065,7 +5082,7 @@ Java_dev_waterui_android_ffi_WatcherJni_draggableGetData(JNIEnv *env, jclass,
       env->GetObjectArrayElement(tags, static_cast<jint>(data.tag));
 
   // Convert value string
-  jstring value = env->NewStringUTF(data.value);
+  jstring value = wui_str_to_jstring(env, data.value);
 
   jclass cls =
       find_app_class(env, "dev/waterui/android/components/DragDataStruct");
