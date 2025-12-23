@@ -10,7 +10,6 @@ import android.util.Log
 import android.view.View
 import android.view.Window
 import androidx.appcompat.app.AppCompatDelegate
-import dev.waterui.android.reactive.WatcherCallback
 import dev.waterui.android.reactive.WatcherGuard
 import dev.waterui.android.reactive.WatcherStructFactory
 
@@ -27,7 +26,7 @@ import dev.waterui.android.reactive.WatcherStructFactory
  * independent of the system setting.
  */
 class RootThemeController private constructor(
-    private val env: WuiEnvironment,
+    private val envPtr: Long,
     private val view: View
 ) {
     companion object {
@@ -38,10 +37,11 @@ class RootThemeController private constructor(
 
         /**
          * Sets up the root theme controller when the view is added to window.
+         * Uses raw envPtr to avoid ownership issues with WuiEnvironment wrapper.
          */
-        fun setup(view: View, env: WuiEnvironment) {
+        fun setup(view: View, envPtr: Long) {
             if (instance != null) return
-            instance = RootThemeController(env, view)
+            instance = RootThemeController(envPtr, view)
         }
 
         /**
@@ -70,7 +70,7 @@ class RootThemeController private constructor(
     }
 
     private fun setupColorSchemeWatcher() {
-        val signalPtr = NativeBindings.waterui_theme_color_scheme(env.raw())
+        val signalPtr = NativeBindings.waterui_theme_color_scheme(envPtr)
         if (signalPtr == 0L) {
             Log.w(TAG, "No color scheme signal found in environment")
             return

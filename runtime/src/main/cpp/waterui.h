@@ -91,6 +91,34 @@ typedef enum WuiEvent {
   WuiEvent_HoverExit,
 } WuiEvent;
 
+/**
+ * FFI-safe representation of a material blur style.
+ *
+ * Maps to SwiftUI's Material types on Apple platforms.
+ */
+typedef enum WuiMaterial {
+  /**
+   * Ultra-thin blur, most transparent.
+   */
+  WuiMaterial_UltraThin = 0,
+  /**
+   * Thin blur.
+   */
+  WuiMaterial_Thin = 1,
+  /**
+   * Regular blur (default).
+   */
+  WuiMaterial_Regular = 2,
+  /**
+   * Thick blur.
+   */
+  WuiMaterial_Thick = 3,
+  /**
+   * Ultra-thick blur, most opaque.
+   */
+  WuiMaterial_UltraThick = 4,
+} WuiMaterial;
+
 typedef enum WuiAxis {
   WuiAxis_Horizontal,
   WuiAxis_Vertical,
@@ -1151,6 +1179,10 @@ typedef enum WuiBackground_Tag {
    * An image background.
    */
   WuiBackground_Image,
+  /**
+   * A material blur background.
+   */
+  WuiBackground_Material,
 } WuiBackground_Tag;
 
 typedef struct WuiBackground_Color_Body {
@@ -1161,11 +1193,16 @@ typedef struct WuiBackground_Image_Body {
   WuiComputed_Str *image;
 } WuiBackground_Image_Body;
 
+typedef struct WuiBackground_Material_Body {
+  enum WuiMaterial material;
+} WuiBackground_Material_Body;
+
 typedef struct WuiBackground {
   WuiBackground_Tag tag;
   union {
     WuiBackground_Color_Body color;
     WuiBackground_Image_Body image;
+    WuiBackground_Material_Body material;
   };
 } WuiBackground;
 
@@ -2141,9 +2178,22 @@ typedef struct Binding_Font WuiBinding_Font;
 
 typedef struct Computed_Font WuiComputed_Font;
 
+/**
+ * FFI representation of a resolved font.
+ */
 typedef struct WuiResolvedFont {
+  /**
+   * Font size in points.
+   */
   float size;
+  /**
+   * Font weight.
+   */
   enum WuiFontWeight weight;
+  /**
+   * Font family name (empty string means system default).
+   */
+  struct WuiStr family;
 } WuiResolvedFont;
 
 typedef struct Computed_ResolvedFont WuiComputed_ResolvedFont;
@@ -2667,6 +2717,45 @@ typedef struct WuiGpuSurface {
 } WuiGpuSurface;
 
 /**
+ * FFI representation of the Svg component.
+ *
+ * The SVG content can be either path data (d attribute) or full SVG markup.
+ * Native backends parse and render using platform-native vector graphics.
+ */
+typedef struct WuiSvg {
+  /**
+   * SVG content (path data or full SVG markup).
+   */
+  struct WuiStr content;
+  /**
+   * Intrinsic width (0 means unspecified).
+   */
+  float width;
+  /**
+   * Intrinsic height (0 means unspecified).
+   */
+  float height;
+  /**
+   * Optional tint color (null means no tint, use original colors).
+   */
+  struct WuiColor *tint;
+} WuiSvg;
+
+/**
+ * FFI representation of the SystemIcon component.
+ *
+ * Native backends render this as platform-native icons:
+ * - Apple: SF Symbols
+ * - Android: Material Icons (with placeholder fallback)
+ */
+typedef struct WuiSystemIcon {
+  /**
+   * The name of the system icon.
+   */
+  struct WuiStr name;
+} WuiSystemIcon;
+
+/**
  * FFI representation of a WebView event.
  */
 typedef struct WuiWebViewEvent {
@@ -2864,6 +2953,45 @@ typedef struct Binding_Rect WuiBinding_Rect;
 typedef struct Binding_WindowState WuiBinding_WindowState;
 
 /**
+ * FFI-compatible representation of [`WindowBackground`].
+ */
+typedef enum WuiWindowBackground_Tag {
+  /**
+   * Opaque system default background.
+   */
+  WuiWindowBackground_Opaque,
+  /**
+   * Fully transparent window (no background).
+   */
+  WuiWindowBackground_Transparent,
+  /**
+   * Solid color background (can be semi-transparent via alpha).
+   * Native must resolve the color using the environment.
+   */
+  WuiWindowBackground_Color,
+  /**
+   * Material blur effect.
+   */
+  WuiWindowBackground_Material,
+} WuiWindowBackground_Tag;
+
+typedef struct WuiWindowBackground_Color_Body {
+  struct WuiColor *color;
+} WuiWindowBackground_Color_Body;
+
+typedef struct WuiWindowBackground_Material_Body {
+  enum WuiMaterial material;
+} WuiWindowBackground_Material_Body;
+
+typedef struct WuiWindowBackground {
+  WuiWindowBackground_Tag tag;
+  union {
+    WuiWindowBackground_Color_Body color;
+    WuiWindowBackground_Material_Body material;
+  };
+} WuiWindowBackground;
+
+/**
  * FFI-compatible representation of a window.
  */
 typedef struct WuiWindow {
@@ -2899,6 +3027,10 @@ typedef struct WuiWindow {
    * The visual style of the window.
    */
   enum WuiWindowStyle style;
+  /**
+   * The background style of the window.
+   */
+  struct WuiWindowBackground background;
 } WuiWindow;
 
 typedef struct WuiArraySlice_WuiWindow {
@@ -4083,6 +4215,14 @@ WuiComputed_ResolvedFont *waterui_new_computed_resolved_font(void *data,
                                                                                               struct WuiWatcher_ResolvedFont*),
                                                              void (*drop)(void*));
 
+/**
+ * Creates a new WuiResolvedFont with a properly initialized empty family string.
+ *
+ * This function is needed for native code (Android JNI) to create WuiResolvedFont
+ * structs with valid vtables for the family field.
+ */
+struct WuiResolvedFont waterui_resolved_font_new(float size, enum WuiFontWeight weight);
+
 WuiComputed_ResolvedFont *waterui_resolve_font(const struct WuiFont *font,
                                                const struct WuiEnv *env);
 
@@ -4628,6 +4768,32 @@ bool waterui_gpu_surface_render(struct WuiGpuSurfaceState *state, uint32_t width
  * and must not be used after this call.
  */
 void waterui_gpu_surface_drop(struct WuiGpuSurfaceState *state);
+
+/**
+ * # Safety
+ * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
+ * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
+ */
+struct WuiSvg waterui_force_as_svg(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
+struct WuiTypeId waterui_svg_id(void);
+
+/**
+ * # Safety
+ * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
+ * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
+ */
+struct WuiSystemIcon waterui_force_as_system_icon(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
+struct WuiTypeId waterui_system_icon_id(void);
 
 /**
  * # Safety
