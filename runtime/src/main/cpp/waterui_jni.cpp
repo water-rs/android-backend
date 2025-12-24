@@ -2487,9 +2487,10 @@ JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsToggle(
   auto toggle =
       g_sym.waterui_force_as_toggle(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = find_app_class(env, "dev/waterui/android/runtime/ToggleStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJI)V");
   jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(toggle.label),
-                               ptr_to_jlong(toggle.toggle));
+                               ptr_to_jlong(toggle.toggle),
+                               static_cast<jint>(toggle.style));
   env->DeleteLocalRef(cls);
   return obj;
 }
