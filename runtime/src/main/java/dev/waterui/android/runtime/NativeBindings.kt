@@ -275,7 +275,6 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_lifecycle_hook(viewPtr: Long): MetadataLifeCycleHookStruct = WatcherJni.forceAsMetadataLifeCycleHook(viewPtr)
     fun waterui_force_as_metadata_on_event(viewPtr: Long): MetadataOnEventStruct = WatcherJni.forceAsMetadataOnEvent(viewPtr)
     fun waterui_force_as_metadata_cursor(viewPtr: Long): MetadataCursorStruct = WatcherJni.forceAsMetadataCursor(viewPtr)
-    fun waterui_force_as_metadata_foreground(viewPtr: Long): MetadataForegroundStruct = WatcherJni.forceAsMetadataForeground(viewPtr)
     fun waterui_force_as_metadata_shadow(viewPtr: Long): MetadataShadowStruct = WatcherJni.forceAsMetadataShadow(viewPtr)
     fun waterui_force_as_metadata_border(viewPtr: Long): MetadataBorderStruct = WatcherJni.forceAsMetadataBorder(viewPtr)
     fun waterui_metadata_border_id(): TypeIdStruct = WatcherJni.metadataBorderId()

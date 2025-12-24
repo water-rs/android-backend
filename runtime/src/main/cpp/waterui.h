@@ -1237,28 +1237,6 @@ typedef struct WuiMetadata_WuiCursor {
  */
 typedef struct WuiMetadata_WuiCursor WuiMetadataCursor;
 
-typedef struct Computed_Color WuiComputed_Color;
-
-/**
- * FFI-safe representation of a foreground color.
- */
-typedef struct WuiForegroundColor {
-  /**
-   * Pointer to the computed color.
-   */
-  WuiComputed_Color *color;
-} WuiForegroundColor;
-
-typedef struct WuiMetadata_WuiForegroundColor {
-  struct WuiAnyView *content;
-  struct WuiForegroundColor value;
-} WuiMetadata_WuiForegroundColor;
-
-/**
- * Type alias for Metadata<ForegroundColor> FFI struct
- */
-typedef struct WuiMetadata_WuiForegroundColor WuiMetadataForeground;
-
 /**
  * FFI-safe representation of a shadow.
  */
@@ -2005,6 +1983,8 @@ typedef struct WuiResolvedColor {
 typedef struct Computed_ResolvedColor WuiComputed_ResolvedColor;
 
 typedef struct Binding_Color WuiBinding_Color;
+
+typedef struct Computed_Color WuiComputed_Color;
 
 typedef struct WuiArraySlice_u8 {
   uint8_t *head;
@@ -3495,21 +3475,6 @@ WuiMetadataCursor waterui_force_as_metadata_cursor(struct WuiAnyView *view);
  * Returns the type ID as a 128-bit value for O(1) comparison.
  * Uses TypeId in normal builds, type_name hash in hot reload builds.
  */
-struct WuiTypeId waterui_metadata_foreground_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataForeground waterui_force_as_metadata_foreground(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Uses TypeId in normal builds, type_name hash in hot reload builds.
- */
 struct WuiTypeId waterui_metadata_shadow_id(void);
 
 /**
@@ -3947,19 +3912,6 @@ struct WuiAnimation waterui_get_animation(const struct WuiWatcherMetadata *metad
  * The caller must ensure that `value` is a valid pointer obtained from the corresponding FFI function.
  */
 void waterui_drop_color(struct WuiColor *value);
-
-/**
- * # Safety
- * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
- * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
- */
-struct WuiColor *waterui_force_as_color(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Uses TypeId in normal builds, type_name hash in hot reload builds.
- */
-struct WuiTypeId waterui_color_id(void);
 
 /**
  * Reads the current value from a computed

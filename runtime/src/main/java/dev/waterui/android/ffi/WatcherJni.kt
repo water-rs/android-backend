@@ -61,7 +61,6 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataLifeCycleHook(viewPtr: Long): MetadataLifeCycleHookStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
     @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
-    @JvmStatic external fun forceAsMetadataForeground(viewPtr: Long): MetadataForegroundStruct
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
     @JvmStatic external fun forceAsMetadataBorder(viewPtr: Long): MetadataBorderStruct
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct

@@ -2845,20 +2845,6 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataCursor(JNIEnv *env,
 }
 
 JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataForeground(
-    JNIEnv *env, jclass, jlong viewPtr) {
-  auto metadata = g_sym.waterui_force_as_metadata_foreground(
-      jlong_to_ptr<WuiAnyView>(viewPtr));
-  jclass cls = find_app_class(
-      env, "dev/waterui/android/runtime/MetadataForegroundStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
-  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(metadata.content),
-                               ptr_to_jlong(metadata.value.color));
-  env->DeleteLocalRef(cls);
-  return obj;
-}
-
-JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataShadow(JNIEnv *env,
                                                               jclass,
                                                               jlong viewPtr) {
