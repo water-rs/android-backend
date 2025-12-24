@@ -206,6 +206,8 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_foreground)                                      \
   X(waterui_metadata_shadow_id)                                                \
   X(waterui_force_as_metadata_shadow)                                          \
+  X(waterui_metadata_border_id)                                                \
+  X(waterui_force_as_metadata_border)                                          \
   X(waterui_metadata_focused_id)                                               \
   X(waterui_force_as_metadata_focused)                                         \
   X(waterui_metadata_ignore_safe_area_id)                                      \
@@ -2902,6 +2904,32 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataShadow(JNIEnv *env,
                                metadata.value.radius);
   env->DeleteLocalRef(cls);
   return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataBorder(JNIEnv *env,
+                                                              jclass,
+                                                              jlong viewPtr) {
+  auto metadata =
+      g_sym.waterui_force_as_metadata_border(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls =
+      find_app_class(env, "dev/waterui/android/runtime/MetadataBorderStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJFFZZZZ)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.color),
+                               metadata.value.width, metadata.value.corner_radius,
+                               static_cast<jboolean>(metadata.value.edges.top),
+                               static_cast<jboolean>(metadata.value.edges.leading),
+                               static_cast<jboolean>(metadata.value.edges.bottom),
+                               static_cast<jboolean>(metadata.value.edges.trailing));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_metadataBorderId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_metadata_border_id();
+  return make_type_id(env, id);
 }
 
 JNIEXPORT jobject JNICALL

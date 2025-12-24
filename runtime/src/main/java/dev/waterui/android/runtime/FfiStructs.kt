@@ -507,6 +507,21 @@ data class MetadataShadowStruct(
 )
 
 /**
+ * Metadata<Border> struct for border effects.
+ * Contains border color, width, corner radius, and which edges to draw.
+ */
+data class MetadataBorderStruct(
+    val contentPtr: Long,
+    val colorPtr: Long,
+    val width: Float,
+    val cornerRadius: Float,
+    val top: Boolean,
+    val leading: Boolean,
+    val bottom: Boolean,
+    val trailing: Boolean
+)
+
+/**
  * Metadata<Focused> struct for focus state management.
  */
 data class MetadataFocusedStruct(

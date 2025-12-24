@@ -121,6 +121,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiBackground()
         registerWuiForeground()
         registerWuiShadow()
+        registerWuiBorder()
         registerWuiClipShape()
         registerWuiContextMenu()
         registerWuiFocused()
