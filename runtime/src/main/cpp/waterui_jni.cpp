@@ -200,8 +200,6 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_on_event)                                        \
   X(waterui_metadata_cursor_id)                                                \
   X(waterui_force_as_metadata_cursor)                                          \
-  X(waterui_metadata_background_id)                                            \
-  X(waterui_force_as_metadata_background)                                      \
   X(waterui_metadata_foreground_id)                                            \
   X(waterui_force_as_metadata_foreground)                                      \
   X(waterui_metadata_shadow_id)                                                \
@@ -2292,7 +2290,6 @@ DEFINE_TYPE_ID_FN(metadataGestureId, waterui_metadata_gesture_id)
 DEFINE_TYPE_ID_FN(metadataLifeCycleHookId, waterui_metadata_lifecycle_hook_id)
 DEFINE_TYPE_ID_FN(metadataOnEventId, waterui_metadata_on_event_id)
 DEFINE_TYPE_ID_FN(metadataCursorId, waterui_metadata_cursor_id)
-DEFINE_TYPE_ID_FN(metadataBackgroundId, waterui_metadata_background_id)
 DEFINE_TYPE_ID_FN(metadataForegroundId, waterui_metadata_foreground_id)
 DEFINE_TYPE_ID_FN(metadataShadowId, waterui_metadata_shadow_id)
 DEFINE_TYPE_ID_FN(metadataFocusedId, waterui_metadata_focused_id)
@@ -2848,34 +2845,6 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataCursor(JNIEnv *env,
 }
 
 JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataBackground(
-    JNIEnv *env, jclass, jlong viewPtr) {
-  auto metadata = g_sym.waterui_force_as_metadata_background(
-      jlong_to_ptr<WuiAnyView>(viewPtr));
-  jclass cls = find_app_class(
-      env, "dev/waterui/android/runtime/MetadataBackgroundStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JIJJI)V");
-
-  jlong colorPtr = 0;
-  jlong imagePtr = 0;
-  jint materialStyle = 2;  // Default to Regular
-  if (metadata.value.tag == WuiBackground_Color) {
-    colorPtr = ptr_to_jlong(metadata.value.color.color);
-  } else if (metadata.value.tag == WuiBackground_Image) {
-    imagePtr = ptr_to_jlong(metadata.value.image.image);
-  } else if (metadata.value.tag == WuiBackground_Material) {
-    materialStyle = static_cast<jint>(metadata.value.material.material);
-  }
-
-  jobject obj =
-      env->NewObject(cls, ctor, ptr_to_jlong(metadata.content),
-                     static_cast<jint>(metadata.value.tag), colorPtr, imagePtr,
-                     materialStyle);
-  env->DeleteLocalRef(cls);
-  return obj;
-}
-
-JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataForeground(
     JNIEnv *env, jclass, jlong viewPtr) {
   auto metadata = g_sym.waterui_force_as_metadata_foreground(
@@ -2929,7 +2898,7 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataBorder(JNIEnv *env,
 JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_metadataBorderId(JNIEnv *env, jclass) {
   auto id = g_sym.waterui_metadata_border_id();
-  return make_type_id(env, id);
+  return new_type_id_struct(env, id);
 }
 
 JNIEXPORT jobject JNICALL

@@ -118,7 +118,6 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiLifeCycleHook()
         registerWuiOnEvent()
         registerWuiCursor()
-        registerWuiBackground()
         registerWuiForeground()
         registerWuiShadow()
         registerWuiBorder()

@@ -436,58 +436,6 @@ data class MetadataCursorStruct(
 )
 
 /**
- * Background type enum matching WuiBackground_Tag in FFI.
- */
-enum class BackgroundType(val value: Int) {
-    COLOR(0),
-    IMAGE(1),
-    MATERIAL(2);
-
-    companion object {
-        fun fromInt(value: Int): BackgroundType = entries.firstOrNull { it.value == value } ?: COLOR
-    }
-}
-
-/**
- * Material blur style enum matching WuiMaterial in FFI.
- * Maps to different blur intensities on Android.
- */
-enum class MaterialStyle(val value: Int) {
-    ULTRA_THIN(0),
-    THIN(1),
-    REGULAR(2),
-    THICK(3),
-    ULTRA_THICK(4);
-
-    companion object {
-        fun fromInt(value: Int): MaterialStyle = entries.firstOrNull { it.value == value } ?: REGULAR
-    }
-
-    /**
-     * Returns the blur radius in dp for this material style.
-     * Values tuned to approximate iOS material effects.
-     */
-    fun blurRadius(): Float = when (this) {
-        ULTRA_THIN -> 4f
-        THIN -> 8f
-        REGULAR -> 16f
-        THICK -> 24f
-        ULTRA_THICK -> 32f
-    }
-}
-
-/**
- * Metadata<Background> struct for background color/image/material.
- */
-data class MetadataBackgroundStruct(
-    val contentPtr: Long,
-    val backgroundType: Int,
-    val colorPtr: Long,  // Used when backgroundType == COLOR
-    val imagePtr: Long,  // Used when backgroundType == IMAGE
-    val materialStyle: Int  // Used when backgroundType == MATERIAL
-)
-
-/**
  * Metadata<ForegroundColor> struct for foreground/tint color.
  */
 data class MetadataForegroundStruct(
