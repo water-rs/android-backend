@@ -1,14 +1,14 @@
 package dev.waterui.android.components
 
 import android.graphics.Color
-import android.graphics.Typeface
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.appcompat.content.res.AppCompatResources
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.tabs.TabLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
@@ -175,46 +175,28 @@ private fun createNavBarWithBackButton(
     context: android.content.Context,
     title: String,
     onBackClick: () -> Unit
-): LinearLayout {
-    val density = context.resources.displayMetrics.density
-
-    return LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        minimumHeight = (56 * density).toInt()
+): MaterialToolbar {
+    return MaterialToolbar(context).apply {
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        setBackgroundColor(Color.parseColor("#F5F5F5"))
-        setPadding(
-            (8 * density).toInt(),
-            (8 * density).toInt(),
-            (16 * density).toInt(),
-            (8 * density).toInt()
+        this.title = title
+        
+        // Use Material back arrow icon
+        navigationIcon = AppCompatResources.getDrawable(
+            context, 
+            androidx.appcompat.R.drawable.abc_ic_ab_back_material
         )
-
-        // Back button
-        val backButton = TextView(context).apply {
-            text = "←"
-            textSize = 24f
-            setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
-            setOnClickListener { onBackClick() }
-        }
-        addView(backButton)
-
-        // Title
-        val titleView = TextView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            text = title
-            textSize = 18f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.BLACK)
-        }
-        addView(titleView)
+        setNavigationOnClickListener { onBackClick() }
+        
+        // Apply Material 3 surface color
+        val surfaceColor = MaterialColors.getColor(
+            context,
+            com.google.android.material.R.attr.colorSurface,
+            Color.WHITE
+        )
+        setBackgroundColor(surfaceColor)
     }
 }
 
@@ -289,43 +271,28 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
     container
 }
 
-private fun createNavBar(context: android.content.Context, titleContentPtr: Long, env: WuiEnvironment): LinearLayout {
-    val navBar = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        minimumHeight = (56 * context.resources.displayMetrics.density).toInt()
+@Suppress("UNUSED_PARAMETER")
+private fun createNavBar(context: android.content.Context, titleContentPtr: Long, env: WuiEnvironment): MaterialToolbar {
+    return MaterialToolbar(context).apply {
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        setBackgroundColor(Color.parseColor("#F5F5F5"))
-        setPadding(
-            (16 * context.resources.displayMetrics.density).toInt(),
-            (8 * context.resources.displayMetrics.density).toInt(),
-            (16 * context.resources.displayMetrics.density).toInt(),
-            (8 * context.resources.displayMetrics.density).toInt()
-        )
-    }
-
-    // Title text
-    val titleView = TextView(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        textSize = 18f
-        setTypeface(null, Typeface.BOLD)
-        setTextColor(Color.BLACK)
-
+        
         // Read title from Computed<StyledStr>
         if (titleContentPtr != 0L) {
             val styledStr = NativeBindings.waterui_read_computed_styled_str(titleContentPtr)
-            text = styledStr.chunks.joinToString("") { it.text }
+            title = styledStr.chunks.joinToString("") { it.text }
         }
+        
+        // Apply Material 3 surface color
+        val surfaceColor = MaterialColors.getColor(
+            context,
+            com.google.android.material.R.attr.colorSurface,
+            Color.WHITE
+        )
+        setBackgroundColor(surfaceColor)
     }
-
-    navBar.addView(titleView)
-    return navBar
 }
 
 private fun applyNavBarColor(navBar: View, color: ResolvedColorStruct) {
