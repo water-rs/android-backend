@@ -64,6 +64,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataBackground(viewPtr: Long): MetadataBackgroundStruct
     @JvmStatic external fun forceAsMetadataForeground(viewPtr: Long): MetadataForegroundStruct
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
+    @JvmStatic external fun forceAsMetadataBorder(viewPtr: Long): MetadataBorderStruct
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
@@ -308,6 +309,7 @@ object WatcherJni {
     @JvmStatic external fun metadataBackgroundId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataForegroundId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataBorderId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
