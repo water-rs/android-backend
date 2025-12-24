@@ -436,14 +436,6 @@ data class MetadataCursorStruct(
 )
 
 /**
- * Metadata<ForegroundColor> struct for foreground/tint color.
- */
-data class MetadataForegroundStruct(
-    val contentPtr: Long,
-    val colorPtr: Long
-)
-
-/**
  * Metadata<Shadow> struct for shadow effects.
  */
 data class MetadataShadowStruct(
