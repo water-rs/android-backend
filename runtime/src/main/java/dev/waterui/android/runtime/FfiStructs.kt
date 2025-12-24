@@ -183,7 +183,25 @@ data class TextFieldStruct(val labelPtr: Long, val valuePtr: Long, val promptPtr
 
 data class SecureFieldStruct(val labelPtr: Long, val valuePtr: Long)
 
-data class ToggleStruct(val labelPtr: Long, val bindingPtr: Long)
+/**
+ * Toggle style enum matching WuiToggleStyle in FFI.
+ */
+enum class ToggleStyle(val value: Int) {
+    /** Platform decides the style (default) */
+    AUTOMATIC(0),
+    /** Explicit switch toggle */
+    SWITCH(1),
+    /** Checkbox style */
+    CHECKBOX(2);
+
+    companion object {
+        fun fromInt(value: Int): ToggleStyle = entries.firstOrNull { it.value == value } ?: AUTOMATIC
+    }
+}
+
+data class ToggleStruct(val labelPtr: Long, val bindingPtr: Long, val style: Int) {
+    fun toggleStyle(): ToggleStyle = ToggleStyle.fromInt(style)
+}
 
 data class SliderStruct(
     val labelPtr: Long,
