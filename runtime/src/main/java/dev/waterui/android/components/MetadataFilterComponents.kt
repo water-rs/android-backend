@@ -98,20 +98,18 @@ private val metadataOpacityRenderer = WuiRenderer { context, node, env, registry
         currentOpacity = NativeBindings.waterui_read_computed_f32(metadata.valuePtr)
     }
 
-    var childView: View? = null
+    var opacityAnimator: AnimatedFloat? = null
     if (metadata.contentPtr != 0L) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
-        childView = child
+        opacityAnimator = AnimatedFloat(currentOpacity) { opacity ->
+            child.alpha = opacity.coerceIn(0f, 1f)
+        }
     }
 
     fun applyOpacity(animation: WuiAnimation) {
-        childView?.let { view ->
-            view.withRustAnimator(animation) {
-                alpha(currentOpacity)
-            }
-        }
+        opacityAnimator?.apply(currentOpacity, animation)
     }
 
     applyOpacity(WuiAnimation.None)
@@ -129,6 +127,7 @@ private val metadataOpacityRenderer = WuiRenderer { context, node, env, registry
 
     container.disposeWith {
         watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
+        opacityAnimator?.cancel()
         if (metadata.valuePtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.valuePtr)
     }
 
