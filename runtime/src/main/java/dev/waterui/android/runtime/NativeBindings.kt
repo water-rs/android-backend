@@ -298,8 +298,6 @@ internal object NativeBindings {
     fun waterui_drop_computed_menu_items(computedPtr: Long) = WatcherJni.dropComputedMenuItems(computedPtr)
     fun waterui_call_shared_action(actionPtr: Long, envPtr: Long) = WatcherJni.callSharedAction(actionPtr, envPtr)
     fun waterui_drop_shared_action(actionPtr: Long) = WatcherJni.dropSharedAction(actionPtr)
-    fun waterui_force_as_filled_shape(viewPtr: Long): FilledShapeStruct = WatcherJni.forceAsFilledShape(viewPtr)
-    fun waterui_filled_shape_id(): TypeIdStruct = WatcherJni.filledShapeId()
     fun waterui_force_as_photo(viewPtr: Long): PhotoStruct = WatcherJni.forceAsPhoto(viewPtr)
     fun waterui_force_as_video(viewPtr: Long): VideoStruct2 = WatcherJni.forceAsVideo(viewPtr)
     fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)

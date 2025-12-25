@@ -298,8 +298,6 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_drop_shared_action)                                                \
   X(waterui_menu_id)                                                           \
   X(waterui_force_as_menu)                                                     \
-  X(waterui_filled_shape_id)                                                   \
-  X(waterui_force_as_filled_shape)                                             \
   X(waterui_metadata_draggable_id)                                             \
   X(waterui_force_as_metadata_draggable)                                       \
   X(waterui_metadata_drop_destination_id)                                      \
@@ -2309,7 +2307,6 @@ DEFINE_TYPE_ID_FN(metadataOpacityId, waterui_metadata_opacity_id)
 DEFINE_TYPE_ID_FN(metadataClipShapeId, waterui_metadata_clip_shape_id)
 DEFINE_TYPE_ID_FN(metadataContextMenuId, waterui_metadata_context_menu_id)
 DEFINE_TYPE_ID_FN(menuId, waterui_menu_id)
-DEFINE_TYPE_ID_FN(filledShapeId, waterui_filled_shape_id)
 
 #undef DEFINE_TYPE_ID_FN
 
@@ -3243,85 +3240,6 @@ JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_callSharedAction(
 JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropSharedAction(
     JNIEnv *, jclass, jlong actionPtr) {
   g_sym.waterui_drop_shared_action(jlong_to_ptr<WuiSharedAction>(actionPtr));
-}
-
-JNIEXPORT jobject JNICALL
-Java_dev_waterui_android_ffi_WatcherJni_forceAsFilledShape(JNIEnv *env, jclass,
-                                                           jlong viewPtr) {
-  auto filled =
-      g_sym.waterui_force_as_filled_shape(jlong_to_ptr<WuiAnyView>(viewPtr));
-
-  // Get path commands array
-  WuiArraySlice_WuiPathCommand slice =
-      filled.commands.vtable.slice(filled.commands.data);
-
-  // Create PathCommandStruct class and array
-  jclass cmdCls =
-      find_app_class(env, "dev/waterui/android/runtime/PathCommandStruct");
-  jmethodID cmdCtor = env->GetMethodID(cmdCls, "<init>", "(IFFFFFFFFFFFF)V");
-
-  jobjectArray cmdArray =
-      env->NewObjectArray(static_cast<jsize>(slice.len), cmdCls, nullptr);
-
-  for (size_t i = 0; i < slice.len; i++) {
-    WuiPathCommand cmd = slice.head[i];
-    float x = 0, y = 0, cx = 0, cy = 0, c1x = 0, c1y = 0, c2x = 0, c2y = 0;
-    float rx = 0, ry = 0, start = 0, sweep = 0;
-
-    switch (cmd.tag) {
-    case WuiPathCommand_MoveTo:
-      x = cmd.move_to.x;
-      y = cmd.move_to.y;
-      break;
-    case WuiPathCommand_LineTo:
-      x = cmd.line_to.x;
-      y = cmd.line_to.y;
-      break;
-    case WuiPathCommand_QuadTo:
-      cx = cmd.quad_to.cx;
-      cy = cmd.quad_to.cy;
-      x = cmd.quad_to.x;
-      y = cmd.quad_to.y;
-      break;
-    case WuiPathCommand_CubicTo:
-      c1x = cmd.cubic_to.c1x;
-      c1y = cmd.cubic_to.c1y;
-      c2x = cmd.cubic_to.c2x;
-      c2y = cmd.cubic_to.c2y;
-      x = cmd.cubic_to.x;
-      y = cmd.cubic_to.y;
-      break;
-    case WuiPathCommand_Arc:
-      cx = cmd.arc.cx;
-      cy = cmd.arc.cy;
-      rx = cmd.arc.rx;
-      ry = cmd.arc.ry;
-      start = cmd.arc.start;
-      sweep = cmd.arc.sweep;
-      break;
-    case WuiPathCommand_Close:
-      break;
-    }
-
-    jobject cmdObj =
-        env->NewObject(cmdCls, cmdCtor, static_cast<jint>(cmd.tag), x, y, cx,
-                       cy, c1x, c1y, c2x, c2y, rx, ry, start, sweep);
-    env->SetObjectArrayElement(cmdArray, static_cast<jsize>(i), cmdObj);
-    env->DeleteLocalRef(cmdObj);
-  }
-
-  // Create FilledShapeStruct
-  jclass cls =
-      find_app_class(env, "dev/waterui/android/runtime/FilledShapeStruct");
-  jmethodID ctor = env->GetMethodID(
-      cls, "<init>", "([Ldev/waterui/android/runtime/PathCommandStruct;J)V");
-  jobject obj = env->NewObject(cls, ctor, cmdArray, ptr_to_jlong(filled.fill));
-
-  env->DeleteLocalRef(cmdCls);
-  env->DeleteLocalRef(cmdArray);
-  env->DeleteLocalRef(cls);
-
-  return obj;
 }
 
 // ========== OnEvent Handler Functions ==========
