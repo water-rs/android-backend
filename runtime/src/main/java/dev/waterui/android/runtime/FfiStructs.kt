@@ -1007,26 +1007,3 @@ data class AppStruct(
     override fun hashCode(): Int = 31 * windows.contentHashCode() + envPtr.hashCode()
 }
 
-// ========== FilledShape Struct ==========
-
-/**
- * FilledShape component data.
- * A shape filled with a color, rendered as a native view.
- * Contains path commands defining the shape and a fill color.
- */
-data class FilledShapeStruct(
-    val commands: Array<PathCommandStruct>,
-    val fillPtr: Long
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is FilledShapeStruct) return false
-        if (fillPtr != other.fillPtr) return false
-        return commands.contentEquals(other.commands)
-    }
-    override fun hashCode(): Int {
-        var result = fillPtr.hashCode()
-        result = 31 * result + commands.contentHashCode()
-        return result
-    }
-}
