@@ -271,7 +271,13 @@ data class ScrollStruct(val axis: Int, val contentPtr: Long)
 
 data class DynamicStruct(val dynamicPtr: Long)
 
-data class PickerStruct(val itemsPtr: Long, val selectionPtr: Long)
+/**
+ * Picker component data.
+ * - itemsPtr: Computed<Vec<PickerItem>> pointer
+ * - selectionPtr: Binding<Id> pointer
+ * - style: Picker style (0=Automatic, 1=Menu, 2=Radio)
+ */
+data class PickerStruct(val itemsPtr: Long, val selectionPtr: Long, val style: Int)
 
 /**
  * ColorPicker component data.

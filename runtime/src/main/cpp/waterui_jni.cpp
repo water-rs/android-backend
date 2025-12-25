@@ -2621,9 +2621,10 @@ JNIEXPORT jobject JNICALL Java_dev_waterui_android_ffi_WatcherJni_forceAsPicker(
   auto picker =
       g_sym.waterui_force_as_picker(jlong_to_ptr<WuiAnyView>(viewPtr));
   jclass cls = find_app_class(env, "dev/waterui/android/runtime/PickerStruct");
-  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJI)V");
   jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(picker.items),
-                               ptr_to_jlong(picker.selection));
+                               ptr_to_jlong(picker.selection),
+                               static_cast<jint>(picker.style));
   env->DeleteLocalRef(cls);
   return obj;
 }
