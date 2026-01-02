@@ -10,6 +10,8 @@
  */
 
 #include "waterui.h"
+#include <android/hardware_buffer.h>
+#include <android/hardware_buffer_jni.h>
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
@@ -45,6 +47,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_watch_binding_str)                                                 \
   X(waterui_watch_computed_f64)                                                \
   X(waterui_watch_computed_i32)                                                \
+  X(waterui_watch_computed_bool)                                               \
   X(waterui_watch_computed_resolved_font)                                      \
   X(waterui_watch_computed_resolved_color)                                     \
   X(waterui_watch_computed_styled_str)                                         \
@@ -153,10 +156,12 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_new_watcher_date)                                                  \
   X(waterui_read_computed_f64)                                                 \
   X(waterui_read_computed_i32)                                                 \
+  X(waterui_read_computed_bool)                                                \
   X(waterui_read_computed_resolved_color)                                      \
   X(waterui_read_computed_resolved_font)                                       \
   X(waterui_drop_computed_f64)                                                 \
   X(waterui_drop_computed_i32)                                                 \
+  X(waterui_drop_computed_bool)                                                \
   X(waterui_drop_computed_resolved_color)                                      \
   X(waterui_drop_computed_resolved_font)                                       \
   X(waterui_drop_computed_styled_str)                                          \
@@ -233,6 +238,8 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_metadata_grayscale)                                       \
   X(waterui_metadata_opacity_id)                                               \
   X(waterui_force_as_metadata_opacity)                                         \
+  X(waterui_metadata_hittable_id)                                              \
+  X(waterui_force_as_metadata_hittable)                                        \
   X(waterui_call_lifecycle_hook)                                               \
   X(waterui_drop_lifecycle_hook)                                               \
   X(waterui_call_on_event)                                                     \
@@ -282,12 +289,20 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_force_as_gpu_surface)                                              \
   X(waterui_gpu_surface_init)                                                  \
   X(waterui_gpu_surface_render)                                                \
+  X(waterui_gpu_surface_set_pointer)                                           \
   X(waterui_gpu_surface_drop)                                                  \
+  X(waterui_view_effect_id)                                                    \
+  X(waterui_force_as_view_effect)                                              \
+  X(waterui_view_effect_init)                                                  \
+  X(waterui_view_effect_render)                                                \
+  X(waterui_view_effect_set_input_ahardwarebuffer)                             \
+  X(waterui_view_effect_drop)                                                  \
   X(waterui_list_id)                                                           \
   X(waterui_list_item_id)                                                      \
   X(waterui_force_as_list)                                                     \
   X(waterui_force_as_list_item)                                                \
   X(waterui_env_install_media_picker_manager)                                  \
+  X(waterui_env_install_view_renderer)                                         \
   X(waterui_metadata_clip_shape_id)                                            \
   X(waterui_force_as_metadata_clip_shape)                                      \
   X(waterui_metadata_context_menu_id)                                          \
@@ -1733,6 +1748,17 @@ Java_dev_waterui_android_ffi_WatcherJni_watchComputedI32(JNIEnv *env, jclass,
 }
 
 JNIEXPORT jlong JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_watchComputedBool(JNIEnv *env, jclass,
+                                                          jlong computedPtr,
+                                                          jobject watcher) {
+  auto *computed = jlong_to_ptr<WuiComputed_bool>(computedPtr);
+  WatcherStructFields fields = watcher_struct_from_java(env, watcher);
+  auto *w = create_watcher<WuiWatcher_bool, bool>(
+      fields, g_sym.waterui_new_watcher_bool);
+  return ptr_to_jlong(g_sym.waterui_watch_computed_bool(computed, w));
+}
+
+JNIEXPORT jlong JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_watchComputedStyledStr(
     JNIEnv *env, jclass, jlong computedPtr, jobject watcher) {
   auto *computed = jlong_to_ptr<WuiComputed_StyledStr>(computedPtr);
@@ -2306,6 +2332,7 @@ DEFINE_TYPE_ID_FN(metadataGrayscaleId, waterui_metadata_grayscale_id)
 DEFINE_TYPE_ID_FN(metadataOpacityId, waterui_metadata_opacity_id)
 DEFINE_TYPE_ID_FN(metadataClipShapeId, waterui_metadata_clip_shape_id)
 DEFINE_TYPE_ID_FN(metadataContextMenuId, waterui_metadata_context_menu_id)
+DEFINE_TYPE_ID_FN(metadataHittableId, waterui_metadata_hittable_id)
 DEFINE_TYPE_ID_FN(menuId, waterui_menu_id)
 
 #undef DEFINE_TYPE_ID_FN
@@ -2374,6 +2401,29 @@ Java_dev_waterui_android_ffi_WatcherJni_envInstallWebViewController(
   init_webview_callback_jni(env);
   auto *wui_env = jlong_to_ptr<WuiEnv>(envPtr);
   g_sym.waterui_env_install_webview_controller(wui_env, create_webview_handle);
+}
+
+// ViewRenderer callback - renders a view to RGBA pixels
+// For now, this is a stub that returns empty data
+// TODO: Implement actual view capture using Android's View.draw() and Bitmap
+static void waterui_render_view_stub(
+    void *view,
+    WuiSize size,
+    ViewRenderCallback callback) {
+  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG,
+                      "ViewRenderer: stub called for size %.0fx%.0f",
+                      size.width, size.height);
+  // Call callback with empty data to signal "not implemented"
+  if (callback.call) {
+    callback.call(callback.data, nullptr, 0, 0, 0);
+  }
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_envInstallViewRenderer(
+    JNIEnv *, jclass, jlong envPtr) {
+  auto *wui_env = jlong_to_ptr<WuiEnv>(envPtr);
+  g_sym.waterui_env_install_view_renderer(wui_env, waterui_render_view_stub);
 }
 
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewBody(
@@ -3086,6 +3136,21 @@ Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataOpacity(JNIEnv *env,
 }
 
 JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataHittable(JNIEnv *env,
+                                                                jclass,
+                                                                jlong viewPtr) {
+  auto metadata = g_sym.waterui_force_as_metadata_hittable(
+      jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls =
+      find_app_class(env, "dev/waterui/android/runtime/MetadataHittableStruct");
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJ)V");
+  jobject obj = env->NewObject(cls, ctor, ptr_to_jlong(metadata.content),
+                               ptr_to_jlong(metadata.value.enabled));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_forceAsMetadataClipShape(
     JNIEnv *env, jclass, jlong viewPtr) {
   auto metadata = g_sym.waterui_force_as_metadata_clip_shape(
@@ -3452,6 +3517,13 @@ JNIEXPORT jint JNICALL Java_dev_waterui_android_ffi_WatcherJni_readComputedI32(
       jlong_to_ptr<WuiComputed_i32>(computedPtr));
 }
 
+JNIEXPORT jboolean JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_readComputedBool(JNIEnv *, jclass,
+                                                         jlong computedPtr) {
+  return g_sym.waterui_read_computed_bool(
+      jlong_to_ptr<WuiComputed_bool>(computedPtr));
+}
+
 JNIEXPORT jobject JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_readComputedResolvedColor(
     JNIEnv *env, jclass, jlong computedPtr) {
@@ -3481,6 +3553,12 @@ JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedF32(
 JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_dropComputedI32(
     JNIEnv *, jclass, jlong computedPtr) {
   g_sym.waterui_drop_computed_i32(jlong_to_ptr<WuiComputed_i32>(computedPtr));
+}
+
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_dropComputedBool(JNIEnv *, jclass,
+                                                         jlong computedPtr) {
+  g_sym.waterui_drop_computed_bool(jlong_to_ptr<WuiComputed_bool>(computedPtr));
 }
 
 JNIEXPORT void JNICALL
@@ -4648,9 +4726,108 @@ Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceRender(JNIEnv *, jclass,
   return result ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT void JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceSetPointer(
+    JNIEnv *, jclass, jlong statePtr, jboolean hasPosition, jfloat x, jfloat y,
+    jboolean hasHit, jfloat hitX, jfloat hitY) {
+  WuiPointerState pointer;
+  pointer.has_position = hasPosition == JNI_TRUE;
+  pointer.x = x;
+  pointer.y = y;
+  pointer.has_hit = hasHit == JNI_TRUE;
+  pointer.hit_x = hitX;
+  pointer.hit_y = hitY;
+
+  g_sym.waterui_gpu_surface_set_pointer(
+      jlong_to_ptr<WuiGpuSurfaceState>(statePtr), pointer);
+}
+
 JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceDrop(
     JNIEnv *, jclass, jlong statePtr) {
   g_sym.waterui_gpu_surface_drop(jlong_to_ptr<WuiGpuSurfaceState>(statePtr));
+}
+
+// ========== ViewEffect Functions ==========
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_viewEffectId(JNIEnv *env, jclass) {
+  auto id = g_sym.waterui_view_effect_id();
+  return new_type_id_struct(env, id);
+}
+
+JNIEXPORT jobject JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_forceAsViewEffect(JNIEnv *env, jclass,
+                                                          jlong viewPtr) {
+  WuiViewEffect viewEffect =
+      g_sym.waterui_force_as_view_effect(jlong_to_ptr<WuiAnyView>(viewPtr));
+  jclass cls =
+      find_app_class(env, "dev/waterui/android/runtime/ViewEffectStruct");
+  // Constructor: (rawPtr, contentPtr, effectPtr, outputSizeType)
+  jmethodID ctor = env->GetMethodID(cls, "<init>", "(JJJI)V");
+  jobject obj = env->NewObject(cls, ctor, reinterpret_cast<jlong>(viewPtr),
+                               ptr_to_jlong(viewEffect.content),
+                               ptr_to_jlong(viewEffect.effect),
+                               static_cast<jint>(viewEffect.output_size.tag));
+  env->DeleteLocalRef(cls);
+  return obj;
+}
+
+JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewEffectInit(
+    JNIEnv *env, jclass, jlong effectPtr, jobject javaSurface, jint width,
+    jint height) {
+  if (javaSurface == nullptr || effectPtr == 0) {
+    return 0;
+  }
+
+  // Extract ANativeWindow from Java Surface
+  ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, javaSurface);
+  if (nativeWindow == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Failed to get ANativeWindow from Surface");
+    return 0;
+  }
+
+  // The effectPtr is actually the raw pointer to WuiViewEffect struct
+  WuiViewEffect *effect = jlong_to_ptr<WuiViewEffect>(effectPtr);
+  WuiViewEffectState *state = g_sym.waterui_view_effect_init(
+      effect, nativeWindow, static_cast<uint32_t>(width),
+      static_cast<uint32_t>(height));
+
+  return ptr_to_jlong(state);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_viewEffectRender(JNIEnv *, jclass,
+                                                         jlong statePtr) {
+  bool result = g_sym.waterui_view_effect_render(
+      jlong_to_ptr<WuiViewEffectState>(statePtr));
+  return result ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_dev_waterui_android_ffi_WatcherJni_viewEffectSetInputAHardwareBuffer(
+    JNIEnv *env, jclass, jlong statePtr, jobject hardwareBuffer, jint width,
+    jint height) {
+  // Get AHardwareBuffer from the Java HardwareBuffer object
+  AHardwareBuffer *ahb = AHardwareBuffer_fromHardwareBuffer(env, hardwareBuffer);
+  if (ahb == nullptr) {
+    return JNI_FALSE;
+  }
+
+  bool result = g_sym.waterui_view_effect_set_input_ahardwarebuffer(
+      jlong_to_ptr<WuiViewEffectState>(statePtr), ahb,
+      static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+  // Note: We don't release the AHardwareBuffer here because the Rust side
+  // imports it into Vulkan memory. The Java HardwareBuffer object maintains
+  // ownership and will release it when garbage collected.
+
+  return result ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewEffectDrop(
+    JNIEnv *, jclass, jlong statePtr) {
+  g_sym.waterui_view_effect_drop(jlong_to_ptr<WuiViewEffectState>(statePtr));
 }
 
 // ========== List Functions ==========

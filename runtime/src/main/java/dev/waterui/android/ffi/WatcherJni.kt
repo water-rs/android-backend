@@ -25,6 +25,7 @@ object WatcherJni {
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
     @JvmStatic external fun envInstallMediaPickerManager(envPtr: Long)
     @JvmStatic external fun envInstallWebViewController(envPtr: Long)
+    @JvmStatic external fun envInstallViewRenderer(envPtr: Long)
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
@@ -77,6 +78,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataGrayscale(viewPtr: Long): MetadataGrayscaleStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
     @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
+    @JvmStatic external fun forceAsMetadataHittable(viewPtr: Long): MetadataHittableStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
     @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
@@ -171,6 +173,7 @@ object WatcherJni {
 
     // ========== Computed Read/Drop ==========
 
+    @JvmStatic external fun readComputedBool(computedPtr: Long): Boolean
     @JvmStatic external fun readComputedF64(computedPtr: Long): Double
     @JvmStatic external fun readComputedF32(computedPtr: Long): Float
     @JvmStatic external fun readComputedI32(computedPtr: Long): Int
@@ -181,6 +184,7 @@ object WatcherJni {
     @JvmStatic external fun readComputedColorScheme(computedPtr: Long): Int
     @JvmStatic external fun readComputedColor(computedPtr: Long): Long
     @JvmStatic external fun dropComputedColor(computedPtr: Long)
+    @JvmStatic external fun dropComputedBool(computedPtr: Long)
     @JvmStatic external fun dropComputedF64(computedPtr: Long)
     @JvmStatic external fun dropComputedF32(computedPtr: Long)
     @JvmStatic external fun dropComputedI32(computedPtr: Long)
@@ -214,6 +218,7 @@ object WatcherJni {
 
     // ========== Watch Computed ==========
 
+    @JvmStatic external fun watchComputedBool(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedF64(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedF32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedI32(computedPtr: Long, watcher: WatcherStruct): Long
@@ -320,6 +325,7 @@ object WatcherJni {
     @JvmStatic external fun metadataGrayscaleId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataClipShapeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataHittableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
@@ -384,7 +390,34 @@ object WatcherJni {
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
     @JvmStatic external fun gpuSurfaceInit(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
     @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun gpuSurfaceSetPointer(
+        statePtr: Long,
+        hasPosition: Boolean,
+        x: Float,
+        y: Float,
+        hasHit: Boolean,
+        hitX: Float,
+        hitY: Float
+    )
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
+
+    // ========== AppliedFilter Functions ==========
+
+    @JvmStatic external fun metadataAppliedFilterId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsMetadataAppliedFilter(viewPtr: Long): dev.waterui.android.runtime.AppliedFilterStruct
+    @JvmStatic external fun appliedFilterInit(filterPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
+    @JvmStatic external fun appliedFilterSetup(statePtr: Long, callback: Runnable)
+    @JvmStatic external fun appliedFilterRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun appliedFilterDrop(statePtr: Long)
+
+    // ========== ViewEffect Functions ==========
+
+    @JvmStatic external fun viewEffectId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsViewEffect(viewPtr: Long): dev.waterui.android.runtime.ViewEffectStruct
+    @JvmStatic external fun viewEffectInit(effectPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
+    @JvmStatic external fun viewEffectRender(statePtr: Long): Boolean
+    @JvmStatic external fun viewEffectDrop(statePtr: Long)
+    @JvmStatic external fun viewEffectSetInputAHardwareBuffer(statePtr: Long, hardwareBuffer: android.hardware.HardwareBuffer, width: Int, height: Int): Boolean
 
     // ========== WebView Functions ==========
     @JvmStatic external fun webviewNativeHandle(webviewPtr: Long): Long

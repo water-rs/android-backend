@@ -1,7 +1,9 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.Choreographer
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
@@ -42,6 +44,7 @@ private val gpuSurfaceRenderer = WuiRenderer { context, node, env, registry ->
 /**
  * Custom SurfaceView that handles GPU surface lifecycle and frame rendering.
  */
+@SuppressLint("ClickableViewAccessibility")
 private class GpuSurfaceView(
     context: Context,
     private val gpuSurfaceData: GpuSurfaceStruct
@@ -57,6 +60,15 @@ private class GpuSurfaceView(
     private var surfaceWidth: Int = 0
     private var surfaceHeight: Int = 0
 
+    // Pointer state tracking
+    private var pointerHasPosition: Boolean = false
+    private var pointerX: Float = 0f
+    private var pointerY: Float = 0f
+    private var pointerPressed: Boolean = false
+    private var pointerHasPressOrigin: Boolean = false
+    private var pointerPressOriginX: Float = 0f
+    private var pointerPressOriginY: Float = 0f
+
     init {
         // Set layout params to fill parent
         layoutParams = ViewGroup.LayoutParams(
@@ -66,6 +78,61 @@ private class GpuSurfaceView(
 
         // Register for surface callbacks
         holder.addCallback(this)
+    }
+
+    // ========== Touch/Pointer Tracking ==========
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pointerHasPosition = true
+                pointerX = event.x
+                pointerY = event.y
+                pointerPressed = true
+                pointerHasPressOrigin = true
+                pointerPressOriginX = event.x
+                pointerPressOriginY = event.y
+            }
+            MotionEvent.ACTION_MOVE -> {
+                pointerHasPosition = true
+                pointerX = event.x
+                pointerY = event.y
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                pointerPressed = false
+                pointerHasPressOrigin = false
+            }
+        }
+        return true
+    }
+
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
+                pointerHasPosition = true
+                pointerX = event.x
+                pointerY = event.y
+            }
+            MotionEvent.ACTION_HOVER_EXIT -> {
+                pointerHasPosition = false
+            }
+        }
+        return super.onHoverEvent(event)
+    }
+
+    /** Sync pointer state to the GPU surface before rendering. */
+    private fun syncPointerState() {
+        if (gpuState != 0L) {
+            NativeBindings.waterui_gpu_surface_set_pointer(
+                gpuState,
+                pointerHasPosition,
+                pointerX,
+                pointerY,
+                pointerHasPressOrigin,
+                pointerPressOriginX,
+                pointerPressOriginY
+            )
+        }
     }
 
     // ========== SurfaceHolder.Callback ==========
@@ -112,6 +179,9 @@ private class GpuSurfaceView(
         if (!isRendering || gpuState == 0L) {
             return
         }
+
+        // Sync pointer state before rendering
+        syncPointerState()
 
         // Render frame with current dimensions
         NativeBindings.waterui_gpu_surface_render(

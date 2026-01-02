@@ -48,8 +48,8 @@ private val pickerRenderer = WuiRenderer { context, node, env, _ ->
     }
 
     when (struct.style) {
-        PickerStyle.RADIO -> createRadioPicker(context, binding, itemsComputed, options, { suppressSelectionEvent }, { suppressSelectionEvent = it }, ::resolve)
-        else -> createSpinnerPicker(context, binding, itemsComputed, options, { suppressSelectionEvent }, { suppressSelectionEvent = it }, ::resolve)
+        PickerStyle.RADIO -> createRadioPicker(context, binding, itemsComputed, options, { suppressSelectionEvent }, { suppressSelectionEvent = it }) { this.resolve() }
+        else -> createSpinnerPicker(context, binding, itemsComputed, options, { suppressSelectionEvent }, { suppressSelectionEvent = it }) { this.resolve() }
     }
 }
 

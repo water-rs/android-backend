@@ -206,14 +206,6 @@ typedef enum WuiTabPosition {
   WuiTabPosition_Bottom = 1,
 } WuiTabPosition;
 
-/**
- * FFI representation of photo events.
- */
-typedef enum WuiPhotoEventType {
-  WuiPhotoEventType_Loaded = 0,
-  WuiPhotoEventType_Error = 1,
-} WuiPhotoEventType;
-
 typedef enum WuiAspectRatio {
   WuiAspectRatio_Fit = 0,
   WuiAspectRatio_Fill = 1,
@@ -328,6 +320,29 @@ typedef enum WuiMapStyle {
    */
   WuiMapStyle_Hybrid = 2,
 } WuiMapStyle;
+
+/**
+ * Input texture type for ViewEffect.
+ */
+typedef enum WuiInputType {
+  /**
+   * wgpu texture pointer (from GpuSurface child - zero copy optimization)
+   */
+  WuiInputType_WgpuTexture,
+  /**
+   * MTLTexture handle (Apple - zero copy)
+   * The native side should create the MTLTexture from IOSurface
+   */
+  WuiInputType_MetalTexture,
+  /**
+   * AHardwareBuffer handle (Android - zero copy)
+   */
+  WuiInputType_AHardwareBuffer,
+  /**
+   * Raw pixel data (fallback with copy)
+   */
+  WuiInputType_PixelData,
+} WuiInputType;
 
 /**
  * FFI-safe cursor style enum.
@@ -900,6 +915,11 @@ typedef struct WuiAnyView WuiAnyView;
 
 typedef struct WuiAnyViews WuiAnyViews;
 
+/**
+ * Opaque state held by the native backend after initialization.
+ */
+typedef struct WuiAppliedFilterState WuiAppliedFilterState;
+
 typedef struct WuiColor WuiColor;
 
 /**
@@ -921,9 +941,8 @@ typedef struct WuiFont WuiFont;
 /**
  * Opaque state held by the native backend after initialization.
  *
- * This struct owns all wgpu resources and the user's renderer.
- * It is created by `waterui_gpu_surface_init` and destroyed by
- * `waterui_gpu_surface_drop`.
+ * Uses shared device/queue from `SharedGpuContext` for efficiency.
+ * Only the Surface is created per-view.
  */
 typedef struct WuiGpuSurfaceState WuiGpuSurfaceState;
 
@@ -946,6 +965,11 @@ typedef struct WuiOnEventHandler WuiOnEventHandler;
 typedef struct WuiSharedAction WuiSharedAction;
 
 typedef struct WuiTabContent WuiTabContent;
+
+/**
+ * Opaque state held by the native backend after initialization.
+ */
+typedef struct WuiViewEffectState WuiViewEffectState;
 
 typedef struct WuiWatcherGuard WuiWatcherGuard;
 
@@ -1882,6 +1906,28 @@ typedef struct WuiIgnorableMetadataMaterialBackground {
   enum WuiMaterial material;
 } WuiIgnorableMetadataMaterialBackground;
 
+typedef struct Computed_bool WuiComputed_bool;
+
+/**
+ * FFI-safe representation of Hittable metadata.
+ */
+typedef struct WuiHittable {
+  /**
+   * Whether hit testing is enabled (reactive).
+   */
+  WuiComputed_bool *enabled;
+} WuiHittable;
+
+typedef struct WuiMetadata_WuiHittable {
+  struct WuiAnyView *content;
+  struct WuiHittable value;
+} WuiMetadata_WuiHittable;
+
+/**
+ * Type alias for Metadata<Hittable> FFI struct
+ */
+typedef struct WuiMetadata_WuiHittable WuiMetadataHittable;
+
 /**
  * FFI-safe representation of an animation.
  *
@@ -1916,6 +1962,14 @@ typedef enum WuiAnimation_Tag {
    */
   WuiAnimation_EaseInOut,
   /**
+   * Custom cubic bezier animation with control points
+   *
+   * Native backends can use these control points with:
+   * - Apple: `CAMediaTimingFunction(controlPoints:)`
+   * - Android: `PathInterpolator(x1, y1, x2, y2)`
+   */
+  WuiAnimation_CubicBezier,
+  /**
    * Spring animation with physics-based movement
    */
   WuiAnimation_Spring,
@@ -1949,6 +2003,29 @@ typedef struct WuiAnimation_EaseInOut_Body {
   uint64_t duration_ms;
 } WuiAnimation_EaseInOut_Body;
 
+typedef struct WuiAnimation_CubicBezier_Body {
+  /**
+   * Duration in milliseconds
+   */
+  uint64_t duration_ms;
+  /**
+   * First control point X (0.0 to 1.0)
+   */
+  float x1;
+  /**
+   * First control point Y
+   */
+  float y1;
+  /**
+   * Second control point X (0.0 to 1.0)
+   */
+  float x2;
+  /**
+   * Second control point Y
+   */
+  float y2;
+} WuiAnimation_CubicBezier_Body;
+
 typedef struct WuiAnimation_Spring_Body {
   /**
    * Stiffness of the spring (higher = faster)
@@ -1967,6 +2044,7 @@ typedef struct WuiAnimation {
     WuiAnimation_EaseIn_Body ease_in;
     WuiAnimation_EaseOut_Body ease_out;
     WuiAnimation_EaseInOut_Body ease_in_out;
+    WuiAnimation_CubicBezier_Body cubic_bezier;
     WuiAnimation_Spring_Body spring;
   };
 } WuiAnimation;
@@ -2361,10 +2439,8 @@ typedef struct WuiDatePicker {
   enum WuiDatePickerType ty;
 } WuiDatePicker;
 
-typedef struct Computed_bool WuiComputed_bool;
-
 typedef struct WuiBar {
-  struct WuiText title;
+  struct WuiAnyView *title;
   WuiComputed_Color *color;
   WuiComputed_bool *hidden;
   enum WuiNavigationTitleDisplayMode display_mode;
@@ -2462,31 +2538,6 @@ typedef struct WuiNavigationController {
    */
   void (*drop)(void*);
 } WuiNavigationController;
-
-/**
- * FFI representation of a photo event.
- */
-typedef struct WuiPhotoEvent {
-  enum WuiPhotoEventType event_type;
-  struct WuiStr error_message;
-} WuiPhotoEvent;
-
-/**
- * A C-compatible function wrapper that can be called multiple times.
- *
- * This structure wraps a Rust `Fn` closure to allow it to be passed across
- * the FFI boundary while maintaining proper memory management.
- */
-typedef struct WuiFn_WuiPhotoEvent {
-  void *data;
-  void (*call)(const void*, struct WuiPhotoEvent);
-  void (*drop)(void*);
-} WuiFn_WuiPhotoEvent;
-
-typedef struct WuiPhoto {
-  struct WuiStr source;
-  struct WuiFn_WuiPhotoEvent on_event;
-} WuiPhoto;
 
 typedef struct Computed_Str WuiComputed_Str;
 
@@ -2748,36 +2799,90 @@ typedef struct WuiProgress {
  */
 typedef struct WuiGpuSurface {
   /**
-   * Opaque pointer to the boxed GpuRenderer trait object.
+   * Opaque pointer to the boxed GpuSurface.
    * This is consumed during init and should not be used after.
    */
-  void *renderer;
+  void *surface;
 } WuiGpuSurface;
 
 /**
- * FFI representation of the Svg component.
- *
- * The SVG content can be either path data (d attribute) or full SVG markup.
- * Native backends parse and render using platform-native vector graphics.
+ * Callback type for async completion notifications.
  */
-typedef struct WuiSvg {
+typedef void (*WuiGpuCallback)(void *user_data);
+
+/**
+ * FFI-safe pointer state for passing from native.
+ *
+ * Native backends should update this before each render call to provide
+ * current pointer/cursor information to the GPU renderer.
+ */
+typedef struct WuiPointerState {
   /**
-   * SVG content (path data or full SVG markup).
+   * Whether the pointer is currently over this surface.
    */
-  struct WuiStr content;
+  bool has_position;
   /**
-   * Intrinsic width (0 means unspecified).
+   * X coordinate in surface-local pixels.
    */
-  float width;
+  float x;
   /**
-   * Intrinsic height (0 means unspecified).
+   * Y coordinate in surface-local pixels.
    */
-  float height;
+  float y;
   /**
-   * Optional tint color (null means no tint, use original colors).
+   * Whether there's an active hit (press/touch in progress).
    */
-  struct WuiColor *tint;
-} WuiSvg;
+  bool has_hit;
+  /**
+   * X coordinate where hit started.
+   */
+  float hit_x;
+  /**
+   * Y coordinate where hit started.
+   */
+  float hit_y;
+} WuiPointerState;
+
+/**
+ * FFI-safe gesture state for zoom/pan interactions.
+ *
+ * Native backends should update this when pinch, pan, or double-tap
+ * gestures are detected to enable interactive chart zoom/pan.
+ */
+typedef struct WuiGestureState {
+  /**
+   * Whether a gesture is currently active.
+   */
+  bool active;
+  /**
+   * Cumulative pinch scale factor (1.0 = no scaling).
+   */
+  float pinch_scale;
+  /**
+   * Whether a pinch center is present.
+   */
+  bool has_pinch_center;
+  /**
+   * X coordinate of pinch center in surface-local pixels.
+   */
+  float pinch_center_x;
+  /**
+   * Y coordinate of pinch center in surface-local pixels.
+   */
+  float pinch_center_y;
+  /**
+   * Pan offset X in pixels since gesture began.
+   */
+  float pan_offset_x;
+  /**
+   * Pan offset Y in pixels since gesture began.
+   */
+  float pan_offset_y;
+  /**
+   * Whether a double-tap was detected this frame.
+   */
+  bool double_tap;
+} WuiGestureState;
 
 /**
  * FFI representation of the SystemIcon component.
@@ -3031,6 +3136,138 @@ typedef struct WuiArray_WuiAnnotation {
   NonNull data;
   struct WuiArrayVTable_WuiAnnotation vtable;
 } WuiArray_WuiAnnotation;
+
+/**
+ * FFI representation of output size.
+ */
+typedef enum WuiOutputSize_Tag {
+  /**
+   * Match the input view's size.
+   */
+  WuiOutputSize_MatchInput,
+  /**
+   * Fixed pixel dimensions.
+   */
+  WuiOutputSize_Fixed,
+  /**
+   * Scale factor relative to input.
+   */
+  WuiOutputSize_Scale,
+} WuiOutputSize_Tag;
+
+typedef struct WuiOutputSize_Fixed_Body {
+  uint32_t width;
+  uint32_t height;
+} WuiOutputSize_Fixed_Body;
+
+typedef struct WuiOutputSize_Scale_Body {
+  float factor;
+} WuiOutputSize_Scale_Body;
+
+typedef struct WuiOutputSize {
+  WuiOutputSize_Tag tag;
+  union {
+    WuiOutputSize_Fixed_Body fixed;
+    WuiOutputSize_Scale_Body scale;
+  };
+} WuiOutputSize;
+
+/**
+ * FFI representation of a ViewEffect view.
+ *
+ * This struct is passed to the native backend when rendering the view tree.
+ * The native backend should:
+ * 1. Create capture and output layers
+ * 2. Call `waterui_view_effect_init` to initialize GPU resources
+ * 3. Render the child view to the capture layer
+ * 4. Call `waterui_view_effect_render` each frame
+ */
+typedef struct WuiViewEffect {
+  /**
+   * The child view to capture (pointer to WuiAnyView).
+   */
+  struct WuiAnyView *content;
+  /**
+   * Opaque pointer to the boxed effect renderer.
+   * This is consumed during init and should not be used after.
+   */
+  void *effect;
+  /**
+   * Output size configuration.
+   */
+  struct WuiOutputSize output_size;
+} WuiViewEffect;
+
+/**
+ * FFI representation of a Metadata<AppliedFilter>.
+ */
+typedef struct WuiAppliedFilter {
+  /**
+   * The child view to capture (pointer to WuiAnyView).
+   */
+  struct WuiAnyView *content;
+  /**
+   * Opaque pointer to the boxed AppliedFilter.
+   * This is consumed during init and should not be used after.
+   */
+  void *filter;
+} WuiAppliedFilter;
+
+/**
+ * Callback type for async completion notifications.
+ */
+typedef void (*WuiCallback)(void *user_data);
+
+/**
+ * Result of a filter render operation.
+ */
+typedef struct WuiAppliedFilterRenderResult {
+  /**
+   * Whether rendering succeeded.
+   */
+  bool success;
+  /**
+   * Whether another frame is needed (animation in progress).
+   * Only valid if `success` is true.
+   */
+  bool needs_redraw;
+} WuiAppliedFilterRenderResult;
+
+/**
+ * Callback for returning rendered RGBA data to Rust.
+ */
+typedef struct ViewRenderCallback {
+  /**
+   * Opaque data pointer passed to the callback.
+   */
+  void *data;
+  /**
+   * Callback function.
+   * - `data`: The opaque data pointer
+   * - `rgba_ptr`: Pointer to RGBA pixel data (4 bytes per pixel)
+   * - `rgba_len`: Length of the RGBA data in bytes
+   * - `width`: Rendered width in pixels
+   * - `height`: Rendered height in pixels
+   */
+  void (*call)(void *data,
+               const uint8_t *rgba_ptr,
+               uintptr_t rgba_len,
+               uint32_t width,
+               uint32_t height);
+} ViewRenderCallback;
+
+/**
+ * Type alias for the native view render function.
+ *
+ * Native implements this function to render a view to RGBA pixels:
+ * 1. Create an offscreen rendering context at the given size
+ * 2. Render the `AnyView` hierarchy (native widgets + GPU surfaces)
+ * 3. Capture the final composited result to RGBA pixels
+ * 4. Call the callback with the pixel data
+ *
+ * The view pointer is an `AnyView` that native should render.
+ */
+typedef void (*ViewRenderFn)(void *view, struct WuiSize size, struct ViewRenderCallback callback);
 
 /**
  * FFI-safe representation of drag data.
@@ -3750,6 +3987,7 @@ struct WuiArray_WuiMenuItem waterui_read_computed_menu_items(const WuiComputed_M
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_menu_items(const WuiComputed_MenuItems *computed,
                                                           struct WuiWatcher_MenuItems *watcher);
@@ -3838,6 +4076,21 @@ struct WuiTypeId waterui_ignorable_metadata_material_background_id(void);
 struct WuiIgnorableMetadataMaterialBackground waterui_force_as_ignorable_metadata_material_background(struct WuiAnyView *view);
 
 /**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
+struct WuiTypeId waterui_metadata_hittable_id(void);
+
+/**
+ * Force-casts an AnyView to this metadata type
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to an `AnyView`
+ * that contains a `Metadata<$ty>`.
+ */
+WuiMetadataHittable waterui_force_as_metadata_hittable(struct WuiAnyView *view);
+
+/**
  * # Safety
  * The caller must ensure that `value` is a valid pointer obtained from the corresponding FFI function.
  */
@@ -3915,6 +4168,7 @@ struct WuiResolvedColor waterui_read_computed_resolved_color(const WuiComputed_R
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_resolved_color(const WuiComputed_ResolvedColor *computed,
                                                               struct WuiWatcher_ResolvedColor *watcher);
@@ -3973,7 +4227,7 @@ void waterui_set_binding_color(WuiBinding_Color *binding, struct WuiColor *value
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_color(const WuiBinding_Color *binding,
                                                     struct WuiWatcher_Color *watcher);
@@ -3996,6 +4250,7 @@ struct WuiColor *waterui_read_computed_color(const WuiComputed_Color *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_color(const WuiComputed_Color *computed,
                                                      struct WuiWatcher_Color *watcher);
@@ -4194,6 +4449,7 @@ struct WuiStyledStr waterui_read_computed_styled_str(const WuiComputed_StyledStr
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_styled_str(const WuiComputed_StyledStr *computed,
                                                           struct WuiWatcher_StyledStr *watcher);
@@ -4241,7 +4497,7 @@ void waterui_set_binding_font(WuiBinding_Font *binding, struct WuiFont *value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_font(const WuiBinding_Font *binding,
                                                    struct WuiWatcher_Font *watcher);
@@ -4264,6 +4520,7 @@ struct WuiFont *waterui_read_computed_font(const WuiComputed_Font *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_font(const WuiComputed_Font *computed,
                                                     struct WuiWatcher_Font *watcher);
@@ -4317,6 +4574,7 @@ struct WuiResolvedFont waterui_read_computed_resolved_font(const WuiComputed_Res
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_resolved_font(const WuiComputed_ResolvedFont *computed,
                                                              struct WuiWatcher_ResolvedFont *watcher);
@@ -4604,19 +4862,6 @@ void waterui_navigation_pop(const struct WuiEnv *env);
  * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
  * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
  */
-struct WuiPhoto waterui_force_as_photo(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Uses TypeId in normal builds, type_name hash in hot reload builds.
- */
-struct WuiTypeId waterui_photo_id(void);
-
-/**
- * # Safety
- * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
- * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
- */
 struct WuiVideo waterui_force_as_video(struct WuiAnyView *view);
 
 /**
@@ -4662,6 +4907,7 @@ struct WuiComputedVideo waterui_read_computed_video(const WuiComputed_Video *com
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_video(const WuiComputed_Video *computed,
                                                      struct WuiWatcher_Video *watcher);
@@ -4727,6 +4973,12 @@ struct WuiDynamic *waterui_force_as_dynamic(struct WuiAnyView *view);
  */
 struct WuiTypeId waterui_dynamic_id(void);
 
+/**
+ * Connects a watcher to a dynamic view.
+ * # Safety
+ * - The dynamic pointer must be valid.
+ * - The watcher pointer will be consumed and freed when the Dynamic is dropped.
+ */
 void waterui_dynamic_connect(struct WuiDynamic *dynamic, struct WuiWatcher_AnyView *watcher);
 
 /**
@@ -4766,6 +5018,7 @@ struct WuiArray_WuiTableColumn waterui_read_computed_table_cols(const WuiCompute
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_table_cols(const WuiComputed_Vec_TableColumn *computed,
                                                           struct WuiWatcher_Vec_TableColumn *watcher);
@@ -4900,6 +5153,67 @@ struct WuiGpuSurfaceState *waterui_gpu_surface_init(struct WuiGpuSurface *surfac
 bool waterui_gpu_surface_render(struct WuiGpuSurfaceState *state, uint32_t width, uint32_t height);
 
 /**
+ * Render a single frame into an external texture.
+ *
+ * This is used for GPU-based view captures (e.g., filter pipelines) so a
+ * GpuSurface can render directly into a provided texture.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to the initialized state from `waterui_gpu_surface_init`
+ * * `texture` - Pointer to a `wgpu::Texture` to render into
+ * * `width` - Target width in pixels
+ * * `height` - Target height in pixels
+ *
+ * # Returns
+ *
+ * `true` if rendering succeeded, `false` on error.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_gpu_surface_init`.
+ * `texture` must be a valid pointer to a `wgpu::Texture` with RENDER_ATTACHMENT usage.
+ */
+bool waterui_gpu_surface_render_to_texture(struct WuiGpuSurfaceState *state,
+                                           void *texture,
+                                           uint32_t width,
+                                           uint32_t height);
+
+/**
+ * Render a single frame into an external Metal texture (Apple only).
+ *
+ * # Safety
+ * `state` must be valid, `texture` must point to a `MTLTexture`.
+ */
+bool waterui_gpu_surface_render_to_metal_texture(struct WuiGpuSurfaceState *state,
+                                                 void *texture,
+                                                 uint32_t width,
+                                                 uint32_t height);
+
+/**
+ * Setup the GpuSurface and render the first frame, then call callback.
+ *
+ * This function performs async setup (awaited synchronously via `block_on`),
+ * then renders the first frame. Native code should call this before showing
+ * the window to ensure all GpuSurfaces are ready.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state from `waterui_gpu_surface_init`
+ * * `callback` - Function to call when ready
+ * * `user_data` - Opaque pointer passed to callback
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_gpu_surface_init`
+ * - `callback` must be a valid function pointer
+ * - `user_data` must remain valid until callback is invoked
+ */
+void waterui_gpu_surface_await_ready(struct WuiGpuSurfaceState *state,
+                                     WuiGpuCallback callback,
+                                     void *user_data);
+
+/**
  * Clean up GPU resources.
  *
  * This function should be called when the GpuSurface view is destroyed.
@@ -4912,17 +5226,42 @@ bool waterui_gpu_surface_render(struct WuiGpuSurfaceState *state, uint32_t width
 void waterui_gpu_surface_drop(struct WuiGpuSurfaceState *state);
 
 /**
+ * Update the pointer/cursor state for a GpuSurface.
+ *
+ * Native backends should call this before each render to update pointer state.
+ * This enables GPU renderers to implement hover effects, hit detection, and
+ * interactive feedback.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to the initialized state from `waterui_gpu_surface_init`
+ * * `pointer` - Current pointer state
+ *
  * # Safety
- * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
- * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
+ *
+ * `state` must be a valid pointer from `waterui_gpu_surface_init`.
  */
-struct WuiSvg waterui_force_as_svg(struct WuiAnyView *view);
+void waterui_gpu_surface_set_pointer(struct WuiGpuSurfaceState *state,
+                                     struct WuiPointerState pointer);
 
 /**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ * Update the gesture state for a GpuSurface.
+ *
+ * Native backends should call this when pinch/pan/double-tap gestures are
+ * detected. This enables GPU renderers (like charts) to implement zoom/pan
+ * interactions.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to the initialized state from `waterui_gpu_surface_init`
+ * * `gesture` - Current gesture state
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_gpu_surface_init`.
  */
-struct WuiTypeId waterui_svg_id(void);
+void waterui_gpu_surface_set_gesture(struct WuiGpuSurfaceState *state,
+                                     struct WuiGestureState gesture);
 
 /**
  * # Safety
@@ -5010,6 +5349,7 @@ struct WuiRegion waterui_read_computed_region(const WuiComputed_Region *computed
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_region(const WuiComputed_Region *computed,
                                                       struct WuiWatcher_Region *watcher);
@@ -5050,6 +5390,7 @@ struct WuiArray_WuiAnnotation waterui_read_computed_annotations(const WuiCompute
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_annotations(const WuiComputed_Vec_Annotation *computed,
                                                            struct WuiWatcher_Vec_Annotation *watcher);
@@ -5080,6 +5421,345 @@ struct WuiWatcher_Vec_Annotation *waterui_new_watcher_annotations(void *data,
                                                                   void (*drop)(void*));
 
 /**
+ * # Safety
+ * This function is unsafe because it dereferences a raw pointer and performs unchecked downcasting.
+ * The caller must ensure that `view` is a valid pointer to an `AnyView` that contains the expected view type.
+ */
+struct WuiViewEffect waterui_force_as_view_effect(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
+struct WuiTypeId waterui_view_effect_id(void);
+
+/**
+ * Initialize a ViewEffect with native layers.
+ *
+ * This function creates wgpu resources for the effect rendering pipeline.
+ *
+ * # Arguments
+ *
+ * * `effect` - Pointer to the WuiViewEffect FFI struct (consumed)
+ * * `output_layer` - Platform-specific layer for effect output:
+ *   - Apple: `CAMetalLayer*`
+ *   - Android: `ANativeWindow*`
+ * * `input_width` - Width of the captured view in pixels
+ * * `input_height` - Height of the captured view in pixels
+ *
+ * # Returns
+ *
+ * Opaque pointer to the initialized state, or null on failure.
+ *
+ * # Safety
+ *
+ * - `effect` must be a valid pointer obtained from `waterui_force_as_view_effect`
+ * - `output_layer` must be a valid platform-specific layer pointer
+ * - The layer must remain valid for the lifetime of the returned state
+ */
+struct WuiViewEffectState *waterui_view_effect_init(struct WuiViewEffect *effect,
+                                                    void *output_layer,
+                                                    uint32_t input_width,
+                                                    uint32_t input_height);
+
+/**
+ * Provide input texture from child view.
+ *
+ * Call this each frame before `waterui_view_effect_render` to provide
+ * the captured child view's texture.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state
+ * * `input_type` - Type of input being provided
+ * * `input_handle` - Platform-specific handle:
+ *   - `WgpuTexture`: Pointer to `wgpu::Texture`
+ *   - `IOSurface`: `IOSurfaceRef` (Apple)
+ *   - `AHardwareBuffer`: `AHardwareBuffer*` (Android)
+ *   - `PixelData`: Pointer to pixel data
+ * * `width` - Input width in pixels
+ * * `height` - Input height in pixels
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_view_effect_init`
+ * - `input_handle` must be valid for the specified `input_type`
+ */
+bool waterui_view_effect_set_input(struct WuiViewEffectState *state,
+                                   enum WuiInputType input_type,
+                                   void *input_handle,
+                                   uint32_t width,
+                                   uint32_t height);
+
+/**
+ * Render the effect.
+ *
+ * This function applies the effect to the captured input and renders to the output.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state
+ *
+ * # Returns
+ *
+ * `true` if rendering succeeded, `false` on error.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_view_effect_init`.
+ */
+bool waterui_view_effect_render(struct WuiViewEffectState *state);
+
+/**
+ * Get a pointer to the capture texture for the child view to render into.
+ *
+ * The native backend should render the child view to this texture, then call
+ * `waterui_view_effect_render` to apply the effect.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state
+ *
+ * # Returns
+ *
+ * Pointer to the capture wgpu::Texture, or null if not available.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_view_effect_init`.
+ */
+const void *waterui_view_effect_get_capture_texture(struct WuiViewEffectState *state);
+
+/**
+ * Clean up ViewEffect resources.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_view_effect_init`,
+ * and must not be used after this call.
+ */
+void waterui_view_effect_drop(struct WuiViewEffectState *state);
+
+/**
+ * Check if the child view content is a GpuSurface.
+ *
+ * Returns `true` if the child is a GpuSurface, enabling the zero-copy optimization
+ * where we can directly sample the GpuSurface's texture.
+ *
+ * # Safety
+ *
+ * `effect` must be a valid pointer.
+ */
+bool waterui_view_effect_child_is_gpu_surface(const struct WuiViewEffect *effect);
+
+/**
+ * Set input from an AHardwareBuffer (Android-specific zero-copy path).
+ *
+ * This function is called from JNI with a HardwareBuffer object.
+ * The JNI layer extracts the AHardwareBuffer pointer and passes it here.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized ViewEffect state
+ * * `ahb_ptr` - Pointer to AHardwareBuffer (from AHardwareBuffer_fromHardwareBuffer)
+ * * `width` - Width in pixels
+ * * `height` - Height in pixels
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_view_effect_init`
+ * - `ahb_ptr` must be a valid AHardwareBuffer pointer
+ */
+bool waterui_view_effect_set_input_ahardwarebuffer(struct WuiViewEffectState *state,
+                                                   void *ahb_ptr,
+                                                   uint32_t width,
+                                                   uint32_t height);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Uses TypeId in normal builds, type_name hash in hot reload builds.
+ */
+struct WuiTypeId waterui_metadata_applied_filter_id(void);
+
+/**
+ * Force-casts an AnyView to this metadata type
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to an `AnyView`
+ * that contains a `Metadata<$ty>`.
+ */
+struct WuiAppliedFilter waterui_force_as_metadata_applied_filter(struct WuiAnyView *view);
+
+/**
+ * Initialize an AppliedFilter with native layers.
+ *
+ * This function creates wgpu resources for the filter rendering pipeline.
+ *
+ * # Arguments
+ *
+ * * `filter_ffi` - Pointer to the WuiAppliedFilter FFI struct (consumed)
+ * * `output_layer` - Platform-specific layer for filter output:
+ *   - Apple: `CAMetalLayer*`
+ *   - Android: `ANativeWindow*`
+ * * `input_width` - Width of the captured view in pixels
+ * * `input_height` - Height of the captured view in pixels
+ *
+ * # Returns
+ *
+ * Opaque pointer to the initialized state, or null on failure.
+ *
+ * # Safety
+ *
+ * - `filter_ffi` must be a valid pointer obtained from `waterui_force_as_metadata_applied_filter`
+ * - `output_layer` must be a valid platform-specific layer pointer
+ * - The layer must remain valid for the lifetime of the returned state
+ */
+struct WuiAppliedFilterState *waterui_applied_filter_init(struct WuiAppliedFilter *filter_ffi,
+                                                          void *output_layer,
+                                                          uint32_t input_width,
+                                                          uint32_t input_height);
+
+/**
+ * Setup the filter synchronously, call callback when ready.
+ *
+ * This function runs setup to completion using `pollster::block_on`
+ * and calls the callback when setup completes.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state from `waterui_applied_filter_init`
+ * * `callback` - Function to call when setup is complete
+ * * `user_data` - Opaque pointer passed to callback
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_applied_filter_init`
+ * - `callback` must be a valid function pointer
+ * - `user_data` must remain valid until callback is invoked
+ */
+void waterui_applied_filter_setup(struct WuiAppliedFilterState *state,
+                                  WuiCallback callback,
+                                  void *user_data);
+
+/**
+ * Render the filter.
+ *
+ * This function applies the filter to the captured input and renders to the output.
+ * Pass current width/height - resources are recreated if size changed.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state
+ * * `width` - Current width in pixels
+ * * `height` - Current height in pixels
+ *
+ * # Returns
+ *
+ * A `WuiAppliedFilterRenderResult` with:
+ * - `success`: whether rendering succeeded
+ * - `needs_redraw`: whether another frame is needed (for animations)
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_applied_filter_init`
+ * - `waterui_applied_filter_setup` must have completed (callback was called)
+ */
+struct WuiAppliedFilterRenderResult waterui_applied_filter_render(struct WuiAppliedFilterState *state,
+                                                                  uint32_t width,
+                                                                  uint32_t height);
+
+/**
+ * Provide input texture from child view.
+ *
+ * Call this each frame before `waterui_applied_filter_render` to provide
+ * the captured child view's texture.
+ *
+ * # Arguments
+ *
+ * * `state` - Pointer to initialized state
+ * * `input_type` - Type of input being provided
+ * * `input_handle` - Platform-specific handle:
+ *   - `WgpuTexture`: Pointer to `wgpu::Texture`
+ *   - `MetalTexture`: `MTLTexture*` (Apple)
+ *   - `AHardwareBuffer`: `AHardwareBuffer*` (Android)
+ *   - `PixelData`: Pointer to pixel data
+ * * `width` - Input width in pixels
+ * * `height` - Input height in pixels
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_applied_filter_init`
+ * - `input_handle` must be valid for the specified `input_type`
+ */
+bool waterui_applied_filter_set_input(struct WuiAppliedFilterState *state,
+                                      enum WuiInputType input_type,
+                                      void *input_handle,
+                                      uint32_t width,
+                                      uint32_t height);
+
+/**
+ * Prepare the capture texture for rendering.
+ *
+ * Ensures the capture texture matches the requested dimensions and returns
+ * a pointer to the underlying wgpu texture for zero-copy rendering paths.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_applied_filter_init`.
+ */
+const void *waterui_applied_filter_prepare_capture(struct WuiAppliedFilterState *state,
+                                                   uint32_t width,
+                                                   uint32_t height);
+
+/**
+ * Get a pointer to the capture texture.
+ *
+ * The native backend should render the child view to this texture.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_applied_filter_init`.
+ */
+const void *waterui_applied_filter_get_capture_texture(struct WuiAppliedFilterState *state);
+
+/**
+ * Get a pointer to the Metal texture backing the capture texture (Apple only).
+ *
+ * This exposes the underlying MTLTexture so native code can render directly
+ * into the wgpu capture texture without extra copies.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_applied_filter_init`.
+ */
+void *waterui_applied_filter_get_capture_metal_texture(struct WuiAppliedFilterState *state);
+
+/**
+ * Clean up AppliedFilter resources.
+ *
+ * # Safety
+ *
+ * `state` must be a valid pointer from `waterui_applied_filter_init`,
+ * and must not be used after this call.
+ */
+void waterui_applied_filter_drop(struct WuiAppliedFilterState *state);
+
+/**
+ * Installs a `ViewRenderer` into the environment from a native function pointer.
+ *
+ * Native backends call this during initialization to register their view
+ * rendering implementation. The renderer is used to capture views as RGBA
+ * pixels for the preview system.
+ *
+ * # Safety
+ *
+ * The caller must ensure that:
+ * - `env` is a valid pointer to a `WuiEnv`
+ * - `render_fn` is a valid function pointer to the native view renderer
+ */
+void waterui_env_install_view_renderer(struct WuiEnv *env, ViewRenderFn render_fn);
+
+/**
  * Reads the current value from a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
@@ -5090,6 +5770,7 @@ enum WuiCursorStyle waterui_read_computed_cursor_style(const WuiComputed_CursorS
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_cursor_style(const WuiComputed_CursorStyle *computed,
                                                             struct WuiWatcher_CursorStyle *watcher);
@@ -5250,7 +5931,7 @@ void waterui_set_binding_id(WuiBinding_Id *binding, struct WuiId value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_id(const WuiBinding_Id *binding,
                                                  struct WuiWatcher_Id *watcher);
@@ -5273,6 +5954,7 @@ struct WuiId waterui_read_computed_id(const WuiComputed_Id *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_id(const WuiComputed_Id *computed,
                                                   struct WuiWatcher_Id *watcher);
@@ -5365,7 +6047,7 @@ void waterui_set_binding_str(WuiBinding_Str *binding, struct WuiStr value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_str(const WuiBinding_Str *binding,
                                                   struct WuiWatcher_Str *watcher);
@@ -5388,6 +6070,7 @@ struct WuiStr waterui_read_computed_str(const WuiComputed_Str *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_str(const WuiComputed_Str *computed,
                                                    struct WuiWatcher_Str *watcher);
@@ -5435,7 +6118,7 @@ void waterui_set_binding_any_view(WuiBinding_AnyView *binding, struct WuiAnyView
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_any_view(const WuiBinding_AnyView *binding,
                                                        struct WuiWatcher_AnyView *watcher);
@@ -5458,6 +6141,7 @@ struct WuiAnyView *waterui_read_computed_any_view(const WuiComputed_AnyView *com
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_any_view(const WuiComputed_AnyView *computed,
                                                         struct WuiWatcher_AnyView *watcher);
@@ -5505,7 +6189,7 @@ void waterui_set_binding_i32(WuiBinding_i32 *binding, int32_t value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_i32(const WuiBinding_i32 *binding,
                                                   struct WuiWatcher_i32 *watcher);
@@ -5528,6 +6212,7 @@ int32_t waterui_read_computed_i32(const WuiComputed_i32 *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_i32(const WuiComputed_i32 *computed,
                                                    struct WuiWatcher_i32 *watcher);
@@ -5575,7 +6260,7 @@ void waterui_set_binding_bool(WuiBinding_bool *binding, bool value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_bool(const WuiBinding_bool *binding,
                                                    struct WuiWatcher_bool *watcher);
@@ -5598,6 +6283,7 @@ bool waterui_read_computed_bool(const WuiComputed_bool *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_bool(const WuiComputed_bool *computed,
                                                     struct WuiWatcher_bool *watcher);
@@ -5645,7 +6331,7 @@ void waterui_set_binding_f32(WuiBinding_f32 *binding, float value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_f32(const WuiBinding_f32 *binding,
                                                   struct WuiWatcher_f32 *watcher);
@@ -5668,6 +6354,7 @@ float waterui_read_computed_f32(const WuiComputed_f32 *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_f32(const WuiComputed_f32 *computed,
                                                    struct WuiWatcher_f32 *watcher);
@@ -5713,7 +6400,7 @@ void waterui_set_binding_f64(WuiBinding_f64 *binding, double value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_f64(const WuiBinding_f64 *binding,
                                                   struct WuiWatcher_f64 *watcher);
@@ -5736,6 +6423,7 @@ double waterui_read_computed_f64(const WuiComputed_f64 *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_f64(const WuiComputed_f64 *computed,
                                                    struct WuiWatcher_f64 *watcher);
@@ -5783,7 +6471,7 @@ void waterui_set_binding_date(WuiBinding_Date *binding, struct WuiDate value);
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_date(const WuiBinding_Date *binding,
                                                    struct WuiWatcher_Date *watcher);
@@ -5806,6 +6494,7 @@ struct WuiDate waterui_read_computed_date(const WuiComputed_Date *computed);
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_date(const WuiComputed_Date *computed,
                                                     struct WuiWatcher_Date *watcher);
@@ -5846,6 +6535,7 @@ struct WuiArray_WuiPickerItem waterui_read_computed_picker_items(const WuiComput
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_picker_items(const WuiComputed_Vec_PickerItem_Id *computed,
                                                             struct WuiWatcher_Vec_PickerItem_Id *watcher);
@@ -5886,6 +6576,7 @@ struct WuiLivePhotoSource waterui_read_computed_live_photo_source(const WuiCompu
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_live_photo_source(const WuiComputed_LivePhotoSource *computed,
                                                                  struct WuiWatcher_LivePhotoSource *watcher);
@@ -5941,7 +6632,7 @@ void waterui_set_binding_secure(WuiBinding_Secure *binding, struct WuiStr value)
  * Watches for changes in a Secure binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_secure(const WuiBinding_Secure *binding,
                                                      struct WuiWatcher_Secure *watcher);
@@ -5975,6 +6666,7 @@ enum WuiColorScheme waterui_read_computed_color_scheme(const WuiComputed_ColorSc
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_color_scheme(const WuiComputed_ColorScheme *computed,
                                                             struct WuiWatcher_ColorScheme *watcher);
@@ -6309,6 +7001,7 @@ struct WuiAnyViews *waterui_read_computed_views(const WuiComputed_AnyViews_AnyVi
  * Watches for changes in a computed
  * # Safety
  * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_computed_views(const WuiComputed_AnyViews_AnyView *computed,
                                                      struct WuiWatcher_AnyViews_AnyView *watcher);
@@ -6356,7 +7049,7 @@ void waterui_set_binding_window_state(WuiBinding_WindowState *binding, enum WuiW
  * Watches for changes in a binding
  * # Safety
  * The binding pointer must be valid and point to a properly initialized binding object.
- * The watcher must be a valid callback function.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
  */
 struct WuiWatcherGuard *waterui_watch_binding_window_state(const WuiBinding_WindowState *binding,
                                                            struct WuiWatcher_WindowState *watcher);

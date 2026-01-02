@@ -166,9 +166,10 @@ class WaterUiRootView @JvmOverloads constructor(
         themeBridge = ThemeBridgeController(initEnvPtr, palette, fonts, scheme)
         android.util.Log.d(TAG, "initializeApp: theme installed")
 
-        // Also install media picker manager and webview controller
+        // Also install media picker manager, webview controller, and view renderer
         NativeBindings.waterui_env_install_media_picker_manager(initEnvPtr)
         NativeBindings.waterui_env_install_webview_controller(initEnvPtr)
+        NativeBindings.waterui_env_install_view_renderer(initEnvPtr)
 
         // Step 3: Call waterui_app() - this TAKES OWNERSHIP of the init env
         // After this call, initEnvPtr is invalid and we must use app.envPtr

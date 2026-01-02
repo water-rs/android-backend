@@ -26,6 +26,7 @@ internal object NativeBindings {
     fun waterui_app(envPtr: Long): AppStruct = WatcherJni.app(envPtr)
     fun waterui_env_install_media_picker_manager(envPtr: Long) = WatcherJni.envInstallMediaPickerManager(envPtr)
     fun waterui_env_install_webview_controller(envPtr: Long) = WatcherJni.envInstallWebViewController(envPtr)
+    fun waterui_env_install_view_renderer(envPtr: Long) = WatcherJni.envInstallViewRenderer(envPtr)
     fun waterui_view_id(anyViewPtr: Long): TypeIdStruct = WatcherJni.viewId(anyViewPtr)
     fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long = WatcherJni.viewBody(anyViewPtr, envPtr)
     fun waterui_view_stretch_axis(anyViewPtr: Long): Int = WatcherJni.viewStretchAxis(anyViewPtr)
@@ -169,6 +170,9 @@ internal object NativeBindings {
 
     // ========== Computed accessors ==========
 
+    fun waterui_read_computed_bool(computedPtr: Long): Boolean = WatcherJni.readComputedBool(computedPtr)
+    fun waterui_drop_computed_bool(computedPtr: Long) = WatcherJni.dropComputedBool(computedPtr)
+    fun waterui_watch_computed_bool(computedPtr: Long, watcher: WatcherStruct): Long = WatcherJni.watchComputedBool(computedPtr, watcher)
     fun waterui_read_computed_f64(computedPtr: Long): Double = WatcherJni.readComputedF64(computedPtr)
     fun waterui_drop_computed_f64(computedPtr: Long) = WatcherJni.dropComputedF64(computedPtr)
     fun waterui_read_computed_f32(computedPtr: Long): Float = WatcherJni.readComputedF32(computedPtr)
@@ -292,6 +296,7 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_grayscale(viewPtr: Long): MetadataGrayscaleStruct = WatcherJni.forceAsMetadataGrayscale(viewPtr)
     fun waterui_force_as_metadata_opacity(viewPtr: Long): MetadataOpacityStruct = WatcherJni.forceAsMetadataOpacity(viewPtr)
     fun waterui_force_as_metadata_clip_shape(viewPtr: Long): MetadataClipShapeStruct = WatcherJni.forceAsMetadataClipShape(viewPtr)
+    fun waterui_force_as_metadata_hittable(viewPtr: Long): MetadataHittableStruct = WatcherJni.forceAsMetadataHittable(viewPtr)
     fun waterui_force_as_metadata_context_menu(viewPtr: Long): MetadataContextMenuStruct = WatcherJni.forceAsMetadataContextMenu(viewPtr)
     fun waterui_metadata_context_menu_id(): TypeIdStruct = WatcherJni.metadataContextMenuId()
     fun waterui_read_computed_menu_items(computedPtr: Long): Array<MenuItemStruct> = WatcherJni.readComputedMenuItems(computedPtr)
@@ -369,6 +374,7 @@ internal object NativeBindings {
     fun waterui_metadata_grayscale_id(): TypeIdStruct = WatcherJni.metadataGrayscaleId()
     fun waterui_metadata_opacity_id(): TypeIdStruct = WatcherJni.metadataOpacityId()
     fun waterui_metadata_clip_shape_id(): TypeIdStruct = WatcherJni.metadataClipShapeId()
+    fun waterui_metadata_hittable_id(): TypeIdStruct = WatcherJni.metadataHittableId()
     fun waterui_video_player_id(): TypeIdStruct = WatcherJni.videoPlayerId()
     fun waterui_media_picker_id(): TypeIdStruct = WatcherJni.mediaPickerId()
     fun waterui_force_as_media_picker(viewPtr: Long): MediaPickerStruct = WatcherJni.forceAsMediaPicker(viewPtr)
@@ -409,7 +415,47 @@ internal object NativeBindings {
         WatcherJni.gpuSurfaceInit(rendererPtr, surface, width, height)
     fun waterui_gpu_surface_render(statePtr: Long, width: Int, height: Int): Boolean =
         WatcherJni.gpuSurfaceRender(statePtr, width, height)
+    fun waterui_gpu_surface_set_pointer(
+        statePtr: Long,
+        hasPosition: Boolean,
+        x: Float,
+        y: Float,
+        hasHit: Boolean,
+        hitX: Float,
+        hitY: Float
+    ) = WatcherJni.gpuSurfaceSetPointer(
+        statePtr, hasPosition, x, y, hasHit, hitX, hitY
+    )
     fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)
+
+    // ========== AppliedFilter ==========
+
+    fun waterui_metadata_applied_filter_id(): TypeIdStruct = WatcherJni.metadataAppliedFilterId()
+    fun waterui_force_as_metadata_applied_filter(viewPtr: Long): AppliedFilterStruct =
+        WatcherJni.forceAsMetadataAppliedFilter(viewPtr)
+    fun waterui_applied_filter_init(filterPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long =
+        WatcherJni.appliedFilterInit(filterPtr, surface, width, height)
+    fun waterui_applied_filter_setup(statePtr: Long, callback: Runnable) =
+        WatcherJni.appliedFilterSetup(statePtr, callback)
+    fun waterui_applied_filter_render(statePtr: Long, width: Int, height: Int): Boolean =
+        WatcherJni.appliedFilterRender(statePtr, width, height)
+    fun waterui_applied_filter_drop(statePtr: Long) = WatcherJni.appliedFilterDrop(statePtr)
+
+    // ========== ViewEffect ==========
+
+    fun waterui_view_effect_id(): TypeIdStruct = WatcherJni.viewEffectId()
+    fun waterui_force_as_view_effect(viewPtr: Long): ViewEffectStruct = WatcherJni.forceAsViewEffect(viewPtr)
+    fun waterui_view_effect_init(effectPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long =
+        WatcherJni.viewEffectInit(effectPtr, surface, width, height)
+    fun waterui_view_effect_render(statePtr: Long): Boolean =
+        WatcherJni.viewEffectRender(statePtr)
+    fun waterui_view_effect_set_input_ahardwarebuffer(
+        statePtr: Long,
+        hardwareBuffer: android.hardware.HardwareBuffer,
+        width: Int,
+        height: Int
+    ): Boolean = WatcherJni.viewEffectSetInputAHardwareBuffer(statePtr, hardwareBuffer, width, height)
+    fun waterui_view_effect_drop(statePtr: Long) = WatcherJni.viewEffectDrop(statePtr)
 
     // ========== Reactive State Creation (for theme) ==========
 

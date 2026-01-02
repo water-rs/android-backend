@@ -768,6 +768,50 @@ data class WebViewStruct(val webviewPtr: Long)
  */
 data class GpuSurfaceStruct(val rendererPtr: Long)
 
+// ========== AppliedFilter Structs ==========
+
+/**
+ * AppliedFilter metadata data.
+ * - contentPtr: Pointer to the child view to apply filter to.
+ * - filterPtr: Opaque pointer to the boxed AppliedFilter trait object.
+ *              This is consumed during init and should not be used after.
+ */
+data class AppliedFilterStruct(val contentPtr: Long, val filterPtr: Long)
+
+// ========== ViewEffect Structs ==========
+
+/**
+ * ViewEffect output size enum matching WuiOutputSize_Tag in FFI.
+ */
+enum class OutputSizeType(val value: Int) {
+    /** Match the input view's size */
+    MATCH_INPUT(0),
+    /** Fixed pixel dimensions */
+    FIXED(1),
+    /** Scale factor relative to input */
+    SCALE(2);
+
+    companion object {
+        fun fromInt(value: Int): OutputSizeType = entries.firstOrNull { it.value == value } ?: MATCH_INPUT
+    }
+}
+
+/**
+ * ViewEffect component data.
+ * - rawPtr: Raw pointer to the WuiViewEffect struct (for passing to init)
+ * - contentPtr: AnyView pointer for child content
+ * - effectPtr: Opaque pointer to the effect renderer
+ * - outputSizeType: Output size configuration type
+ */
+data class ViewEffectStruct(
+    val rawPtr: Long,
+    val contentPtr: Long,
+    val effectPtr: Long,
+    val outputSizeType: Int
+) {
+    fun outputSize(): OutputSizeType = OutputSizeType.fromInt(outputSizeType)
+}
+
 // ========== MediaPicker Structs ==========
 
 /**
@@ -988,6 +1032,17 @@ data class WindowStruct(
 ) {
     fun windowStyle(): WindowStyle = WindowStyle.fromInt(style)
 }
+
+// ========== Interaction Metadata Structs ==========
+
+/**
+ * Metadata<Hittable> struct for controlling hit testing.
+ * Contains computed bool pointer for enabled state.
+ */
+data class MetadataHittableStruct(
+    val contentPtr: Long,
+    val enabledPtr: Long
+)
 
 /**
  * App struct matching WuiApp in FFI.

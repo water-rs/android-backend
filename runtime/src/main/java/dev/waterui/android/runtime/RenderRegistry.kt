@@ -100,6 +100,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         // MediaPicker removed - now uses Button wrapper in Rust
         // registerWuiMediaPicker()
         registerWuiGpuSurface()
+        registerWuiViewEffect()
 
         // Navigation components
         registerWuiNavigationStack()
@@ -128,15 +129,10 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiScale()
         registerWuiRotation()
         registerWuiOffset()
+        registerWuiHittable()
 
-        // Filter components
-        registerWuiBlur()
-        registerWuiOpacity()
-        registerWuiBrightness()
-        registerWuiSaturation()
-        registerWuiContrast()
-        registerWuiHueRotation()
-        registerWuiGrayscale()
+        // GPU filter component (replaces legacy native filters)
+        registerWuiAppliedFilter()
 
         // Drag and drop components
         registerWuiDraggable()
