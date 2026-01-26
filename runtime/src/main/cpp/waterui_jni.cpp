@@ -38,6 +38,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
 
 using AHardwareBufferAcquireFn = void (*)(AHardwareBuffer *);
 using AHardwareBufferReleaseFn = void (*)(AHardwareBuffer *);
+using AHardwareBufferFromHardwareBufferFn = AHardwareBuffer *(*)(JNIEnv *, jobject);
 
 static AHardwareBufferAcquireFn resolve_ahb_acquire() {
   static AHardwareBufferAcquireFn fn = nullptr;
@@ -64,6 +65,20 @@ static AHardwareBufferReleaseFn resolve_ahb_release() {
     abort();
   }
   fn = reinterpret_cast<AHardwareBufferReleaseFn>(sym);
+  return fn;
+}
+
+static AHardwareBufferFromHardwareBufferFn resolve_ahb_from_hardware_buffer() {
+  static AHardwareBufferFromHardwareBufferFn fn = nullptr;
+  if (fn != nullptr) return fn;
+  void *sym = dlsym(RTLD_DEFAULT, "AHardwareBuffer_fromHardwareBuffer");
+  if (sym == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Missing symbol AHardwareBuffer_fromHardwareBuffer (API 26+). "
+                        "AHardwareBuffer path called unexpectedly.");
+    abort();
+  }
+  fn = reinterpret_cast<AHardwareBufferFromHardwareBufferFn>(sym);
   return fn;
 }
 
@@ -2797,26 +2812,28 @@ Java_dev_waterui_android_ffi_WatcherJni_envInstallWebViewController(
 }
 
 // ViewRenderer callback - renders a view to RGBA pixels
-// For now, this is a stub that returns empty data
-// TODO: Implement actual view capture using Android's View.draw() and Bitmap
 static void waterui_render_view_stub(
     void *view,
     WuiSize size,
     ViewRenderCallback callback) {
-  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG,
-                      "ViewRenderer: stub called for size %.0fx%.0f",
-                      size.width, size.height);
-  // Call callback with empty data to signal "not implemented"
-  if (callback.call) {
-    callback.call(callback.data, nullptr, 0, 0, 0);
-  }
+  (void)view;
+  (void)size;
+  (void)callback;
+  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                      "ViewRenderer is not implemented for Android runtime. "
+                      "Install/usage is a bug.");
+  abort();
 }
 
 JNIEXPORT void JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_envInstallViewRenderer(
     JNIEnv *, jclass, jlong envPtr) {
-  auto *wui_env = jlong_to_ptr<WuiEnv>(envPtr);
-  g_sym.waterui_env_install_view_renderer(wui_env, waterui_render_view_stub);
+  (void)envPtr;
+  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                      "envInstallViewRenderer called, but Android ViewRenderer "
+                      "is not implemented. This should only be installed by a "
+                      "preview-capable host.");
+  abort();
 }
 
 JNIEXPORT jlong JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewBody(
@@ -5579,18 +5596,8 @@ JNIEXPORT jboolean JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_appliedFilterSetInputAHardwareBuffer(
     JNIEnv *env, jclass, jlong statePtr, jobject hardwareBuffer, jint width,
     jint height) {
-#if __ANDROID_API__ < 26
-  (void)env;
-  (void)statePtr;
-  (void)hardwareBuffer;
-  (void)width;
-  (void)height;
-  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
-                      "AppliedFilter AHardwareBuffer input requires API 26+");
-  abort();
-#else
   AHardwareBuffer *ahb =
-      AHardwareBuffer_fromHardwareBuffer(env, hardwareBuffer);
+      resolve_ahb_from_hardware_buffer()(env, hardwareBuffer);
   if (ahb == nullptr) {
     return JNI_FALSE;
   }
@@ -5606,7 +5613,6 @@ Java_dev_waterui_android_ffi_WatcherJni_appliedFilterSetInputAHardwareBuffer(
   // Balance the JNI-created reference (keep the acquired ref for Rust).
   resolve_ahb_release()(ahb);
   return ok ? JNI_TRUE : JNI_FALSE;
-#endif
 }
 
 JNIEXPORT void JNICALL
@@ -5682,22 +5688,9 @@ JNIEXPORT jboolean JNICALL
 Java_dev_waterui_android_ffi_WatcherJni_viewEffectSetInputAHardwareBuffer(
     JNIEnv *env, jclass, jlong statePtr, jobject hardwareBuffer, jint width,
     jint height) {
-#if __ANDROID_API__ < 26
-  (void)env;
-  (void)statePtr;
-  (void)hardwareBuffer;
-  (void)width;
-  (void)height;
-  __android_log_print(
-      ANDROID_LOG_ERROR, LOG_TAG,
-      "AHardwareBuffer JNI APIs require Android API 26+. "
-      "viewEffectSetInputAHardwareBuffer called unexpectedly on API %d",
-      __ANDROID_API__);
-  abort();
-#else
   // Get AHardwareBuffer from the Java HardwareBuffer object
   AHardwareBuffer *ahb =
-      AHardwareBuffer_fromHardwareBuffer(env, hardwareBuffer);
+      resolve_ahb_from_hardware_buffer()(env, hardwareBuffer);
   if (ahb == nullptr) {
     return JNI_FALSE;
   }
@@ -5716,7 +5709,6 @@ Java_dev_waterui_android_ffi_WatcherJni_viewEffectSetInputAHardwareBuffer(
   resolve_ahb_release()(ahb);
 
   return result ? JNI_TRUE : JNI_FALSE;
-#endif
 }
 
 JNIEXPORT void JNICALL Java_dev_waterui_android_ffi_WatcherJni_viewEffectDrop(

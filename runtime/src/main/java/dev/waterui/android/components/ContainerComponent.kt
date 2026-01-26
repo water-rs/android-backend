@@ -7,6 +7,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
@@ -24,7 +25,13 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
     val struct = NativeBindings.waterui_force_as_layout_container(node.rawPtr)
 
     if (struct.childrenPtr == 0L) {
-        RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = emptyList())
+        RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = emptyList()).also { group ->
+            group.disposeWith {
+                if (struct.layoutPtr != 0L) {
+                    NativeBindings.waterui_drop_layout(struct.layoutPtr)
+                }
+            }
+        }
     } else {
         // IMPORTANT: All operations using child pointers must happen inside usePointer
         // to prevent use-after-free when NativeAnyViews is closed
@@ -45,6 +52,11 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
             val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
             inflatedChildren.forEach { child ->
                 group.addView(child)
+            }
+            group.disposeWith {
+                if (struct.layoutPtr != 0L) {
+                    NativeBindings.waterui_drop_layout(struct.layoutPtr)
+                }
             }
             group
         }
@@ -69,6 +81,11 @@ private val fixedContainerRenderer = WuiRenderer { context, node, env, registry 
     val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
     inflatedChildren.forEach { child ->
         group.addView(child)
+    }
+    group.disposeWith {
+        if (struct.layoutPtr != 0L) {
+            NativeBindings.waterui_drop_layout(struct.layoutPtr)
+        }
     }
     group
 }

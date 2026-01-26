@@ -131,6 +131,10 @@ public class WaterUIConfig implements InfoMapper {
         
         // Drop callback: void (*)(void*)
         infoMap.put(new Info("void (*)(void*)").pointerTypes("DropCallback"));
+
+        // waterui.h typedefs that share the same signature as DropCallback.
+        // Map them to the generated DropCallback FunctionPointer so WaterUILib.java compiles.
+        infoMap.put(new Info("WuiGpuCallback", "WuiCallback", "WuiExternalDropFn").pointerTypes("DropCallback"));
         
         // Watcher call callbacks for different types
         infoMap.put(new Info("void (*)(void*, bool, struct WuiWatcherMetadata*)").pointerTypes("WatcherCallBool"));

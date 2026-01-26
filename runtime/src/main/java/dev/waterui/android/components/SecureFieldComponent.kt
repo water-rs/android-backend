@@ -91,6 +91,13 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     hintColor.observe { color -> editText.setHintTextColor(color.toColorInt()) }
     hintColor.attachTo(editText)
 
+    // Drop the secure binding when the view is detached.
+    container.disposeWith {
+        if (struct.valuePtr != 0L) {
+            NativeBindings.waterui_drop_binding_secure(struct.valuePtr)
+        }
+    }
+
     container
 }
 

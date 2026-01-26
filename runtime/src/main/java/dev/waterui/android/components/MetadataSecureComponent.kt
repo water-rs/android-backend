@@ -1,6 +1,10 @@
 package dev.waterui.android.components
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.view.View
+import android.view.Window
 import android.view.WindowManager
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
@@ -40,20 +44,22 @@ private val metadataSecureRenderer = WuiRenderer { context, node, env, registry 
 
     // Set FLAG_SECURE when attached to window
     container.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+        private var isApplied = false
+
         override fun onViewAttachedToWindow(v: View) {
-            // Set FLAG_SECURE on the window to prevent screenshots
-            (context as? android.app.Activity)?.window?.addFlags(
-                WindowManager.LayoutParams.FLAG_SECURE
-            )
+            if (isApplied) return
+            findActivity(context)?.let { activity ->
+                incrementSecureFlag(activity.window)
+                isApplied = true
+            }
         }
 
         override fun onViewDetachedFromWindow(v: View) {
-            // Clear FLAG_SECURE when detached
-            // Note: This is simplified - a production implementation would
-            // track all secure views and only clear when none are visible
-            (context as? android.app.Activity)?.window?.clearFlags(
-                WindowManager.LayoutParams.FLAG_SECURE
-            )
+            if (!isApplied) return
+            findActivity(context)?.let { activity ->
+                decrementSecureFlag(activity.window)
+            }
+            isApplied = false
         }
     })
 
@@ -62,4 +68,45 @@ private val metadataSecureRenderer = WuiRenderer { context, node, env, registry 
 
 internal fun RegistryBuilder.registerWuiSecure() {
     registerMetadata({ metadataSecureTypeId }, metadataSecureRenderer)
+}
+
+private fun findActivity(context: Context): Activity? {
+    var ctx: Context? = context
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
+
+private const val TAG_SECURE_REFCOUNT = 0x57554902 // "WUI\x02" as int
+
+/**
+ * FLAG_SECURE is window-scoped; multiple Secure views can coexist.
+ *
+ * Avoid global state by storing a refcount on the Window's decor view tag.
+ * This runs on main thread only (view attach/detach), so no synchronization is needed.
+ */
+private fun incrementSecureFlag(window: Window?) {
+    val w = window ?: return
+    val decor = w.decorView ?: return
+    val current = (decor.getTag(TAG_SECURE_REFCOUNT) as? Int) ?: 0
+    val next = current + 1
+    decor.setTag(TAG_SECURE_REFCOUNT, next)
+    if (current == 0) {
+        w.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+}
+
+private fun decrementSecureFlag(window: Window?) {
+    val w = window ?: return
+    val decor = w.decorView ?: return
+    val current = (decor.getTag(TAG_SECURE_REFCOUNT) as? Int) ?: 0
+    val next = current - 1
+    if (next <= 0) {
+        decor.setTag(TAG_SECURE_REFCOUNT, 0)
+        w.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    } else {
+        decor.setTag(TAG_SECURE_REFCOUNT, next)
+    }
 }

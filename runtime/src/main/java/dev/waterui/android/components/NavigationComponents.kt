@@ -1,18 +1,18 @@
 package dev.waterui.android.components
 
 import android.graphics.Color
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.appcompat.content.res.AppCompatResources
 import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.tabs.TabLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.BarStruct
+import dev.waterui.android.reactive.attachTo
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NavigationControllerCallback
 import dev.waterui.android.runtime.NavigationViewStruct
@@ -24,6 +24,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.toColorInt
 
 // ========== Type IDs ==========
 
@@ -51,76 +52,209 @@ private val tabsTypeId: WuiTypeId by lazy {
 private val navigationStackRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_navigation_stack(node.rawPtr)
 
-    val container = FrameLayout(context).apply {
+    val container = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
     }
 
+    val toolbar = MaterialToolbar(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        // Default Material 3 surface color
+        val surfaceColor = MaterialColors.getColor(
+            context,
+            com.google.android.material.R.attr.colorSurface,
+            Color.WHITE
+        )
+        setBackgroundColor(surfaceColor)
+    }
+
+    val contentHost = FrameLayout(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+    }
+
+    container.addView(toolbar)
+    container.addView(contentHost)
+
     // Clone environment for child views
     val childEnvPtr = NativeBindings.waterui_clone_env(env.raw())
     val childEnv = WuiEnvironment(childEnvPtr)
 
-    // View stack for managing pushed views
-    val viewStack = mutableListOf<View>()
+    data class StackEntry(
+        val id: Long,
+        val view: View,
+        val titleView: View?,
+        val color: WuiComputed<ResolvedColorStruct>?,
+        val hidden: WuiComputed<Boolean>?,
+        val displayMode: Int
+    ) {
+        fun close() {
+            color?.close()
+            hidden?.close()
+        }
+    }
+
+    var nextEntryId = 1L
+    var activeEntryId = 0L
+    var currentTitleView: View? = null
+    val viewStack = mutableListOf<StackEntry>()
+
+    fun setToolbarTitleView(titleView: View?) {
+        currentTitleView?.let { toolbar.removeView(it) }
+        currentTitleView = titleView
+        if (titleView != null) {
+            toolbar.title = ""
+            val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+            toolbar.addView(titleView, lp)
+        }
+    }
+
+    fun applyToolbarForTop() {
+        val top = viewStack.lastOrNull()
+        if (top == null) {
+            toolbar.visibility = View.GONE
+            toolbar.navigationIcon = null
+            toolbar.setNavigationOnClickListener(null)
+            setToolbarTitleView(null)
+            return
+        }
+
+        // If the top entry doesn't provide any navigation chrome, keep the toolbar hidden.
+        if (viewStack.size == 1 && top.titleView == null && top.hidden == null && top.color == null) {
+            toolbar.visibility = View.GONE
+            toolbar.navigationIcon = null
+            toolbar.setNavigationOnClickListener(null)
+            setToolbarTitleView(null)
+            return
+        }
+
+        activeEntryId = top.id
+
+        // Back behavior: delegate to Rust-driven pop to keep a single code path.
+        if (viewStack.size > 1) {
+            toolbar.navigationIcon = AppCompatResources.getDrawable(
+                context,
+                androidx.appcompat.R.drawable.abc_ic_ab_back_material
+            )
+            toolbar.setNavigationOnClickListener {
+                NativeBindings.waterui_navigation_pop(childEnv.raw())
+            }
+        } else {
+            toolbar.navigationIcon = null
+            toolbar.setNavigationOnClickListener(null)
+        }
+
+        setToolbarTitleView(top.titleView)
+
+        // Hidden
+        val hiddenValue = top.hidden?.current() ?: false
+        toolbar.visibility = if (hiddenValue) View.GONE else View.VISIBLE
+
+        // Color (reactive to theme changes via resolved color, not reactive to bar.color changes)
+        top.color?.current()?.let { applyNavBarColor(toolbar, it) }
+    }
+
+    fun inflateTitleView(titlePtr: Long): View? {
+        if (titlePtr == 0L) return null
+        val view = inflateAnyView(context, titlePtr, childEnv, registry)
+        // Let toolbar measure it naturally
+        view.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        return view
+    }
+
+    fun inflateStackEntry(navView: NavigationViewStruct): StackEntry {
+        val entryId = nextEntryId++
+
+        val titleView = inflateTitleView(navView.bar.titlePtr)
+
+        val viewContainer = FrameLayout(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        if (navView.contentPtr != 0L) {
+            val contentView = inflateAnyView(context, navView.contentPtr, childEnv, registry)
+            contentView.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            viewContainer.addView(contentView)
+        }
+
+        var colorComputed: WuiComputed<ResolvedColorStruct>? = null
+        if (navView.bar.colorPtr != 0L) {
+            val colorPtr = NativeBindings.waterui_read_computed_color(navView.bar.colorPtr)
+            if (colorPtr != 0L) {
+                colorComputed = WuiComputed.resolvedColor(colorPtr, childEnv)
+                NativeBindings.waterui_drop_color(colorPtr)
+            }
+            NativeBindings.waterui_drop_computed_color(navView.bar.colorPtr)
+        }
+
+        var hiddenComputed: WuiComputed<Boolean>? = null
+        if (navView.bar.hiddenPtr != 0L) {
+            hiddenComputed = WuiComputed.bool(navView.bar.hiddenPtr, childEnv)
+        }
+
+        return StackEntry(
+            id = entryId,
+            view = viewContainer,
+            titleView = titleView,
+            color = colorComputed,
+            hidden = hiddenComputed,
+            displayMode = navView.bar.displayMode
+        )
+    }
 
     // Create navigation controller callback
     val callback = object : NavigationControllerCallback {
         override fun onPush(navView: NavigationViewStruct) {
-            container.post {
+            contentHost.post {
                 // Hide current view
-                viewStack.lastOrNull()?.visibility = View.GONE
+                viewStack.lastOrNull()?.view?.visibility = View.GONE
 
-                // Extract title
-                var titleString = ""
-                if (navView.bar.titleContentPtr != 0L) {
-                    val styledStr = NativeBindings.waterui_read_computed_styled_str(navView.bar.titleContentPtr)
-                    titleString = styledStr.chunks.joinToString("") { it.text }
+                val entry = inflateStackEntry(navView)
+                val entryView = entry.view
+
+                // Keep offscreen for slide-in.
+                entryView.translationX = contentHost.width.toFloat()
+                contentHost.addView(entryView)
+                viewStack.add(entry)
+
+                // Only the top entry should drive toolbar updates.
+                entry.hidden?.observe { hidden ->
+                    if (entry.id == activeEntryId) {
+                        toolbar.visibility = if (hidden) View.GONE else View.VISIBLE
+                    }
+                }
+                entry.color?.observe { color ->
+                    if (entry.id == activeEntryId) {
+                        applyNavBarColor(toolbar, color)
+                    }
                 }
 
-                // Create navigation view layout
-                val navViewContainer = LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
+                applyToolbarForTop()
 
-                // Add navigation bar with back button
-                val navBar = createNavBarWithBackButton(context, titleString) {
-                    // Back button clicked - call pop
-                    onPop()
-                }
-                navViewContainer.addView(navBar)
-
-                // Content area
-                val contentContainer = FrameLayout(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        0,
-                        1f
-                    )
-                }
-
-                if (navView.contentPtr != 0L) {
-                    val contentView = inflateAnyView(context, navView.contentPtr, childEnv, registry)
-                    contentView.layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                    contentContainer.addView(contentView)
-                }
-
-                navViewContainer.addView(contentContainer)
-
-                // Animate in
-                navViewContainer.translationX = container.width.toFloat()
-                container.addView(navViewContainer)
-                viewStack.add(navViewContainer)
-
-                navViewContainer.animate()
+                entryView.animate()
                     .translationX(0f)
                     .setDuration(250)
                     .start()
@@ -128,22 +262,25 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
         }
 
         override fun onPop() {
-            container.post {
+            contentHost.post {
                 if (viewStack.size <= 1) return@post
 
-                val currentView = viewStack.removeLastOrNull() ?: return@post
+                val current = viewStack.removeLastOrNull() ?: return@post
+                val currentView = current.view
 
                 // Animate out
                 currentView.animate()
-                    .translationX(container.width.toFloat())
+                    .translationX(contentHost.width.toFloat())
                     .setDuration(250)
                     .withEndAction {
-                        container.removeView(currentView)
+                        contentHost.removeView(currentView)
+                        current.close()
                     }
                     .start()
 
                 // Show previous view
-                viewStack.lastOrNull()?.visibility = View.VISIBLE
+                viewStack.lastOrNull()?.view?.visibility = View.VISIBLE
+                applyToolbarForTop()
             }
         }
     }
@@ -154,50 +291,53 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
 
     // Render root view with child environment
     if (struct.rootPtr != 0L) {
-        val rootView = inflateAnyView(context, struct.rootPtr, childEnv, registry)
-        rootView.layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        container.addView(rootView)
-        viewStack.add(rootView)
+        val rootTypeId = NativeBindings.waterui_view_id(struct.rootPtr).toTypeId()
+        if (rootTypeId == navigationViewTypeId) {
+            val navView = NativeBindings.waterui_force_as_navigation_view(struct.rootPtr)
+            val entry = inflateStackEntry(navView)
+            contentHost.addView(entry.view)
+            viewStack.add(entry)
+
+            // Initial toolbar wiring
+            entry.hidden?.observe { hidden ->
+                if (entry.id == activeEntryId) {
+                    toolbar.visibility = if (hidden) View.GONE else View.VISIBLE
+                }
+            }
+            entry.color?.observe { color ->
+                if (entry.id == activeEntryId) {
+                    applyNavBarColor(toolbar, color)
+                }
+            }
+            applyToolbarForTop()
+        } else {
+            val rootView = inflateAnyView(context, struct.rootPtr, childEnv, registry)
+            rootView.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            contentHost.addView(rootView)
+            viewStack.add(
+                StackEntry(
+                    id = 0L,
+                    view = rootView,
+                    titleView = null,
+                    color = null,
+                    hidden = null,
+                    displayMode = 0
+                )
+            )
+            applyToolbarForTop()
+        }
     }
 
     // Cleanup
     container.disposeWith {
+        viewStack.forEach { it.close() }
         NativeBindings.waterui_env_drop(childEnvPtr)
     }
 
     container
-}
-
-private fun createNavBarWithBackButton(
-    context: android.content.Context,
-    title: String,
-    onBackClick: () -> Unit
-): MaterialToolbar {
-    return MaterialToolbar(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        this.title = title
-        
-        // Use Material back arrow icon
-        navigationIcon = AppCompatResources.getDrawable(
-            context, 
-            androidx.appcompat.R.drawable.abc_ic_ab_back_material
-        )
-        setNavigationOnClickListener { onBackClick() }
-        
-        // Apply Material 3 surface color
-        val surfaceColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorSurface,
-            Color.WHITE
-        )
-        setBackgroundColor(surfaceColor)
-    }
 }
 
 // ========== NavigationView Renderer ==========
@@ -212,6 +352,16 @@ private fun createNavBarWithBackButton(
 private val navigationViewRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_navigation_view(node.rawPtr)
 
+    // If a navigation controller is installed in the environment, the surrounding
+    // NavigationStack owns the chrome; render content only.
+    if (NativeBindings.waterui_env_has_navigation_controller(env.raw())) {
+        return@WuiRenderer if (struct.contentPtr != 0L) {
+            inflateAnyView(context, struct.contentPtr, env, registry)
+        } else {
+            FrameLayout(context)
+        }
+    }
+
     // Create vertical layout: nav bar at top, content below
     val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -221,12 +371,37 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
         )
     }
 
-    // Create navigation bar
-    val navBar = createNavBar(context, struct.bar.titleContentPtr, env)
+    val navBar = MaterialToolbar(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        // Default Material 3 surface color
+        val surfaceColor = MaterialColors.getColor(
+            context,
+            com.google.android.material.R.attr.colorSurface,
+            Color.WHITE
+        )
+        setBackgroundColor(surfaceColor)
+
+        // Title view (AnyView)
+        if (struct.bar.titlePtr != 0L) {
+            val titleView = inflateAnyView(context, struct.bar.titlePtr, env, registry)
+            val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+            title = ""
+            addView(titleView, lp)
+        }
+    }
     container.addView(navBar)
 
     // Reactive watchers
     var colorComputed: WuiComputed<ResolvedColorStruct>? = null
+    var hiddenComputed: WuiComputed<Boolean>? = null
 
     // Setup bar color watcher
     if (struct.bar.colorPtr != 0L) {
@@ -238,10 +413,16 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
             }
             NativeBindings.waterui_drop_color(colorPtr)
         }
+        NativeBindings.waterui_drop_computed_color(struct.bar.colorPtr)
     }
 
-    // Note: bar.hidden is Computed<bool> but we don't have JNI support for computed bool yet
-    // For now, skip hidden state reactivity - nav bar is always visible
+    // Setup bar hidden watcher
+    if (struct.bar.hiddenPtr != 0L) {
+        hiddenComputed = WuiComputed.bool(struct.bar.hiddenPtr, env)
+        hiddenComputed?.observe { hidden ->
+            navBar.visibility = if (hidden) View.GONE else View.VISIBLE
+        }
+    }
 
     // Content area
     val contentContainer = FrameLayout(context).apply {
@@ -266,33 +447,10 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
     // Cleanup
     container.disposeWith {
         colorComputed?.close()
+        hiddenComputed?.close()
     }
 
     container
-}
-
-@Suppress("UNUSED_PARAMETER")
-private fun createNavBar(context: android.content.Context, titleContentPtr: Long, env: WuiEnvironment): MaterialToolbar {
-    return MaterialToolbar(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        
-        // Read title from Computed<StyledStr>
-        if (titleContentPtr != 0L) {
-            val styledStr = NativeBindings.waterui_read_computed_styled_str(titleContentPtr)
-            title = styledStr.chunks.joinToString("") { it.text }
-        }
-        
-        // Apply Material 3 surface color
-        val surfaceColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorSurface,
-            Color.WHITE
-        )
-        setBackgroundColor(surfaceColor)
-    }
 }
 
 private fun applyNavBarColor(navBar: View, color: ResolvedColorStruct) {
@@ -383,8 +541,12 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
             // Add tabs
             struct.tabs.forEachIndexed { index, tab ->
                 val tabItem = tabLayout.newTab().apply {
-                    text = "Tab ${index + 1}"
                     tag = tab.id
+                    if (tab.labelPtr == 0L) {
+                        error("Tabs: tab labelPtr is null (id=${tab.id})")
+                    }
+                    val labelView = inflateAnyView(context, tab.labelPtr, env, registry)
+                    customView = labelView
                 }
                 tabLayout.addTab(tabItem)
             }
@@ -427,48 +589,58 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
         }
 
         TabPosition.BOTTOM -> {
-            // BottomNavigationView at bottom
-            val bottomNav = BottomNavigationView(context).apply {
+            // Use TabLayout at bottom as well to avoid forcing string-only labels.
+            val tabLayout = TabLayout(context).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+                tabMode = TabLayout.MODE_FIXED
+                tabGravity = TabLayout.GRAVITY_FILL
             }
 
-            // Add menu items programmatically
             struct.tabs.forEachIndexed { index, tab ->
-                bottomNav.menu.add(0, tab.id.toInt(), index, "Tab ${index + 1}")
+                val tabItem = tabLayout.newTab().apply {
+                    tag = tab.id
+                    if (tab.labelPtr == 0L) {
+                        error("Tabs: tab labelPtr is null (id=${tab.id})")
+                    }
+                    val labelView = inflateAnyView(context, tab.labelPtr, env, registry)
+                    customView = labelView
+                }
+                tabLayout.addTab(tabItem)
             }
 
-            // Handle navigation selection
-            bottomNav.setOnItemSelectedListener { menuItem ->
-                val index = struct.tabs.indexOfFirst { it.id.toInt() == menuItem.itemId }
-                if (index >= 0) {
-                    showTab(index)
-                    // Update binding
-                    if (selectionBinding?.current() != menuItem.itemId) {
-                        selectionBinding?.set(menuItem.itemId)
+            tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+                override fun onTabSelected(tab: TabLayout.Tab?) {
+                    tab?.let {
+                        val index = it.position
+                        showTab(index)
+                        val tabId = struct.tabs.getOrNull(index)?.id?.toInt() ?: return
+                        if (selectionBinding?.current() != tabId) {
+                            selectionBinding?.set(tabId)
+                        }
                     }
                 }
-                true
-            }
+                override fun onTabUnselected(tab: TabLayout.Tab?) {}
+                override fun onTabReselected(tab: TabLayout.Tab?) {}
+            })
 
-            // Watch for selection changes from binding
             selectionBinding?.observe { selectedId ->
-                if (bottomNav.selectedItemId != selectedId) {
-                    bottomNav.selectedItemId = selectedId
+                val index = struct.tabs.indexOfFirst { it.id.toInt() == selectedId }
+                if (index >= 0 && tabLayout.selectedTabPosition != index) {
+                    tabLayout.getTabAt(index)?.select()
                 }
             }
 
-            // Layout: content at top, tab bar at bottom
             container.addView(contentContainer)
-            container.addView(bottomNav)
+            container.addView(tabLayout)
 
-            // Show initial tab
-            val initialId = selectionBinding?.current() ?: struct.tabs.firstOrNull()?.id?.toInt() ?: 0
-            val initialIndex = struct.tabs.indexOfFirst { it.id.toInt() == initialId }.takeIf { it >= 0 } ?: 0
+            val initialIndex = struct.tabs.indexOfFirst {
+                it.id.toInt() == (selectionBinding?.current() ?: 0)
+            }.takeIf { it >= 0 } ?: 0
             showTab(initialIndex)
-            bottomNav.selectedItemId = struct.tabs.getOrNull(initialIndex)?.id?.toInt() ?: 0
+            tabLayout.getTabAt(initialIndex)?.select()
         }
     }
 
@@ -499,8 +671,29 @@ private fun inflateTabContent(
     }
 
     // Create navigation bar if title is provided
-    if (navViewStruct.bar.titleContentPtr != 0L) {
-        val navBar = createNavBar(context, navViewStruct.bar.titleContentPtr, env)
+    if (navViewStruct.bar.titlePtr != 0L) {
+        val navBar = MaterialToolbar(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+
+            val surfaceColor = MaterialColors.getColor(
+                context,
+                com.google.android.material.R.attr.colorSurface,
+                Color.WHITE
+            )
+            setBackgroundColor(surfaceColor)
+
+            val titleView = inflateAnyView(context, navViewStruct.bar.titlePtr, env, registry)
+            val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+            title = ""
+            addView(titleView, lp)
+        }
         container.addView(navBar)
     }
 

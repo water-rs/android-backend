@@ -3,11 +3,14 @@ package dev.waterui.android.components
 import android.graphics.BitmapFactory
 import android.view.ViewGroup
 import android.widget.ImageView
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.LivePhotoSourceStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.dp
+import dev.waterui.android.runtime.disposeWith
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,6 +29,8 @@ private val photoTypeId: WuiTypeId by lazy { NativeBindings.waterui_photo_id().t
 private val photoRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_photo(node.rawPtr)
 
+    var sourceComputed: WuiComputed<LivePhotoSourceStruct>? = null
+
     val imageView = object : ImageView(context) {
         private var loadJob: Job? = null
         private val defaultSizePx: Int = 200f.dp(context).toInt()
@@ -37,8 +42,14 @@ private val photoRenderer = WuiRenderer { context, node, env, registry ->
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
 
-            // Start loading the image
-            loadImage(struct.source)
+            // Watch live photo source and render its image URL.
+            if (struct.sourcePtr != 0L) {
+                sourceComputed = WuiComputed.livePhotoSource(struct.sourcePtr, env).also { computed ->
+                    computed.observe { source ->
+                        loadImage(source.image)
+                    }
+                }
+            }
         }
 
         private fun loadImage(url: String) {
@@ -89,6 +100,11 @@ private val photoRenderer = WuiRenderer { context, node, env, registry ->
 
             setMeasuredDimension(measuredWidth, measuredHeight)
         }
+    }
+
+    imageView.disposeWith {
+        sourceComputed?.close()
+        sourceComputed = null
     }
 
     imageView

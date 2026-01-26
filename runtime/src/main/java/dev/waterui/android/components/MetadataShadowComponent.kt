@@ -1,6 +1,5 @@
 package dev.waterui.android.components
 
-import android.graphics.Color
 import android.os.Build
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
@@ -11,6 +10,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.toColorInt
 
 private val metadataShadowTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_metadata_shadow_id().toTypeId()
@@ -38,12 +38,7 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
     // Resolve the shadow color
     if (metadata.colorPtr != 0L) {
         val resolvedColor = NativeBindings.waterui_read_computed_resolved_color(metadata.colorPtr)
-        val shadowColor = Color.argb(
-            (resolvedColor.opacity * 255).toInt(),
-            (resolvedColor.red * 255).toInt(),
-            (resolvedColor.green * 255).toInt(),
-            (resolvedColor.blue * 255).toInt()
-        )
+        val shadowColor = resolvedColor.toColorInt()
 
         // Apply shadow using elevation
         // The radius approximates the elevation needed

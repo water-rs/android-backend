@@ -105,7 +105,8 @@ class ReactiveFontSignal(
         return computedPtr
     }
     
-    fun setValue(size: Float, weight: Int = 400) {
+    // Weight is the WuiFontWeight enum index (0..8), not an Android weight value.
+    fun setValue(size: Float, weight: Int = 3) {
         NativeBindings.waterui_reactive_font_state_set(statePtr, size, weight)
     }
     

@@ -1,7 +1,6 @@
 package dev.waterui.android.components
 
 import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.view.Gravity
 import android.widget.LinearLayout
 import com.google.android.material.button.MaterialButton
@@ -59,8 +58,6 @@ private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
 
     // Format helpers
     val dateFormat = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-    val dateTimeFormat = SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault())
 
     fun formatDate(date: DateStruct): String {
         val calendar = Calendar.getInstance().apply {
@@ -68,13 +65,9 @@ private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
             set(Calendar.MONTH, date.month - 1)
             set(Calendar.DAY_OF_MONTH, date.day)
         }
-        return when (pickerType) {
-            DatePickerType.DATE -> dateFormat.format(calendar.time)
-            DatePickerType.HOUR_AND_MINUTE,
-            DatePickerType.HOUR_MINUTE_AND_SECOND -> timeFormat.format(calendar.time)
-            DatePickerType.DATE_HOUR_AND_MINUTE,
-            DatePickerType.DATE_HOUR_MINUTE_AND_SECOND -> dateTimeFormat.format(calendar.time)
-        }
+        // Android backend currently only supports date (year/month/day). Time-based picker
+        // variants in the FFI are treated as date-only.
+        return dateFormat.format(calendar.time)
     }
 
     fun updateButtonText() {
@@ -96,7 +89,11 @@ private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
         }
 
         when (pickerType) {
-            DatePickerType.DATE -> {
+            DatePickerType.DATE,
+            DatePickerType.HOUR_AND_MINUTE,
+            DatePickerType.HOUR_MINUTE_AND_SECOND,
+            DatePickerType.DATE_HOUR_AND_MINUTE,
+            DatePickerType.DATE_HOUR_MINUTE_AND_SECOND -> {
                 DatePickerDialog(
                     context,
                     { _, year, month, dayOfMonth ->
@@ -107,55 +104,6 @@ private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
                     calendar.get(Calendar.DAY_OF_MONTH)
                 ).apply {
                     // Set min/max dates
-                    val minCal = Calendar.getInstance().apply {
-                        set(Calendar.YEAR, range.start.year)
-                        set(Calendar.MONTH, range.start.month - 1)
-                        set(Calendar.DAY_OF_MONTH, range.start.day)
-                    }
-                    val maxCal = Calendar.getInstance().apply {
-                        set(Calendar.YEAR, range.end.year)
-                        set(Calendar.MONTH, range.end.month - 1)
-                        set(Calendar.DAY_OF_MONTH, range.end.day)
-                    }
-                    datePicker.minDate = minCal.timeInMillis
-                    datePicker.maxDate = maxCal.timeInMillis
-                }.show()
-            }
-            DatePickerType.HOUR_AND_MINUTE,
-            DatePickerType.HOUR_MINUTE_AND_SECOND -> {
-                TimePickerDialog(
-                    context,
-                    { _, hourOfDay, minute ->
-                        // Time-only mode: keep current date, update time
-                        val curDate = binding.current()
-                        binding.set(DateStruct(curDate.year, curDate.month, curDate.day))
-                    },
-                    calendar.get(Calendar.HOUR_OF_DAY),
-                    calendar.get(Calendar.MINUTE),
-                    false
-                ).show()
-            }
-            DatePickerType.DATE_HOUR_AND_MINUTE,
-            DatePickerType.DATE_HOUR_MINUTE_AND_SECOND -> {
-                // Show date picker first, then time picker
-                DatePickerDialog(
-                    context,
-                    { _, year, month, dayOfMonth ->
-                        // After date is selected, show time picker
-                        TimePickerDialog(
-                            context,
-                            { _, hourOfDay, minute ->
-                                binding.set(DateStruct(year, month + 1, dayOfMonth))
-                            },
-                            calendar.get(Calendar.HOUR_OF_DAY),
-                            calendar.get(Calendar.MINUTE),
-                            false
-                        ).show()
-                    },
-                    calendar.get(Calendar.YEAR),
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                ).apply {
                     val minCal = Calendar.getInstance().apply {
                         set(Calendar.YEAR, range.start.year)
                         set(Calendar.MONTH, range.start.month - 1)

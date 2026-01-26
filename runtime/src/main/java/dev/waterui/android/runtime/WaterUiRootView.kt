@@ -169,7 +169,7 @@ class WaterUiRootView @JvmOverloads constructor(
         // Also install media picker manager, webview controller, and view renderer
         NativeBindings.waterui_env_install_media_picker_manager(initEnvPtr)
         NativeBindings.waterui_env_install_webview_controller(initEnvPtr)
-        NativeBindings.waterui_env_install_view_renderer(initEnvPtr)
+        NativeBindings.waterui_env_install_window_manager(initEnvPtr)
 
         // Step 3: Call waterui_app() - this TAKES OWNERSHIP of the init env
         // After this call, initEnvPtr is invalid and we must use app.envPtr
@@ -180,6 +180,7 @@ class WaterUiRootView @JvmOverloads constructor(
         // Step 4: Store the app and create a borrowed view of the returned environment
         app = appStruct
         renderEnv = WuiEnvironment.borrowed(appStruct.envPtr)
+        WindowManager.attachHost(this, appStruct.envPtr)
 
         setBackgroundColor(palette.background)
         android.util.Log.d(TAG, "initializeApp: done")
@@ -234,6 +235,7 @@ class WaterUiRootView @JvmOverloads constructor(
 
         // Watch background color from the render environment
         ensureBackground(env)
+        WindowManager.attachHost(this, appStruct.envPtr)
 
         // Extract main window content
         val mainWindow = appStruct.mainWindow()

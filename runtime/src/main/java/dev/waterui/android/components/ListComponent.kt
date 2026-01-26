@@ -37,35 +37,12 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
         )
     }
 
-    // Load items from WuiAnyViews
-    val items = mutableListOf<ListItemData>()
     val contentsPtr = struct.contentsPtr
-    if (contentsPtr != 0L) {
-        val count = NativeBindings.waterui_any_views_len(contentsPtr)
-        for (i in 0 until count) {
-            val id = NativeBindings.waterui_any_views_get_id(contentsPtr, i)
-            val viewPtr = NativeBindings.waterui_any_views_get_view(contentsPtr, i)
-            if (viewPtr != 0L) {
-                // Get the ListItem and extract its content
-                val listItem = NativeBindings.waterui_force_as_list_item(viewPtr)
-
-                // Create deletable computed if pointer exists
-                val deletableComputed = if (listItem.deletablePtr != 0L) {
-                    WuiComputedBool(listItem.deletablePtr)
-                } else null
-
-                items.add(ListItemData(id, listItem.contentPtr, deletableComputed))
-            }
-        }
-    }
-
-    val adapter = WuiListAdapter(context, items, env, registry)
+    val adapter = WuiListAdapter(context, contentsPtr, env, registry)
     recyclerView.adapter = adapter
 
     // Setup editing state watcher if provided
-    val editingComputed = if (struct.editingPtr != 0L) {
-        WuiComputedBool(struct.editingPtr)
-    } else null
+    val editingComputed = struct.editingPtr.takeIf { it != 0L }?.let { WuiComputedBool(it) }
 
     // Setup ItemTouchHelper for swipe-to-delete and drag-to-reorder
     val onDeletePtr = struct.onDeletePtr
@@ -83,13 +60,12 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
             ): Boolean {
                 if (onMovePtr == 0L) return false
 
-                val fromPosition = viewHolder.adapterPosition
-                val toPosition = target.adapterPosition
+                val fromPosition = viewHolder.bindingAdapterPosition
+                val toPosition = target.bindingAdapterPosition
+                if (fromPosition == RecyclerView.NO_POSITION || toPosition == RecyclerView.NO_POSITION) return false
 
-                // Update local list
-                val item = items.removeAt(fromPosition)
-                items.add(toPosition, item)
-                adapter.notifyItemMoved(fromPosition, toPosition)
+                // Update local order immediately for smooth UI.
+                adapter.move(fromPosition, toPosition)
 
                 // Call Rust callback
                 NativeBindings.waterui_call_move_action(
@@ -105,11 +81,11 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 if (onDeletePtr == 0L) return
 
-                val position = viewHolder.adapterPosition
-                val item = items[position]
+                val position = viewHolder.bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return
 
                 // Check if item is deletable
-                val isDeletable = item.deletable?.value ?: true
+                val isDeletable = adapter.isDeletable(position)
                 if (!isDeletable) {
                     // Restore the item if not deletable
                     adapter.notifyItemChanged(position)
@@ -117,8 +93,7 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
                 }
 
                 // Remove from local list
-                items.removeAt(position)
-                adapter.notifyItemRemoved(position)
+                adapter.removeAt(position)
 
                 // Call Rust callback
                 NativeBindings.waterui_call_index_action(
@@ -134,11 +109,10 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
             ): Int {
                 if (onDeletePtr == 0L) return 0
 
-                val position = viewHolder.adapterPosition
-                if (position < 0 || position >= items.size) return 0
+                val position = viewHolder.bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return 0
 
-                val item = items[position]
-                val isDeletable = item.deletable?.value ?: true
+                val isDeletable = adapter.isDeletable(position)
                 return if (isDeletable) super.getSwipeDirs(recyclerView, viewHolder) else 0
             }
 
@@ -191,18 +165,12 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
         if (contentsPtr != 0L) {
             NativeBindings.waterui_drop_any_views(contentsPtr)
         }
-        if (struct.editingPtr != 0L) {
-            NativeBindings.waterui_drop_binding_bool(struct.editingPtr)
-        }
+        editingComputed?.dispose()
         if (onDeletePtr != 0L) {
             NativeBindings.waterui_drop_index_action(onDeletePtr)
         }
         if (onMovePtr != 0L) {
             NativeBindings.waterui_drop_move_action(onMovePtr)
-        }
-        // Drop deletable computeds
-        items.forEach { item ->
-            item.deletable?.dispose()
         }
     }
 
@@ -210,25 +178,70 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
 }
 
 /**
- * Data for a single list item.
- */
-private data class ListItemData(
-    val id: Int,
-    val contentPtr: Long,
-    val deletable: WuiComputedBool?
-)
-
-/**
  * RecyclerView adapter for WaterUI List.
  */
 private class WuiListAdapter(
     private val context: Context,
-    private val items: MutableList<ListItemData>,
+    private val contentsPtr: Long,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
 ) : RecyclerView.Adapter<WuiListAdapter.ViewHolder>() {
 
     class ViewHolder(val container: FrameLayout) : RecyclerView.ViewHolder(container)
+
+    // A local order mapping so we can reflect drag/delete immediately without
+    // caching AnyView pointers (AnyView is single-consume).
+    private val order: MutableList<Int> = mutableListOf()
+
+    init {
+        setHasStableIds(true)
+        reload()
+    }
+
+    fun reload() {
+        order.clear()
+        if (contentsPtr == 0L) return
+        val count = NativeBindings.waterui_any_views_len(contentsPtr)
+        for (i in 0 until count) {
+            order.add(i)
+        }
+        notifyDataSetChanged()
+    }
+
+    fun move(fromPosition: Int, toPosition: Int) {
+        if (fromPosition == toPosition) return
+        if (fromPosition !in order.indices || toPosition !in order.indices) return
+        val item = order.removeAt(fromPosition)
+        order.add(toPosition, item)
+        notifyItemMoved(fromPosition, toPosition)
+    }
+
+    fun removeAt(position: Int) {
+        if (position !in order.indices) return
+        order.removeAt(position)
+        notifyItemRemoved(position)
+    }
+
+    private fun underlyingIndex(position: Int): Int? =
+        order.getOrNull(position)
+
+    fun isDeletable(position: Int): Boolean {
+        val idx = underlyingIndex(position) ?: return true
+        if (contentsPtr == 0L) return true
+
+        val viewPtr = NativeBindings.waterui_any_views_get_view(contentsPtr, idx)
+        if (viewPtr == 0L) return true
+
+        val listItem = NativeBindings.waterui_force_as_list_item(viewPtr)
+        val deletablePtr = listItem.deletablePtr
+        if (deletablePtr == 0L) return true
+
+        return try {
+            NativeBindings.waterui_read_computed_bool(deletablePtr)
+        } finally {
+            NativeBindings.waterui_drop_computed_bool(deletablePtr)
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val container = FrameLayout(context).apply {
@@ -241,21 +254,41 @@ private class WuiListAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val item = items[position]
         holder.container.removeAllViews()
 
-        if (item.contentPtr != 0L) {
-            val contentView = inflateAnyView(context, item.contentPtr, env, registry)
-            holder.container.addView(contentView, ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ))
+        val idx = underlyingIndex(position) ?: return
+        if (contentsPtr == 0L) return
+
+        // AnyView is single-consume: fetch a fresh ListItem AnyView each bind.
+        val viewPtr = NativeBindings.waterui_any_views_get_view(contentsPtr, idx)
+        if (viewPtr == 0L) return
+
+        val listItem = NativeBindings.waterui_force_as_list_item(viewPtr)
+        val contentPtr = listItem.contentPtr
+        if (contentPtr != 0L) {
+            val contentView = inflateAnyView(context, contentPtr, env, registry)
+            holder.container.addView(
+                contentView,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+
+        // Drop item-level computeds we didn't install watchers for.
+        if (listItem.deletablePtr != 0L) {
+            NativeBindings.waterui_drop_computed_bool(listItem.deletablePtr)
         }
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = order.size
 
-    override fun getItemId(position: Int): Long = items[position].id.toLong()
+    override fun getItemId(position: Int): Long {
+        val idx = underlyingIndex(position) ?: return RecyclerView.NO_ID
+        if (contentsPtr == 0L) return RecyclerView.NO_ID
+        return NativeBindings.waterui_any_views_get_id(contentsPtr, idx).toLong()
+    }
 }
 
 /**

@@ -11,7 +11,7 @@ class WuiComputedBool(computedPtr: Long) : NativePointer(computedPtr) {
 
     /** Current value of the computed bool */
     val value: Boolean
-        get() = if (isReleased) false else WatcherJni.readBindingBool(raw())
+        get() = if (isReleased) false else WatcherJni.readComputedBool(raw())
 
     /** Dispose and release the native pointer */
     fun dispose() {
@@ -19,6 +19,6 @@ class WuiComputedBool(computedPtr: Long) : NativePointer(computedPtr) {
     }
 
     override fun release(ptr: Long) {
-        WatcherJni.dropBindingBool(ptr)
+        WatcherJni.dropComputedBool(ptr)
     }
 }
