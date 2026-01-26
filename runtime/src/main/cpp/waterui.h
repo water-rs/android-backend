@@ -2959,6 +2959,26 @@ typedef struct WuiJsCallback {
 } WuiJsCallback;
 
 /**
+ * Message payload emitted from JavaScript to a native-registered handler.
+ *
+ * `payload_base64` is base64-encoded bytes from JavaScript.
+ * `reply` must be called exactly once for request/response semantics.
+ */
+typedef struct WuiWebViewMessage {
+  struct WuiStr payload_base64;
+  struct WuiJsCallback reply;
+} WuiWebViewMessage;
+
+/**
+ * A C-compatible function wrapper for WebView messages.
+ */
+typedef struct WuiFn_WuiWebViewMessage {
+  void *data;
+  void (*call)(const void*, struct WuiWebViewMessage);
+  void (*drop)(void*);
+} WuiFn_WuiWebViewMessage;
+
+/**
  * FFI representation of a WebView handle with function pointers.
  *
  * Native backends create this struct with function pointers to their implementation.
@@ -3012,6 +3032,22 @@ typedef struct WuiWebViewHandle {
    * Set event callback. Native calls this when events occur.
    */
   void (*watch)(void*, struct WuiFn_WuiWebViewEvent);
+  /**
+   * Register a named handler that can be called from JavaScript.
+   */
+  void (*add_handler)(void*, struct WuiStr, struct WuiFn_WuiWebViewMessage);
+  /**
+   * Removes a previously added handler.
+   */
+  void (*remove_handler)(void*, struct WuiStr);
+  /**
+   * Sets a cookie for the web view. The string is a Set-Cookie header value.
+   */
+  void (*set_cookie)(void*, struct WuiStr);
+  /**
+   * Gets cookies as newline-separated Set-Cookie strings.
+   */
+  struct WuiStr (*get_cookies)(const void*);
   /**
    * Execute JavaScript on the currently loaded page and call callback with result.
    */

@@ -21,8 +21,8 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import java.lang.ref.WeakReference
-import java.nio.charset.StandardCharsets
 import org.json.JSONTokener
+import org.json.JSONObject
 
 /**
  * WebView event types matching WuiWebViewEventType in FFI.
@@ -151,9 +151,12 @@ class WebViewWrapper(context: Context) {
 
     private var eventCallback: WebViewEventCallback? = null
     private val injectedScripts = mutableListOf<Pair<String, ScriptInjectionTime>>()
-    private val jsHandlers = mutableMapOf<String, (ByteArray) -> ByteArray>()
+    private val installedHandlers = mutableSetOf<String>()
     private var redirectsEnabled = true
     private var currentUrl: String = ""
+    @Volatile private var cachedCanGoBack: Boolean = false
+    @Volatile private var cachedCanGoForward: Boolean = false
+    @Volatile private var cachedCookies: String = ""
 
     init {
         setupWebViewClient()
@@ -192,9 +195,9 @@ class WebViewWrapper(context: Context) {
 
     // ========== State Queries ==========
 
-    fun canGoBack(): Boolean = webView.canGoBack()
+    fun canGoBack(): Boolean = cachedCanGoBack
 
-    fun canGoForward(): Boolean = webView.canGoForward()
+    fun canGoForward(): Boolean = cachedCanGoForward
 
     // ========== Configuration ==========
 
@@ -241,8 +244,8 @@ class WebViewWrapper(context: Context) {
             url2,
             message,
             progress,
-            webView.canGoBack(),
-            webView.canGoForward()
+            cachedCanGoBack,
+            cachedCanGoForward
         )
     }
 
@@ -253,9 +256,15 @@ class WebViewWrapper(context: Context) {
             "",
             "",
             0f,
-            webView.canGoBack(),
-            webView.canGoForward()
+            cachedCanGoBack,
+            cachedCanGoForward
         )
+    }
+
+    private fun updateNavigationState() {
+        // Must be called on the UI thread.
+        cachedCanGoBack = webView.canGoBack()
+        cachedCanGoForward = webView.canGoForward()
     }
 
     // ========== JavaScript Execution ==========
@@ -280,26 +289,118 @@ class WebViewWrapper(context: Context) {
 
     // ========== JS-to-Native Handlers ==========
 
-    fun addHandler(name: String, handler: (ByteArray) -> ByteArray) {
+    fun addHandler(name: String, nativePtr: Long) {
         runOnUiThread {
-            jsHandlers[name] = handler
+            if (!installedHandlers.add(name)) {
+                return@runOnUiThread
+            }
 
-            // Add JavaScript interface
+            ensureBridgeInjected()
+            injectScript(handlerScript(name), ScriptInjectionTime.DOCUMENT_START)
+
+            val nativeName = "__waterui_native_$name"
             webView.addJavascriptInterface(object {
                 @JavascriptInterface
-                fun postMessage(data: String) {
-                    val inputBytes = data.toByteArray(StandardCharsets.UTF_8)
-                    val resultBytes = handler(inputBytes)
-                    // Note: Sending response back to JS requires additional work
+                fun postMessage(payloadBase64: String, requestId: String) {
+                    nativeOnMessage(nativePtr, name, requestId, payloadBase64)
                 }
-            }, name)
+            }, nativeName)
         }
     }
 
     fun removeHandler(name: String) {
         runOnUiThread {
-            jsHandlers.remove(name)
-            webView.removeJavascriptInterface(name)
+            if (!installedHandlers.remove(name)) {
+                return@runOnUiThread
+            }
+            webView.removeJavascriptInterface("__waterui_native_$name")
+        }
+    }
+
+    // ========== Cookies ==========
+
+    fun setCookie(setCookieHeaderValue: String) {
+        runOnUiThread {
+            val url = if (currentUrl.isNotBlank()) currentUrl else "https://localhost/"
+            android.webkit.CookieManager.getInstance().setCookie(url, setCookieHeaderValue)
+            refreshCookieCache()
+        }
+    }
+
+    fun getCookies(): String = cachedCookies
+
+    private fun refreshCookieCache() {
+        val url = if (currentUrl.isNotBlank()) currentUrl else "https://localhost/"
+        val header = android.webkit.CookieManager.getInstance().getCookie(url) ?: ""
+        cachedCookies = header
+            .split(";")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("\n")
+    }
+
+    // ========== JS Bridge Injection ==========
+
+    private fun ensureBridgeInjected() {
+        val already = injectedScripts.any { it.first.contains("window.__wateruiResolve") }
+        if (already) return
+        injectScript(
+            """
+            (function(){
+              if (window.__waterui) { return; }
+              function toBase64Utf8(s){ return btoa(unescape(encodeURIComponent(s))); }
+              function fromBase64Utf8(b64){ return decodeURIComponent(escape(atob(b64))); }
+              window.__waterui = { pending: Object.create(null), toBase64Utf8: toBase64Utf8, fromBase64Utf8: fromBase64Utf8 };
+              window.__wateruiResolve = function(id, ok, payload){
+                var p = window.__waterui.pending[id];
+                if (!p) { return; }
+                delete window.__waterui.pending[id];
+                if (ok) { p.resolve(payload); } else { p.reject(payload); }
+              };
+            })();
+            """.trimIndent(),
+            ScriptInjectionTime.DOCUMENT_START
+        )
+    }
+
+    private fun handlerScript(name: String): String {
+        val escaped = name.replace("\\", "\\\\").replace("'", "\\'")
+        return """
+            (function(){
+              var name = '$escaped';
+              if (!window.__waterui || !window.__wateruiResolve) { return; }
+              if (window[name] && window[name].__wateruiWrapped) { return; }
+              var nativeName = '__waterui_native_' + name;
+              function send(data){
+                var id = String(Date.now()) + '_' + String(Math.random()).slice(2);
+                return new Promise(function(resolve, reject){
+                  window.__waterui.pending[id] = { resolve: resolve, reject: reject };
+                  var text = (typeof data === 'string') ? data : JSON.stringify(data);
+                  var b64 = window.__waterui.toBase64Utf8(text);
+                  window[nativeName].postMessage(b64, id);
+                });
+              }
+              window[name] = {
+                __wateruiWrapped: true,
+                postMessageRaw: function(data){
+                  return send(data);
+                },
+                postMessage: function(data){
+                  return send(data).then(function(replyB64){
+                    return window.__waterui.fromBase64Utf8(replyB64);
+                  });
+                }
+              };
+            })();
+        """.trimIndent()
+    }
+
+    fun resolveMessage(requestId: String, ok: Boolean, payload: String) {
+        runOnUiThread {
+            val idJson = JSONObject.quote(requestId)
+            val payloadJson = JSONObject.quote(payload)
+            val js = "window.__wateruiResolve($idJson, ${if (ok) "true" else "false"}, $payloadJson);"
+            webView.evaluateJavascript(js, null)
         }
     }
 
@@ -339,6 +440,13 @@ class WebViewWrapper(context: Context) {
         }
     }
 
+    private external fun nativeOnMessage(
+        nativePtr: Long,
+        name: String,
+        requestId: String,
+        payloadBase64: String
+    )
+
     // ========== Private Setup ==========
 
     private fun setupWebViewClient() {
@@ -355,12 +463,14 @@ class WebViewWrapper(context: Context) {
                     }
 
                 emitEvent(WebViewEventType.WILL_NAVIGATE, url = url ?: "")
+                updateNavigationState()
                 emitStateChanged()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 currentUrl = url ?: currentUrl
+                refreshCookieCache()
 
                 // Inject DOCUMENT_END scripts
                 injectedScripts
@@ -370,6 +480,7 @@ class WebViewWrapper(context: Context) {
                     }
 
                 emitEvent(WebViewEventType.LOADED, url = url ?: "")
+                updateNavigationState()
                 emitStateChanged()
             }
 
@@ -444,6 +555,7 @@ class WebViewWrapper(context: Context) {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 super.onProgressChanged(view, newProgress)
                 if (newProgress < 100) {
+                    updateNavigationState()
                     emitEvent(
                         WebViewEventType.LOADING,
                         progress = newProgress / 100f
