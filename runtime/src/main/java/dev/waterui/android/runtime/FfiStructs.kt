@@ -710,13 +710,91 @@ data class TextStyleStruct(
 
 data class PickerItemStruct(val tag: Int, val label: StyledStrStruct)
 
+// ========== SystemIcon Structs ==========
+
+/**
+ * SystemIcon component data.
+ * - name: platform icon name (SF Symbol name on Apple; mapped/fallback on Android)
+ */
+data class SystemIconStruct(val name: String)
+
 // ========== Photo Structs ==========
 
 /**
- * Photo component data.
- * - source: URL of the image to display
+ * LivePhoto view data (currently surfaced as "Photo" on Android).
+ *
+ * - sourcePtr: Computed<LivePhotoSource> pointer.
  */
-data class PhotoStruct(val source: String)
+data class PhotoStruct(val sourcePtr: Long)
+
+/**
+ * LivePhoto source URLs.
+ *
+ * Matches `WuiLivePhotoSource` in the FFI.
+ */
+data class LivePhotoSourceStruct(
+    val image: String,
+    val video: String
+)
+
+// ========== Table Structs ==========
+
+/**
+ * Table component data.
+ * - columnsPtr: Computed<Vec<TableColumn>> pointer
+ */
+data class TableStruct(val columnsPtr: Long)
+
+/**
+ * A single table column from FFI.
+ * - labelContentPtr: Computed<StyledStr> pointer for header label text
+ * - rowsPtr: AnyViews pointer containing row cell views for this column (nullable -> 0)
+ */
+data class TableColumnStruct(val labelContentPtr: Long, val rowsPtr: Long)
+
+// ========== Map Structs ==========
+
+/**
+ * Map component data.
+ */
+data class MapStruct(
+    val regionPtr: Long,
+    val annotationsPtr: Long,
+    val style: Int,
+    val showsUserLocation: Boolean,
+    val isInteractive: Boolean,
+    val showsCompass: Boolean,
+    val showsScale: Boolean
+)
+
+/**
+ * Region value (center + span) for map view.
+ */
+data class RegionStruct(
+    val centerLatitude: Double,
+    val centerLongitude: Double,
+    val latitudeDelta: Double,
+    val longitudeDelta: Double
+)
+
+/**
+ * Annotation/pin data for map view.
+ */
+data class AnnotationStruct(
+    val latitude: Double,
+    val longitude: Double,
+    val title: String,
+    val subtitle: String
+)
+
+// ========== MaterialBackground Structs ==========
+
+/**
+ * IgnorableMetadata<MaterialBackground> data.
+ * - contentPtr: wrapped content view pointer
+ * - material: 0..4 (UltraThin..UltraThick)
+ */
+data class MaterialBackgroundStruct(val contentPtr: Long, val material: Int)
 
 // ========== Video Structs ==========
 
@@ -777,6 +855,16 @@ data class GpuSurfaceStruct(val rendererPtr: Long)
  *              This is consumed during init and should not be used after.
  */
 data class AppliedFilterStruct(val contentPtr: Long, val filterPtr: Long)
+
+/**
+ * Result of a filter render operation.
+ *
+ * Matches `WuiAppliedFilterRenderResult` in the FFI.
+ */
+data class AppliedFilterRenderResultStruct(
+    val success: Boolean,
+    val needsRedraw: Boolean
+)
 
 // ========== ViewEffect Structs ==========
 
@@ -895,14 +983,16 @@ data class NavigationStackStruct(val rootPtr: Long)
 
 /**
  * Navigation bar configuration.
- * - titleContentPtr: Computed<StyledStr> pointer for title text
+ * - titlePtr: AnyView pointer for title content
  * - colorPtr: Computed<Color> pointer for bar color
  * - hiddenPtr: Computed<bool> pointer for bar visibility
+ * - displayMode: Navigation title display mode (matches FFI enum)
  */
 data class BarStruct(
-    val titleContentPtr: Long,
+    val titlePtr: Long,
     val colorPtr: Long,
-    val hiddenPtr: Long
+    val hiddenPtr: Long,
+    val displayMode: Int
 )
 
 /**
@@ -1067,4 +1157,3 @@ data class AppStruct(
     }
     override fun hashCode(): Int = 31 * windows.contentHashCode() + envPtr.hashCode()
 }
-

@@ -4,10 +4,14 @@ import android.os.Handler
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.TableColumnStruct
 import dev.waterui.android.runtime.PickerItemStruct
+import dev.waterui.android.runtime.RegionStruct
+import dev.waterui.android.runtime.AnnotationStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.VideoStruct
+import dev.waterui.android.runtime.LivePhotoSourceStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
@@ -89,6 +93,16 @@ class WuiComputed<T>(
     }
 
     companion object {
+        fun bool(ptr: Long, env: WuiEnvironment): WuiComputed<Boolean> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedBool(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.bool(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedBool(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedBool(p) },
+                env = env
+            )
+
         fun double(ptr: Long, env: WuiEnvironment): WuiComputed<Double> =
             WuiComputed(
                 computedPtr = ptr,
@@ -144,6 +158,46 @@ class WuiComputed<T>(
                 env = env
             )
 
+        fun tableColumns(ptr: Long, env: WuiEnvironment): WuiComputed<List<TableColumnStruct>> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p ->
+                    WatcherJni.readComputedTableCols(p).toList()
+                },
+                watcherFactory = { _, callback ->
+                    WatcherStructFactory.tableCols { array, metadata ->
+                        callback.onChanged(array.toList(), metadata)
+                    }
+                },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedTableCols(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedTableCols(p) },
+                env = env
+            )
+
+        fun region(ptr: Long, env: WuiEnvironment): WuiComputed<RegionStruct> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedRegion(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.region(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedRegion(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedRegion(p) },
+                env = env
+            )
+
+        fun annotations(ptr: Long, env: WuiEnvironment): WuiComputed<List<AnnotationStruct>> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedAnnotations(p).toList() },
+                watcherFactory = { _, callback ->
+                    WatcherStructFactory.annotations { array, metadata ->
+                        callback.onChanged(array.toList(), metadata)
+                    }
+                },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedAnnotations(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedAnnotations(p) },
+                env = env
+            )
+
         fun int(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(
                 computedPtr = ptr,
@@ -191,6 +245,16 @@ class WuiComputed<T>(
                 watcherFactory = { _, callback -> WatcherStructFactory.video(callback) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedVideo(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedVideo(p) },
+                env = env
+            )
+
+        fun livePhotoSource(ptr: Long, env: WuiEnvironment): WuiComputed<LivePhotoSourceStruct> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedLivePhotoSource(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.livePhotoSource(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedLivePhotoSource(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedLivePhotoSource(p) },
                 env = env
             )
     }

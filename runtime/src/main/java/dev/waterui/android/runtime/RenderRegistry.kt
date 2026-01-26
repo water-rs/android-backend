@@ -76,8 +76,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiEmptyView()
         registerWuiText()
         registerWuiPlain()
+        registerWuiSystemIcon()
         registerWuiButton()
-        registerWuiColor()
         registerWuiTextField()
         registerWuiSecureField()
         registerWuiStepper()
@@ -109,6 +109,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
 
         // List component
         registerWuiList()
+        registerWuiTable()
+        registerWuiMap()
 
         // Metadata components
         registerWuiSecure()
@@ -119,6 +121,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiOnEvent()
         registerWuiCursor()
         // Note: registerWuiForeground() removed - FFI doesn't expose metadata_foreground yet
+        registerWuiMaterialBackground()
         registerWuiShadow()
         registerWuiBorder()
         registerWuiClipShape()

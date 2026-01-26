@@ -29,6 +29,59 @@ namespace {
 
 constexpr char LOG_TAG[] = "WaterUI.JNI";
 
+// ========== Android runtime symbol helpers (avoid direct API-26 linking) ==========
+//
+// The Android runtime module targets minSdk 24. Directly linking against
+// `AHardwareBuffer_acquire/release` would make this shared library unloadable on
+// API < 26. We therefore resolve these symbols at runtime and fast-fail if they
+// are used unexpectedly on older devices.
+
+using AHardwareBufferAcquireFn = void (*)(AHardwareBuffer *);
+using AHardwareBufferReleaseFn = void (*)(AHardwareBuffer *);
+
+static AHardwareBufferAcquireFn resolve_ahb_acquire() {
+  static AHardwareBufferAcquireFn fn = nullptr;
+  if (fn != nullptr) return fn;
+  void *sym = dlsym(RTLD_DEFAULT, "AHardwareBuffer_acquire");
+  if (sym == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Missing symbol AHardwareBuffer_acquire (API 26+). "
+                        "AHardwareBuffer path called unexpectedly.");
+    abort();
+  }
+  fn = reinterpret_cast<AHardwareBufferAcquireFn>(sym);
+  return fn;
+}
+
+static AHardwareBufferReleaseFn resolve_ahb_release() {
+  static AHardwareBufferReleaseFn fn = nullptr;
+  if (fn != nullptr) return fn;
+  void *sym = dlsym(RTLD_DEFAULT, "AHardwareBuffer_release");
+  if (sym == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "Missing symbol AHardwareBuffer_release (API 26+). "
+                        "AHardwareBuffer path called unexpectedly.");
+    abort();
+  }
+  fn = reinterpret_cast<AHardwareBufferReleaseFn>(sym);
+  return fn;
+}
+
+struct AhbDropContext {
+  AHardwareBuffer *ahb;
+};
+
+static void ahb_drop_callback(void *user_data) {
+  auto *ctx = static_cast<AhbDropContext *>(user_data);
+  if (ctx == nullptr || ctx->ahb == nullptr) {
+    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                        "ahb_drop_callback: invalid context");
+    abort();
+  }
+  resolve_ahb_release()(ctx->ahb);
+  delete ctx;
+}
+
 // Symbols we need for watcher operations and complex struct handling
 #define WATCHER_SYMBOL_LIST(X)                                                 \
   X(waterui_drop_watcher_metadata)                                             \
@@ -310,6 +363,7 @@ constexpr char LOG_TAG[] = "WaterUI.JNI";
   X(waterui_applied_filter_init)                                               \
   X(waterui_applied_filter_setup)                                              \
   X(waterui_applied_filter_set_input)                                          \
+  X(waterui_applied_filter_set_input_ahardwarebuffer)                          \
   X(waterui_applied_filter_render)                                             \
   X(waterui_applied_filter_drop)                                               \
   X(waterui_table_id)                                                          \
@@ -5541,11 +5595,16 @@ Java_dev_waterui_android_ffi_WatcherJni_appliedFilterSetInputAHardwareBuffer(
     return JNI_FALSE;
   }
 
-  bool ok = g_sym.waterui_applied_filter_set_input(
-      jlong_to_ptr<WuiAppliedFilterState>(statePtr),
-      WuiInputType_AHardwareBuffer, ahb, static_cast<uint32_t>(width),
-      static_cast<uint32_t>(height));
-  AHardwareBuffer_release(ahb);
+  // Keep the AHardwareBuffer alive until wgpu is done with the imported texture.
+  resolve_ahb_acquire()(ahb);
+  auto *ctx = new AhbDropContext{ahb};
+
+  bool ok = g_sym.waterui_applied_filter_set_input_ahardwarebuffer(
+      jlong_to_ptr<WuiAppliedFilterState>(statePtr), ahb, ahb_drop_callback,
+      ctx, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+  // Balance the JNI-created reference (keep the acquired ref for Rust).
+  resolve_ahb_release()(ahb);
   return ok ? JNI_TRUE : JNI_FALSE;
 #endif
 }
@@ -5643,13 +5702,18 @@ Java_dev_waterui_android_ffi_WatcherJni_viewEffectSetInputAHardwareBuffer(
     return JNI_FALSE;
   }
 
+  // Keep the AHardwareBuffer alive until wgpu is done with the imported texture.
+  // We do this by acquiring an extra ref and passing a native drop callback to Rust.
+  resolve_ahb_acquire()(ahb);
+  auto *ctx = new AhbDropContext{ahb};
+
   bool result = g_sym.waterui_view_effect_set_input_ahardwarebuffer(
-      jlong_to_ptr<WuiViewEffectState>(statePtr), ahb,
+      jlong_to_ptr<WuiViewEffectState>(statePtr), ahb, ahb_drop_callback, ctx,
       static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
   // Balance the JNI-created reference. Rust must acquire a ref if it needs the
   // AHardwareBuffer to outlive this call.
-  AHardwareBuffer_release(ahb);
+  resolve_ahb_release()(ahb);
 
   return result ? JNI_TRUE : JNI_FALSE;
 #endif

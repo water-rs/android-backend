@@ -4,6 +4,9 @@ import android.os.Handler
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.TableColumnStruct
+import dev.waterui.android.runtime.RegionStruct
+import dev.waterui.android.runtime.AnnotationStruct
 import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -179,6 +182,17 @@ class WuiBinding<T>(
                 dropper = { ptr -> WatcherJni.dropBindingDate(ptr) },
                 env = env
             )
+
+        fun windowState(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingWindowState(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingWindowState(ptr, value) },
+                watcherFactory = { _, callback -> WatcherStructFactory.windowState(callback) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingWindowState(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingWindowState(ptr) },
+                env = env
+            )
     }
 }
 
@@ -192,6 +206,10 @@ object WatcherStructFactory {
 
     fun int(callback: WatcherCallback<Int>): WatcherStruct {
         return WatcherJni.createIntWatcher(callback)
+    }
+
+    fun windowState(callback: WatcherCallback<Int>): WatcherStruct {
+        return WatcherJni.createWindowStateWatcher(callback)
     }
 
     fun double(callback: WatcherCallback<Double>): WatcherStruct {
@@ -208,6 +226,10 @@ object WatcherStructFactory {
 
     fun video(callback: WatcherCallback<VideoStruct>): WatcherStruct {
         return WatcherJni.createVideoWatcher(callback)
+    }
+
+    fun livePhotoSource(callback: WatcherCallback<dev.waterui.android.runtime.LivePhotoSourceStruct>): WatcherStruct {
+        return WatcherJni.createLivePhotoSourceWatcher(callback)
     }
 
     fun anyView(callback: WatcherCallback<Long>): WatcherStruct {
@@ -228,6 +250,18 @@ object WatcherStructFactory {
 
     fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
         return WatcherJni.createPickerItemsWatcher(callback)
+    }
+
+    fun tableCols(callback: WatcherCallback<Array<TableColumnStruct>>): WatcherStruct {
+        return WatcherJni.createTableColsWatcher(callback)
+    }
+
+    fun region(callback: WatcherCallback<RegionStruct>): WatcherStruct {
+        return WatcherJni.createRegionWatcher(callback)
+    }
+
+    fun annotations(callback: WatcherCallback<Array<AnnotationStruct>>): WatcherStruct {
+        return WatcherJni.createAnnotationsWatcher(callback)
     }
 
     fun date(callback: WatcherCallback<DateStruct>): WatcherStruct {
