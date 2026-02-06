@@ -82,19 +82,44 @@ data class SubViewStruct(
      */
     @Suppress("unused") // Called from native code
     fun measureForLayout(proposalWidth: Float, proposalHeight: Float): SizeStruct {
-        // Convert dp proposal to pixel MeasureSpec
-        val widthSpec = proposalToMeasureSpec(proposalWidth * density)
-        val heightSpec = proposalToMeasureSpec(proposalHeight * density)
+        // Convert dp proposal to pixel MeasureSpec.
+        //
+        // IMPORTANT: Use EXACTLY when the view declares it stretches on that axis.
+        // Otherwise Android will treat most ViewGroups as WRAP_CONTENT under AT_MOST,
+        // which breaks WaterUI's 2-phase layout (e.g. ZStack centering a "full-screen"
+        // view because it measured as toolbar-height only).
+        val widthSpec = proposalToMeasureSpec(proposalWidth * density, axis = Axis.HORIZONTAL)
+        val heightSpec = proposalToMeasureSpec(proposalHeight * density, axis = Axis.VERTICAL)
         view.measure(widthSpec, heightSpec)
         // Convert pixel result back to dp for Rust
         return SizeStruct(view.measuredWidth.toFloat() / density, view.measuredHeight.toFloat() / density)
     }
 
-    private fun proposalToMeasureSpec(proposalPx: Float): Int {
+    private enum class Axis { HORIZONTAL, VERTICAL }
+
+    private fun proposalToMeasureSpec(proposalPx: Float, axis: Axis): Int {
         return when {
             proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
             proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            else -> android.view.View.MeasureSpec.makeMeasureSpec(proposalPx.toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+            else -> {
+                val mode = when (axis) {
+                    Axis.HORIZONTAL -> {
+                        if (stretchAxis == StretchAxis.HORIZONTAL || stretchAxis == StretchAxis.BOTH) {
+                            android.view.View.MeasureSpec.EXACTLY
+                        } else {
+                            android.view.View.MeasureSpec.AT_MOST
+                        }
+                    }
+                    Axis.VERTICAL -> {
+                        if (stretchAxis == StretchAxis.VERTICAL || stretchAxis == StretchAxis.BOTH) {
+                            android.view.View.MeasureSpec.EXACTLY
+                        } else {
+                            android.view.View.MeasureSpec.AT_MOST
+                        }
+                    }
+                }
+                android.view.View.MeasureSpec.makeMeasureSpec(proposalPx.toInt().coerceAtLeast(0), mode)
+            }
         }
     }
 }
@@ -809,14 +834,14 @@ data class VideoStruct(val url: String)
  * - volumePtr: Binding<Volume> pointer (f32)
  * - aspectRatio: 0=Fit, 1=Fill, 2=Stretch
  * - loops: Whether to loop playback
- * - showControls: Always false for raw video
+ * - onEventPtr: WuiFn<VideoEvent> callback pointer
  */
 data class VideoStruct2(
     val sourcePtr: Long,
     val volumePtr: Long,
     val aspectRatio: Int,
     val loops: Boolean,
-    val showControls: Boolean
+    val onEventPtr: Long
 )
 
 /**
@@ -825,12 +850,14 @@ data class VideoStruct2(
  * - volumePtr: Binding<Volume> pointer (f32)
  * - aspectRatio: 0=Fit, 1=Fill, 2=Stretch
  * - showControls: Whether to show native playback controls
+ * - onEventPtr: WuiFn<VideoEvent> callback pointer
  */
 data class VideoPlayerStruct(
     val sourcePtr: Long,
     val volumePtr: Long,
     val aspectRatio: Int,
-    val showControls: Boolean
+    val showControls: Boolean,
+    val onEventPtr: Long
 )
 
 /**
@@ -843,8 +870,9 @@ data class WebViewStruct(val webviewPtr: Long)
  * GpuSurface component data.
  * - rendererPtr: Opaque pointer to the boxed GpuRenderer trait object.
  *                This is consumed during init and should not be used after.
+ * - renderMode: 0=Continuous, 1=OnDemand
  */
-data class GpuSurfaceStruct(val rendererPtr: Long)
+data class GpuSurfaceStruct(val rendererPtr: Long, val renderMode: Int)
 
 // ========== AppliedFilter Structs ==========
 

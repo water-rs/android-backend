@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.content.Context
+import android.util.Log
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -26,6 +27,9 @@ private val metadataAppliedFilterTypeId: WuiTypeId by lazy {
  *
  * Captures the child view into an AHardwareBuffer and applies a Rust/wgpu filter pipeline,
  * rendering the filtered result into a SurfaceView.
+ *
+ * If filter initialization/rendering fails on a given device/surface combination,
+ * we gracefully fall back to showing the unfiltered child view instead of crashing.
  */
 @Suppress("UNUSED_PARAMETER")
 private val metadataAppliedFilterRenderer = WuiRenderer { context, node, env, registry ->
@@ -49,9 +53,14 @@ private class AppliedFilterView(
     private val childView: View
 ) : FrameLayout(context), SurfaceHolder.Callback, Choreographer.FrameCallback {
 
+    companion object {
+        private const val TAG = "WaterUI.AppliedFilter"
+    }
+
     private var statePtr: Long = 0L
     private var isRendering = false
     private var isReady = false
+    private var filterEnabled = true
 
     private var surfaceWidth: Int = 0
     private var surfaceHeight: Int = 0
@@ -98,6 +107,8 @@ private class AppliedFilterView(
     override fun surfaceCreated(holder: SurfaceHolder) {}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        if (!filterEnabled) return
+
         surfaceWidth = width
         surfaceHeight = height
         capturer.onSizeChanged(width, height)
@@ -111,11 +122,15 @@ private class AppliedFilterView(
                 height
             )
             if (statePtr == 0L) {
-                error("AppliedFilter init failed")
+                disableFilter("init failed")
+                return
             }
 
-            // Setup is async from native's POV; Rust calls the callback when ready.
             NativeBindings.waterui_applied_filter_setup(statePtr) {
+                if (!filterEnabled || statePtr == 0L) {
+                    return@waterui_applied_filter_setup
+                }
+
                 isReady = true
                 if (!isRendering) {
                     isRendering = true
@@ -128,31 +143,39 @@ private class AppliedFilterView(
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         isRendering = false
         isReady = false
-        close()
+        Choreographer.getInstance().removeFrameCallback(this)
+        closeFilterState()
     }
 
     override fun doFrame(frameTimeNanos: Long) {
-        if (!isRendering || !isReady || statePtr == 0L) return
+        if (!filterEnabled || !isRendering || !isReady || statePtr == 0L) return
 
-        capturer.capture()?.let { buffer ->
-            val ok = NativeBindings.waterui_applied_filter_set_input_ahardwarebuffer(
-                statePtr,
-                buffer,
-                surfaceWidth,
-                surfaceHeight
-            )
-            if (!ok) {
-                error("AppliedFilter: failed to set AHardwareBuffer input")
+        val buffer = capturer.capture()
+        if (buffer == null) {
+            if (isRendering) {
+                Choreographer.getInstance().postFrameCallback(this)
             }
+            return
+        }
+
+        val ok = NativeBindings.waterui_applied_filter_set_input_ahardwarebuffer(
+            statePtr,
+            buffer,
+            surfaceWidth,
+            surfaceHeight
+        )
+        if (!ok) {
+            disableFilter("failed to set AHardwareBuffer input")
+            return
         }
 
         val result = NativeBindings.waterui_applied_filter_render(statePtr, surfaceWidth, surfaceHeight)
         if (!result.success) {
-            error("AppliedFilter render failed")
+            disableFilter("render failed")
+            return
         }
 
         if (isRendering) {
-            // Render continuously (child can change outside of filter animation).
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -178,16 +201,37 @@ private class AppliedFilterView(
         outputSurfaceView.layout(0, 0, right - left, bottom - top)
     }
 
-    private fun close() {
-        capturer.close()
+    private fun disableFilter(reason: String) {
+        if (!filterEnabled) return
+
+        Log.w(TAG, "Disabling AppliedFilter fallback: $reason")
+
+        filterEnabled = false
+        isRendering = false
+        isReady = false
+        Choreographer.getInstance().removeFrameCallback(this)
+        closeFilterState()
+
+        outputSurfaceView.visibility = View.GONE
+        captureHost.visibility = View.VISIBLE
+    }
+
+    private fun closeFilterState() {
         if (statePtr != 0L) {
             NativeBindings.waterui_applied_filter_drop(statePtr)
             statePtr = 0L
         }
+    }
+
+    private fun close() {
+        isRendering = false
+        isReady = false
+        Choreographer.getInstance().removeFrameCallback(this)
+        capturer.close()
+        closeFilterState()
     }
 }
 
 internal fun RegistryBuilder.registerWuiAppliedFilter() {
     registerMetadata({ metadataAppliedFilterTypeId }, metadataAppliedFilterRenderer)
 }
-
