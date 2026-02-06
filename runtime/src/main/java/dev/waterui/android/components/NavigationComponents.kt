@@ -1,12 +1,20 @@
 package dev.waterui.android.components
 
+import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.widget.TextViewCompat
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.tabs.TabLayout
@@ -40,6 +48,10 @@ private val tabsTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_tabs_id().toTypeId()
 }
 
+private val plainTypeId: WuiTypeId by lazy {
+    NativeBindings.waterui_plain_id().toTypeId()
+}
+
 // ========== NavigationStack Renderer ==========
 
 /**
@@ -60,20 +72,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
         )
     }
 
-    val toolbar = MaterialToolbar(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-
-        // Default Material 3 surface color
-        val surfaceColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorSurface,
-            Color.WHITE
-        )
-        setBackgroundColor(surfaceColor)
-    }
+    val toolbar = createTopAppBar(context)
 
     val contentHost = FrameLayout(context).apply {
         layoutParams = LinearLayout.LayoutParams(
@@ -109,15 +108,31 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
     var currentTitleView: View? = null
     val viewStack = mutableListOf<StackEntry>()
 
+    val activity = findActivity(context) as? ComponentActivity
+    val systemBackCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            if (viewStack.size > 1) {
+                NativeBindings.waterui_navigation_pop(childEnv.raw())
+            } else {
+                // Allow default system back when we're at root.
+                isEnabled = false
+                activity?.onBackPressedDispatcher?.onBackPressed()
+                isEnabled = true
+            }
+        }
+    }
+    activity?.onBackPressedDispatcher?.addCallback(systemBackCallback)
+
     fun setToolbarTitleView(titleView: View?) {
         currentTitleView?.let { toolbar.removeView(it) }
         currentTitleView = titleView
         if (titleView != null) {
+            applyTitleStyleForTopAppBar(titleView)
             toolbar.title = ""
             val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+                Gravity.START or Gravity.CENTER_VERTICAL
             )
             toolbar.addView(titleView, lp)
         }
@@ -130,26 +145,24 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
             toolbar.navigationIcon = null
             toolbar.setNavigationOnClickListener(null)
             setToolbarTitleView(null)
+            systemBackCallback.isEnabled = false
             return
         }
 
-        // If the top entry doesn't provide any navigation chrome, keep the toolbar hidden.
-        if (viewStack.size == 1 && top.titleView == null && top.hidden == null && top.color == null) {
-            toolbar.visibility = View.GONE
-            toolbar.navigationIcon = null
-            toolbar.setNavigationOnClickListener(null)
-            setToolbarTitleView(null)
-            return
-        }
+        val hiddenValue = top.hidden?.current() ?: false
+        val topColor = top.color?.current()
 
         activeEntryId = top.id
 
+        systemBackCallback.isEnabled = viewStack.size > 1
+
         // Back behavior: delegate to Rust-driven pop to keep a single code path.
         if (viewStack.size > 1) {
-            toolbar.navigationIcon = AppCompatResources.getDrawable(
-                context,
-                androidx.appcompat.R.drawable.abc_ic_ab_back_material
-            )
+            toolbar.navigationIcon =
+                AppCompatResources.getDrawable(
+                    context,
+                    androidx.appcompat.R.drawable.abc_ic_ab_back_material
+                )
             toolbar.setNavigationOnClickListener {
                 NativeBindings.waterui_navigation_pop(childEnv.raw())
             }
@@ -161,22 +174,55 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
         setToolbarTitleView(top.titleView)
 
         // Hidden
-        val hiddenValue = top.hidden?.current() ?: false
         toolbar.visibility = if (hiddenValue) View.GONE else View.VISIBLE
 
-        // Color (reactive to theme changes via resolved color, not reactive to bar.color changes)
-        top.color?.current()?.let { applyNavBarColor(toolbar, it) }
+        // Color (reactive to theme changes via resolved color + bar.color changes)
+        applyTopAppBarColors(toolbar, topColor, currentTitleView)
     }
 
     fun inflateTitleView(titlePtr: Long): View? {
         if (titlePtr == 0L) return null
-        val view = inflateAnyView(context, titlePtr, childEnv, registry)
-        // Let toolbar measure it naturally
-        view.layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        return view
+        var ptr = titlePtr
+        // Unwrap through `body()` until we either reach a registered native type
+        // (or a title-friendly primitive we can render with Material3 styling).
+        repeat(12) {
+            val typeId = NativeBindings.waterui_view_id(ptr).toTypeId()
+
+            // Prefer rendering plain labels ourselves so we can apply Material3 title
+            // styling without fighting the generic label renderer's body font bindings.
+            if (typeId == plainTypeId) {
+                val plain = NativeBindings.waterui_force_as_plain(ptr)
+                val text = plain.textBytes.decodeToString()
+                return TextView(context).apply {
+                    this.text = text
+                    includeFontPadding = false
+                    setLineSpacing(0f, 1f)
+                    applyTitleStyleForTopAppBar(this)
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+                }
+            }
+
+            // If the runtime knows how to render this view, let the normal inflater
+            // handle ownership and lifecycle.
+            if (registry.resolve(typeId) != null) {
+                val view = inflateAnyView(context, ptr, childEnv, registry)
+                view.layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                return view
+            }
+
+            // Otherwise unwrap one level.
+            ptr = NativeBindings.waterui_view_body(ptr, childEnv.raw())
+            if (ptr == 0L) return null
+        }
+
+        // Give up after a few steps to avoid infinite loops on malformed views.
+        return null
     }
 
     fun inflateStackEntry(navView: NavigationViewStruct): StackEntry {
@@ -248,7 +294,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
                 }
                 entry.color?.observe { color ->
                     if (entry.id == activeEntryId) {
-                        applyNavBarColor(toolbar, color)
+                        applyTopAppBarColors(toolbar, color, currentTitleView)
                     }
                 }
 
@@ -291,9 +337,14 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
 
     // Render root view with child environment
     if (struct.rootPtr != 0L) {
-        val rootTypeId = NativeBindings.waterui_view_id(struct.rootPtr).toTypeId()
-        if (rootTypeId == navigationViewTypeId) {
-            val navView = NativeBindings.waterui_force_as_navigation_view(struct.rootPtr)
+        // The NavigationStack root is an AnyView. Many views (including raw_view! types)
+        // only become renderable native views after evaluating `body()` once.
+        // Pushed NavigationViews come from Rust already as WuiNavigationView structs,
+        // but the root is still an AnyView and must be unwrapped to Native<NavigationView>
+        // to access its bar/title.
+        var rootPtr = struct.rootPtr
+
+        fun addRootAsNavView(navView: NavigationViewStruct) {
             val entry = inflateStackEntry(navView)
             contentHost.addView(entry.view)
             viewStack.add(entry)
@@ -306,34 +357,46 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
             }
             entry.color?.observe { color ->
                 if (entry.id == activeEntryId) {
-                    applyNavBarColor(toolbar, color)
+                    applyTopAppBarColors(toolbar, color, currentTitleView)
                 }
             }
             applyToolbarForTop()
+        }
+
+        val directTypeId = NativeBindings.waterui_view_id(rootPtr).toTypeId()
+        if (directTypeId == navigationViewTypeId) {
+            addRootAsNavView(NativeBindings.waterui_force_as_navigation_view(rootPtr))
         } else {
-            val rootView = inflateAnyView(context, struct.rootPtr, childEnv, registry)
-            rootView.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            contentHost.addView(rootView)
-            viewStack.add(
-                StackEntry(
-                    id = 0L,
-                    view = rootView,
-                    titleView = null,
-                    color = null,
-                    hidden = null,
-                    displayMode = 0
+            rootPtr = NativeBindings.waterui_view_body(rootPtr, childEnv.raw())
+            val bodyTypeId = if (rootPtr != 0L) NativeBindings.waterui_view_id(rootPtr).toTypeId() else null
+            if (bodyTypeId != null && bodyTypeId == navigationViewTypeId) {
+                addRootAsNavView(NativeBindings.waterui_force_as_navigation_view(rootPtr))
+            } else if (rootPtr != 0L) {
+                val rootView = inflateAnyView(context, rootPtr, childEnv, registry)
+                rootView.layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
                 )
-            )
-            applyToolbarForTop()
+                contentHost.addView(rootView)
+                viewStack.add(
+                    StackEntry(
+                        id = 0L,
+                        view = rootView,
+                        titleView = null,
+                        color = null,
+                        hidden = null,
+                        displayMode = 0
+                    )
+                )
+                applyToolbarForTop()
+            }
         }
     }
 
     // Cleanup
     container.disposeWith {
         viewStack.forEach { it.close() }
+        systemBackCallback.remove()
         NativeBindings.waterui_env_drop(childEnvPtr)
     }
 
@@ -371,30 +434,21 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
         )
     }
 
-    val navBar = MaterialToolbar(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-
-        // Default Material 3 surface color
-        val surfaceColor = MaterialColors.getColor(
-            context,
-            com.google.android.material.R.attr.colorSurface,
-            Color.WHITE
-        )
-        setBackgroundColor(surfaceColor)
-
+    var titleViewRef: View? = null
+    val navBar = createTopAppBar(context).apply {
         // Title view (AnyView)
         if (struct.bar.titlePtr != 0L) {
             val titleView = inflateAnyView(context, struct.bar.titlePtr, env, registry)
+            titleViewRef = titleView
+            applyTitleStyleForTopAppBar(titleView)
             val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+                Gravity.START or Gravity.CENTER_VERTICAL
             )
             title = ""
             addView(titleView, lp)
+            applyTopAppBarColors(this, null, titleView)
         }
     }
     container.addView(navBar)
@@ -409,7 +463,7 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
         if (colorPtr != 0L) {
             colorComputed = WuiComputed.resolvedColor(colorPtr, env)
             colorComputed?.observe { newColor ->
-                applyNavBarColor(navBar, newColor)
+                applyTopAppBarColors(navBar, newColor, titleViewRef)
             }
             NativeBindings.waterui_drop_color(colorPtr)
         }
@@ -454,13 +508,131 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
 }
 
 private fun applyNavBarColor(navBar: View, color: ResolvedColorStruct) {
-    val argb = Color.argb(
-        (color.opacity * 255).toInt(),
-        (color.red * 255).toInt(),
-        (color.green * 255).toInt(),
-        (color.blue * 255).toInt()
+    // Legacy helper retained for older call sites; prefer applyTopAppBarColors.
+    navBar.setBackgroundColor(color.toColorInt())
+}
+
+private fun createTopAppBar(context: Context): MaterialToolbar {
+    val toolbar = MaterialToolbar(
+        context,
+        null,
+        com.google.android.material.R.attr.toolbarStyle
+    ).apply {
+        val desiredHeight = topAppBarHeightPx(context)
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            desiredHeight
+        )
+        minimumHeight = desiredHeight
+        elevation = 0f
+        setTitleMargin(0, 0, 0, 0)
+        setTitleTextAppearance(context, com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
+        isTitleCentered = false
+
+        val inset = (16f * context.resources.displayMetrics.density).toInt()
+        setContentInsetsRelative(inset, inset)
+        contentInsetStartWithNavigation = inset
+        setContentInsetEndWithActions(inset)
+    }
+    applyTopAppBarColors(toolbar, null, null)
+    return toolbar
+}
+
+private fun topAppBarHeightPx(context: Context): Int {
+    val resources = context.resources
+    val resId = resources.getIdentifier(
+        "m3_appbar_size_small",
+        "dimen",
+        "com.google.android.material"
     )
-    navBar.setBackgroundColor(argb)
+    if (resId != 0) {
+        try {
+            return resources.getDimensionPixelSize(resId)
+        } catch (_: android.content.res.Resources.NotFoundException) {
+            // fall through to dp fallback
+        }
+    }
+    return (64f * resources.displayMetrics.density).toInt()
+}
+
+private fun defaultTopAppBarContainerColor(context: Context): Int {
+    val fallbackSurface = MaterialColors.getColor(
+        context,
+        com.google.android.material.R.attr.colorSurface,
+        Color.WHITE
+    )
+    // Material3 token (only present for M3 themes).
+    return MaterialColors.getColor(
+        context,
+        com.google.android.material.R.attr.colorSurfaceContainer,
+        fallbackSurface
+    )
+}
+
+private fun defaultTopAppBarContentColor(context: Context): Int {
+    return MaterialColors.getColor(
+        context,
+        com.google.android.material.R.attr.colorOnSurface,
+        Color.BLACK
+    )
+}
+
+private fun bestContrastingContentColor(background: Int): Int {
+    val luminance = ColorUtils.calculateLuminance(background)
+    return if (luminance > 0.5) Color.BLACK else Color.WHITE
+}
+
+private fun applyTitleStyleForTopAppBar(titleView: View) {
+    if (titleView is TextView) {
+        TextViewCompat.setTextAppearance(
+            titleView,
+            com.google.android.material.R.style.TextAppearance_Material3_TitleLarge
+        )
+        titleView.isSingleLine = true
+        titleView.ellipsize = android.text.TextUtils.TruncateAt.END
+    }
+}
+
+private fun applyTopAppBarColors(toolbar: MaterialToolbar, color: ResolvedColorStruct?, titleView: View?) {
+    val bg = if (color == null || color.opacity <= 0.001f) {
+        defaultTopAppBarContainerColor(toolbar.context)
+    } else {
+        color.toColorInt()
+    }
+    toolbar.setBackgroundColor(bg)
+    toolbar.backgroundTintList = ColorStateList.valueOf(bg)
+
+    val contentColor = if (color == null || color.opacity <= 0.001f) {
+        defaultTopAppBarContentColor(toolbar.context)
+    } else {
+        bestContrastingContentColor(bg)
+    }
+    toolbar.setTitleTextColor(contentColor)
+    toolbar.setNavigationIconTint(contentColor)
+
+    if (titleView is TextView) {
+        titleView.setTextColor(contentColor)
+    }
+
+    syncSystemBarsWithTopAppBar(toolbar, bg)
+}
+
+private fun syncSystemBarsWithTopAppBar(toolbar: MaterialToolbar, appBarColor: Int) {
+    val activity = findActivity(toolbar.context) ?: return
+    val window = activity.window ?: return
+
+    window.statusBarColor = appBarColor
+
+    val navBarColor = MaterialColors.getColor(
+        toolbar,
+        com.google.android.material.R.attr.colorSurface,
+        appBarColor
+    )
+    window.navigationBarColor = navBarColor
+
+    val insetsController = WindowCompat.getInsetsController(window, toolbar)
+    insetsController.isAppearanceLightStatusBars = ColorUtils.calculateLuminance(appBarColor) > 0.5
+    insetsController.isAppearanceLightNavigationBars = ColorUtils.calculateLuminance(navBarColor) > 0.5
 }
 
 // ========== Tabs Renderer ==========
@@ -672,28 +844,17 @@ private fun inflateTabContent(
 
     // Create navigation bar if title is provided
     if (navViewStruct.bar.titlePtr != 0L) {
-        val navBar = MaterialToolbar(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-
-            val surfaceColor = MaterialColors.getColor(
-                context,
-                com.google.android.material.R.attr.colorSurface,
-                Color.WHITE
-            )
-            setBackgroundColor(surfaceColor)
-
-            val titleView = inflateAnyView(context, navViewStruct.bar.titlePtr, env, registry)
-            val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
-            )
-            title = ""
-            addView(titleView, lp)
-        }
+        val navBar = createTopAppBar(context)
+        val titleView = inflateAnyView(context, navViewStruct.bar.titlePtr, env, registry)
+        applyTitleStyleForTopAppBar(titleView)
+        val lp = androidx.appcompat.widget.Toolbar.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.START or Gravity.CENTER_VERTICAL
+        )
+        navBar.title = ""
+        navBar.addView(titleView, lp)
+        applyTopAppBarColors(navBar, null, titleView)
         container.addView(navBar)
     }
 
@@ -731,4 +892,13 @@ internal fun RegistryBuilder.registerWuiNavigationView() {
 
 internal fun RegistryBuilder.registerWuiTabs() {
     register({ tabsTypeId }, tabsRenderer)
+}
+
+private fun findActivity(context: Context): android.app.Activity? {
+    var ctx: android.content.Context? = context
+    while (ctx is android.content.ContextWrapper) {
+        if (ctx is android.app.Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }

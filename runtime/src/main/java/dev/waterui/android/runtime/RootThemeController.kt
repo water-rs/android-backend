@@ -2,6 +2,7 @@ package dev.waterui.android.runtime
 
 import android.app.Activity
 import android.app.UiModeManager
+import android.graphics.Color
 import android.content.ContextWrapper
 import android.os.Build
 import android.os.Handler
@@ -10,6 +11,8 @@ import android.util.Log
 import android.view.View
 import android.view.Window
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.view.WindowCompat
+import com.google.android.material.color.MaterialColors
 import dev.waterui.android.reactive.WatcherGuard
 import dev.waterui.android.reactive.WatcherStructFactory
 
@@ -112,7 +115,7 @@ class RootThemeController private constructor(
         }
         val activity = findActivity()
         if (activity == null) {
-            Log.d(TAG, "applyToWindow: no activity found, view.context=${view.context}")
+            Log.d(TAG, "applyToWindow: no activity found, view.context=$view.context")
             return
         }
 
@@ -149,10 +152,25 @@ class RootThemeController private constructor(
                 activity.recreate()
             }
         }
+
+        applySystemBarAppearance(activity.window, scheme)
     }
 
-    private fun findWindow(): Window? {
-        return findActivity()?.window
+    private fun applySystemBarAppearance(window: Window, scheme: Int) {
+        val defaultSurface = if (scheme == 1) Color.BLACK else Color.WHITE
+        val surfaceColor = MaterialColors.getColor(
+            view,
+            com.google.android.material.R.attr.colorSurface,
+            defaultSurface
+        )
+
+        window.statusBarColor = surfaceColor
+        window.navigationBarColor = surfaceColor
+
+        val insetsController = WindowCompat.getInsetsController(window, view)
+        val useDarkIcons = scheme == 0
+        insetsController.isAppearanceLightStatusBars = useDarkIcons
+        insetsController.isAppearanceLightNavigationBars = useDarkIcons
     }
 
     private fun findActivity(): Activity? {

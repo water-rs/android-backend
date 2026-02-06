@@ -1,15 +1,20 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.graphics.Typeface
 import android.os.Build
 import android.util.AttributeSet
 import android.view.ContextThemeWrapper
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.TextViewCompat
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
@@ -75,6 +80,20 @@ class WaterUiRootView @JvmOverloads constructor(
      */
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
 
+    init {
+        // Match UIKit-like behavior: allow descendants to render into the inset region
+        // when IgnoreSafeArea is explicitly requested.
+        clipChildren = false
+        clipToPadding = false
+
+        ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
+            val safeAreaTypes = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            val bars = windowInsets.getInsets(safeAreaTypes)
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            windowInsets
+        }
+    }
+
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
         registry = renderRegistry
         if (app != null) {
@@ -93,10 +112,19 @@ class WaterUiRootView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+
+        // Android 15+ tends to run edge-to-edge by default for targetSdk 35 apps.
+        // We opt into explicit inset handling in WaterUiRootView so safe area and
+        // IgnoreSafeArea semantics are deterministic.
+        findActivity()?.window?.let { window ->
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+        }
+
         if (app == null) {
             initializeApp()
         }
         renderRoot()
+        ViewCompat.requestApplyInsets(this)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -245,13 +273,20 @@ class WaterUiRootView @JvmOverloads constructor(
             return
         }
 
+        // Root always applies platform safe-area insets; IgnoreSafeArea metadata
+        // can opt individual subtrees into edge-to-edge rendering.
+        ViewCompat.requestApplyInsets(this)
+
         android.util.Log.d(TAG, "renderRoot: inflating view")
         val child = inflateAnyView(context, rootPtr, env, registry)
         android.util.Log.d(TAG, "renderRoot: view inflated, adding to layout")
 
-        // Use WRAP_CONTENT here: WaterUiRootView's onMeasure forwards constraints to
-        // the Rust-driven root view, so the hosting Android layout can size correctly.
-        val params = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        // Fill the host window by default (Android-native behavior).
+        // WaterUiRootView's onMeasure still forwards parent constraints to the Rust tree,
+        // so the view remains embeddable in smaller containers.
+        val params = LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
         addView(child, params)
 
         // Setup RootThemeController after the view hierarchy is created.
@@ -259,6 +294,15 @@ class WaterUiRootView @JvmOverloads constructor(
         // The color scheme may have been overridden by user's Rust code via env.install(theme).
         RootThemeController.setup(this, appStruct.envPtr)
         android.util.Log.d(TAG, "renderRoot: done")
+    }
+
+    private fun findActivity(): android.app.Activity? {
+        var ctx: Context? = context
+        while (ctx is ContextWrapper) {
+            if (ctx is android.app.Activity) return ctx
+            ctx = ctx.baseContext
+        }
+        return null
     }
 
     private fun getSystemColorScheme(): Int {
