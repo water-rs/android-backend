@@ -271,11 +271,47 @@ class WebViewWrapper(context: Context) {
 
     fun runJavaScript(script: String, callback: JsResultCallback) {
         runOnUiThread {
-            webView.evaluateJavascript(script) { result ->
-                // Result is JSON-encoded (strings include quotes).
-                val normalized = decodeJsResult(result)
-                callback.onResult(true, normalized)
+            try {
+                val quotedScript = JSONObject.quote(script)
+                val wrappedScript =
+                    """
+                    (function(){
+                      try {
+                        var __waterui_result = eval($quotedScript);
+                        return JSON.stringify({"__waterui_ok": true, "value": __waterui_result});
+                      } catch (e) {
+                        var __waterui_error = (e && e.message) ? e.message : String(e);
+                        return JSON.stringify({"__waterui_ok": false, "error": __waterui_error});
+                      }
+                    })();
+                    """.trimIndent()
+
+                webView.evaluateJavascript(wrappedScript) { rawResult ->
+                    val normalized = decodeJsResult(rawResult)
+                    val envelope = parseJsEnvelope(normalized)
+                    callback.onResult(envelope.first, envelope.second)
+                }
+            } catch (t: Throwable) {
+                callback.onResult(false, t.message ?: "Failed to execute JavaScript")
             }
+        }
+    }
+
+    private fun parseJsEnvelope(normalized: String): Pair<Boolean, String> {
+        return try {
+            val obj = JSONObject(normalized)
+            if (obj.optBoolean("__waterui_ok", false)) {
+                val value = obj.opt("value")
+                val valueText = when (value) {
+                    null, JSONObject.NULL -> "null"
+                    else -> value.toString()
+                }
+                true to valueText
+            } else {
+                false to obj.optString("error", "JavaScript execution failed")
+            }
+        } catch (_: Throwable) {
+            true to normalized
         }
     }
 
@@ -335,7 +371,7 @@ class WebViewWrapper(context: Context) {
         cachedCookies = header
             .split(";")
             .map { it.trim() }
-            .filter { it.isNotEmpty() }
+            .filter { it.contains("=") }
             .joinToString("\n")
     }
 

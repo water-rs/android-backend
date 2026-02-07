@@ -114,7 +114,13 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
-
+# On macOS, prefer JDK 21 for Android/Gradle compatibility when available.
+if "$darwin" ; then
+    JAVA_21_HOME=$( /usr/libexec/java_home -v 21 2>/dev/null || true )
+    if [ -n "$JAVA_21_HOME" ] ; then
+        JAVA_HOME=$JAVA_21_HOME
+    fi
+fi
 
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
