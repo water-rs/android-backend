@@ -6,11 +6,14 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
+import dev.waterui.android.runtime.WuiDynamicRangeMode
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyWindowDynamicRangePolicyOnAttach
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.setWuiDynamicRangeMode
 
 private val metadataStandardDynamicRangeTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_metadata_standard_dynamic_range_id().toTypeId()
@@ -24,12 +27,16 @@ private fun renderDynamicRange(
     context: Context,
     env: WuiEnvironment,
     registry: RenderRegistry,
-    contentPtr: Long
+    contentPtr: Long,
+    mode: WuiDynamicRangeMode
 ): PassThroughFrameLayout {
     val container = PassThroughFrameLayout(context)
+    container.setWuiDynamicRangeMode(mode)
+    applyWindowDynamicRangePolicyOnAttach(container, context, mode)
 
     if (contentPtr != 0L) {
         val child = inflateAnyView(context, contentPtr, env, registry)
+        child.setWuiDynamicRangeMode(mode)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
     }
@@ -39,12 +46,12 @@ private fun renderDynamicRange(
 
 private val metadataStandardDynamicRangeRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_standard_dynamic_range(node.rawPtr)
-    renderDynamicRange(context, env, registry, metadata.contentPtr)
+    renderDynamicRange(context, env, registry, metadata.contentPtr, WuiDynamicRangeMode.STANDARD)
 }
 
 private val metadataHighDynamicRangeRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_high_dynamic_range(node.rawPtr)
-    renderDynamicRange(context, env, registry, metadata.contentPtr)
+    renderDynamicRange(context, env, registry, metadata.contentPtr, WuiDynamicRangeMode.HIGH)
 }
 
 internal fun RegistryBuilder.registerWuiStandardDynamicRange() {

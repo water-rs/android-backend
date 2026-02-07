@@ -2,6 +2,7 @@ package dev.waterui.android.runtime
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Typeface
 import android.os.Build
@@ -118,6 +119,9 @@ class WaterUiRootView @JvmOverloads constructor(
         // IgnoreSafeArea semantics are deterministic.
         findActivity()?.window?.let { window ->
             WindowCompat.setDecorFitsSystemWindows(window, false)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+            }
         }
 
         if (app == null) {

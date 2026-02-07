@@ -9,6 +9,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import dev.waterui.android.runtime.WuiDynamicRangeMode
+import dev.waterui.android.runtime.activateHdrWindowMode
+import dev.waterui.android.runtime.deactivateHdrWindowMode
+import dev.waterui.android.runtime.resolveWuiDynamicRangeModeOrNull
 
 /**
  * Aspect ratio modes matching WuiAspectRatio enum.
@@ -42,6 +46,7 @@ class WuiVideoTextureView(
     private var exoPlayer: ExoPlayer? = null
     private var currentVolume = 1f
     private var currentUrl: String? = null
+    private var hdrWindowModeActive = false
 
     init {
         layoutParams = ViewGroup.LayoutParams(
@@ -112,6 +117,10 @@ class WuiVideoTextureView(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        if (hdrWindowModeActive) {
+            deactivateHdrWindowMode(findActivity()?.window)
+            hdrWindowModeActive = false
+        }
         // Immediately pause to stop audio before full cleanup
         exoPlayer?.pause()
         release()
@@ -119,6 +128,16 @@ class WuiVideoTextureView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        val dynamicRangeMode = resolveWuiDynamicRangeModeOrNull()
+        if (dynamicRangeMode == WuiDynamicRangeMode.HIGH) {
+            if (!hdrWindowModeActive) {
+                activateHdrWindowMode(findActivity()?.window, requireCapability = true)
+                hdrWindowModeActive = true
+            }
+        } else if (hdrWindowModeActive) {
+            deactivateHdrWindowMode(findActivity()?.window)
+            hdrWindowModeActive = false
+        }
         // Recreate player if it was released
         if (exoPlayer == null) {
             createPlayer()
@@ -128,5 +147,14 @@ class WuiVideoTextureView(
                 setVideoUrl(url)
             }
         }
+    }
+
+    private fun findActivity(): android.app.Activity? {
+        var ctx: Context? = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) return ctx
+            ctx = ctx.baseContext
+        }
+        return null
     }
 }
