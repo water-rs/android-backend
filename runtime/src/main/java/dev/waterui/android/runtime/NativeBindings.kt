@@ -24,7 +24,6 @@ internal object NativeBindings {
 
     fun waterui_init(): Long = WatcherJni.init()
     fun waterui_app(envPtr: Long): AppStruct = WatcherJni.app(envPtr)
-    fun waterui_env_install_media_picker_manager(envPtr: Long) = WatcherJni.envInstallMediaPickerManager(envPtr)
     fun waterui_env_install_webview_controller(envPtr: Long) = WatcherJni.envInstallWebViewController(envPtr)
     fun waterui_env_install_view_renderer(envPtr: Long) = WatcherJni.envInstallViewRenderer(envPtr)
     fun waterui_env_install_window_manager(envPtr: Long) = WatcherJni.envInstallWindowManager(envPtr)
@@ -37,6 +36,7 @@ internal object NativeBindings {
     // ========== Type Identifiers ==========
 
     fun waterui_empty_id(): TypeIdStruct = WatcherJni.emptyId()
+    fun waterui_resolved_color_id(): TypeIdStruct = WatcherJni.resolvedColorId()
     fun waterui_text_id(): TypeIdStruct = WatcherJni.textId()
     fun waterui_plain_id(): TypeIdStruct = WatcherJni.plainId()
     fun waterui_button_id(): TypeIdStruct = WatcherJni.buttonId()
@@ -250,14 +250,16 @@ internal object NativeBindings {
 
     // ========== Dynamic ==========
 
-    fun waterui_force_as_dynamic(viewPtr: Long): DynamicStruct = DynamicStruct(WatcherJni.forceAsDynamic(viewPtr))
+    fun waterui_force_as_dynamic(viewPtr: Long): DynamicStruct = WatcherJni.forceAsDynamic(viewPtr)
     fun waterui_drop_dynamic(dynamicPtr: Long) = WatcherJni.dropDynamic(dynamicPtr)
     fun waterui_dynamic_connect(dynamicPtr: Long, watcher: WatcherStruct) = WatcherJni.dynamicConnect(dynamicPtr, watcher)
 
     // ========== Force-as functions ==========
 
     fun waterui_force_as_plain(viewPtr: Long): PlainStruct = WatcherJni.forceAsPlain(viewPtr)
-    fun waterui_force_as_text(viewPtr: Long): TextStruct = TextStruct(WatcherJni.forceAsText(viewPtr))
+    fun waterui_force_as_resolved_color(viewPtr: Long): ResolvedColorStruct =
+        WatcherJni.forceAsResolvedColor(viewPtr)
+    fun waterui_force_as_text(viewPtr: Long): TextStruct = WatcherJni.forceAsText(viewPtr)
     fun waterui_force_as_button(viewPtr: Long): ButtonStruct = WatcherJni.forceAsButton(viewPtr)
     fun waterui_force_as_text_field(viewPtr: Long): TextFieldStruct = WatcherJni.forceAsTextField(viewPtr)
     fun waterui_force_as_toggle(viewPtr: Long): ToggleStruct = WatcherJni.forceAsToggle(viewPtr)
@@ -307,21 +309,21 @@ internal object NativeBindings {
         WatcherJni.forceAsIgnorableMetadataMaterialBackground(viewPtr)
     fun waterui_call_shared_action(actionPtr: Long, envPtr: Long) = WatcherJni.callSharedAction(actionPtr, envPtr)
     fun waterui_drop_shared_action(actionPtr: Long) = WatcherJni.dropSharedAction(actionPtr)
-    fun waterui_force_as_photo(viewPtr: Long): PhotoStruct = WatcherJni.forceAsPhoto(viewPtr)
+    // waterui_force_as_photo removed - Photo is now a composite view (resolves to GpuSurface)
     fun waterui_force_as_system_icon(viewPtr: Long): SystemIconStruct = WatcherJni.forceAsSystemIcon(viewPtr)
     fun waterui_force_as_video(viewPtr: Long): VideoStruct2 = WatcherJni.forceAsVideo(viewPtr)
     fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)
-    fun waterui_force_as_webview(viewPtr: Long): WebViewStruct = WebViewStruct(WatcherJni.forceAsWebView(viewPtr))
+    fun waterui_force_as_webview(viewPtr: Long): WebViewStruct = WatcherJni.forceAsWebView(viewPtr)
     fun waterui_webview_native_handle(webviewPtr: Long): Long = WatcherJni.webviewNativeHandle(webviewPtr)
     fun waterui_webview_native_view(handlePtr: Long): android.webkit.WebView? = WatcherJni.webviewNativeView(handlePtr)
     fun waterui_drop_web_view(webviewPtr: Long) = WatcherJni.dropWebView(webviewPtr)
 
     // ========== Media Type IDs ==========
 
-    fun waterui_photo_id(): TypeIdStruct = WatcherJni.photoId()
+    // waterui_photo_id removed - Photo is now a composite view (resolves to GpuSurface)
     fun waterui_system_icon_id(): TypeIdStruct = WatcherJni.systemIconId()
     fun waterui_video_id(): TypeIdStruct = WatcherJni.videoId()
-    fun waterui_webview_id(): TypeIdStruct = WatcherJni.webviewId()
+    fun waterui_webview_id(): TypeIdStruct = WatcherJni.webViewId()
 
     // ========== Table Type IDs ==========
 
@@ -425,8 +427,8 @@ internal object NativeBindings {
     fun waterui_metadata_clip_shape_id(): TypeIdStruct = WatcherJni.metadataClipShapeId()
     fun waterui_metadata_hittable_id(): TypeIdStruct = WatcherJni.metadataHittableId()
     fun waterui_video_player_id(): TypeIdStruct = WatcherJni.videoPlayerId()
-    fun waterui_media_picker_id(): TypeIdStruct = WatcherJni.mediaPickerId()
-    fun waterui_force_as_media_picker(viewPtr: Long): MediaPickerStruct = WatcherJni.forceAsMediaPicker(viewPtr)
+    // waterui_media_picker_id removed - MediaPicker is now a composite Button in Rust
+    // waterui_force_as_media_picker removed - MediaPicker is now a composite Button in Rust
     fun waterui_menu_id(): TypeIdStruct = WatcherJni.menuId()
     fun waterui_force_as_menu(viewPtr: Long): MenuStruct = WatcherJni.forceAsMenu(viewPtr)
 

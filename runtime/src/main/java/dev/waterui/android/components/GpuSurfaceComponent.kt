@@ -31,12 +31,13 @@ private val gpuSurfaceRenderer = WuiRenderer { context, node, env, registry ->
 private class GpuSurfaceView(
     context: Context,
     private val gpuSurfaceData: GpuSurfaceStruct
-) : SurfaceView(context), SurfaceHolder.Callback, Choreographer.FrameCallback {
+) : SurfaceView(context), SurfaceHolder.Callback2, Choreographer.FrameCallback {
 
     @Volatile
     private var gpuState: Long = 0L
 
     private var rendererPtr: Long = gpuSurfaceData.rendererPtr
+    private val renderMode: Int = gpuSurfaceData.renderMode
 
     @Volatile
     private var isRendering = false
@@ -47,6 +48,12 @@ private class GpuSurfaceView(
     @Volatile
     private var surfaceHeight: Int = 0
 
+    @Volatile
+    private var needsRender = true
+
+    @Volatile
+    private var frameCallbackScheduled = false
+
     private val renderInFlight = AtomicBoolean(false)
 
     private var renderExecutor: ExecutorService = createRenderExecutor()
@@ -56,6 +63,9 @@ private class GpuSurfaceView(
 
     @Volatile
     private var consecutiveRenderFailures = 0
+
+    
+    private var frameCounter: Long = 0
 
     private var pointerHasPosition: Boolean = false
     private var pointerX: Float = 0f
@@ -91,6 +101,7 @@ private class GpuSurfaceView(
                 pointerHasPressOrigin = false
             }
         }
+        requestRenderIfNeeded()
         return true
     }
 
@@ -105,17 +116,23 @@ private class GpuSurfaceView(
                 pointerHasPosition = false
             }
         }
+        requestRenderIfNeeded()
         return super.onHoverEvent(event)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        Log.i(TAG, "surfaceCreated")
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         surfaceWidth = width
         surfaceHeight = height
+        Log.i(TAG, "surfaceChanged")
+        needsRender = true
 
         if (gpuState == 0L && rendererPtr != 0L) {
+            Log.i(TAG, "init requested")
+
             ensureRenderExecutor()
 
             gpuState = NativeBindings.waterui_gpu_surface_init(
@@ -131,6 +148,8 @@ private class GpuSurfaceView(
                 return
             }
 
+            Log.i(TAG, "init succeeded")
+
             consecutiveRenderFailures = 0
             isRendering = false
             resumeRenderingIfPossible()
@@ -138,6 +157,8 @@ private class GpuSurfaceView(
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Log.i(TAG, "surfaceDestroyed")
+
         pauseRendering()
         waitForRenderDrain()
 
@@ -156,15 +177,36 @@ private class GpuSurfaceView(
         consecutiveRenderFailures = 0
     }
 
+    override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
+        renderOneShot()
+    }
+
+    override fun surfaceRedrawNeededAsync(
+        holder: SurfaceHolder,
+        drawingFinished: SurfaceHolder.Callback2.SurfaceRedrawNeededAsync
+    ) {
+        renderOneShot {
+            drawingFinished.finishDrawing()
+        }
+    }
+
     override fun doFrame(frameTimeNanos: Long) {
         if (!isRendering || gpuState == 0L || surfaceWidth <= 0 || surfaceHeight <= 0) {
             return
         }
 
+        frameCallbackScheduled = false
+        if (renderMode == RENDER_MODE_ON_DEMAND && !needsRender) {
+            return
+        }
+
+        val frame = frameCounter + 1
+        frameCounter = frame
+        if (frame <= 3L || frame % 120L == 0L) {
+            Log.i(TAG, "doFrame start frame=" + frame + " state=" + gpuState)
+        }
+
         if (!renderInFlight.compareAndSet(false, true)) {
-            if (isRendering) {
-                Choreographer.getInstance().postFrameCallback(this)
-            }
             return
         }
 
@@ -181,6 +223,10 @@ private class GpuSurfaceView(
             hitX = pointerPressOriginX,
             hitY = pointerPressOriginY
         )
+
+        if (renderMode == RENDER_MODE_ON_DEMAND) {
+            needsRender = false
+        }
 
         renderExecutor.execute {
             try {
@@ -199,11 +245,17 @@ private class GpuSurfaceView(
                 )
 
                 val ok = NativeBindings.waterui_gpu_surface_render(statePtr, width, height)
+                if (frame <= 3L || frame % 120L == 0L) {
+                    Log.i(TAG, "doFrame result frame=" + frame + " ok=" + ok)
+                }
                 if (ok) {
                     consecutiveRenderFailures = 0
                 } else {
                     val failures = consecutiveRenderFailures + 1
                     consecutiveRenderFailures = failures
+                    if (renderMode == RENDER_MODE_ON_DEMAND) {
+                        needsRender = true
+                    }
                     if (failures >= MAX_CONSECUTIVE_RENDER_FAILURES) {
                         post {
                             if (consecutiveRenderFailures >= MAX_CONSECUTIVE_RENDER_FAILURES) {
@@ -217,6 +269,9 @@ private class GpuSurfaceView(
                 val failures = consecutiveRenderFailures + 1
                 consecutiveRenderFailures = failures
                 Log.w(TAG, "GpuSurface render failed: ${t.message}", t)
+                if (renderMode == RENDER_MODE_ON_DEMAND) {
+                    needsRender = true
+                }
                 if (failures >= MAX_CONSECUTIVE_RENDER_FAILURES) {
                     post { pauseRendering() }
                 }
@@ -226,7 +281,7 @@ private class GpuSurfaceView(
                 if (isRendering && gpuState == statePtr && surfaceWidth > 0 && surfaceHeight > 0) {
                     post {
                         if (isRendering && gpuState == statePtr) {
-                            Choreographer.getInstance().postFrameCallback(this@GpuSurfaceView)
+                            scheduleFrameIfNeeded()
                         }
                     }
                 }
@@ -247,7 +302,8 @@ private class GpuSurfaceView(
 
         ensureRenderExecutor()
         isRendering = true
-        Choreographer.getInstance().postFrameCallback(this)
+        needsRender = true
+        scheduleFrameIfNeeded()
     }
 
     private fun pauseRendering() {
@@ -256,6 +312,7 @@ private class GpuSurfaceView(
         }
         isRendering = false
         Choreographer.getInstance().removeFrameCallback(this)
+        frameCallbackScheduled = false
     }
 
     private fun ensureRenderExecutor() {
@@ -337,6 +394,84 @@ private class GpuSurfaceView(
         }
     }
 
+    private fun requestRenderIfNeeded() {
+        if (renderMode != RENDER_MODE_ON_DEMAND) {
+            return
+        }
+        needsRender = true
+        scheduleFrameIfNeeded()
+    }
+
+    private fun scheduleFrameIfNeeded() {
+        if (!isRendering || gpuState == 0L || surfaceWidth <= 0 || surfaceHeight <= 0) {
+            return
+        }
+        if (frameCallbackScheduled) {
+            return
+        }
+        if (renderMode == RENDER_MODE_ON_DEMAND && !needsRender) {
+            return
+        }
+        frameCallbackScheduled = true
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    private fun renderOneShot(onFinished: (() -> Unit)? = null) {
+        if (gpuState == 0L || surfaceWidth <= 0 || surfaceHeight <= 0) {
+            onFinished?.invoke()
+            return
+        }
+        if (!renderInFlight.compareAndSet(false, true)) {
+            onFinished?.invoke()
+            return
+        }
+
+        ensureRenderExecutor()
+
+        val statePtr = gpuState
+        val width = surfaceWidth
+        val height = surfaceHeight
+        val pointer = PointerSnapshot(
+            hasPosition = pointerHasPosition,
+            x = pointerX,
+            y = pointerY,
+            hasHit = pointerHasPressOrigin,
+            hitX = pointerPressOriginX,
+            hitY = pointerPressOriginY
+        )
+
+        renderExecutor.execute {
+            try {
+                if (statePtr == 0L || gpuState != statePtr) {
+                    return@execute
+                }
+
+                NativeBindings.waterui_gpu_surface_set_pointer(
+                    statePtr,
+                    pointer.hasPosition,
+                    pointer.x,
+                    pointer.y,
+                    pointer.hasHit,
+                    pointer.hitX,
+                    pointer.hitY
+                )
+
+                NativeBindings.waterui_gpu_surface_render(statePtr, width, height)
+                if (renderMode == RENDER_MODE_ON_DEMAND) {
+                    needsRender = false
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "GpuSurface redraw failed: ${t.message}", t)
+                if (renderMode == RENDER_MODE_ON_DEMAND) {
+                    needsRender = true
+                }
+            } finally {
+                renderInFlight.set(false)
+                onFinished?.invoke()
+            }
+        }
+    }
+
     private fun createRenderExecutor(): ExecutorService {
         return Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "WaterUI-GpuSurfaceRenderer").apply {
@@ -360,6 +495,8 @@ private class GpuSurfaceView(
         private const val DEFAULT_SIZE_DP = 100f
         private const val MAX_CONSECUTIVE_RENDER_FAILURES = 3
         private const val RENDER_DRAIN_TIMEOUT_MS = 1200L
+        private const val RENDER_MODE_CONTINUOUS = 0
+        private const val RENDER_MODE_ON_DEMAND = 1
     }
 }
 

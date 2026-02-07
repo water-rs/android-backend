@@ -11,19 +11,23 @@ import dev.waterui.android.runtime.*
  */
 object WatcherJni {
     init {
-        // Load the JNI helper library
-        System.loadLibrary("waterui_android")
-        nativeInit()
+        // JNI symbols are now embedded directly in the app's Rust library (waterui_app)
+        // which is loaded by MainActivity before this object is accessed.
+        // No separate library loading is needed here.
+        //
+        // Note: If you see UnsatisfiedLinkError, ensure:
+        // 1. The app was built with `water build android` (which enables android-jni feature)
+        // 2. MainActivity.loadWaterUiLibraries() runs before accessing this object
     }
 
-    @JvmStatic
-    private external fun nativeInit()
+    // nativeInit is no longer needed - JNI_OnLoad in Rust handles initialization
+    // @JvmStatic
+    // private external fun nativeInit()
 
     // ========== Core Functions ==========
 
     @JvmStatic external fun init(): Long
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
-    @JvmStatic external fun envInstallMediaPickerManager(envPtr: Long)
     @JvmStatic external fun envInstallWebViewController(envPtr: Long)
     @JvmStatic external fun envInstallViewRenderer(envPtr: Long)
     @JvmStatic external fun envInstallWindowManager(envPtr: Long)
@@ -39,7 +43,8 @@ object WatcherJni {
     // ========== Force-As Functions ==========
 
     @JvmStatic external fun forceAsPlain(viewPtr: Long): PlainStruct
-    @JvmStatic external fun forceAsText(viewPtr: Long): Long
+    @JvmStatic external fun forceAsResolvedColor(viewPtr: Long): ResolvedColorStruct
+    @JvmStatic external fun forceAsText(viewPtr: Long): TextStruct
     @JvmStatic external fun forceAsButton(viewPtr: Long): ButtonStruct
     @JvmStatic external fun forceAsTextField(viewPtr: Long): TextFieldStruct
     @JvmStatic external fun forceAsToggle(viewPtr: Long): ToggleStruct
@@ -53,7 +58,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsSecureField(viewPtr: Long): SecureFieldStruct
     @JvmStatic external fun forceAsLayoutContainer(viewPtr: Long): LayoutContainerStruct
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
-    @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
+    @JvmStatic external fun forceAsDynamic(viewPtr: Long): DynamicStruct
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
     @JvmStatic external fun forceAsMetadataStandardDynamicRange(viewPtr: Long): MetadataStandardDynamicRangeStruct
@@ -80,15 +85,15 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
     @JvmStatic external fun forceAsMetadataHittable(viewPtr: Long): MetadataHittableStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
-    @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
+    // forceAsPhoto removed - Photo is now a composite view (resolves to GpuSurface)
     @JvmStatic external fun forceAsSystemIcon(viewPtr: Long): SystemIconStruct
     @JvmStatic external fun forceAsTable(viewPtr: Long): TableStruct
     @JvmStatic external fun forceAsMap(viewPtr: Long): MapStruct
     @JvmStatic external fun forceAsIgnorableMetadataMaterialBackground(viewPtr: Long): MaterialBackgroundStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
-    @JvmStatic external fun forceAsWebView(viewPtr: Long): Long
-    @JvmStatic external fun forceAsMediaPicker(viewPtr: Long): MediaPickerStruct
+    @JvmStatic external fun forceAsWebView(viewPtr: Long): WebViewStruct
+    // forceAsMediaPicker removed - MediaPicker is now a composite Button in Rust
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
 
     // ========== Drop Functions ==========
@@ -308,6 +313,7 @@ object WatcherJni {
     // ========== Type ID Functions ==========
 
     @JvmStatic external fun emptyId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun resolvedColorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun textId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun plainId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun buttonId(): dev.waterui.android.runtime.TypeIdStruct
@@ -352,14 +358,14 @@ object WatcherJni {
     @JvmStatic external fun metadataHittableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataMaterialBackgroundId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
+    // photoId removed - Photo is now a composite view (resolves to GpuSurface)
     @JvmStatic external fun systemIconId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun tableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun mapId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun webviewId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun mediaPickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun webViewId(): dev.waterui.android.runtime.TypeIdStruct
+    // mediaPickerId removed - MediaPicker is now a composite Button in Rust
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========

@@ -52,6 +52,7 @@ object WindowManager {
         closable: Boolean,
         resizable: Boolean,
         contentPtr: Long,
+        toolbarPtr: Long,
         statePtr: Long,
         style: Int,
         backgroundTag: Int,
@@ -62,7 +63,7 @@ object WindowManager {
             val activity = hostView?.findActivity()
             if (hostView == null || activity == null || appEnvPtr == 0L) {
                 android.util.Log.w(TAG, "showWindow: missing host/activity/env, dropping pointers")
-                dropIncomingPointers(titlePtr, contentPtr, statePtr, backgroundTag, backgroundColorPtr)
+                dropIncomingPointers(titlePtr, contentPtr, toolbarPtr, statePtr, backgroundTag, backgroundColorPtr)
                 return@post
             }
 
@@ -77,6 +78,7 @@ object WindowManager {
                 closable = closable,
                 resizable = resizable,
                 contentPtr = contentPtr,
+                toolbarPtr = toolbarPtr,
                 statePtr = statePtr,
                 style = WindowStyle.fromInt(style),
                 backgroundTag = backgroundTag,
@@ -90,6 +92,7 @@ object WindowManager {
     private fun dropIncomingPointers(
         titlePtr: Long,
         contentPtr: Long,
+        toolbarPtr: Long,
         statePtr: Long,
         backgroundTag: Int,
         backgroundColorPtr: Long
@@ -102,6 +105,9 @@ object WindowManager {
         }
         if (contentPtr != 0L) {
             WatcherJni.dropAnyview(contentPtr)
+        }
+        if (toolbarPtr != 0L) {
+            WatcherJni.dropAnyview(toolbarPtr)
         }
         if (backgroundTag != 0 && backgroundColorPtr != 0L) {
             WatcherJni.dropColor(backgroundColorPtr)
@@ -117,6 +123,7 @@ private class WindowSession(
     private val closable: Boolean,
     @Suppress("UNUSED_PARAMETER") private val resizable: Boolean,
     private val contentPtr: Long,
+    private val toolbarPtr: Long,
     private val statePtr: Long,
     private val style: WindowStyle,
     private val backgroundTag: Int,
@@ -138,7 +145,7 @@ private class WindowSession(
             )
         }
 
-        val titleView: TextView? = if (style == WindowStyle.TITLED || style == WindowStyle.FULL_SIZE_CONTENT_VIEW) {
+        val titleView: TextView? = if (toolbarPtr == 0L && (style == WindowStyle.TITLED || style == WindowStyle.FULL_SIZE_CONTENT_VIEW)) {
             TextView(activity).also { tv ->
                 tv.textSize = 18f
                 val padding = (12f * activity.resources.displayMetrics.density).toInt()
@@ -153,6 +160,24 @@ private class WindowSession(
             }
         } else {
             null
+        }
+
+        if (toolbarPtr != 0L) {
+            val toolbarContainer = FrameLayout(activity).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            val toolbarView = inflateAnyView(activity, toolbarPtr, env, registry)
+            toolbarContainer.addView(
+                toolbarView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+            root.addView(toolbarContainer)
         }
 
         val contentContainer = FrameLayout(activity).apply {

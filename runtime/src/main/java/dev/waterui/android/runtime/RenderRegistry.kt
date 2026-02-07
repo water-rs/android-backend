@@ -74,6 +74,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
     val builder = RegistryBuilder()
     with(builder) {
         registerWuiEmptyView()
+        registerWuiResolvedColor()
         registerWuiText()
         registerWuiPlain()
         registerWuiSystemIcon()
@@ -93,7 +94,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiPicker()
         registerWuiMenu()
         registerWuiWithEnv()
-        registerWuiPhoto()
+        // Photo removed - now uses composite view (GpuSurface) in Rust
+        // registerWuiPhoto()
         registerWuiVideo()
         registerWuiVideoPlayer()
         registerWuiWebView()

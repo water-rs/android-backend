@@ -11,8 +11,6 @@ import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeface
 
-import android.util.Log
-
 private val labelTypeId: WuiTypeId by lazy { NativeBindings.waterui_plain_id().toTypeId() }
 
 private val labelRenderer = WuiRenderer { context, node, env, _ ->
@@ -22,7 +20,6 @@ private val labelRenderer = WuiRenderer { context, node, env, _ ->
         includeFontPadding = false
         setLineSpacing(0f, 1f)
     }
-    Log.d("WaterUI.Label", "render plain len=${textView.text.length}")
     val color = ThemeBridge.foreground(env)
     color.observe { resolved -> textView.setTextColor(resolved.toColorInt()) }
     color.attachTo(textView)
