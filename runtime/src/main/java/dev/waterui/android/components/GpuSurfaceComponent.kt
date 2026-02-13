@@ -7,7 +7,9 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.view.Choreographer
+import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
@@ -82,6 +84,67 @@ private class GpuSurfaceView(
     private var pointerPressOriginX: Float = 0f
     private var pointerPressOriginY: Float = 0f
 
+    private var gestureActive: Boolean = false
+    private var gesturePinchScale: Float = 1f
+    private var gestureHasPinchCenter: Boolean = false
+    private var gesturePinchCenterX: Float = 0f
+    private var gesturePinchCenterY: Float = 0f
+    private var gesturePanOffsetX: Float = 0f
+    private var gesturePanOffsetY: Float = 0f
+    private var gestureDoubleTap: Boolean = false
+
+    private var panTracking: Boolean = false
+    private var panStartCenterX: Float = 0f
+    private var panStartCenterY: Float = 0f
+
+    private val tapDetector: GestureDetector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                resetGestureState()
+                gestureDoubleTap = true
+                requestRenderIfNeeded()
+                return true
+            }
+        }
+    )
+
+    private val scaleDetector: ScaleGestureDetector = ScaleGestureDetector(
+        context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                gestureActive = true
+                gesturePinchScale = 1f
+                gestureHasPinchCenter = true
+                gesturePinchCenterX = detector.focusX
+                gesturePinchCenterY = detector.focusY
+                requestRenderIfNeeded()
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                gestureActive = true
+                gesturePinchScale *= detector.scaleFactor
+                gestureHasPinchCenter = true
+                gesturePinchCenterX = detector.focusX
+                gesturePinchCenterY = detector.focusY
+                requestRenderIfNeeded()
+                return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                gesturePinchScale = 1f
+                gestureHasPinchCenter = false
+                if (!panTracking) {
+                    gestureActive = false
+                }
+                requestRenderIfNeeded()
+            }
+        }
+    )
+
     init {
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -91,6 +154,9 @@ private class GpuSurfaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        tapDetector.onTouchEvent(event)
+        scaleDetector.onTouchEvent(event)
+
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 pointerHasPosition = true
@@ -100,13 +166,35 @@ private class GpuSurfaceView(
                 pointerPressOriginX = event.x
                 pointerPressOriginY = event.y
             }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2) {
+                    beginPanTracking(event)
+                }
+            }
             MotionEvent.ACTION_MOVE -> {
                 pointerHasPosition = true
                 pointerX = event.x
                 pointerY = event.y
+                if (panTracking && event.pointerCount >= 2) {
+                    updatePanTracking(event)
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (event.pointerCount <= 2) {
+                    endPanTracking()
+                    if (!scaleDetector.isInProgress) {
+                        gestureActive = false
+                    }
+                }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 pointerHasPressOrigin = false
+                endPanTracking()
+                if (!scaleDetector.isInProgress) {
+                    gestureActive = false
+                    gesturePinchScale = 1f
+                    gestureHasPinchCenter = false
+                }
             }
         }
         requestRenderIfNeeded()
@@ -223,14 +311,7 @@ private class GpuSurfaceView(
         val statePtr = gpuState
         val width = surfaceWidth
         val height = surfaceHeight
-        val pointer = PointerSnapshot(
-            hasPosition = pointerHasPosition,
-            x = pointerX,
-            y = pointerY,
-            hasHit = pointerHasPressOrigin,
-            hitX = pointerPressOriginX,
-            hitY = pointerPressOriginY
-        )
+        val input = captureInputSnapshot()
 
         if (renderMode == RENDER_MODE_ON_DEMAND) {
             needsRender = false
@@ -242,14 +323,22 @@ private class GpuSurfaceView(
                     return@execute
                 }
 
-                WatcherJni.gpuSurfaceSetPointer(
+                WatcherJni.gpuSurfaceSetInput(
                     statePtr,
-                    pointer.hasPosition,
-                    pointer.x,
-                    pointer.y,
-                    pointer.hasHit,
-                    pointer.hitX,
-                    pointer.hitY
+                    input.pointer.hasPosition,
+                    input.pointer.x,
+                    input.pointer.y,
+                    input.pointer.hasHit,
+                    input.pointer.hitX,
+                    input.pointer.hitY,
+                    input.gesture.active,
+                    input.gesture.pinchScale,
+                    input.gesture.hasPinchCenter,
+                    input.gesture.pinchCenterX,
+                    input.gesture.pinchCenterY,
+                    input.gesture.panOffsetX,
+                    input.gesture.panOffsetY,
+                    input.gesture.doubleTap
                 )
 
                 val ok = WatcherJni.gpuSurfaceRender(statePtr, width, height)
@@ -441,14 +530,7 @@ private class GpuSurfaceView(
         val statePtr = gpuState
         val width = surfaceWidth
         val height = surfaceHeight
-        val pointer = PointerSnapshot(
-            hasPosition = pointerHasPosition,
-            x = pointerX,
-            y = pointerY,
-            hasHit = pointerHasPressOrigin,
-            hitX = pointerPressOriginX,
-            hitY = pointerPressOriginY
-        )
+        val input = captureInputSnapshot()
 
         renderExecutor.execute {
             try {
@@ -456,14 +538,22 @@ private class GpuSurfaceView(
                     return@execute
                 }
 
-                WatcherJni.gpuSurfaceSetPointer(
+                WatcherJni.gpuSurfaceSetInput(
                     statePtr,
-                    pointer.hasPosition,
-                    pointer.x,
-                    pointer.y,
-                    pointer.hasHit,
-                    pointer.hitX,
-                    pointer.hitY
+                    input.pointer.hasPosition,
+                    input.pointer.x,
+                    input.pointer.y,
+                    input.pointer.hasHit,
+                    input.pointer.hitX,
+                    input.pointer.hitY,
+                    input.gesture.active,
+                    input.gesture.pinchScale,
+                    input.gesture.hasPinchCenter,
+                    input.gesture.pinchCenterX,
+                    input.gesture.pinchCenterY,
+                    input.gesture.panOffsetX,
+                    input.gesture.panOffsetY,
+                    input.gesture.doubleTap
                 )
 
                 WatcherJni.gpuSurfaceRender(statePtr, width, height)
@@ -522,6 +612,80 @@ private class GpuSurfaceView(
         holder.setFormat(format)
     }
 
+    private fun beginPanTracking(event: MotionEvent) {
+        val (cx, cy) = twoFingerCenter(event)
+        panTracking = true
+        panStartCenterX = cx
+        panStartCenterY = cy
+        gesturePanOffsetX = 0f
+        gesturePanOffsetY = 0f
+        gestureActive = true
+    }
+
+    private fun updatePanTracking(event: MotionEvent) {
+        val (cx, cy) = twoFingerCenter(event)
+        gesturePanOffsetX = cx - panStartCenterX
+        gesturePanOffsetY = cy - panStartCenterY
+        gestureActive = true
+    }
+
+    private fun endPanTracking() {
+        panTracking = false
+        gesturePanOffsetX = 0f
+        gesturePanOffsetY = 0f
+    }
+
+    private fun resetGestureState() {
+        gestureActive = false
+        gesturePinchScale = 1f
+        gestureHasPinchCenter = false
+        gesturePanOffsetX = 0f
+        gesturePanOffsetY = 0f
+        panTracking = false
+    }
+
+    private fun twoFingerCenter(event: MotionEvent): Pair<Float, Float> {
+        val firstIndex = 0
+        val secondIndex = if (event.pointerCount > 1) 1 else 0
+        val x = (event.getX(firstIndex) + event.getX(secondIndex)) * 0.5f
+        val y = (event.getY(firstIndex) + event.getY(secondIndex)) * 0.5f
+        return x to y
+    }
+
+    private fun captureInputSnapshot(): InputSnapshot {
+        val snapshot = InputSnapshot(
+            pointer = PointerSnapshot(
+                hasPosition = pointerHasPosition,
+                x = pointerX,
+                y = pointerY,
+                hasHit = pointerHasPressOrigin,
+                hitX = pointerPressOriginX,
+                hitY = pointerPressOriginY
+            ),
+            gesture = GestureSnapshot(
+                active = gestureActive,
+                pinchScale = gesturePinchScale,
+                hasPinchCenter = gestureHasPinchCenter,
+                pinchCenterX = gesturePinchCenterX,
+                pinchCenterY = gesturePinchCenterY,
+                panOffsetX = gesturePanOffsetX,
+                panOffsetY = gesturePanOffsetY,
+                doubleTap = gestureDoubleTap
+            )
+        )
+
+        // doubleTap is a one-frame pulse for renderers.
+        if (gestureDoubleTap) {
+            gestureDoubleTap = false
+        }
+        return snapshot
+    }
+
+    private data class InputSnapshot(
+        val pointer: PointerSnapshot,
+        val gesture: GestureSnapshot
+    )
+
     private data class PointerSnapshot(
         val hasPosition: Boolean,
         val x: Float,
@@ -529,6 +693,17 @@ private class GpuSurfaceView(
         val hasHit: Boolean,
         val hitX: Float,
         val hitY: Float
+    )
+
+    private data class GestureSnapshot(
+        val active: Boolean,
+        val pinchScale: Float,
+        val hasPinchCenter: Boolean,
+        val pinchCenterX: Float,
+        val pinchCenterY: Float,
+        val panOffsetX: Float,
+        val panOffsetY: Float,
+        val doubleTap: Boolean
     )
 
     companion object {

@@ -4,8 +4,9 @@ import android.graphics.Color
 import android.view.Gravity
 import android.widget.LinearLayout
 import com.google.android.material.button.MaterialButton
-import dev.waterui.android.runtime.ColorPickerStruct
 import dev.waterui.android.ffi.WatcherJni
+import dev.waterui.android.reactive.WatcherGuard
+import dev.waterui.android.reactive.WatcherStructFactory
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ThemeBridge
@@ -86,6 +87,21 @@ private val colorPickerRenderer = WuiRenderer { context, node, env, registry ->
 
     updateButtonColor()
 
+    // Keep button color in sync when Rust mutates the bound color.
+    var bindingWatcher: WatcherGuard? = null
+    if (struct.valuePtr != 0L) {
+        val watcher = WatcherStructFactory.anyView { colorPtr, _ ->
+            if (colorPtr != 0L) {
+                WatcherJni.dropColor(colorPtr)
+            }
+            colorButton.post { updateButtonColor() }
+        }
+        val guardPtr = WatcherJni.watchBindingColor(struct.valuePtr, watcher)
+        if (guardPtr != 0L) {
+            bindingWatcher = WatcherGuard(guardPtr)
+        }
+    }
+
     // Set up color picker dialog on click
     colorButton.setOnClickListener {
         val currentColor = resolveCurrentColor()
@@ -148,6 +164,13 @@ private val colorPickerRenderer = WuiRenderer { context, node, env, registry ->
         // Update accent styling if needed
     }
     accent.attachTo(container)
+
+    container.disposeWith {
+        bindingWatcher?.close()
+        if (struct.valuePtr != 0L) {
+            WatcherJni.dropBindingColor(struct.valuePtr)
+        }
+    }
 
     container
 }

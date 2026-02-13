@@ -36,7 +36,6 @@ private fun renderDynamicRange(
 
     if (contentPtr != 0L) {
         val child = inflateAnyView(context, contentPtr, env, registry)
-        child.setWuiDynamicRangeMode(mode)
         container.addView(child)
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
     }

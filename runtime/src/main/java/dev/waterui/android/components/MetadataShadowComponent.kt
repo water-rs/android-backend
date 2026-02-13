@@ -3,6 +3,7 @@ package dev.waterui.android.components
 import android.os.Build
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.ffi.WatcherJni
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -35,32 +36,27 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
     }
 
-    // Resolve the shadow color
+    // Apply geometry-related shadow parameters.
+    val density = context.resources.displayMetrics.density
+    container.elevation = metadata.radius * density
+    container.translationX = metadata.offsetX * density
+    container.translationY = metadata.offsetY * density
+
+    var colorComputed: WuiComputed<dev.waterui.android.runtime.ResolvedColorStruct>? = null
     if (metadata.colorPtr != 0L) {
-        val resolvedColor = WatcherJni.readComputedResolvedColor(metadata.colorPtr)
-        val shadowColor = resolvedColor.toColorInt()
-
-        // Apply shadow using elevation
-        // The radius approximates the elevation needed
-        val density = context.resources.displayMetrics.density
-        container.elevation = metadata.radius * density
-
-        // Translate the shadow offset using translation
-        container.translationX = metadata.offsetX * density
-        container.translationY = metadata.offsetY * density
-
-        // On API 28+, we can set shadow color
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            container.outlineAmbientShadowColor = shadowColor
-            container.outlineSpotShadowColor = shadowColor
+        colorComputed = WuiComputed.colorFromComputed(metadata.colorPtr, env)
+        colorComputed.observe { resolvedColor ->
+            val shadowColor = resolvedColor.toColorInt()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                container.outlineAmbientShadowColor = shadowColor
+                container.outlineSpotShadowColor = shadowColor
+            }
         }
-
-        // Cleanup color pointer
-        WatcherJni.dropComputedResolvedColor(metadata.colorPtr)
     }
 
     // Cleanup
     container.disposeWith {
+        colorComputed?.close()
     }
 
     container

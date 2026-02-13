@@ -156,6 +156,17 @@ class WuiBinding<T>(
                 env = env
             )
 
+        fun styledString(bindingPtr: Long, env: WuiEnvironment): WuiBinding<StyledStrStruct> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingStyledStr(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingStyledStr(ptr, value) },
+                watcherFactory = { _, callback -> WatcherStructFactory.styledString(callback) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingStyledStr(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingStyledStr(ptr) },
+                env = env
+            )
+
         fun float(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Float> =
             WuiBinding(
                 bindingPtr = bindingPtr,

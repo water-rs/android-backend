@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
@@ -20,6 +21,8 @@ import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.editableToStyled
+import dev.waterui.android.runtime.toModel
 
 import dev.waterui.android.runtime.dp
 import java.util.concurrent.atomic.AtomicBoolean
@@ -35,7 +38,7 @@ private const val KEYBOARD_PHONE = 5
 
 private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = WatcherJni.forceAsTextField(node.rawPtr)
-    val binding = WuiBinding.str(struct.valuePtr, env)
+    val binding = WuiBinding.styledString(struct.valuePtr, env)
     val promptComputed = struct.promptPtr.takeIf { it != 0L }?.let { WuiComputed.styledString(it, env) }
 
     // TextField is StretchAxis::Horizontal (Rust-defined):
@@ -72,19 +75,29 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     ViewCompat.setBackground(editText, shape)
 
     val updating = AtomicBoolean(false)
-    binding.observe { value ->
-        val current = editText.text?.toString().orEmpty()
-        if (current != value && !updating.get()) {
-            updating.set(true)
-            editText.setText(value)
-            editText.setSelection(value.length)
-            updating.set(false)
-        }
+    var lastRendered: dev.waterui.android.runtime.StyledStrStruct? = null
+    binding.observe { styled ->
+        if (updating.get() || lastRendered == styled) return@observe
+
+        val selected = editText.selectionStart.takeIf { it >= 0 } ?: 0
+        val model = styled.toModel()
+        val rendered = model.toCharSequence(env)
+        model.close()
+
+        updating.set(true)
+        editText.setText(rendered, TextView.BufferType.SPANNABLE)
+        val length = editText.text?.length ?: 0
+        editText.setSelection(selected.coerceAtMost(length))
+        updating.set(false)
+
+        lastRendered = styled
     }
 
-    editText.addTextChangedListener { text ->
+    editText.addTextChangedListener {
         if (!updating.get()) {
-            binding.set(text?.toString().orEmpty())
+            val styled = editableToStyled(editText.editableText, editText)
+            lastRendered = styled
+            binding.set(styled)
         }
     }
 

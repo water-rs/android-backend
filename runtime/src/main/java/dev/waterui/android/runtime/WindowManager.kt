@@ -187,6 +187,7 @@ private class WindowSession(
 ) {
     private var title: WuiComputed<String>? = null
     private var state: WuiBinding<Int>? = null
+    private var background: WuiComputed<ResolvedColorStruct>? = null
     private var dialog: Dialog? = null
     private var closed = false
     private var propagateDismissToState = true
@@ -264,7 +265,7 @@ private class WindowSession(
             dialog.setOnKeyListener { _, _, _ -> true }
         }
 
-        // Apply background once (if provided).
+        // Apply background (if provided); keeps reactive updates alive for this session.
         applyBackground(dialog)
 
         // Title updates.
@@ -326,14 +327,16 @@ private class WindowSession(
 
     private fun applyBackground(dialog: Dialog) {
         if (backgroundTag == 1 && backgroundColorPtr != 0L) { // WuiWindowBackground_Color
-            try {
-                val resolved = WuiComputed.resolvedColor(backgroundColorPtr, env)
-                val colorInt = resolved.current().toColorInt()
-                dialog.window?.setBackgroundDrawable(ColorDrawable(colorInt))
-                resolved.close()
-            } finally {
-                WatcherJni.dropColor(backgroundColorPtr)
+            val resolved = WuiComputed.resolvedColor(backgroundColorPtr, env)
+            background = resolved
+            resolved.observe { color ->
+                dialog.window?.setBackgroundDrawable(ColorDrawable(color.toColorInt()))
             }
+        }
+
+        // The incoming Color pointer is consumed by resolveColor (or unused for unsupported tags).
+        if (backgroundColorPtr != 0L) {
+            WatcherJni.dropColor(backgroundColorPtr)
         }
     }
 
@@ -359,6 +362,9 @@ private class WindowSession(
 
         state?.close()
         state = null
+
+        background?.close()
+        background = null
 
         env.close()
         onClosed()

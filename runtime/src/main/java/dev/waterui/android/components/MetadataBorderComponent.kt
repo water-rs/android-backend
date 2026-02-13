@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.ffi.WatcherJni
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -41,13 +42,8 @@ private val metadataBorderRenderer = WuiRenderer { context, node, env, registry 
         container.setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
     }
 
-    // Resolve the border color
+    var colorComputed: WuiComputed<dev.waterui.android.runtime.ResolvedColorStruct>? = null
     if (metadata.colorPtr != 0L) {
-        val resolvedColor = WatcherJni.resolveColor(metadata.colorPtr, env.raw())
-        val resolvedColorStruct = WatcherJni.readComputedResolvedColor(resolvedColor)
-        val borderColor = resolvedColorStruct.toColorInt()
-        WatcherJni.dropComputedResolvedColor(resolvedColor)
-
         val density = context.resources.displayMetrics.density
         val borderWidthPx = (metadata.width * density).toInt()
         val cornerRadiusPx = metadata.cornerRadius * density
@@ -56,26 +52,37 @@ private val metadataBorderRenderer = WuiRenderer { context, node, env, registry 
         val allEdges = metadata.top && metadata.leading && metadata.bottom && metadata.trailing
 
         if (allEdges) {
-            // Simple case: apply border to all edges using GradientDrawable
+            // Simple case: apply border to all edges using GradientDrawable.
             val drawable = GradientDrawable().apply {
-                setStroke(borderWidthPx, borderColor)
+                setStroke(borderWidthPx, android.graphics.Color.TRANSPARENT)
                 setCornerRadius(cornerRadiusPx)
             }
             container.foreground = drawable
+            colorComputed = WuiComputed.resolvedColor(metadata.colorPtr, env)
+            colorComputed.observe { resolved ->
+                drawable.setStroke(borderWidthPx, resolved.toColorInt())
+            }
         } else {
-            container.foreground = EdgeBorderDrawable(
-                color = borderColor,
+            val drawable = EdgeBorderDrawable(
+                color = android.graphics.Color.TRANSPARENT,
                 widthPx = borderWidthPx.coerceAtLeast(0),
                 top = metadata.top,
                 leading = metadata.leading,
                 bottom = metadata.bottom,
                 trailing = metadata.trailing
             )
+            container.foreground = drawable
+            colorComputed = WuiComputed.resolvedColor(metadata.colorPtr, env)
+            colorComputed.observe { resolved ->
+                drawable.setBorderColor(resolved.toColorInt())
+            }
         }
     }
 
     // Cleanup
-    container.disposeWith { }
+    container.disposeWith {
+        colorComputed?.close()
+    }
 
     container
 }
@@ -91,7 +98,7 @@ internal fun RegistryBuilder.registerWuiBorder() {
  * rendering. Full rounded borders are handled by GradientDrawable in the all-edges case.
  */
 private class EdgeBorderDrawable(
-    private val color: Int,
+    color: Int,
     private val widthPx: Int,
     private val top: Boolean,
     private val leading: Boolean,
@@ -100,7 +107,12 @@ private class EdgeBorderDrawable(
 ) : Drawable() {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        this.color = this@EdgeBorderDrawable.color
+        this.color = color
+    }
+
+    fun setBorderColor(color: Int) {
+        paint.color = color
+        invalidateSelf()
     }
 
     override fun draw(canvas: Canvas) {

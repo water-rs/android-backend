@@ -40,6 +40,14 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
     val contentsPtr = struct.contentsPtr
     val adapter = WuiListAdapter(context, contentsPtr, env, registry)
     recyclerView.adapter = adapter
+    var contentsWatcherGuard: Long = 0L
+    if (contentsPtr != 0L) {
+        contentsWatcherGuard = WatcherJni.anyViewsWatch(contentsPtr, Runnable {
+            recyclerView.post {
+                adapter.reload()
+            }
+        })
+    }
 
     // Setup editing state watcher if provided
     val editingComputed = struct.editingPtr.takeIf { it != 0L }?.let { WuiComputedBool(it) }
@@ -162,6 +170,10 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     recyclerView.disposeWith {
+        if (contentsWatcherGuard != 0L) {
+            WatcherJni.dropWatcherGuard(contentsWatcherGuard)
+            contentsWatcherGuard = 0L
+        }
         if (contentsPtr != 0L) {
             WatcherJni.dropAnyViews(contentsPtr)
         }

@@ -137,6 +137,7 @@ object WatcherJni {
     @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
     @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
+    @JvmStatic external fun fontFromResolved(size: Float, weight: Int, family: String): Long
     @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
 
     // ========== Animation Functions ==========
@@ -159,6 +160,7 @@ object WatcherJni {
     @JvmStatic external fun anyViewsLen(handle: Long): Int
     @JvmStatic external fun anyViewsGetView(handle: Long, index: Int): Long
     @JvmStatic external fun anyViewsGetId(handle: Long, index: Int): Int
+    @JvmStatic external fun anyViewsWatch(handle: Long, callback: Runnable): Long
     @JvmStatic external fun dropAnyViews(handle: Long)
 
     // ========== Binding Read/Write/Drop ==========
@@ -167,12 +169,14 @@ object WatcherJni {
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
     @JvmStatic external fun readBindingStr(bindingPtr: Long): ByteArray
+    @JvmStatic external fun readBindingStyledStr(bindingPtr: Long): StyledStrStruct
     @JvmStatic external fun readBindingColor(bindingPtr: Long): Long
     @JvmStatic external fun readBindingWindowState(bindingPtr: Long): Int
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
     @JvmStatic external fun setBindingStr(bindingPtr: Long, bytes: ByteArray)
+    @JvmStatic external fun setBindingStyledStr(bindingPtr: Long, value: StyledStrStruct)
     @JvmStatic external fun setBindingSecure(bindingPtr: Long, bytes: ByteArray)
     @JvmStatic external fun dropBindingSecure(bindingPtr: Long)
     @JvmStatic external fun setBindingColor(bindingPtr: Long, colorPtr: Long)
@@ -181,6 +185,7 @@ object WatcherJni {
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
     @JvmStatic external fun dropBindingStr(bindingPtr: Long)
+    @JvmStatic external fun dropBindingStyledStr(bindingPtr: Long)
     @JvmStatic external fun dropBindingColor(bindingPtr: Long)
     @JvmStatic external fun dropBindingWindowState(bindingPtr: Long)
     @JvmStatic external fun readBindingFloat(bindingPtr: Long): Float
@@ -240,6 +245,8 @@ object WatcherJni {
     @JvmStatic external fun watchBindingInt(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDouble(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingStr(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingStyledStr(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingColor(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingFloat(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingWindowState(bindingPtr: Long, watcher: WatcherStruct): Long
 
@@ -425,14 +432,22 @@ object WatcherJni {
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
     @JvmStatic external fun gpuSurfaceInit(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
     @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
-    @JvmStatic external fun gpuSurfaceSetPointer(
+    @JvmStatic external fun gpuSurfaceSetInput(
         statePtr: Long,
         hasPosition: Boolean,
         x: Float,
         y: Float,
         hasHit: Boolean,
         hitX: Float,
-        hitY: Float
+        hitY: Float,
+        gestureActive: Boolean,
+        pinchScale: Float,
+        hasPinchCenter: Boolean,
+        pinchCenterX: Float,
+        pinchCenterY: Float,
+        panOffsetX: Float,
+        panOffsetY: Float,
+        doubleTap: Boolean
     )
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 
