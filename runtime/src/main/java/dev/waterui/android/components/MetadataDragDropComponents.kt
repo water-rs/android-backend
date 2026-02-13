@@ -7,7 +7,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -19,7 +19,7 @@ import dev.waterui.android.runtime.inflateAnyView
 // ========== Metadata<Draggable> ==========
 
 private val metadataDraggableTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_draggable_id().toTypeId()
+    WatcherJni.metadataDraggableId().toTypeId()
 }
 
 /**
@@ -29,7 +29,7 @@ private val metadataDraggableTypeId: WuiTypeId by lazy {
  * Uses long-press to initiate drag on Android.
  */
 private val metadataDraggableRenderer = WuiRenderer { context, node, env, registry ->
-    val draggableData = NativeBindings.waterui_force_as_metadata_draggable(node.rawPtr)
+    val draggableData = WatcherJni.forceAsMetadataDraggable(node.rawPtr)
     
     val container = PassThroughFrameLayout(context).apply {
         consumesTouches = true
@@ -49,7 +49,7 @@ private val metadataDraggableRenderer = WuiRenderer { context, node, env, regist
         
         override fun onLongPress(e: MotionEvent) {
             // Get the drag data from Rust
-            val dragData = NativeBindings.waterui_draggable_get_data(draggableData.draggablePtr)
+            val dragData = WatcherJni.draggableGetData(draggableData.draggablePtr)
             
             // Create ClipData based on data type
             val clipData = when (dragData.tag) {
@@ -83,7 +83,7 @@ private val metadataDraggableRenderer = WuiRenderer { context, node, env, regist
     
     // Cleanup
     container.disposeWith {
-        NativeBindings.waterui_drop_draggable(draggableData.draggablePtr)
+        WatcherJni.dropDraggable(draggableData.draggablePtr)
     }
     
     container
@@ -92,7 +92,7 @@ private val metadataDraggableRenderer = WuiRenderer { context, node, env, regist
 // ========== Metadata<DropDestination> ==========
 
 private val metadataDropDestinationTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_drop_destination_id().toTypeId()
+    WatcherJni.metadataDropDestinationId().toTypeId()
 }
 
 /**
@@ -102,7 +102,7 @@ private val metadataDropDestinationTypeId: WuiTypeId by lazy {
  * Uses OnDragListener to handle drop events.
  */
 private val metadataDropDestinationRenderer = WuiRenderer { context, node, env, registry ->
-    val dropDestData = NativeBindings.waterui_force_as_metadata_drop_destination(node.rawPtr)
+    val dropDestData = WatcherJni.forceAsMetadataDropDestination(node.rawPtr)
     val envPtr = env.raw()
     
     val container = PassThroughFrameLayout(context)
@@ -118,7 +118,7 @@ private val metadataDropDestinationRenderer = WuiRenderer { context, node, env, 
     container.setOnDragListener { _, event ->
         when (event.action) {
             DragEvent.ACTION_DRAG_ENTERED -> {
-                NativeBindings.waterui_call_drop_enter_handler(
+                WatcherJni.callDropEnterHandler(
                     dropDestData.dropDestPtr,
                     envPtr
                 )
@@ -126,7 +126,7 @@ private val metadataDropDestinationRenderer = WuiRenderer { context, node, env, 
             }
             
             DragEvent.ACTION_DRAG_EXITED -> {
-                NativeBindings.waterui_call_drop_exit_handler(
+                WatcherJni.callDropExitHandler(
                     dropDestData.dropDestPtr,
                     envPtr
                 )
@@ -152,7 +152,7 @@ private val metadataDropDestinationRenderer = WuiRenderer { context, node, env, 
                         }
                     }
                     
-                    NativeBindings.waterui_call_drop_handler(
+                    WatcherJni.callDropHandler(
                         dropDestData.dropDestPtr,
                         envPtr,
                         tag.ordinal,
@@ -180,7 +180,7 @@ private val metadataDropDestinationRenderer = WuiRenderer { context, node, env, 
     
     // Cleanup
     container.disposeWith {
-        NativeBindings.waterui_drop_drop_destination(dropDestData.dropDestPtr)
+        WatcherJni.dropDropDestination(dropDestData.dropDestPtr)
     }
     
     container

@@ -2,10 +2,8 @@ package dev.waterui.android.runtime
 
 import android.animation.TimeInterpolator
 import android.view.View
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.view.animation.AccelerateInterpolator
-import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import android.view.animation.PathInterpolator
 import androidx.dynamicanimation.animation.SpringForce
 import kotlin.math.sqrt
 
@@ -84,11 +82,13 @@ internal fun springForceFrom(animation: WuiAnimation.Spring): SpringForce {
 }
 
 internal fun interpolatorFor(animation: WuiAnimation): TimeInterpolator = when (animation) {
-    is WuiAnimation.Linear -> LinearInterpolator()
-    is WuiAnimation.EaseIn -> AccelerateInterpolator(2.0f)
-    is WuiAnimation.EaseOut -> DecelerateInterpolator(2.0f)
-    is WuiAnimation.EaseInOut, is WuiAnimation.Default, is WuiAnimation.Spring ->
-        AccelerateDecelerateInterpolator()
+    is WuiAnimation.Bezier -> when {
+        animation.x1 == 0f && animation.y1 == 0f && animation.x2 == 1f && animation.y2 == 1f ->
+            LinearInterpolator()
+        else -> PathInterpolator(animation.x1, animation.y1, animation.x2, animation.y2)
+    }
+    is WuiAnimation.Spring ->
+        LinearInterpolator()
     else -> LinearInterpolator()
 }
 

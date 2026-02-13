@@ -2,13 +2,13 @@ package dev.waterui.android.components
 
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 
-private val videoTypeId: WuiTypeId by lazy { NativeBindings.waterui_video_id().toTypeId() }
+private val videoTypeId: WuiTypeId by lazy { WatcherJni.videoId().toTypeId() }
 
 /**
  * Video (raw) component renderer.
@@ -18,14 +18,14 @@ private val videoTypeId: WuiTypeId by lazy { NativeBindings.waterui_video_id().t
  * For video with controls, use VideoPlayer.
  *
  * Features:
- * - Reactive URL updates via Computed<Video>
+ * - Reactive URL updates via Computed<String>
  * - Reactive volume control via Binding<f32>
  * - Aspect ratio modes: Fit, Fill, Stretch
  * - Loop support
  * - No native playback controls (raw video surface)
  */
 private val videoRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_video(node.rawPtr)
+    val struct = WatcherJni.forceAsVideo(node.rawPtr)
 
     // Create the shared video view without native controls
     val videoView = WuiVideoTextureView(
@@ -35,9 +35,9 @@ private val videoRenderer = WuiRenderer { context, node, env, registry ->
         loops = struct.loops
     )
 
-    // Set up source computed signal (uses video Computed which returns VideoStruct with url)
+    // Set up source computed signal (Computed<Str> URL)
     val sourceComputed = struct.sourcePtr.takeIf { it != 0L }?.let {
-        WuiComputed.video(it, env)
+        WuiComputed.string(it, env)
     }
 
     // Set up volume binding
@@ -48,10 +48,10 @@ private val videoRenderer = WuiRenderer { context, node, env, registry ->
     var currentUrl: String? = null
 
     // Observe video source changes
-    sourceComputed?.observe { video ->
-        if (video.url != currentUrl && video.url.isNotEmpty()) {
-            currentUrl = video.url
-            videoView.setVideoUrl(video.url)
+    sourceComputed?.observe { url ->
+        if (url != currentUrl && url.isNotEmpty()) {
+            currentUrl = url
+            videoView.setVideoUrl(url)
         }
     }
 

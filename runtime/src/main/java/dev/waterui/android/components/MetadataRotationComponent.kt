@@ -5,7 +5,7 @@ import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiAnimation
@@ -18,7 +18,7 @@ import dev.waterui.android.runtime.springForceFrom
 import dev.waterui.android.runtime.withRustAnimator
 
 private val metadataRotationTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_rotation_id().toTypeId()
+    WatcherJni.metadataRotationId().toTypeId()
 }
 
 /**
@@ -28,7 +28,7 @@ private val metadataRotationTypeId: WuiTypeId by lazy {
  * Rotations are purely visual and do not affect layout.
  */
 private val metadataRotationRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_rotation(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataRotation(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 
@@ -37,7 +37,7 @@ private val metadataRotationRenderer = WuiRenderer { context, node, env, registr
     val anchorY = metadata.anchorY
 
     if (metadata.anglePtr != 0L) {
-        currentRotation = NativeBindings.waterui_read_computed_f32(metadata.anglePtr)
+        currentRotation = WatcherJni.readComputedF32(metadata.anglePtr)
     }
 
     var childView: View? = null
@@ -85,11 +85,11 @@ private val metadataRotationRenderer = WuiRenderer { context, node, env, registr
     val watcherGuards = mutableListOf<Long>()
 
     if (metadata.anglePtr != 0L) {
-        val watcher = NativeBindings.waterui_create_float_watcher { value, watcherMetadata ->
+        val watcher = WatcherJni.createFloatWatcher { value, watcherMetadata ->
             currentRotation = value
             applyRotation(watcherMetadata.animation)
         }
-        val guard = NativeBindings.waterui_watch_computed_f32(metadata.anglePtr, watcher)
+        val guard = WatcherJni.watchComputedF32(metadata.anglePtr, watcher)
         if (guard != 0L) watcherGuards.add(guard)
     }
 
@@ -99,9 +99,9 @@ private val metadataRotationRenderer = WuiRenderer { context, node, env, registr
         }
         rotationSpring?.cancel()
         watcherGuards.forEach { guard ->
-            NativeBindings.waterui_drop_watcher_guard(guard)
+            WatcherJni.dropWatcherGuard(guard)
         }
-        if (metadata.anglePtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.anglePtr)
+        if (metadata.anglePtr != 0L) WatcherJni.dropComputedF32(metadata.anglePtr)
     }
 
     container

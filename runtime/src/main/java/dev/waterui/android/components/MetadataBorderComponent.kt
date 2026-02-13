@@ -5,7 +5,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.Canvas
 import android.graphics.Paint
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -16,7 +16,7 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 
 private val metadataBorderTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_border_id().toTypeId()
+    WatcherJni.metadataBorderId().toTypeId()
 }
 
 /**
@@ -30,7 +30,7 @@ private val metadataBorderTypeId: WuiTypeId by lazy {
  * - Edge-specific borders (top, leading, bottom, trailing)
  */
 private val metadataBorderRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_border(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataBorder(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 
@@ -43,10 +43,10 @@ private val metadataBorderRenderer = WuiRenderer { context, node, env, registry 
 
     // Resolve the border color
     if (metadata.colorPtr != 0L) {
-        val resolvedColor = NativeBindings.waterui_resolve_color(metadata.colorPtr, env.raw())
-        val resolvedColorStruct = NativeBindings.waterui_read_computed_resolved_color(resolvedColor)
+        val resolvedColor = WatcherJni.resolveColor(metadata.colorPtr, env.raw())
+        val resolvedColorStruct = WatcherJni.readComputedResolvedColor(resolvedColor)
         val borderColor = resolvedColorStruct.toColorInt()
-        NativeBindings.waterui_drop_computed_resolved_color(resolvedColor)
+        WatcherJni.dropComputedResolvedColor(resolvedColor)
 
         val density = context.resources.displayMetrics.density
         val borderWidthPx = (metadata.width * density).toInt()

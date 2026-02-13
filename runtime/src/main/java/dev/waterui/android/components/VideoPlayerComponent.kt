@@ -2,13 +2,13 @@ package dev.waterui.android.components
 
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 
-private val videoPlayerTypeId: WuiTypeId by lazy { NativeBindings.waterui_video_player_id().toTypeId() }
+private val videoPlayerTypeId: WuiTypeId by lazy { WatcherJni.videoPlayerId().toTypeId() }
 
 /**
  * VideoPlayer component renderer.
@@ -22,7 +22,7 @@ private val videoPlayerTypeId: WuiTypeId by lazy { NativeBindings.waterui_video_
  * - Stretch (2): Video stretches to fill bounds, ignoring aspect ratio
  */
 private val videoPlayerRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_video_player(node.rawPtr)
+    val struct = WatcherJni.forceAsVideoPlayer(node.rawPtr)
 
     // Create the shared video view with native controls enabled
     val videoView = WuiVideoTextureView(

@@ -21,35 +21,39 @@ import com.google.android.material.tabs.TabLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.reactive.attachTo
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NavigationControllerCallback
 import dev.waterui.android.runtime.NavigationViewStruct
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.TabPosition
+import dev.waterui.android.runtime.WuiAnimation
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.findActivity
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.withRustAnimator
 
 // ========== Type IDs ==========
 
 private val navigationStackTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_navigation_stack_id().toTypeId()
+    WatcherJni.navigationStackId().toTypeId()
 }
 
 private val navigationViewTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_navigation_view_id().toTypeId()
+    WatcherJni.navigationViewId().toTypeId()
 }
 
 private val tabsTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_tabs_id().toTypeId()
+    WatcherJni.tabsId().toTypeId()
 }
 
 private val plainTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_plain_id().toTypeId()
+    WatcherJni.plainId().toTypeId()
 }
 
 // ========== NavigationStack Renderer ==========
@@ -62,7 +66,7 @@ private val plainTypeId: WuiTypeId by lazy {
  * Expands to fill available space (StretchAxis.BOTH).
  */
 private val navigationStackRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_navigation_stack(node.rawPtr)
+    val struct = WatcherJni.forceAsNavigationStack(node.rawPtr)
 
     val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -86,7 +90,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
     container.addView(contentHost)
 
     // Clone environment for child views
-    val childEnvPtr = NativeBindings.waterui_clone_env(env.raw())
+    val childEnvPtr = WatcherJni.cloneEnv(env.raw())
     val childEnv = WuiEnvironment(childEnvPtr)
 
     data class StackEntry(
@@ -108,11 +112,11 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
     var currentTitleView: View? = null
     val viewStack = mutableListOf<StackEntry>()
 
-    val activity = findActivity(context) as? ComponentActivity
+    val activity = context.findActivity() as? ComponentActivity
     val systemBackCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
             if (viewStack.size > 1) {
-                NativeBindings.waterui_navigation_pop(childEnv.raw())
+                WatcherJni.navigationPop(childEnv.raw())
             } else {
                 // Allow default system back when we're at root.
                 isEnabled = false
@@ -164,7 +168,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
                     androidx.appcompat.R.drawable.abc_ic_ab_back_material
                 )
             toolbar.setNavigationOnClickListener {
-                NativeBindings.waterui_navigation_pop(childEnv.raw())
+                WatcherJni.navigationPop(childEnv.raw())
             }
         } else {
             toolbar.navigationIcon = null
@@ -186,12 +190,12 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
         // Unwrap through `body()` until we either reach a registered native type
         // (or a title-friendly primitive we can render with Material3 styling).
         repeat(12) {
-            val typeId = NativeBindings.waterui_view_id(ptr).toTypeId()
+            val typeId = WatcherJni.viewId(ptr).toTypeId()
 
             // Prefer rendering plain labels ourselves so we can apply Material3 title
             // styling without fighting the generic label renderer's body font bindings.
             if (typeId == plainTypeId) {
-                val plain = NativeBindings.waterui_force_as_plain(ptr)
+                val plain = WatcherJni.forceAsPlain(ptr)
                 val text = plain.textBytes.decodeToString()
                 return TextView(context).apply {
                     this.text = text
@@ -217,7 +221,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
             }
 
             // Otherwise unwrap one level.
-            ptr = NativeBindings.waterui_view_body(ptr, childEnv.raw())
+            ptr = WatcherJni.viewBody(ptr, childEnv.raw())
             if (ptr == 0L) return null
         }
 
@@ -248,12 +252,12 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
 
         var colorComputed: WuiComputed<ResolvedColorStruct>? = null
         if (navView.bar.colorPtr != 0L) {
-            val colorPtr = NativeBindings.waterui_read_computed_color(navView.bar.colorPtr)
+            val colorPtr = WatcherJni.readComputedColor(navView.bar.colorPtr)
             if (colorPtr != 0L) {
                 colorComputed = WuiComputed.resolvedColor(colorPtr, childEnv)
-                NativeBindings.waterui_drop_color(colorPtr)
+                WatcherJni.dropColor(colorPtr)
             }
-            NativeBindings.waterui_drop_computed_color(navView.bar.colorPtr)
+            WatcherJni.dropComputedColor(navView.bar.colorPtr)
         }
 
         var hiddenComputed: WuiComputed<Boolean>? = null
@@ -287,14 +291,16 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
                 viewStack.add(entry)
 
                 // Only the top entry should drive toolbar updates.
-                entry.hidden?.observe { hidden ->
+                entry.hidden?.observeWithAnimation { hidden, animation ->
                     if (entry.id == activeEntryId) {
-                        toolbar.visibility = if (hidden) View.GONE else View.VISIBLE
+                        applyTopAppBarVisibility(toolbar, hidden, animation)
                     }
                 }
-                entry.color?.observe { color ->
+                entry.color?.observeWithAnimation { color, animation ->
                     if (entry.id == activeEntryId) {
-                        applyTopAppBarColors(toolbar, color, currentTitleView)
+                        toolbar.applyRustAnimation(animation) {
+                            applyTopAppBarColors(toolbar, color, currentTitleView)
+                        }
                     }
                 }
 
@@ -332,8 +338,8 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
     }
 
     // Create and install navigation controller
-    val controllerPtr = NativeBindings.waterui_navigation_controller_new(callback)
-    NativeBindings.waterui_env_install_navigation_controller(childEnvPtr, controllerPtr)
+    val controllerPtr = WatcherJni.navigationControllerNew(callback)
+    WatcherJni.envInstallNavigationController(childEnvPtr, controllerPtr)
 
     // Render root view with child environment
     if (struct.rootPtr != 0L) {
@@ -350,27 +356,29 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
             viewStack.add(entry)
 
             // Initial toolbar wiring
-            entry.hidden?.observe { hidden ->
+            entry.hidden?.observeWithAnimation { hidden, animation ->
                 if (entry.id == activeEntryId) {
-                    toolbar.visibility = if (hidden) View.GONE else View.VISIBLE
+                    applyTopAppBarVisibility(toolbar, hidden, animation)
                 }
             }
-            entry.color?.observe { color ->
+            entry.color?.observeWithAnimation { color, animation ->
                 if (entry.id == activeEntryId) {
-                    applyTopAppBarColors(toolbar, color, currentTitleView)
+                    toolbar.applyRustAnimation(animation) {
+                        applyTopAppBarColors(toolbar, color, currentTitleView)
+                    }
                 }
             }
             applyToolbarForTop()
         }
 
-        val directTypeId = NativeBindings.waterui_view_id(rootPtr).toTypeId()
+        val directTypeId = WatcherJni.viewId(rootPtr).toTypeId()
         if (directTypeId == navigationViewTypeId) {
-            addRootAsNavView(NativeBindings.waterui_force_as_navigation_view(rootPtr))
+            addRootAsNavView(WatcherJni.forceAsNavigationView(rootPtr))
         } else {
-            rootPtr = NativeBindings.waterui_view_body(rootPtr, childEnv.raw())
-            val bodyTypeId = if (rootPtr != 0L) NativeBindings.waterui_view_id(rootPtr).toTypeId() else null
+            rootPtr = WatcherJni.viewBody(rootPtr, childEnv.raw())
+            val bodyTypeId = if (rootPtr != 0L) WatcherJni.viewId(rootPtr).toTypeId() else null
             if (bodyTypeId != null && bodyTypeId == navigationViewTypeId) {
-                addRootAsNavView(NativeBindings.waterui_force_as_navigation_view(rootPtr))
+                addRootAsNavView(WatcherJni.forceAsNavigationView(rootPtr))
             } else if (rootPtr != 0L) {
                 val rootView = inflateAnyView(context, rootPtr, childEnv, registry)
                 rootView.layoutParams = FrameLayout.LayoutParams(
@@ -397,7 +405,7 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
     container.disposeWith {
         viewStack.forEach { it.close() }
         systemBackCallback.remove()
-        NativeBindings.waterui_env_drop(childEnvPtr)
+        WatcherJni.dropEnv(childEnvPtr)
     }
 
     container
@@ -413,11 +421,11 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
  * Expands to fill available space (StretchAxis.BOTH).
  */
 private val navigationViewRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_navigation_view(node.rawPtr)
+    val struct = WatcherJni.forceAsNavigationView(node.rawPtr)
 
     // If a navigation controller is installed in the environment, the surrounding
     // NavigationStack owns the chrome; render content only.
-    if (NativeBindings.waterui_env_has_navigation_controller(env.raw())) {
+    if (WatcherJni.envHasNavigationController(env.raw())) {
         return@WuiRenderer if (struct.contentPtr != 0L) {
             inflateAnyView(context, struct.contentPtr, env, registry)
         } else {
@@ -459,22 +467,24 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
 
     // Setup bar color watcher
     if (struct.bar.colorPtr != 0L) {
-        val colorPtr = NativeBindings.waterui_read_computed_color(struct.bar.colorPtr)
+        val colorPtr = WatcherJni.readComputedColor(struct.bar.colorPtr)
         if (colorPtr != 0L) {
             colorComputed = WuiComputed.resolvedColor(colorPtr, env)
-            colorComputed?.observe { newColor ->
-                applyTopAppBarColors(navBar, newColor, titleViewRef)
+            colorComputed?.observeWithAnimation { newColor, animation ->
+                navBar.applyRustAnimation(animation) {
+                    applyTopAppBarColors(navBar, newColor, titleViewRef)
+                }
             }
-            NativeBindings.waterui_drop_color(colorPtr)
+            WatcherJni.dropColor(colorPtr)
         }
-        NativeBindings.waterui_drop_computed_color(struct.bar.colorPtr)
+        WatcherJni.dropComputedColor(struct.bar.colorPtr)
     }
 
     // Setup bar hidden watcher
     if (struct.bar.hiddenPtr != 0L) {
         hiddenComputed = WuiComputed.bool(struct.bar.hiddenPtr, env)
-        hiddenComputed?.observe { hidden ->
-            navBar.visibility = if (hidden) View.GONE else View.VISIBLE
+        hiddenComputed?.observeWithAnimation { hidden, animation ->
+            applyTopAppBarVisibility(navBar, hidden, animation)
         }
     }
 
@@ -617,8 +627,36 @@ private fun applyTopAppBarColors(toolbar: MaterialToolbar, color: ResolvedColorS
     syncSystemBarsWithTopAppBar(toolbar, bg)
 }
 
+private fun applyTopAppBarVisibility(toolbar: View, hidden: Boolean, animation: WuiAnimation) {
+    toolbar.animate().cancel()
+
+    if (!toolbar.isAttachedToWindow || !animation.shouldAnimate) {
+        toolbar.alpha = 1f
+        toolbar.visibility = if (hidden) View.GONE else View.VISIBLE
+        return
+    }
+
+    if (hidden) {
+        toolbar.visibility = View.VISIBLE
+        toolbar.withRustAnimator(animation) {
+            alpha(0f)
+            withEndAction {
+                toolbar.visibility = View.GONE
+                toolbar.alpha = 1f
+            }
+        }
+        return
+    }
+
+    toolbar.alpha = 0f
+    toolbar.visibility = View.VISIBLE
+    toolbar.withRustAnimator(animation) {
+        alpha(1f)
+    }
+}
+
 private fun syncSystemBarsWithTopAppBar(toolbar: MaterialToolbar, appBarColor: Int) {
-    val activity = findActivity(toolbar.context) ?: return
+    val activity = toolbar.context.findActivity() ?: return
     val window = activity.window ?: return
 
     window.statusBarColor = appBarColor
@@ -645,7 +683,7 @@ private fun syncSystemBarsWithTopAppBar(toolbar: MaterialToolbar, appBarColor: I
  * Expands to fill available space (StretchAxis.BOTH).
  */
 private val tabsRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_tabs(node.rawPtr)
+    val struct = WatcherJni.forceAsTabs(node.rawPtr)
     val position = TabPosition.fromInt(struct.position)
 
     // Create container
@@ -685,7 +723,7 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
         // Build tab content (calls waterui_tab_content to get NavigationView)
         val tab = struct.tabs[index]
         if (tab.contentPtr != 0L) {
-            val navViewStruct = NativeBindings.waterui_tab_content(tab.contentPtr)
+            val navViewStruct = WatcherJni.tabContent(tab.contentPtr)
             // Create a NavigationView-like layout for the tab content
             val tabContent = inflateTabContent(context, navViewStruct, env, registry)
             tabContent.layoutParams = FrameLayout.LayoutParams(
@@ -697,124 +735,62 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
         }
     }
 
-    // Create tab bar based on position
-    when (position) {
-        TabPosition.TOP -> {
-            // TabLayout at top
-            val tabLayout = TabLayout(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                tabMode = TabLayout.MODE_FIXED
-                tabGravity = TabLayout.GRAVITY_FILL
+    val tabLayout = TabLayout(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        tabMode = TabLayout.MODE_FIXED
+        tabGravity = TabLayout.GRAVITY_FILL
+    }
+
+    struct.tabs.forEach { tab ->
+        val tabItem = tabLayout.newTab().apply {
+            tag = tab.id
+            if (tab.labelPtr == 0L) {
+                error("Tabs: tab labelPtr is null (id=${tab.id})")
             }
-
-            // Add tabs
-            struct.tabs.forEachIndexed { index, tab ->
-                val tabItem = tabLayout.newTab().apply {
-                    tag = tab.id
-                    if (tab.labelPtr == 0L) {
-                        error("Tabs: tab labelPtr is null (id=${tab.id})")
-                    }
-                    val labelView = inflateAnyView(context, tab.labelPtr, env, registry)
-                    customView = labelView
-                }
-                tabLayout.addTab(tabItem)
-            }
-
-            // Handle tab selection
-            tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-                override fun onTabSelected(tab: TabLayout.Tab?) {
-                    tab?.let {
-                        val index = it.position
-                        showTab(index)
-                        // Update binding
-                        val tabId = struct.tabs.getOrNull(index)?.id?.toInt() ?: return
-                        if (selectionBinding?.current() != tabId) {
-                            selectionBinding?.set(tabId)
-                        }
-                    }
-                }
-                override fun onTabUnselected(tab: TabLayout.Tab?) {}
-                override fun onTabReselected(tab: TabLayout.Tab?) {}
-            })
-
-            // Watch for selection changes from binding
-            selectionBinding?.observe { selectedId ->
-                val index = struct.tabs.indexOfFirst { it.id.toInt() == selectedId }
-                if (index >= 0 && tabLayout.selectedTabPosition != index) {
-                    tabLayout.getTabAt(index)?.select()
-                }
-            }
-
-            // Layout: tab bar at top, content below
-            container.addView(tabLayout)
-            container.addView(contentContainer)
-
-            // Show initial tab
-            val initialIndex = struct.tabs.indexOfFirst {
-                it.id.toInt() == (selectionBinding?.current() ?: 0)
-            }.takeIf { it >= 0 } ?: 0
-            showTab(initialIndex)
-            tabLayout.getTabAt(initialIndex)?.select()
+            customView = inflateAnyView(context, tab.labelPtr, env, registry)
         }
+        tabLayout.addTab(tabItem)
+    }
 
-        TabPosition.BOTTOM -> {
-            // Use TabLayout at bottom as well to avoid forcing string-only labels.
-            val tabLayout = TabLayout(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                tabMode = TabLayout.MODE_FIXED
-                tabGravity = TabLayout.GRAVITY_FILL
+    tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+        override fun onTabSelected(tab: TabLayout.Tab?) {
+            val index = tab?.position ?: return
+            showTab(index)
+            val tabId = struct.tabs.getOrNull(index)?.id?.toInt() ?: return
+            if (selectionBinding?.current() != tabId) {
+                selectionBinding?.set(tabId)
             }
+        }
+        override fun onTabUnselected(tab: TabLayout.Tab?) {}
+        override fun onTabReselected(tab: TabLayout.Tab?) {}
+    })
 
-            struct.tabs.forEachIndexed { index, tab ->
-                val tabItem = tabLayout.newTab().apply {
-                    tag = tab.id
-                    if (tab.labelPtr == 0L) {
-                        error("Tabs: tab labelPtr is null (id=${tab.id})")
-                    }
-                    val labelView = inflateAnyView(context, tab.labelPtr, env, registry)
-                    customView = labelView
-                }
-                tabLayout.addTab(tabItem)
-            }
-
-            tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-                override fun onTabSelected(tab: TabLayout.Tab?) {
-                    tab?.let {
-                        val index = it.position
-                        showTab(index)
-                        val tabId = struct.tabs.getOrNull(index)?.id?.toInt() ?: return
-                        if (selectionBinding?.current() != tabId) {
-                            selectionBinding?.set(tabId)
-                        }
-                    }
-                }
-                override fun onTabUnselected(tab: TabLayout.Tab?) {}
-                override fun onTabReselected(tab: TabLayout.Tab?) {}
-            })
-
-            selectionBinding?.observe { selectedId ->
-                val index = struct.tabs.indexOfFirst { it.id.toInt() == selectedId }
-                if (index >= 0 && tabLayout.selectedTabPosition != index) {
-                    tabLayout.getTabAt(index)?.select()
-                }
-            }
-
-            container.addView(contentContainer)
-            container.addView(tabLayout)
-
-            val initialIndex = struct.tabs.indexOfFirst {
-                it.id.toInt() == (selectionBinding?.current() ?: 0)
-            }.takeIf { it >= 0 } ?: 0
-            showTab(initialIndex)
-            tabLayout.getTabAt(initialIndex)?.select()
+    selectionBinding?.observe { selectedId ->
+        val index = struct.tabs.indexOfFirst { it.id.toInt() == selectedId }
+        if (index >= 0 && tabLayout.selectedTabPosition != index) {
+            tabLayout.getTabAt(index)?.select()
         }
     }
+
+    when (position) {
+        TabPosition.TOP -> {
+            container.addView(tabLayout)
+            container.addView(contentContainer)
+        }
+        TabPosition.BOTTOM -> {
+            container.addView(contentContainer)
+            container.addView(tabLayout)
+        }
+    }
+
+    val initialIndex = struct.tabs.indexOfFirst {
+        it.id.toInt() == (selectionBinding?.current() ?: 0)
+    }.takeIf { it >= 0 } ?: 0
+    showTab(initialIndex)
+    tabLayout.getTabAt(initialIndex)?.select()
 
     // Cleanup
     container.disposeWith {
@@ -892,13 +868,4 @@ internal fun RegistryBuilder.registerWuiNavigationView() {
 
 internal fun RegistryBuilder.registerWuiTabs() {
     register({ tabsTypeId }, tabsRenderer)
-}
-
-private fun findActivity(context: Context): android.app.Activity? {
-    var ctx: android.content.Context? = context
-    while (ctx is android.content.ContextWrapper) {
-        if (ctx is android.app.Activity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
 }

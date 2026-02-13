@@ -6,9 +6,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.AnnotationStruct
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RegionStruct
+import dev.waterui.android.runtime.WuiAnimation
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
@@ -17,10 +18,10 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 
-private val mapTypeId: WuiTypeId by lazy { NativeBindings.waterui_map_id().toTypeId() }
+private val mapTypeId: WuiTypeId by lazy { WatcherJni.mapId().toTypeId() }
 
 private val mapRenderer = WuiRenderer { context, node, env, _ ->
-    val struct = NativeBindings.waterui_force_as_map(node.rawPtr)
+    val struct = WatcherJni.forceAsMap(node.rawPtr)
 
     val mapView = WuiMapWebView(context, defaultWidthDp = 320f, defaultHeightDp = 480f).apply {
         layoutParams = ViewGroup.LayoutParams(
@@ -58,7 +59,7 @@ private val mapRenderer = WuiRenderer { context, node, env, _ ->
     }
 
     val region = WuiComputed.region(struct.regionPtr, env)
-    region.observe { r -> mapView.setRegion(r) }
+    region.observeWithAnimation { r, animation -> mapView.setRegion(r, animation) }
     mapView.disposeWith(region)
 
     val annotations = WuiComputed.annotations(struct.annotationsPtr, env)
@@ -77,23 +78,37 @@ private class WuiMapWebView(
     private val defaultWidthDp: Float,
     private val defaultHeightDp: Float
 ) : WebView(context) {
+    private data class RegionUpdate(
+        val region: RegionStruct,
+        val animation: WuiAnimation
+    )
+
     private var ready = false
-    private var pendingRegion: RegionStruct? = null
+    private var pendingRegion: RegionUpdate? = null
     private var pendingAnnotations: List<AnnotationStruct>? = null
 
     fun markReady() {
         ready = true
-        pendingRegion?.let { setRegion(it) }
+        pendingRegion?.let { setRegion(it.region, it.animation) }
         pendingAnnotations?.let { setAnnotations(it) }
     }
 
-    fun setRegion(region: RegionStruct) {
+    fun setRegion(region: RegionStruct, animation: WuiAnimation = WuiAnimation.None) {
         if (!ready) {
-            pendingRegion = region
+            pendingRegion = RegionUpdate(region, animation)
             return
         }
         val zoom = estimateZoom(region.latitudeDelta, region.longitudeDelta)
-        val js = "window.wuiSetRegion(${region.centerLatitude},${region.centerLongitude},$zoom);"
+        val js = if (animation.shouldAnimate) {
+            val durationSeconds = when (animation) {
+                is WuiAnimation.Bezier -> animation.durationMs.coerceAtLeast(16L).toDouble() / 1000.0
+                is WuiAnimation.Spring -> 0.35
+                else -> 0.0
+            }
+            "window.wuiAnimateRegion(${region.centerLatitude},${region.centerLongitude},$zoom,$durationSeconds);"
+        } else {
+            "window.wuiSetRegion(${region.centerLatitude},${region.centerLongitude},$zoom);"
+        }
         evaluateJavascript(js, null)
     }
 
@@ -227,6 +242,9 @@ private fun mapHtml(
       let markers = [];
       window.wuiSetRegion = function(lat, lon, zoom) {
         map.setView([lat, lon], zoom, { animate: false });
+      }
+      window.wuiAnimateRegion = function(lat, lon, zoom, duration) {
+        map.flyTo([lat, lon], zoom, { animate: true, duration: duration });
       }
       window.wuiSetAnnotations = function(items) {
         for (const m of markers) { map.removeLayer(m); }

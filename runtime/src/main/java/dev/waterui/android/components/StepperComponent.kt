@@ -9,7 +9,7 @@ import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.ShapeAppearanceModel
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
@@ -20,10 +20,10 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 
 
-private val stepperTypeId: WuiTypeId by lazy { NativeBindings.waterui_stepper_id().toTypeId() }
+private val stepperTypeId: WuiTypeId by lazy { WatcherJni.stepperId().toTypeId() }
 
 private val stepperRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_stepper(node.rawPtr)
+    val struct = WatcherJni.forceAsStepper(node.rawPtr)
     val binding = WuiBinding.int(struct.bindingPtr, env)
     val stepComputed = struct.stepPtr.takeIf { it != 0L }?.let { WuiComputed.int(it, env) }
     val rangeStart = struct.rangeStart

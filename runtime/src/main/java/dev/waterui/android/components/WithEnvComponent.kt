@@ -1,7 +1,7 @@
 package dev.waterui.android.components
 
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiEnvironment
@@ -12,7 +12,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 
-private val metadataEnvTypeId: WuiTypeId by lazy { NativeBindings.waterui_metadata_env_id().toTypeId() }
+private val metadataEnvTypeId: WuiTypeId by lazy { WatcherJni.metadataEnvId().toTypeId() }
 
 /**
  * Renderer for WithEnv / Metadata<Environment>.
@@ -24,7 +24,7 @@ private val metadataEnvTypeId: WuiTypeId by lazy { NativeBindings.waterui_metada
  * Metadata is transparent for layout - the stretch axis comes from the content.
  */
 private val metadataEnvRenderer = WuiRenderer { context, node, _, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_env(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataEnv(node.rawPtr)
 
     // Create a WuiEnvironment wrapper for the new environment
     // This takes ownership of the envPtr

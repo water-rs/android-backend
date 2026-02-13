@@ -3,7 +3,7 @@ package dev.waterui.android.components
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.PopupMenu
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -13,7 +13,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataContextMenuTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_context_menu_id().toTypeId()
+    WatcherJni.metadataContextMenuId().toTypeId()
 }
 
 /**
@@ -23,7 +23,7 @@ private val metadataContextMenuTypeId: WuiTypeId by lazy {
  * On Android, this uses PopupMenu which is shown on long-press.
  */
 private val metadataContextMenuRenderer = WuiRenderer { context, node, env, registry ->
-    val menuData = NativeBindings.waterui_force_as_metadata_context_menu(node.rawPtr)
+    val menuData = WatcherJni.forceAsMetadataContextMenu(node.rawPtr)
 
     val container = FrameLayout(context)
     val envPtr = env.raw()
@@ -46,7 +46,7 @@ private val metadataContextMenuRenderer = WuiRenderer { context, node, env, regi
     // Cleanup
     container.disposeWith {
         if (menuData.itemsPtr != 0L) {
-            NativeBindings.waterui_drop_computed_menu_items(menuData.itemsPtr)
+            WatcherJni.dropComputedMenuItems(menuData.itemsPtr)
         }
     }
 
@@ -54,14 +54,14 @@ private val metadataContextMenuRenderer = WuiRenderer { context, node, env, regi
 }
 
 private fun showContextMenu(anchor: View, itemsPtr: Long, envPtr: Long) {
-    val items = NativeBindings.waterui_read_computed_menu_items(itemsPtr)
+    val items = WatcherJni.readComputedMenuItems(itemsPtr)
     if (items.isEmpty()) return
 
     val popup = PopupMenu(anchor.context, anchor)
 
     items.forEachIndexed { index, item ->
         // Read the styled text to get the label
-        val styledStr = NativeBindings.waterui_read_computed_styled_str(item.labelPtr)
+        val styledStr = WatcherJni.readComputedStyledStr(item.labelPtr)
         val label = styledStr.chunks.joinToString("") { it.text }
 
         popup.menu.add(0, index, index, label)
@@ -70,7 +70,7 @@ private fun showContextMenu(anchor: View, itemsPtr: Long, envPtr: Long) {
     popup.setOnMenuItemClickListener { menuItem ->
         val item = items.getOrNull(menuItem.itemId)
         if (item != null && item.actionPtr != 0L) {
-            NativeBindings.waterui_call_shared_action(item.actionPtr, envPtr)
+            WatcherJni.callSharedAction(item.actionPtr, envPtr)
         }
         true
     }

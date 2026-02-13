@@ -12,6 +12,7 @@ import androidx.media3.ui.PlayerView
 import dev.waterui.android.runtime.WuiDynamicRangeMode
 import dev.waterui.android.runtime.activateHdrWindowMode
 import dev.waterui.android.runtime.deactivateHdrWindowMode
+import dev.waterui.android.runtime.findActivity
 import dev.waterui.android.runtime.resolveWuiDynamicRangeModeOrNull
 
 /**
@@ -118,7 +119,7 @@ class WuiVideoTextureView(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         if (hdrWindowModeActive) {
-            deactivateHdrWindowMode(findActivity()?.window)
+            deactivateHdrWindowMode(context.findActivity()?.window)
             hdrWindowModeActive = false
         }
         // Immediately pause to stop audio before full cleanup
@@ -131,11 +132,11 @@ class WuiVideoTextureView(
         val dynamicRangeMode = resolveWuiDynamicRangeModeOrNull()
         if (dynamicRangeMode == WuiDynamicRangeMode.HIGH) {
             if (!hdrWindowModeActive) {
-                activateHdrWindowMode(findActivity()?.window, requireCapability = true)
+                activateHdrWindowMode(context.findActivity()?.window, requireCapability = true)
                 hdrWindowModeActive = true
             }
         } else if (hdrWindowModeActive) {
-            deactivateHdrWindowMode(findActivity()?.window)
+            deactivateHdrWindowMode(context.findActivity()?.window)
             hdrWindowModeActive = false
         }
         // Recreate player if it was released
@@ -147,14 +148,5 @@ class WuiVideoTextureView(
                 setVideoUrl(url)
             }
         }
-    }
-
-    private fun findActivity(): android.app.Activity? {
-        var ctx: Context? = context
-        while (ctx is android.content.ContextWrapper) {
-            if (ctx is android.app.Activity) return ctx
-            ctx = ctx.baseContext
-        }
-        return null
     }
 }

@@ -1,8 +1,6 @@
 package dev.waterui.android.runtime
 
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.os.Build
 import android.view.View
@@ -46,7 +44,7 @@ internal fun applyWindowDynamicRangePolicyOnAttach(
 
         override fun onViewAttachedToWindow(v: View) {
             if (isApplied) return
-            val activity = findActivity(context) ?: error("DynamicRange policy requires an Activity context")
+            val activity = context.findActivity() ?: error("DynamicRange policy requires an Activity context")
             if (mode == WuiDynamicRangeMode.HIGH) {
                 activateHdrWindowMode(activity.window, requireCapability)
             }
@@ -55,22 +53,13 @@ internal fun applyWindowDynamicRangePolicyOnAttach(
 
         override fun onViewDetachedFromWindow(v: View) {
             if (!isApplied) return
-            val activity = findActivity(context)
+            val activity = context.findActivity()
             if (mode == WuiDynamicRangeMode.HIGH) {
                 deactivateHdrWindowMode(activity?.window)
             }
             isApplied = false
         }
     })
-}
-
-private fun findActivity(context: Context): Activity? {
-    var ctx: Context? = context
-    while (ctx is ContextWrapper) {
-        if (ctx is Activity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
 }
 
 internal fun activateHdrWindowMode(window: Window?, requireCapability: Boolean = true) {

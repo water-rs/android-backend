@@ -1,6 +1,6 @@
 package dev.waterui.android.reactive
 
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ResolvedFontStruct
 import dev.waterui.android.runtime.WatcherStruct
@@ -34,92 +34,92 @@ sealed class WuiSignalType<T>(val id: Int) {
     abstract val dropBinding: ((Long) -> Unit)?
     
     object WuiBool : WuiSignalType<Boolean>(0) {
-        override val read: (Long) -> Boolean = NativeBindings::waterui_read_binding_bool
-        override val write: (Long, Boolean) -> Unit = NativeBindings::waterui_set_binding_bool
+        override val read: (Long) -> Boolean = WatcherJni::readBindingBool
+        override val write: (Long, Boolean) -> Unit = WatcherJni::setBindingBool
         override val createWatcher = { cb: WatcherCallback<Boolean> -> 
-            NativeBindings.waterui_create_bool_watcher(cb)
+            WatcherJni.createBoolWatcher(cb)
         }
         override val watchComputed: (Long, WatcherStruct) -> Long = { _, _ -> 0L } // Not used for bool
-        override val watchBinding: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_binding_bool
+        override val watchBinding: (Long, WatcherStruct) -> Long = WatcherJni::watchBindingBool
         override val dropComputed: (Long) -> Unit = { } // Not used
-        override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_bool
+        override val dropBinding: (Long) -> Unit = WatcherJni::dropBindingBool
     }
     
     object WuiInt : WuiSignalType<Int>(1) {
-        override val read: (Long) -> Int = NativeBindings::waterui_read_binding_int
-        override val write: (Long, Int) -> Unit = NativeBindings::waterui_set_binding_int
+        override val read: (Long) -> Int = WatcherJni::readBindingInt
+        override val write: (Long, Int) -> Unit = WatcherJni::setBindingInt
         override val createWatcher = { cb: WatcherCallback<Int> -> 
-            NativeBindings.waterui_create_int_watcher(cb)
+            WatcherJni.createIntWatcher(cb)
         }
-        override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_i32
-        override val watchBinding: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_binding_int
-        override val dropComputed: (Long) -> Unit = NativeBindings::waterui_drop_computed_i32
-        override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_int
+        override val watchComputed: (Long, WatcherStruct) -> Long = WatcherJni::watchComputedI32
+        override val watchBinding: (Long, WatcherStruct) -> Long = WatcherJni::watchBindingInt
+        override val dropComputed: (Long) -> Unit = WatcherJni::dropComputedI32
+        override val dropBinding: (Long) -> Unit = WatcherJni::dropBindingInt
     }
     
     object WuiDouble : WuiSignalType<Double>(2) {
-        override val read: (Long) -> Double = NativeBindings::waterui_read_binding_double
-        override val write: (Long, Double) -> Unit = NativeBindings::waterui_set_binding_double
+        override val read: (Long) -> Double = WatcherJni::readBindingDouble
+        override val write: (Long, Double) -> Unit = WatcherJni::setBindingDouble
         override val createWatcher = { cb: WatcherCallback<Double> -> 
-            NativeBindings.waterui_create_double_watcher(cb)
+            WatcherJni.createDoubleWatcher(cb)
         }
-        override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_f64
-        override val watchBinding: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_binding_double
-        override val dropComputed: (Long) -> Unit = NativeBindings::waterui_drop_computed_f64
-        override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_double
+        override val watchComputed: (Long, WatcherStruct) -> Long = WatcherJni::watchComputedF64
+        override val watchBinding: (Long, WatcherStruct) -> Long = WatcherJni::watchBindingDouble
+        override val dropComputed: (Long) -> Unit = WatcherJni::dropComputedF64
+        override val dropBinding: (Long) -> Unit = WatcherJni::dropBindingDouble
     }
     
     object WuiStr : WuiSignalType<String>(3) {
         override val read: (Long) -> String = { ptr ->
-            NativeBindings.waterui_read_binding_str(ptr).decodeToString()
+            WatcherJni.readBindingStr(ptr).decodeToString()
         }
         override val write: (Long, String) -> Unit = { ptr, value ->
-            NativeBindings.waterui_set_binding_str(ptr, value.encodeToByteArray())
+            WatcherJni.setBindingStr(ptr, value.encodeToByteArray())
         }
         override val createWatcher = { cb: WatcherCallback<String> -> 
-            NativeBindings.waterui_create_string_watcher(cb)
+            WatcherJni.createStringWatcher(cb)
         }
         override val watchComputed: (Long, WatcherStruct) -> Long = { _, _ -> 0L } // Not used
-        override val watchBinding: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_binding_str
+        override val watchBinding: (Long, WatcherStruct) -> Long = WatcherJni::watchBindingStr
         override val dropComputed: (Long) -> Unit = { }
-        override val dropBinding: (Long) -> Unit = NativeBindings::waterui_drop_binding_str
+        override val dropBinding: (Long) -> Unit = WatcherJni::dropBindingStr
     }
     
     object WuiColor : WuiSignalType<ResolvedColorStruct>(4) {
-        override val read: (Long) -> ResolvedColorStruct = NativeBindings::waterui_read_computed_resolved_color
+        override val read: (Long) -> ResolvedColorStruct = WatcherJni::readComputedResolvedColor
         override val write: ((Long, ResolvedColorStruct) -> Unit)? = null // Read-only
         override val createWatcher = { cb: WatcherCallback<ResolvedColorStruct> -> 
-            NativeBindings.waterui_create_resolved_color_watcher(cb)
+            WatcherJni.createResolvedColorWatcher(cb)
         }
-        override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_resolved_color
+        override val watchComputed: (Long, WatcherStruct) -> Long = WatcherJni::watchComputedResolvedColor
         override val watchBinding: ((Long, WatcherStruct) -> Long)? = null
-        override val dropComputed: (Long) -> Unit = NativeBindings::waterui_drop_computed_resolved_color
+        override val dropComputed: (Long) -> Unit = WatcherJni::dropComputedResolvedColor
         override val dropBinding: ((Long) -> Unit)? = null
     }
     
     object WuiFont : WuiSignalType<ResolvedFontStruct>(5) {
-        override val read: (Long) -> ResolvedFontStruct = NativeBindings::waterui_read_computed_resolved_font
+        override val read: (Long) -> ResolvedFontStruct = WatcherJni::readComputedResolvedFont
         override val write: ((Long, ResolvedFontStruct) -> Unit)? = null // Read-only
         override val createWatcher = { cb: WatcherCallback<ResolvedFontStruct> -> 
-            NativeBindings.waterui_create_resolved_font_watcher(cb)
+            WatcherJni.createResolvedFontWatcher(cb)
         }
-        override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_resolved_font
+        override val watchComputed: (Long, WatcherStruct) -> Long = WatcherJni::watchComputedResolvedFont
         override val watchBinding: ((Long, WatcherStruct) -> Long)? = null
-        override val dropComputed: (Long) -> Unit = NativeBindings::waterui_drop_computed_resolved_font
+        override val dropComputed: (Long) -> Unit = WatcherJni::dropComputedResolvedFont
         override val dropBinding: ((Long) -> Unit)? = null
     }
     
     object WuiColorScheme : WuiSignalType<Int>(6) {
         // ColorScheme is represented as int (0=Light, 1=Dark)
-        override val read: (Long) -> Int = NativeBindings::waterui_read_computed_color_scheme
+        override val read: (Long) -> Int = WatcherJni::readComputedColorScheme
         override val write: ((Long, Int) -> Unit)? = null // Read-only
         override val createWatcher = { cb: WatcherCallback<Int> -> 
             // Use int watcher for color scheme
-            NativeBindings.waterui_create_int_watcher(cb)
+            WatcherJni.createIntWatcher(cb)
         }
-        override val watchComputed: (Long, WatcherStruct) -> Long = NativeBindings::waterui_watch_computed_color_scheme
+        override val watchComputed: (Long, WatcherStruct) -> Long = WatcherJni::watchComputedColorScheme
         override val watchBinding: ((Long, WatcherStruct) -> Long)? = null
-        override val dropComputed: (Long) -> Unit = NativeBindings::waterui_drop_computed_color_scheme
+        override val dropComputed: (Long) -> Unit = WatcherJni::dropComputedColorScheme
         override val dropBinding: ((Long) -> Unit)? = null
     }
 }

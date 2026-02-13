@@ -9,7 +9,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
 import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.layout.AxisExpandingLinearLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
@@ -21,10 +21,10 @@ import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.dp
 import java.util.concurrent.atomic.AtomicBoolean
 
-private val secureFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_secure_field_id().toTypeId() }
+private val secureFieldTypeId: WuiTypeId by lazy { WatcherJni.secureFieldId().toTypeId() }
 
 private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_secure_field(node.rawPtr)
+    val struct = WatcherJni.forceAsSecureField(node.rawPtr)
 
     // SecureField is StretchAxis::Horizontal (Rust-defined):
     // report a minimum usable width in size_that_fits, then expand during place.
@@ -66,7 +66,7 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
         if (!updating.get()) {
             val textValue = text?.toString().orEmpty()
             // Set the binding value directly with the string bytes
-            NativeBindings.waterui_set_binding_secure(struct.valuePtr, textValue.encodeToByteArray())
+            WatcherJni.setBindingSecure(struct.valuePtr, textValue.encodeToByteArray())
         }
     }
 
@@ -94,7 +94,7 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     // Drop the secure binding when the view is detached.
     container.disposeWith {
         if (struct.valuePtr != 0L) {
-            NativeBindings.waterui_drop_binding_secure(struct.valuePtr)
+            WatcherJni.dropBindingSecure(struct.valuePtr)
         }
     }
 

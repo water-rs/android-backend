@@ -1,7 +1,5 @@
 package dev.waterui.android.reactive
 
-import android.os.Handler
-import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.TableColumnStruct
@@ -50,17 +48,14 @@ class WuiBinding<T>(
 
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
-        // Use Handler to post to main thread - this ensures the callback returns immediately
-        // even if called synchronously from Rust, preventing deadlocks
-        val mainHandler = Handler(Looper.getMainLooper())
         val watcher = watcherFactory(raw()) { value, metadata ->
             // IMPORTANT: Extract animation IMMEDIATELY before posting, because the metadata
             // pointer may become invalid after this callback returns to Rust
             val animation = metadata.animation
             
-            // Post to main thread using Handler - this queues the message and returns immediately
+            // Post to main thread - this queues the message and returns immediately
             // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
-            mainHandler.post {
+            MainThreadDispatcher.post {
                 // Skip if value hasn't changed (prevents unnecessary UI updates)
                 if (currentValue == value) return@post
                 

@@ -3,7 +3,7 @@ package dev.waterui.android.components
 import dev.waterui.android.layout.ChildDescriptor
 import dev.waterui.android.layout.RustLayoutViewGroup
 import dev.waterui.android.runtime.NativeAnyViews
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
@@ -14,21 +14,21 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.usePointer
 
 private val layoutContainerTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_layout_container_id().toTypeId()
+    WatcherJni.layoutContainerId().toTypeId()
 }
 
 private val fixedContainerTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_fixed_container_id().toTypeId()
+    WatcherJni.fixedContainerId().toTypeId()
 }
 
 private val layoutContainerRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_layout_container(node.rawPtr)
+    val struct = WatcherJni.forceAsLayoutContainer(node.rawPtr)
 
     if (struct.childrenPtr == 0L) {
         RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = emptyList()).also { group ->
             group.disposeWith {
                 if (struct.layoutPtr != 0L) {
-                    NativeBindings.waterui_drop_layout(struct.layoutPtr)
+                    WatcherJni.dropLayout(struct.layoutPtr)
                 }
             }
         }
@@ -55,7 +55,7 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
             }
             group.disposeWith {
                 if (struct.layoutPtr != 0L) {
-                    NativeBindings.waterui_drop_layout(struct.layoutPtr)
+                    WatcherJni.dropLayout(struct.layoutPtr)
                 }
             }
             group
@@ -64,7 +64,7 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
 }
 
 private val fixedContainerRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_fixed_container(node.rawPtr)
+    val struct = WatcherJni.forceAsFixedContainer(node.rawPtr)
     val childPointers = struct.childPointers.toList()
     // Inflate children first - this resolves composite views to native views
     // and stores stretch axis on each inflated view
@@ -84,7 +84,7 @@ private val fixedContainerRenderer = WuiRenderer { context, node, env, registry 
     }
     group.disposeWith {
         if (struct.layoutPtr != 0L) {
-            NativeBindings.waterui_drop_layout(struct.layoutPtr)
+            WatcherJni.dropLayout(struct.layoutPtr)
         }
     }
     group

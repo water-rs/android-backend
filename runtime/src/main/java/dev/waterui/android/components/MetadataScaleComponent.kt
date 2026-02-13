@@ -5,7 +5,7 @@ import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiAnimation
@@ -18,7 +18,7 @@ import dev.waterui.android.runtime.springForceFrom
 import dev.waterui.android.runtime.withRustAnimator
 
 private val metadataScaleTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_scale_id().toTypeId()
+    WatcherJni.metadataScaleId().toTypeId()
 }
 
 /**
@@ -28,7 +28,7 @@ private val metadataScaleTypeId: WuiTypeId by lazy {
  * Scales are purely visual and do not affect layout.
  */
 private val metadataScaleRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_scale(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataScale(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 
@@ -38,10 +38,10 @@ private val metadataScaleRenderer = WuiRenderer { context, node, env, registry -
     val anchorY = metadata.anchorY
 
     if (metadata.scaleXPtr != 0L) {
-        currentScaleX = NativeBindings.waterui_read_computed_f32(metadata.scaleXPtr)
+        currentScaleX = WatcherJni.readComputedF32(metadata.scaleXPtr)
     }
     if (metadata.scaleYPtr != 0L) {
-        currentScaleY = NativeBindings.waterui_read_computed_f32(metadata.scaleYPtr)
+        currentScaleY = WatcherJni.readComputedF32(metadata.scaleYPtr)
     }
 
     var childView: View? = null
@@ -99,20 +99,20 @@ private val metadataScaleRenderer = WuiRenderer { context, node, env, registry -
     val watcherGuards = mutableListOf<Long>()
 
     if (metadata.scaleXPtr != 0L) {
-        val watcher = NativeBindings.waterui_create_float_watcher { value, watcherMetadata ->
+        val watcher = WatcherJni.createFloatWatcher { value, watcherMetadata ->
             currentScaleX = value
             applyScale(watcherMetadata.animation)
         }
-        val guard = NativeBindings.waterui_watch_computed_f32(metadata.scaleXPtr, watcher)
+        val guard = WatcherJni.watchComputedF32(metadata.scaleXPtr, watcher)
         if (guard != 0L) watcherGuards.add(guard)
     }
 
     if (metadata.scaleYPtr != 0L) {
-        val watcher = NativeBindings.waterui_create_float_watcher { value, watcherMetadata ->
+        val watcher = WatcherJni.createFloatWatcher { value, watcherMetadata ->
             currentScaleY = value
             applyScale(watcherMetadata.animation)
         }
-        val guard = NativeBindings.waterui_watch_computed_f32(metadata.scaleYPtr, watcher)
+        val guard = WatcherJni.watchComputedF32(metadata.scaleYPtr, watcher)
         if (guard != 0L) watcherGuards.add(guard)
     }
 
@@ -123,10 +123,10 @@ private val metadataScaleRenderer = WuiRenderer { context, node, env, registry -
         scaleXSpring?.cancel()
         scaleYSpring?.cancel()
         watcherGuards.forEach { guard ->
-            NativeBindings.waterui_drop_watcher_guard(guard)
+            WatcherJni.dropWatcherGuard(guard)
         }
-        if (metadata.scaleXPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.scaleXPtr)
-        if (metadata.scaleYPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.scaleYPtr)
+        if (metadata.scaleXPtr != 0L) WatcherJni.dropComputedF32(metadata.scaleXPtr)
+        if (metadata.scaleYPtr != 0L) WatcherJni.dropComputedF32(metadata.scaleYPtr)
     }
 
     container

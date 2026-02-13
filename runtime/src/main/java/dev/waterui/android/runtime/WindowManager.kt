@@ -2,7 +2,6 @@ package dev.waterui.android.runtime
 
 import android.app.Activity
 import android.app.Dialog
-import android.content.ContextWrapper
 import android.graphics.drawable.ColorDrawable
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +14,8 @@ import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Runtime multi-window implementation for Android.
@@ -28,8 +29,10 @@ object WindowManager {
     private const val TAG = "WaterUI.WindowManager"
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val state = WindowManagerState()
+    private val sessions = ConcurrentHashMap<Long, WindowSession>()
+    private val nextSessionId = AtomicLong(1L)
     private var hostViewRef: WeakReference<View>? = null
-    private var appEnvPtr: Long = 0L
 
     /**
      * Attach the current host view and app environment.
@@ -38,7 +41,28 @@ object WindowManager {
      */
     fun attachHost(view: View, envPtr: Long) {
         hostViewRef = WeakReference(view)
-        appEnvPtr = envPtr
+        val attachResult = state.attach(System.identityHashCode(view), envPtr)
+        for (sessionId in attachResult.replacedSessions) {
+            val session = sessions.remove(sessionId) ?: continue
+            session.closeFromHostDetach()
+        }
+    }
+
+    /**
+     * Detach the host and invalidate all pending/new window requests.
+     *
+     * Called by [WaterUiRootView] before dropping the app environment.
+     */
+    fun detachHost(view: View? = null, envPtr: Long = 0L) {
+        val detachResult = state.detach(view?.let { System.identityHashCode(it) }, envPtr)
+        if (!detachResult.detached) {
+            return
+        }
+        hostViewRef = null
+        for (sessionId in detachResult.sessionsToClose) {
+            val session = sessions.remove(sessionId) ?: continue
+            session.closeFromHostDetach()
+        }
     }
 
     /**
@@ -58,16 +82,35 @@ object WindowManager {
         backgroundTag: Int,
         backgroundColorPtr: Long
     ) {
+        val expectedGeneration = state.captureGeneration()
         mainHandler.post {
             val hostView = hostViewRef?.get()
-            val activity = hostView?.findActivity()
-            if (hostView == null || activity == null || appEnvPtr == 0L) {
-                android.util.Log.w(TAG, "showWindow: missing host/activity/env, dropping pointers")
+            val resolvedActivity = hostView?.findActivity()
+            val decision = state.evaluateDispatch(
+                expectedGeneration = expectedGeneration,
+                hasHost = hostView != null,
+                hostAttached = hostView?.isAttachedToWindow == true,
+                hasActivity = resolvedActivity != null
+            )
+            if (decision != WindowDispatchDecision.ACCEPT) {
+                android.util.Log.w(TAG, "showWindow: dropping window request ($decision)")
+                dropIncomingPointers(titlePtr, contentPtr, toolbarPtr, statePtr, backgroundTag, backgroundColorPtr)
+                return@post
+            }
+            val activity = resolvedActivity ?: run {
                 dropIncomingPointers(titlePtr, contentPtr, toolbarPtr, statePtr, backgroundTag, backgroundColorPtr)
                 return@post
             }
 
-            val env = WuiEnvironment.borrowed(appEnvPtr)
+            val envPtr = state.currentEnvPtr()
+            val sessionId = nextSessionId.getAndIncrement()
+            if (!state.registerSession(sessionId, expectedGeneration)) {
+                android.util.Log.w(TAG, "showWindow: generation changed before registration, dropping pointers")
+                dropIncomingPointers(titlePtr, contentPtr, toolbarPtr, statePtr, backgroundTag, backgroundColorPtr)
+                return@post
+            }
+
+            val env = WuiEnvironment.borrowed(envPtr)
             val registry = RenderRegistry.default()
 
             val session = WindowSession(
@@ -82,10 +125,22 @@ object WindowManager {
                 statePtr = statePtr,
                 style = WindowStyle.fromInt(style),
                 backgroundTag = backgroundTag,
-                backgroundColorPtr = backgroundColorPtr
+                backgroundColorPtr = backgroundColorPtr,
+                onClosed = {
+                    sessions.remove(sessionId)
+                    state.unregisterSession(sessionId)
+                }
             )
+            sessions[sessionId] = session
 
-            session.show()
+            try {
+                session.show()
+            } catch (t: Throwable) {
+                android.util.Log.e(TAG, "showWindow: failed to show window session", t)
+                sessions.remove(sessionId)
+                state.unregisterSession(sessionId)
+                session.closeFromHostDetach()
+            }
         }
     }
 
@@ -127,11 +182,14 @@ private class WindowSession(
     private val statePtr: Long,
     private val style: WindowStyle,
     private val backgroundTag: Int,
-    private val backgroundColorPtr: Long
+    private val backgroundColorPtr: Long,
+    private val onClosed: () -> Unit
 ) {
     private var title: WuiComputed<String>? = null
     private var state: WuiBinding<Int>? = null
     private var dialog: Dialog? = null
+    private var closed = false
+    private var propagateDismissToState = true
 
     fun show() {
         val dialog = Dialog(activity)
@@ -257,7 +315,9 @@ private class WindowSession(
 
         dialog.setOnDismissListener {
             // Propagate native close to Rust and release resources.
-            state?.set(WindowState.CLOSED.value)
+            if (propagateDismissToState) {
+                state?.set(WindowState.CLOSED.value)
+            }
             close()
         }
 
@@ -277,7 +337,21 @@ private class WindowSession(
         }
     }
 
+    fun closeFromHostDetach() {
+        propagateDismissToState = false
+        val currentDialog = dialog
+        if (currentDialog == null || !currentDialog.isShowing) {
+            close()
+            return
+        }
+        currentDialog.dismiss()
+    }
+
     private fun close() {
+        if (closed) {
+            return
+        }
+        closed = true
         dialog = null
 
         title?.close()
@@ -287,15 +361,6 @@ private class WindowSession(
         state = null
 
         env.close()
+        onClosed()
     }
 }
-
-private fun View.findActivity(): Activity? {
-    var ctx = context
-    while (ctx is ContextWrapper) {
-        if (ctx is Activity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
-}
-

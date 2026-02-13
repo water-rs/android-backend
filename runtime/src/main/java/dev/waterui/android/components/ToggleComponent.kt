@@ -7,12 +7,13 @@ import android.widget.LinearLayout
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.materialswitch.MaterialSwitch
 import dev.waterui.android.reactive.WuiBinding
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.ToggleStyle
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
@@ -21,10 +22,10 @@ import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.withAlpha
 import java.util.concurrent.atomic.AtomicBoolean
 
-private val toggleTypeId: WuiTypeId by lazy { NativeBindings.waterui_toggle_id().toTypeId() }
+private val toggleTypeId: WuiTypeId by lazy { WatcherJni.toggleId().toTypeId() }
 
 private val toggleRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_toggle(node.rawPtr)
+    val struct = WatcherJni.forceAsToggle(node.rawPtr)
     val binding = WuiBinding.bool(struct.bindingPtr, env)
     val style = struct.toggleStyle()
 
@@ -66,24 +67,30 @@ private val toggleRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        activeColor = color.toColorInt()
-        applyColors()
+    accent.observeWithAnimation { color, animation ->
+        toggleControl.applyRustAnimation(animation) {
+            activeColor = color.toColorInt()
+            applyColors()
+        }
     }
     accent.attachTo(toggleControl)
     val border = ThemeBridge.border(env)
-    border.observe { color ->
-        inactiveColor = color.toColorInt()
-        applyColors()
+    border.observeWithAnimation { color, animation ->
+        toggleControl.applyRustAnimation(animation) {
+            inactiveColor = color.toColorInt()
+            applyColors()
+        }
     }
     border.attachTo(toggleControl)
 
     val updating = AtomicBoolean(false)
-    binding.observe { value ->
+    binding.observeWithAnimation { value, animation ->
         if (toggleControl.isChecked != value && !updating.get()) {
-            updating.set(true)
-            toggleControl.isChecked = value
-            updating.set(false)
+            toggleControl.applyRustAnimation(animation) {
+                updating.set(true)
+                toggleControl.isChecked = value
+                updating.set(false)
+            }
         }
     }
     toggleControl.setOnCheckedChangeListener { _, isChecked ->

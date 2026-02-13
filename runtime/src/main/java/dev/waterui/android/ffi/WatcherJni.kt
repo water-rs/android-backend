@@ -64,6 +64,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataStandardDynamicRange(viewPtr: Long): MetadataStandardDynamicRangeStruct
     @JvmStatic external fun forceAsMetadataHighDynamicRange(viewPtr: Long): MetadataHighDynamicRangeStruct
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
+    @JvmStatic external fun gestureFromPtr(gesturePtr: Long): GestureStruct
     @JvmStatic external fun forceAsMetadataLifeCycleHook(viewPtr: Long): MetadataLifeCycleHookStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
     @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
@@ -100,6 +101,7 @@ object WatcherJni {
 
     @JvmStatic external fun dropLayout(layoutPtr: Long)
     @JvmStatic external fun dropAction(actionPtr: Long)
+    @JvmStatic external fun dropGesture(gesturePtr: Long)
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
     @JvmStatic external fun callSharedAction(actionPtr: Long, envPtr: Long)
     @JvmStatic external fun dropSharedAction(actionPtr: Long)
@@ -139,20 +141,17 @@ object WatcherJni {
 
     // ========== Animation Functions ==========
 
-    /** Get animation tag from metadata (matches WuiAnimation_Tag enum values) */
-    @JvmStatic external fun getAnimationTag(metadataPtr: Long): Int
+    /** Packed animation kind + duration. */
+    @JvmStatic external fun getAnimationKindDurationPacked(metadataPtr: Long): Long
 
-    /** Get animation duration in milliseconds (for timed animations) */
-    @JvmStatic external fun getAnimationDurationMs(metadataPtr: Long): Long
+    /** Packed animation params p1/p2. */
+    @JvmStatic external fun getAnimationParams12Packed(metadataPtr: Long): Long
 
-    /** Get spring stiffness (for spring animations) */
-    @JvmStatic external fun getAnimationStiffness(metadataPtr: Long): Float
+    /** Packed animation params p3/p4. */
+    @JvmStatic external fun getAnimationParams34Packed(metadataPtr: Long): Long
 
-    /** Get spring damping (for spring animations) */
-    @JvmStatic external fun getAnimationDamping(metadataPtr: Long): Float
-
-    /** Legacy: Get animation type as int (deprecated, use getAnimationTag instead) */
-    @Deprecated("Use getAnimationTag instead for full animation support")
+    /** Legacy: Get animation type as int (deprecated). */
+    @Deprecated("Use getAnimationKindDurationPacked/getAnimationParams*Packed instead")
     @JvmStatic external fun getAnimation(metadataPtr: Long): Int
 
     // ========== AnyViews Functions ==========

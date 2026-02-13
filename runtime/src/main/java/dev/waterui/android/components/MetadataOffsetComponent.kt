@@ -5,7 +5,7 @@ import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiAnimation
@@ -18,7 +18,7 @@ import dev.waterui.android.runtime.springForceFrom
 import dev.waterui.android.runtime.withRustAnimator
 
 private val metadataOffsetTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_offset_id().toTypeId()
+    WatcherJni.metadataOffsetId().toTypeId()
 }
 
 /**
@@ -28,7 +28,7 @@ private val metadataOffsetTypeId: WuiTypeId by lazy {
  * Offsets are purely visual and do not affect layout.
  */
 private val metadataOffsetRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_offset(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataOffset(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 
@@ -36,10 +36,10 @@ private val metadataOffsetRenderer = WuiRenderer { context, node, env, registry 
     var currentOffsetY = 0f
 
     if (metadata.offsetXPtr != 0L) {
-        currentOffsetX = NativeBindings.waterui_read_computed_f32(metadata.offsetXPtr)
+        currentOffsetX = WatcherJni.readComputedF32(metadata.offsetXPtr)
     }
     if (metadata.offsetYPtr != 0L) {
-        currentOffsetY = NativeBindings.waterui_read_computed_f32(metadata.offsetYPtr)
+        currentOffsetY = WatcherJni.readComputedF32(metadata.offsetYPtr)
     }
 
     var childView: View? = null
@@ -91,20 +91,20 @@ private val metadataOffsetRenderer = WuiRenderer { context, node, env, registry 
     val watcherGuards = mutableListOf<Long>()
 
     if (metadata.offsetXPtr != 0L) {
-        val watcher = NativeBindings.waterui_create_float_watcher { value, watcherMetadata ->
+        val watcher = WatcherJni.createFloatWatcher { value, watcherMetadata ->
             currentOffsetX = value
             applyOffset(watcherMetadata.animation)
         }
-        val guard = NativeBindings.waterui_watch_computed_f32(metadata.offsetXPtr, watcher)
+        val guard = WatcherJni.watchComputedF32(metadata.offsetXPtr, watcher)
         if (guard != 0L) watcherGuards.add(guard)
     }
 
     if (metadata.offsetYPtr != 0L) {
-        val watcher = NativeBindings.waterui_create_float_watcher { value, watcherMetadata ->
+        val watcher = WatcherJni.createFloatWatcher { value, watcherMetadata ->
             currentOffsetY = value
             applyOffset(watcherMetadata.animation)
         }
-        val guard = NativeBindings.waterui_watch_computed_f32(metadata.offsetYPtr, watcher)
+        val guard = WatcherJni.watchComputedF32(metadata.offsetYPtr, watcher)
         if (guard != 0L) watcherGuards.add(guard)
     }
 
@@ -112,10 +112,10 @@ private val metadataOffsetRenderer = WuiRenderer { context, node, env, registry 
         translateXSpring?.cancel()
         translateYSpring?.cancel()
         watcherGuards.forEach { guard ->
-            NativeBindings.waterui_drop_watcher_guard(guard)
+            WatcherJni.dropWatcherGuard(guard)
         }
-        if (metadata.offsetXPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.offsetXPtr)
-        if (metadata.offsetYPtr != 0L) NativeBindings.waterui_drop_computed_f32(metadata.offsetYPtr)
+        if (metadata.offsetXPtr != 0L) WatcherJni.dropComputedF32(metadata.offsetXPtr)
+        if (metadata.offsetYPtr != 0L) WatcherJni.dropComputedF32(metadata.offsetYPtr)
     }
 
     container

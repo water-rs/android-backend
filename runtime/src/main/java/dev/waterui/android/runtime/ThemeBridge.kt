@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
 
@@ -26,18 +27,18 @@ enum class ColorScheme(val value: Int) {
  */
 class ReactiveColorSchemeSignal(initialScheme: ColorScheme) : Closeable {
     private val statePtr: Long =
-        NativeBindings.waterui_create_reactive_color_scheme_state(initialScheme.value)
+        WatcherJni.createReactiveColorSchemeState(initialScheme.value)
     private var computedPtr: Long = 0L
 
     fun toComputed(): Long {
         if (computedPtr == 0L) {
-            computedPtr = NativeBindings.waterui_reactive_color_scheme_state_to_computed(statePtr)
+            computedPtr = WatcherJni.reactiveColorSchemeStateToComputed(statePtr)
         }
         return computedPtr
     }
 
     fun setValue(scheme: ColorScheme) {
-        NativeBindings.waterui_reactive_color_scheme_state_set(statePtr, scheme.value)
+        WatcherJni.reactiveColorSchemeStateSet(statePtr, scheme.value)
     }
 
     override fun close() {
@@ -56,7 +57,7 @@ class ReactiveColorSchemeSignal(initialScheme: ColorScheme) : Closeable {
  */
 class ReactiveColorSignal(initialArgb: Int) : Closeable {
     /** Native state pointer - holds the value and watcher list */
-    private val statePtr: Long = NativeBindings.waterui_create_reactive_color_state(initialArgb)
+    private val statePtr: Long = WatcherJni.createReactiveColorState(initialArgb)
     
     /** Computed pointer for installation into WaterUI */
     private var computedPtr: Long = 0L
@@ -67,7 +68,7 @@ class ReactiveColorSignal(initialArgb: Int) : Closeable {
      */
     fun toComputed(): Long {
         if (computedPtr == 0L) {
-            computedPtr = NativeBindings.waterui_reactive_color_state_to_computed(statePtr)
+            computedPtr = WatcherJni.reactiveColorStateToComputed(statePtr)
         }
         return computedPtr
     }
@@ -77,7 +78,7 @@ class ReactiveColorSignal(initialArgb: Int) : Closeable {
      * This triggers reactive updates in WaterUI.
      */
     fun setValue(argb: Int) {
-        NativeBindings.waterui_reactive_color_state_set(statePtr, argb)
+        WatcherJni.reactiveColorStateSet(statePtr, argb)
     }
     
     override fun close() {
@@ -95,19 +96,19 @@ class ReactiveFontSignal(
     size: Float = 16f,
     weight: Int = 3 // WuiFontWeight_Normal
 ) : Closeable {
-    private val statePtr: Long = NativeBindings.waterui_create_reactive_font_state(size, weight)
+    private val statePtr: Long = WatcherJni.createReactiveFontState(size, weight)
     private var computedPtr: Long = 0L
     
     fun toComputed(): Long {
         if (computedPtr == 0L) {
-            computedPtr = NativeBindings.waterui_reactive_font_state_to_computed(statePtr)
+            computedPtr = WatcherJni.reactiveFontStateToComputed(statePtr)
         }
         return computedPtr
     }
     
     // Weight is the WuiFontWeight enum index (0..8), not an Android weight value.
     fun setValue(size: Float, weight: Int = 3) {
-        NativeBindings.waterui_reactive_font_state_set(statePtr, size, weight)
+        WatcherJni.reactiveFontStateSet(statePtr, size, weight)
     }
     
     override fun close() {
@@ -181,23 +182,23 @@ object ThemeBridge {
      * Use for static themes that don't respond to system changes.
      */
     fun createConstantColorSchemeSignal(scheme: ColorScheme): Long {
-        return NativeBindings.waterui_computed_color_scheme_constant(scheme.value)
+        return WatcherJni.computedColorSchemeConstant(scheme.value)
     }
 
     /**
      * Installs a color scheme signal into the environment.
      */
     fun installColorScheme(env: WuiEnvironment, signalPtr: Long) {
-        NativeBindings.waterui_theme_install_color_scheme(env.raw(), signalPtr)
+        WatcherJni.themeInstallColorScheme(env.raw(), signalPtr)
     }
 
     /**
      * Returns the current color scheme from the environment.
      */
     fun colorScheme(env: WuiEnvironment): ColorScheme {
-        val ptr = NativeBindings.waterui_theme_color_scheme(env.raw())
-        val value = NativeBindings.waterui_read_computed_color_scheme(ptr)
-        NativeBindings.waterui_drop_computed_color_scheme(ptr)
+        val ptr = WatcherJni.themeColorScheme(env.raw())
+        val value = WatcherJni.readComputedColorScheme(ptr)
+        WatcherJni.dropComputedColorScheme(ptr)
         return ColorScheme.fromValue(value)
     }
 
@@ -207,14 +208,14 @@ object ThemeBridge {
      * Installs a color signal for a specific slot.
      */
     fun installColor(env: WuiEnvironment, slot: ColorSlot, signalPtr: Long) {
-        NativeBindings.waterui_theme_install_color(env.raw(), slot.value, signalPtr)
+        WatcherJni.themeInstallColor(env.raw(), slot.value, signalPtr)
     }
 
     /**
      * Returns the color signal for a specific slot.
      */
     fun color(env: WuiEnvironment, slot: ColorSlot): WuiComputed<ResolvedColorStruct> {
-        val ptr = NativeBindings.waterui_theme_color(env.raw(), slot.value)
+        val ptr = WatcherJni.themeColor(env.raw(), slot.value)
         return WuiComputed.colorFromComputed(ptr, env)
     }
 
@@ -224,14 +225,14 @@ object ThemeBridge {
      * Installs a font signal for a specific slot.
      */
     fun installFont(env: WuiEnvironment, slot: FontSlot, signalPtr: Long) {
-        NativeBindings.waterui_theme_install_font(env.raw(), slot.value, signalPtr)
+        WatcherJni.themeInstallFont(env.raw(), slot.value, signalPtr)
     }
 
     /**
      * Returns the font signal for a specific slot.
      */
     fun font(env: WuiEnvironment, slot: FontSlot): WuiComputed<ResolvedFontStruct> {
-        val ptr = NativeBindings.waterui_theme_font(env.raw(), slot.value)
+        val ptr = WatcherJni.themeFont(env.raw(), slot.value)
         return WuiComputed.fontFromComputed(ptr, env)
     }
 

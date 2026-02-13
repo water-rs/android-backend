@@ -2,7 +2,7 @@ package dev.waterui.android.components
 
 import android.os.Build
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -13,7 +13,7 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 
 private val metadataShadowTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_shadow_id().toTypeId()
+    WatcherJni.metadataShadowId().toTypeId()
 }
 
 /**
@@ -24,7 +24,7 @@ private val metadataShadowTypeId: WuiTypeId by lazy {
  * for API 28+, or falls back to elevation-only for older versions.
  */
 private val metadataShadowRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_shadow(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataShadow(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 
@@ -37,7 +37,7 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
 
     // Resolve the shadow color
     if (metadata.colorPtr != 0L) {
-        val resolvedColor = NativeBindings.waterui_read_computed_resolved_color(metadata.colorPtr)
+        val resolvedColor = WatcherJni.readComputedResolvedColor(metadata.colorPtr)
         val shadowColor = resolvedColor.toColorInt()
 
         // Apply shadow using elevation
@@ -56,7 +56,7 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
         }
 
         // Cleanup color pointer
-        NativeBindings.waterui_drop_computed_resolved_color(metadata.colorPtr)
+        WatcherJni.dropComputedResolvedColor(metadata.colorPtr)
     }
 
     // Cleanup

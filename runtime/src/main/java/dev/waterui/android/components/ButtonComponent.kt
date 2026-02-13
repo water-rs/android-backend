@@ -13,7 +13,7 @@ import android.widget.TextView
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ThemeBridge
@@ -38,10 +38,10 @@ private object ButtonStyle {
     const val BORDERED_PROMINENT = 5
 }
 
-private val buttonTypeId: WuiTypeId by lazy { NativeBindings.waterui_button_id().toTypeId() }
+private val buttonTypeId: WuiTypeId by lazy { WatcherJni.buttonId().toTypeId() }
 
 private val buttonRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_button(node.rawPtr)
+    val struct = WatcherJni.forceAsButton(node.rawPtr)
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
 
     if (labelView is TextView) {
@@ -74,7 +74,7 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
         )
         addView(labelView, params)
         setOnClickListener {
-            NativeBindings.waterui_call_action(struct.actionPtr, env.raw())
+            WatcherJni.callAction(struct.actionPtr, env.raw())
         }
     }
 
@@ -96,7 +96,7 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     container.disposeWith {
-        NativeBindings.waterui_drop_action(struct.actionPtr)
+        WatcherJni.dropAction(struct.actionPtr)
     }
     container
 }

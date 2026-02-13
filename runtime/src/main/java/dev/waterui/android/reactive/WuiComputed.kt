@@ -1,7 +1,5 @@
 package dev.waterui.android.reactive
 
-import android.os.Handler
-import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.TableColumnStruct
@@ -49,30 +47,21 @@ class WuiComputed<T>(
 
     private fun ensureWatcher() {
         if (watcherGuard != null || isReleased) return
-        android.util.Log.d("WaterUI.Computed", "ensureWatcher: creating watcher for ${this::class.simpleName}")
-        // Use Handler to post to main thread - this ensures the callback returns immediately
-        // even if called synchronously from Rust, preventing deadlocks
-        val mainHandler = Handler(Looper.getMainLooper())
         val watcher = watcherFactory(raw()) { value, metadata ->
-            android.util.Log.d("WaterUI.Computed", "ensureWatcher: watcher callback invoked on thread ${Thread.currentThread().name}")
             // IMPORTANT: Extract animation IMMEDIATELY before posting, because the metadata
             // pointer may become invalid after this callback returns to Rust
             val animation = metadata.animation
 
-            // Post to main thread using Handler - this queues the message and returns immediately
+            // Post to main thread - this queues the message and returns immediately
             // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
-            mainHandler.post {
-                android.util.Log.d("WaterUI.Computed", "ensureWatcher: handler posted, executing on main thread")
+            MainThreadDispatcher.post {
                 val previous = currentValue
                 currentValue = value
                 observer?.invoke(value, animation)
                 valueReleaser(previous)
-                android.util.Log.d("WaterUI.Computed", "ensureWatcher: observer invoked")
             }
         }
-        android.util.Log.d("WaterUI.Computed", "ensureWatcher: calling watcherRegistrar")
         val guardHandle = watcherRegistrar(raw(), watcher)
-        android.util.Log.d("WaterUI.Computed", "ensureWatcher: watcherRegistrar returned $guardHandle")
         if (guardHandle != 0L) {
             watcherGuard = WatcherGuard(guardHandle)
         }

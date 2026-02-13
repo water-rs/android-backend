@@ -6,7 +6,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Space
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
 import dev.waterui.android.runtime.StretchAxis
@@ -76,7 +76,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         }
 
         // Rust computes layout in dp, convert result to pixels for Android
-        val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, parentProposal, subviews)
+        val requestedSize = WatcherJni.layoutSizeThatFits(layoutPtr, parentProposal, subviews)
         val measuredWidth = requestedSize.width.dpToPx().resolveDimension(constraints.minWidth, constraints.maxWidth)
         val measuredHeight = requestedSize.height.dpToPx().resolveDimension(constraints.minHeight, constraints.maxHeight)
 
@@ -113,15 +113,15 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         }
 
         // Rust returns placements in dp, convert to pixels for Android layout
-        val placements = NativeBindings.waterui_layout_place(layoutPtr, bounds, subviews)
+        val placements = WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
 
         for (index in 0 until childCount) {
             val rect = placements[index]
             val child = getChildAt(index)
 
             // Convert dp to pixels
-            val allocatedWidth = rect.width.dpToPx().roundToInt()
-            val allocatedHeight = rect.height.dpToPx().roundToInt()
+            val allocatedWidth = rect.width.dpToPx().resolveDimension(0, Int.MAX_VALUE)
+            val allocatedHeight = rect.height.dpToPx().resolveDimension(0, Int.MAX_VALUE)
 
             // Re-measure child at allocated size if different from measured size.
             // This is critical for StretchAxis::Horizontal components (TextField, Slider, etc.)
@@ -134,8 +134,8 @@ class RustLayoutViewGroup @JvmOverloads constructor(
             }
 
             // Convert dp positions to pixels
-            val childLeft = rect.x.dpToPx().roundToInt()
-            val childTop = rect.y.dpToPx().roundToInt()
+            val childLeft = rect.x.dpToPx().safeRoundToInt()
+            val childTop = rect.y.dpToPx().safeRoundToInt()
             val childRight = childLeft + allocatedWidth
             val childBottom = childTop + allocatedHeight
             child.layout(childLeft, childTop, childRight, childBottom)
@@ -257,10 +257,12 @@ private fun LayoutConstraints.toProposalStruct(density: Float): ProposalStruct =
 )
 
 private fun Float.resolveDimension(min: Int, max: Int): Int {
-    if (isNaN()) {
+    if (isNaN() || isInfinite()) {
         return if (max == Int.MAX_VALUE) min else max
     }
     val rounded = roundToInt().coerceAtLeast(0)
     if (max == Int.MAX_VALUE) return rounded.coerceAtLeast(min)
     return rounded.coerceIn(min, max)
 }
+
+private fun Float.safeRoundToInt(): Int = if (isFinite()) roundToInt() else 0

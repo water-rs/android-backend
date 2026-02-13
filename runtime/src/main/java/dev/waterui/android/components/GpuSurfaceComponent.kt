@@ -2,6 +2,8 @@ package dev.waterui.android.components
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.PixelFormat
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.view.Choreographer
@@ -10,20 +12,25 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import dev.waterui.android.runtime.GpuSurfaceStruct
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.WuiDynamicRangeMode
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.activateHdrWindowMode
+import dev.waterui.android.runtime.deactivateHdrWindowMode
 import dev.waterui.android.runtime.dp
+import dev.waterui.android.runtime.findActivity
+import dev.waterui.android.runtime.resolveWuiDynamicRangeMode
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_surface_id().toTypeId() }
+private val gpuSurfaceTypeId: WuiTypeId by lazy { WatcherJni.gpuSurfaceId().toTypeId() }
 
 @Suppress("UNUSED_PARAMETER")
 private val gpuSurfaceRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_gpu_surface(node.rawPtr)
+    val struct = WatcherJni.forceAsGpuSurface(node.rawPtr)
     GpuSurfaceView(context, struct)
 }
 
@@ -64,7 +71,8 @@ private class GpuSurfaceView(
     @Volatile
     private var consecutiveRenderFailures = 0
 
-    
+    private var hdrWindowModeActive = false
+
     private var frameCounter: Long = 0
 
     private var pointerHasPosition: Boolean = false
@@ -135,7 +143,7 @@ private class GpuSurfaceView(
 
             ensureRenderExecutor()
 
-            gpuState = NativeBindings.waterui_gpu_surface_init(
+            gpuState = WatcherJni.gpuSurfaceInit(
                 rendererPtr,
                 holder.surface,
                 width,
@@ -167,7 +175,7 @@ private class GpuSurfaceView(
             if (renderInFlight.get()) {
                 Log.w(TAG, "Render still in flight during surfaceDestroyed; skipping drop to avoid race")
             } else {
-                NativeBindings.waterui_gpu_surface_drop(statePtr)
+                WatcherJni.gpuSurfaceDrop(statePtr)
             }
             gpuState = 0L
         }
@@ -183,10 +191,10 @@ private class GpuSurfaceView(
 
     override fun surfaceRedrawNeededAsync(
         holder: SurfaceHolder,
-        drawingFinished: SurfaceHolder.Callback2.SurfaceRedrawNeededAsync
+        drawingFinished: Runnable
     ) {
         renderOneShot {
-            drawingFinished.finishDrawing()
+            drawingFinished.run()
         }
     }
 
@@ -234,7 +242,7 @@ private class GpuSurfaceView(
                     return@execute
                 }
 
-                NativeBindings.waterui_gpu_surface_set_pointer(
+                WatcherJni.gpuSurfaceSetPointer(
                     statePtr,
                     pointer.hasPosition,
                     pointer.x,
@@ -244,7 +252,7 @@ private class GpuSurfaceView(
                     pointer.hitY
                 )
 
-                val ok = NativeBindings.waterui_gpu_surface_render(statePtr, width, height)
+                val ok = WatcherJni.gpuSurfaceRender(statePtr, width, height)
                 if (frame <= 3L || frame % 120L == 0L) {
                     Log.i(TAG, "doFrame result frame=" + frame + " ok=" + ok)
                 }
@@ -367,12 +375,14 @@ private class GpuSurfaceView(
     override fun onDetachedFromWindow() {
         pauseRendering()
         waitForRenderDrain()
+        releaseDynamicRangePolicy()
         shutdownRenderExecutor()
         super.onDetachedFromWindow()
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        applyDynamicRangePolicy()
         resumeRenderingIfPossible()
     }
 
@@ -446,7 +456,7 @@ private class GpuSurfaceView(
                     return@execute
                 }
 
-                NativeBindings.waterui_gpu_surface_set_pointer(
+                WatcherJni.gpuSurfaceSetPointer(
                     statePtr,
                     pointer.hasPosition,
                     pointer.x,
@@ -456,7 +466,7 @@ private class GpuSurfaceView(
                     pointer.hitY
                 )
 
-                NativeBindings.waterui_gpu_surface_render(statePtr, width, height)
+                WatcherJni.gpuSurfaceRender(statePtr, width, height)
                 if (renderMode == RENDER_MODE_ON_DEMAND) {
                     needsRender = false
                 }
@@ -479,6 +489,37 @@ private class GpuSurfaceView(
                 priority = Thread.NORM_PRIORITY
             }
         }
+    }
+
+    private fun applyDynamicRangePolicy() {
+        val mode = resolveWuiDynamicRangeMode()
+        configureSurfacePixelFormat(mode)
+        if (mode == WuiDynamicRangeMode.HIGH) {
+            val activity = context.findActivity() ?: return
+            // Default policy is HDR; on non-HDR displays we degrade gracefully.
+            activateHdrWindowMode(activity.window, requireCapability = false)
+            hdrWindowModeActive = true
+            return
+        }
+        releaseDynamicRangePolicy()
+    }
+
+    private fun releaseDynamicRangePolicy() {
+        if (!hdrWindowModeActive) {
+            return
+        }
+        val activity = context.findActivity()
+        deactivateHdrWindowMode(activity?.window)
+        hdrWindowModeActive = false
+    }
+
+    private fun configureSurfacePixelFormat(mode: WuiDynamicRangeMode) {
+        val format = if (mode == WuiDynamicRangeMode.HIGH && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PixelFormat.RGBA_F16
+        } else {
+            PixelFormat.RGBA_8888
+        }
+        holder.setFormat(format)
     }
 
     private data class PointerSnapshot(

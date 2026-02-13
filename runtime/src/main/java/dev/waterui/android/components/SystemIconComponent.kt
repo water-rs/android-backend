@@ -3,7 +3,7 @@ package dev.waterui.android.components
 import android.content.res.ColorStateList
 import android.view.ViewGroup
 import android.widget.ImageView
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
@@ -11,7 +11,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.toColorInt
 
-private val systemIconTypeId: WuiTypeId by lazy { NativeBindings.waterui_system_icon_id().toTypeId() }
+private val systemIconTypeId: WuiTypeId by lazy { WatcherJni.systemIconId().toTypeId() }
 
 private fun resolveSystemIconResId(name: String): Int {
     val base = name.removeSuffix(".fill")
@@ -44,7 +44,7 @@ private fun resolveSystemIconResId(name: String): Int {
 }
 
 private val systemIconRenderer = WuiRenderer { context, node, env, _ ->
-    val struct = NativeBindings.waterui_force_as_system_icon(node.rawPtr)
+    val struct = WatcherJni.forceAsSystemIcon(node.rawPtr)
     val resId = resolveSystemIconResId(struct.name)
 
     val imageView = ImageView(context).apply {

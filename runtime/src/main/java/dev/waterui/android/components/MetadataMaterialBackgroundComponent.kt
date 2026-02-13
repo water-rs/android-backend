@@ -4,7 +4,7 @@ import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import dev.waterui.android.runtime.MaterialBackgroundStruct
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
@@ -14,12 +14,12 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 
 private val materialBackgroundTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_ignorable_metadata_material_background_id().toTypeId()
+    WatcherJni.ignorableMetadataMaterialBackgroundId().toTypeId()
 }
 
 private val materialBackgroundRenderer = WuiRenderer { context, node, env, registry ->
     val metadata: MaterialBackgroundStruct =
-        NativeBindings.waterui_force_as_ignorable_metadata_material_background(node.rawPtr)
+        WatcherJni.forceAsIgnorableMetadataMaterialBackground(node.rawPtr)
 
     val contentPtr = metadata.contentPtr
     val contentView = inflateAnyView(context, contentPtr, env, registry)

@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dev.waterui.android.reactive.WuiComputedBool
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
@@ -19,7 +19,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.RenderRegistry
 
-private val listTypeId: WuiTypeId by lazy { NativeBindings.waterui_list_id().toTypeId() }
+private val listTypeId: WuiTypeId by lazy { WatcherJni.listId().toTypeId() }
 
 /**
  * List component renderer.
@@ -27,7 +27,7 @@ private val listTypeId: WuiTypeId by lazy { NativeBindings.waterui_list_id().toT
  * Supports swipe-to-delete and drag-to-reorder via ItemTouchHelper.
  */
 private val listRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_list(node.rawPtr)
+    val struct = WatcherJni.forceAsList(node.rawPtr)
 
     val recyclerView = RecyclerView(context).apply {
         layoutManager = LinearLayoutManager(context)
@@ -68,7 +68,7 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
                 adapter.move(fromPosition, toPosition)
 
                 // Call Rust callback
-                NativeBindings.waterui_call_move_action(
+                WatcherJni.callMoveAction(
                     onMovePtr,
                     env.raw(),
                     fromPosition.toLong(),
@@ -96,7 +96,7 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
                 adapter.removeAt(position)
 
                 // Call Rust callback
-                NativeBindings.waterui_call_index_action(
+                WatcherJni.callIndexAction(
                     onDeletePtr,
                     env.raw(),
                     position.toLong()
@@ -163,14 +163,14 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
 
     recyclerView.disposeWith {
         if (contentsPtr != 0L) {
-            NativeBindings.waterui_drop_any_views(contentsPtr)
+            WatcherJni.dropAnyViews(contentsPtr)
         }
         editingComputed?.dispose()
         if (onDeletePtr != 0L) {
-            NativeBindings.waterui_drop_index_action(onDeletePtr)
+            WatcherJni.dropIndexAction(onDeletePtr)
         }
         if (onMovePtr != 0L) {
-            NativeBindings.waterui_drop_move_action(onMovePtr)
+            WatcherJni.dropMoveAction(onMovePtr)
         }
     }
 
@@ -201,7 +201,7 @@ private class WuiListAdapter(
     fun reload() {
         order.clear()
         if (contentsPtr == 0L) return
-        val count = NativeBindings.waterui_any_views_len(contentsPtr)
+        val count = WatcherJni.anyViewsLen(contentsPtr)
         for (i in 0 until count) {
             order.add(i)
         }
@@ -229,17 +229,17 @@ private class WuiListAdapter(
         val idx = underlyingIndex(position) ?: return true
         if (contentsPtr == 0L) return true
 
-        val viewPtr = NativeBindings.waterui_any_views_get_view(contentsPtr, idx)
+        val viewPtr = WatcherJni.anyViewsGetView(contentsPtr, idx)
         if (viewPtr == 0L) return true
 
-        val listItem = NativeBindings.waterui_force_as_list_item(viewPtr)
+        val listItem = WatcherJni.forceAsListItem(viewPtr)
         val deletablePtr = listItem.deletablePtr
         if (deletablePtr == 0L) return true
 
         return try {
-            NativeBindings.waterui_read_computed_bool(deletablePtr)
+            WatcherJni.readComputedBool(deletablePtr)
         } finally {
-            NativeBindings.waterui_drop_computed_bool(deletablePtr)
+            WatcherJni.dropComputedBool(deletablePtr)
         }
     }
 
@@ -260,10 +260,10 @@ private class WuiListAdapter(
         if (contentsPtr == 0L) return
 
         // AnyView is single-consume: fetch a fresh ListItem AnyView each bind.
-        val viewPtr = NativeBindings.waterui_any_views_get_view(contentsPtr, idx)
+        val viewPtr = WatcherJni.anyViewsGetView(contentsPtr, idx)
         if (viewPtr == 0L) return
 
-        val listItem = NativeBindings.waterui_force_as_list_item(viewPtr)
+        val listItem = WatcherJni.forceAsListItem(viewPtr)
         val contentPtr = listItem.contentPtr
         if (contentPtr != 0L) {
             val contentView = inflateAnyView(context, contentPtr, env, registry)
@@ -278,7 +278,7 @@ private class WuiListAdapter(
 
         // Drop item-level computeds we didn't install watchers for.
         if (listItem.deletablePtr != 0L) {
-            NativeBindings.waterui_drop_computed_bool(listItem.deletablePtr)
+            WatcherJni.dropComputedBool(listItem.deletablePtr)
         }
     }
 
@@ -287,7 +287,7 @@ private class WuiListAdapter(
     override fun getItemId(position: Int): Long {
         val idx = underlyingIndex(position) ?: return RecyclerView.NO_ID
         if (contentsPtr == 0L) return RecyclerView.NO_ID
-        return NativeBindings.waterui_any_views_get_id(contentsPtr, idx).toLong()
+        return WatcherJni.anyViewsGetId(contentsPtr, idx).toLong()
     }
 }
 

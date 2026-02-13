@@ -7,7 +7,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.FrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ViewEffectStruct
@@ -17,7 +17,7 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
 
-private val viewEffectTypeId: WuiTypeId by lazy { NativeBindings.waterui_view_effect_id().toTypeId() }
+private val viewEffectTypeId: WuiTypeId by lazy { WatcherJni.viewEffectId().toTypeId() }
 
 /**
  * ViewEffect component renderer.
@@ -38,7 +38,7 @@ private val viewEffectTypeId: WuiTypeId by lazy { NativeBindings.waterui_view_ef
  */
 @Suppress("UNUSED_PARAMETER")
 private val viewEffectRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_view_effect(node.rawPtr)
+    val struct = WatcherJni.forceAsViewEffect(node.rawPtr)
 
     // Render child view
     val childView = if (struct.contentPtr != 0L) {
@@ -131,7 +131,7 @@ private class ViewEffectView(
 
         if (effectState == 0L && viewEffectData.effectPtr != 0L) {
             // Initialize GPU resources with the native surface
-            effectState = NativeBindings.waterui_view_effect_init(
+            effectState = WatcherJni.viewEffectInit(
                 viewEffectData.rawPtr,
                 holder.surface,
                 width,
@@ -155,7 +155,7 @@ private class ViewEffectView(
         capturer?.close()
 
         if (effectState != 0L) {
-            NativeBindings.waterui_view_effect_drop(effectState)
+            WatcherJni.viewEffectDrop(effectState)
             effectState = 0L
         }
     }
@@ -169,7 +169,7 @@ private class ViewEffectView(
 
         // Capture child view and pass to effect
         capturer?.capture()?.let { buffer ->
-            val success = NativeBindings.waterui_view_effect_set_input_ahardwarebuffer(
+            val success = WatcherJni.viewEffectSetInputAHardwareBuffer(
                 effectState,
                 buffer,
                 surfaceWidth,
@@ -181,7 +181,7 @@ private class ViewEffectView(
         }
 
         // Render frame with the effect
-        NativeBindings.waterui_view_effect_render(effectState)
+        WatcherJni.viewEffectRender(effectState)
 
         // Schedule next frame if still rendering
         if (isRendering) {

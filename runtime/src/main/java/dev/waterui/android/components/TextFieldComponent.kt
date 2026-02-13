@@ -11,7 +11,7 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
@@ -24,7 +24,7 @@ import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.dp
 import java.util.concurrent.atomic.AtomicBoolean
 
-private val textFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_text_field_id().toTypeId() }
+private val textFieldTypeId: WuiTypeId by lazy { WatcherJni.textFieldId().toTypeId() }
 
 private const val KEYBOARD_TEXT = 0
 private const val KEYBOARD_SECURE = 1
@@ -34,7 +34,7 @@ private const val KEYBOARD_NUMBER = 4
 private const val KEYBOARD_PHONE = 5
 
 private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_text_field(node.rawPtr)
+    val struct = WatcherJni.forceAsTextField(node.rawPtr)
     val binding = WuiBinding.str(struct.valuePtr, env)
     val promptComputed = struct.promptPtr.takeIf { it != 0L }?.let { WuiComputed.styledString(it, env) }
 

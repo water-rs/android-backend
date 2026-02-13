@@ -1,7 +1,7 @@
 package dev.waterui.android.components
 
 import dev.waterui.android.layout.ClipPathFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -11,7 +11,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataClipShapeTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_clip_shape_id().toTypeId()
+    WatcherJni.metadataClipShapeId().toTypeId()
 }
 
 /**
@@ -21,7 +21,7 @@ private val metadataClipShapeTypeId: WuiTypeId by lazy {
  * Uses a ClipPathFrameLayout to apply the clip path during drawing.
  */
 private val metadataClipShapeRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_clip_shape(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataClipShape(node.rawPtr)
 
     val container = ClipPathFrameLayout(context, metadata.commands)
 

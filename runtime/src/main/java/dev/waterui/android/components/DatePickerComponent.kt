@@ -7,7 +7,7 @@ import com.google.android.material.button.MaterialButton
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.DatePickerType
 import dev.waterui.android.runtime.DateStruct
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
@@ -20,10 +20,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-private val datePickerTypeId: WuiTypeId by lazy { NativeBindings.waterui_date_picker_id().toTypeId() }
+private val datePickerTypeId: WuiTypeId by lazy { WatcherJni.datePickerId().toTypeId() }
 
 private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_date_picker(node.rawPtr)
+    val struct = WatcherJni.forceAsDatePicker(node.rawPtr)
     val binding = WuiBinding.date(struct.valuePtr, env)
     val pickerType = struct.type()
     val range = struct.range

@@ -10,16 +10,17 @@ import android.widget.RadioGroup
 import android.widget.Spinner
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
 
 import dev.waterui.android.runtime.toModel
 
-private val pickerTypeId: WuiTypeId by lazy { NativeBindings.waterui_picker_id().toTypeId() }
+private val pickerTypeId: WuiTypeId by lazy { WatcherJni.pickerId().toTypeId() }
 
 private data class PickerOption(val tag: Int, val label: CharSequence)
 
@@ -33,7 +34,7 @@ private object PickerStyle {
 }
 
 private val pickerRenderer = WuiRenderer { context, node, env, _ ->
-    val struct = NativeBindings.waterui_force_as_picker(node.rawPtr)
+    val struct = WatcherJni.forceAsPicker(node.rawPtr)
     val binding = WuiBinding.int(struct.selectionPtr, env)
     val itemsComputed = WuiComputed.pickerItems(struct.itemsPtr, env)
 
@@ -75,28 +76,32 @@ private fun createSpinnerPicker(
     }
     spinner.adapter = adapter
 
-    itemsComputed.observe { items ->
-        val previousSelection = binding.current()
-        options.clear()
-        adapter.clear()
-        items.forEach { item ->
-            val option = item.resolve()
-            options += option
-            adapter.add(option.label)
-        }
-        adapter.notifyDataSetChanged()
-        val index = options.indexOfFirst { it.tag == previousSelection }
-        if (index >= 0) {
-            setSuppressEvent(true)
-            spinner.setSelection(index)
+    itemsComputed.observeWithAnimation { items, animation ->
+        spinner.applyRustAnimation(animation) {
+            val previousSelection = binding.current()
+            options.clear()
+            adapter.clear()
+            items.forEach { item ->
+                val option = item.resolve()
+                options += option
+                adapter.add(option.label)
+            }
+            adapter.notifyDataSetChanged()
+            val index = options.indexOfFirst { it.tag == previousSelection }
+            if (index >= 0) {
+                setSuppressEvent(true)
+                spinner.setSelection(index)
+            }
         }
     }
 
-    binding.observe { value ->
+    binding.observeWithAnimation { value, animation ->
         val index = options.indexOfFirst { it.tag == value }
         if (index >= 0 && spinner.selectedItemPosition != index) {
-            setSuppressEvent(true)
-            spinner.setSelection(index)
+            spinner.applyRustAnimation(animation) {
+                setSuppressEvent(true)
+                spinner.setSelection(index)
+            }
         }
     }
 
@@ -136,37 +141,41 @@ private fun createRadioPicker(
     // Map from option tag to radio button ID
     val tagToButtonId = mutableMapOf<Int, Int>()
 
-    itemsComputed.observe { items ->
-        val previousSelection = binding.current()
-        options.clear()
-        radioGroup.removeAllViews()
-        tagToButtonId.clear()
+    itemsComputed.observeWithAnimation { items, animation ->
+        radioGroup.applyRustAnimation(animation) {
+            val previousSelection = binding.current()
+            options.clear()
+            radioGroup.removeAllViews()
+            tagToButtonId.clear()
 
-        items.forEachIndexed { index, item ->
-            val option = item.resolve()
-            options += option
+            items.forEachIndexed { _, item ->
+                val option = item.resolve()
+                options += option
 
-            val radioButton = RadioButton(context).apply {
-                id = View.generateViewId()
-                text = option.label
-                tag = option.tag
-            }
-            tagToButtonId[option.tag] = radioButton.id
-            radioGroup.addView(radioButton)
+                val radioButton = RadioButton(context).apply {
+                    id = View.generateViewId()
+                    text = option.label
+                    tag = option.tag
+                }
+                tagToButtonId[option.tag] = radioButton.id
+                radioGroup.addView(radioButton)
 
-            // Restore selection if this was the previously selected item
-            if (option.tag == previousSelection) {
-                setSuppressEvent(true)
-                radioButton.isChecked = true
+                // Restore selection if this was the previously selected item
+                if (option.tag == previousSelection) {
+                    setSuppressEvent(true)
+                    radioButton.isChecked = true
+                }
             }
         }
     }
 
-    binding.observe { value ->
+    binding.observeWithAnimation { value, animation ->
         val buttonId = tagToButtonId[value]
         if (buttonId != null && radioGroup.checkedRadioButtonId != buttonId) {
-            setSuppressEvent(true)
-            radioGroup.check(buttonId)
+            radioGroup.applyRustAnimation(animation) {
+                setSuppressEvent(true)
+                radioGroup.check(buttonId)
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,8 +35,8 @@ class WuiEnvironment private constructor(
          * The returned environment will drop the native pointer on close.
          */
         fun create(): WuiEnvironment {
-            val envPtr = NativeBindings.waterui_init()
-            NativeBindings.waterui_env_install_webview_controller(envPtr)
+            val envPtr = WatcherJni.init()
+            WatcherJni.envInstallWebViewController(envPtr)
             return WuiEnvironment(envPtr, isOwned = true)
         }
 
@@ -57,7 +58,7 @@ class WuiEnvironment private constructor(
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     fun clone(): WuiEnvironment {
-        val cloned = NativeBindings.waterui_clone_env(raw())
+        val cloned = WatcherJni.cloneEnv(raw())
         return WuiEnvironment(cloned, isOwned = true)
     }
 
@@ -69,7 +70,7 @@ class WuiEnvironment private constructor(
     override fun release(ptr: Long) {
         // Only drop if we own the pointer
         if (isOwned) {
-            NativeBindings.waterui_env_drop(ptr)
+            WatcherJni.dropEnv(ptr)
         }
     }
 }

@@ -2,7 +2,7 @@ package dev.waterui.android.components
 
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WatcherStructFactory
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
@@ -10,10 +10,10 @@ import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 
 
-private val dynamicTypeId: WuiTypeId by lazy { NativeBindings.waterui_dynamic_id().toTypeId() }
+private val dynamicTypeId: WuiTypeId by lazy { WatcherJni.dynamicId().toTypeId() }
 
 private val dynamicRenderer = WuiRenderer { context, node, env, registry ->
-    val dynamic = NativeBindings.waterui_force_as_dynamic(node.rawPtr)
+    val dynamic = WatcherJni.forceAsDynamic(node.rawPtr)
     val container = PassThroughFrameLayout(context)
 
     val watcher = WatcherStructFactory.anyView { pointer, _ ->
@@ -30,10 +30,10 @@ private val dynamicRenderer = WuiRenderer { context, node, env, registry ->
             }
         }
     }
-    NativeBindings.waterui_dynamic_connect(dynamic.dynamicPtr, watcher)
+    WatcherJni.dynamicConnect(dynamic.dynamicPtr, watcher)
 
     container.disposeWith {
-        NativeBindings.waterui_drop_dynamic(dynamic.dynamicPtr)
+        WatcherJni.dropDynamic(dynamic.dynamicPtr)
     }
 
     container

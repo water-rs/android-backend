@@ -6,11 +6,12 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
@@ -18,12 +19,12 @@ import dev.waterui.android.runtime.toColorInt
 
 import kotlin.math.roundToInt
 
-private val progressTypeId: WuiTypeId by lazy { NativeBindings.waterui_progress_id().toTypeId() }
+private val progressTypeId: WuiTypeId by lazy { WatcherJni.progressId().toTypeId() }
 private const val PROGRESS_STYLE_LINEAR = 0
 private const val PROGRESS_STYLE_CIRCULAR = 1
 
 private val progressRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_progress(node.rawPtr)
+    val struct = WatcherJni.forceAsProgress(node.rawPtr)
     val computed = struct.valuePtr.takeIf { it != 0L }?.let { WuiComputed.double(it, env) }
 
     val isLinear = struct.style != PROGRESS_STYLE_CIRCULAR
@@ -69,31 +70,37 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
         null
     }
 
-    computed?.observe { value ->
-        val isFinite = value.isFinite()
-        progressBar.isIndeterminate = !isFinite
-        if (isFinite) {
-            val scaled = (value.coerceIn(0.0, 1.0) * 1000).roundToInt()
-            if (progressBar.max != 0) {
-                progressBar.progress = scaled
+    computed?.observeWithAnimation { value, animation ->
+        progressBar.applyRustAnimation(animation) {
+            val isFinite = value.isFinite()
+            progressBar.isIndeterminate = !isFinite
+            if (isFinite) {
+                val scaled = (value.coerceIn(0.0, 1.0) * 1000).roundToInt()
+                if (progressBar.max != 0) {
+                    progressBar.progress = scaled
+                }
+                valueLabel?.visibility = View.VISIBLE
+            } else {
+                valueLabel?.visibility = View.GONE
             }
-            valueLabel?.visibility = View.VISIBLE
-        } else {
-            valueLabel?.visibility = View.GONE
         }
     }
 
     computed?.let { container.disposeWith(it) }
     val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val tint = ColorStateList.valueOf(color.toColorInt())
-        progressBar.progressTintList = tint
-        progressBar.indeterminateTintList = tint
+    accent.observeWithAnimation { color, animation ->
+        progressBar.applyRustAnimation(animation) {
+            val tint = ColorStateList.valueOf(color.toColorInt())
+            progressBar.progressTintList = tint
+            progressBar.indeterminateTintList = tint
+        }
     }
     accent.attachTo(progressBar)
     val border = ThemeBridge.border(env)
-    border.observe { color ->
-        progressBar.secondaryProgressTintList = ColorStateList.valueOf(color.toColorInt())
+    border.observeWithAnimation { color, animation ->
+        progressBar.applyRustAnimation(animation) {
+            progressBar.secondaryProgressTintList = ColorStateList.valueOf(color.toColorInt())
+        }
     }
     border.attachTo(progressBar)
     container

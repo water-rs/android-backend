@@ -15,7 +15,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
@@ -611,22 +611,22 @@ class WebViewWrapper(context: Context) {
 
 // ========== WebView Renderer ==========
 
-private val webViewTypeId: WuiTypeId by lazy { NativeBindings.waterui_webview_id().toTypeId() }
+private val webViewTypeId: WuiTypeId by lazy { WatcherJni.webViewId().toTypeId() }
 
 private val webViewRenderer = WuiRenderer { context, node, _, _ ->
-    val webview = NativeBindings.waterui_force_as_webview(node.rawPtr)
-    val handlePtr = NativeBindings.waterui_webview_native_handle(webview.webviewPtr)
-    val view = NativeBindings.waterui_webview_native_view(handlePtr)
+    val webview = WatcherJni.forceAsWebView(node.rawPtr)
+    val handlePtr = WatcherJni.webviewNativeHandle(webview.webviewPtr)
+    val view = WatcherJni.webviewNativeView(handlePtr)
 
     if (view == null) {
-        NativeBindings.waterui_drop_web_view(webview.webviewPtr)
+        WatcherJni.dropWebView(webview.webviewPtr)
         return@WuiRenderer TextView(context).apply {
             text = "WebView not available"
         }
     }
 
     (view.parent as? ViewGroup)?.removeView(view)
-    view.disposeWith { NativeBindings.waterui_drop_web_view(webview.webviewPtr) }
+    view.disposeWith { WatcherJni.dropWebView(webview.webviewPtr) }
     view
 }
 

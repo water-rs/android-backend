@@ -2,7 +2,7 @@ package dev.waterui.android.components
 
 import android.content.Context
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
@@ -16,11 +16,11 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.setWuiDynamicRangeMode
 
 private val metadataStandardDynamicRangeTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_standard_dynamic_range_id().toTypeId()
+    WatcherJni.metadataStandardDynamicRangeId().toTypeId()
 }
 
 private val metadataHighDynamicRangeTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_high_dynamic_range_id().toTypeId()
+    WatcherJni.metadataHighDynamicRangeId().toTypeId()
 }
 
 private fun renderDynamicRange(
@@ -45,12 +45,12 @@ private fun renderDynamicRange(
 }
 
 private val metadataStandardDynamicRangeRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_standard_dynamic_range(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataStandardDynamicRange(node.rawPtr)
     renderDynamicRange(context, env, registry, metadata.contentPtr, WuiDynamicRangeMode.STANDARD)
 }
 
 private val metadataHighDynamicRangeRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_high_dynamic_range(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataHighDynamicRange(node.rawPtr)
     renderDynamicRange(context, env, registry, metadata.contentPtr, WuiDynamicRangeMode.HIGH)
 }
 

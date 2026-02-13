@@ -1,22 +1,20 @@
 package dev.waterui.android.components
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.findActivity
 
 private val metadataSecureTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_secure_id().toTypeId()
+    WatcherJni.metadataSecureId().toTypeId()
 }
 
 /**
@@ -30,7 +28,7 @@ private val metadataSecureTypeId: WuiTypeId by lazy {
  * (unless other secure views are still visible).
  */
 private val metadataSecureRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_secure(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataSecure(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 
@@ -48,7 +46,7 @@ private val metadataSecureRenderer = WuiRenderer { context, node, env, registry 
 
         override fun onViewAttachedToWindow(v: View) {
             if (isApplied) return
-            findActivity(context)?.let { activity ->
+            context.findActivity()?.let { activity ->
                 incrementSecureFlag(activity.window)
                 isApplied = true
             }
@@ -56,7 +54,7 @@ private val metadataSecureRenderer = WuiRenderer { context, node, env, registry 
 
         override fun onViewDetachedFromWindow(v: View) {
             if (!isApplied) return
-            findActivity(context)?.let { activity ->
+            context.findActivity()?.let { activity ->
                 decrementSecureFlag(activity.window)
             }
             isApplied = false
@@ -68,15 +66,6 @@ private val metadataSecureRenderer = WuiRenderer { context, node, env, registry 
 
 internal fun RegistryBuilder.registerWuiSecure() {
     registerMetadata({ metadataSecureTypeId }, metadataSecureRenderer)
-}
-
-private fun findActivity(context: Context): Activity? {
-    var ctx: Context? = context
-    while (ctx is ContextWrapper) {
-        if (ctx is Activity) return ctx
-        ctx = ctx.baseContext
-    }
-    return null
 }
 
 private const val TAG_SECURE_REFCOUNT = 0x57554902 // "WUI\x02" as int

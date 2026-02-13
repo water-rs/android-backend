@@ -354,10 +354,14 @@ enum class GestureType(val value: Int) {
     DRAG(2),
     MAGNIFICATION(3),
     ROTATION(4),
-    THEN(5);
+    THEN(5),
+    SIMULTANEOUS(6),
+    EXCLUSIVE(7);
 
     companion object {
-        fun fromInt(value: Int): GestureType = entries.firstOrNull { it.value == value } ?: TAP
+        fun fromInt(value: Int): GestureType =
+            entries.firstOrNull { it.value == value }
+                ?: error("Unsupported gesture type value: $value")
     }
 }
 
@@ -373,7 +377,7 @@ data class MetadataGestureStruct(
 
 /**
  * Gesture-specific data union.
- * Note: No default values - JNI requires explicit constructor signature (IIFFFFJJ)V
+ * Note: No default values - JNI requires explicit constructor signature (IIFFFJJ)V
  */
 data class GestureDataStruct(
     val tapCount: Int,
@@ -381,8 +385,16 @@ data class GestureDataStruct(
     val dragMinDistance: Float,
     val magnificationInitialScale: Float,
     val rotationInitialAngle: Float,
-    val thenFirstPtr: Long,
-    val thenSecondPtr: Long
+    val firstPtr: Long,
+    val secondPtr: Long
+)
+
+/**
+ * Standalone gesture struct for decoding nested composite gestures from native pointers.
+ */
+data class GestureStruct(
+    val gestureType: Int,
+    val gestureData: GestureDataStruct
 )
 
 /**
@@ -926,40 +938,6 @@ data class ViewEffectStruct(
     val outputSizeType: Int
 ) {
     fun outputSize(): OutputSizeType = OutputSizeType.fromInt(outputSizeType)
-}
-
-// ========== MediaPicker Structs ==========
-
-/**
- * Media filter type enum matching WuiMediaFilterType in FFI.
- */
-enum class MediaFilterType(val value: Int) {
-    /** Filter for live photos only */
-    LIVE_PHOTO(0),
-    /** Filter for videos only */
-    VIDEO(1),
-    /** Filter for images only */
-    IMAGE(2),
-    /** Filter for all media types */
-    ALL(3);
-
-    companion object {
-        fun fromInt(value: Int): MediaFilterType = entries.firstOrNull { it.value == value } ?: ALL
-    }
-}
-
-/**
- * MediaPicker component data.
- * - filter: Media filter type (image, video, all, etc.)
- */
-data class MediaPickerStruct(
-    val filter: Int,
-    val onSelectionDataPtr: Long,
-    val onSelectionCallPtr: Long
-) {
-    fun filterType(): MediaFilterType = MediaFilterType.fromInt(filter)
-    fun onSelectionDataPtr(): Long = onSelectionDataPtr
-    fun onSelectionCallPtr(): Long = onSelectionCallPtr
 }
 
 // ========== Resolved Value Structs ==========

@@ -9,7 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import dev.waterui.android.runtime.AppliedFilterStruct
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -19,7 +19,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataAppliedFilterTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_applied_filter_id().toTypeId()
+    WatcherJni.metadataAppliedFilterId().toTypeId()
 }
 
 /**
@@ -33,7 +33,7 @@ private val metadataAppliedFilterTypeId: WuiTypeId by lazy {
  */
 @Suppress("UNUSED_PARAMETER")
 private val metadataAppliedFilterRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_applied_filter(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataAppliedFilter(node.rawPtr)
 
     if (metadata.contentPtr == 0L || metadata.filterPtr == 0L) {
         error("AppliedFilter metadata missing content/filter pointers")
@@ -114,7 +114,7 @@ private class AppliedFilterView(
         capturer.onSizeChanged(width, height)
 
         if (statePtr == 0L) {
-            statePtr = NativeBindings.waterui_applied_filter_init(
+            statePtr = WatcherJni.appliedFilterInit(
                 data.contentPtr,
                 data.filterPtr,
                 holder.surface,
@@ -126,9 +126,9 @@ private class AppliedFilterView(
                 return
             }
 
-            NativeBindings.waterui_applied_filter_setup(statePtr) {
+            WatcherJni.appliedFilterSetup(statePtr) {
                 if (!filterEnabled || statePtr == 0L) {
-                    return@waterui_applied_filter_setup
+                    return@appliedFilterSetup
                 }
 
                 isReady = true
@@ -158,7 +158,7 @@ private class AppliedFilterView(
             return
         }
 
-        val ok = NativeBindings.waterui_applied_filter_set_input_ahardwarebuffer(
+        val ok = WatcherJni.appliedFilterSetInputAHardwareBuffer(
             statePtr,
             buffer,
             surfaceWidth,
@@ -169,7 +169,7 @@ private class AppliedFilterView(
             return
         }
 
-        val result = NativeBindings.waterui_applied_filter_render(statePtr, surfaceWidth, surfaceHeight)
+        val result = WatcherJni.appliedFilterRender(statePtr, surfaceWidth, surfaceHeight)
         if (!result.success) {
             disableFilter("render failed")
             return
@@ -218,7 +218,7 @@ private class AppliedFilterView(
 
     private fun closeFilterState() {
         if (statePtr != 0L) {
-            NativeBindings.waterui_applied_filter_drop(statePtr)
+            WatcherJni.appliedFilterDrop(statePtr)
             statePtr = 0L
         }
     }

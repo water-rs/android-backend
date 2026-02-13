@@ -105,7 +105,7 @@ See `IMPLEMENTATION_STATUS.md` for the remaining platform gaps.
 3. **Extend the JNI bridge** – in `backends/android/runtime/src/main/cpp/waterui_jni.cpp`
    add functions that mirror the new FFI symbols (e.g. `waterui_picker_id`,
    `waterui_force_as_picker`). Regenerate/commit the corresponding Kotlin data
-   class and type identifiers inside `NativeBindings.kt`.
+   classes in `FfiStructs.kt` and declarations in `WatcherJni.kt`.
 4. **Add Kotlin interoperability helpers** – if the Picker uses new pointer types
    (bindings, computed values, colours), implement the necessary wrappers under
    `dev.waterui.android.runtime` or `dev.waterui.android.reactive` so the Android

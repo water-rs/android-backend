@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
 import java.io.Closeable
 
 /**
@@ -42,11 +43,11 @@ inline fun <T : NativePointer, R> T.usePointer(block: (T) -> R): R {
 }
 
 class NativeAnyViews(handle: Long) : NativePointer(handle) {
-    fun size(): Int = if (isReleased) 0 else NativeBindings.waterui_any_views_len(raw())
+    fun size(): Int = if (isReleased) 0 else WatcherJni.anyViewsLen(raw())
 
     fun viewAt(index: Int): Long {
         if (isReleased) return 0L
-        return NativeBindings.waterui_any_views_get_view(raw(), index)
+        return WatcherJni.anyViewsGetView(raw(), index)
     }
 
     fun toList(): List<Long> {
@@ -62,6 +63,6 @@ class NativeAnyViews(handle: Long) : NativePointer(handle) {
     }
 
     override fun release(ptr: Long) {
-        NativeBindings.waterui_drop_any_views(ptr)
+        WatcherJni.dropAnyViews(ptr)
     }
 }

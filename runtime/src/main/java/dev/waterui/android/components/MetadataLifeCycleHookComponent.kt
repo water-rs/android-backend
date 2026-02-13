@@ -3,7 +3,7 @@ package dev.waterui.android.components
 import android.view.View
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.LifeCycleType
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -13,7 +13,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataLifeCycleHookTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_lifecycle_hook_id().toTypeId()
+    WatcherJni.metadataLifeCycleHookId().toTypeId()
 }
 
 /**
@@ -23,7 +23,7 @@ private val metadataLifeCycleHookTypeId: WuiTypeId by lazy {
  * The handler is called once (FnOnce) when the lifecycle event occurs.
  */
 private val metadataLifeCycleHookRenderer = WuiRenderer { context, node, env, registry ->
-    val hookData = NativeBindings.waterui_force_as_metadata_lifecycle_hook(node.rawPtr)
+    val hookData = WatcherJni.forceAsMetadataLifeCycleHook(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
     val envPtr = env.raw()
@@ -45,7 +45,7 @@ private val metadataLifeCycleHookRenderer = WuiRenderer { context, node, env, re
             if (!hasCalledHandler && lifecycleType == LifeCycleType.APPEAR) {
                 handlerPtr?.let { ptr ->
                     hasCalledHandler = true
-                    NativeBindings.waterui_call_lifecycle_hook(ptr, envPtr)
+                    WatcherJni.callLifeCycleHook(ptr, envPtr)
                     handlerPtr = null
                 }
             }
@@ -55,7 +55,7 @@ private val metadataLifeCycleHookRenderer = WuiRenderer { context, node, env, re
             if (!hasCalledHandler && lifecycleType == LifeCycleType.DISAPPEAR) {
                 handlerPtr?.let { ptr ->
                     hasCalledHandler = true
-                    NativeBindings.waterui_call_lifecycle_hook(ptr, envPtr)
+                    WatcherJni.callLifeCycleHook(ptr, envPtr)
                     handlerPtr = null
                 }
             }
@@ -67,7 +67,7 @@ private val metadataLifeCycleHookRenderer = WuiRenderer { context, node, env, re
         // Drop handler if it was never called
         handlerPtr?.let { ptr ->
             if (!hasCalledHandler) {
-                NativeBindings.waterui_drop_lifecycle_hook(ptr)
+                WatcherJni.dropLifeCycleHook(ptr)
             }
         }
     }

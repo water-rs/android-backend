@@ -1,9 +1,8 @@
 package dev.waterui.android.runtime
 
-import android.app.Activity
+import dev.waterui.android.ffi.WatcherJni
 import android.app.UiModeManager
 import android.graphics.Color
-import android.content.ContextWrapper
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -73,7 +72,7 @@ class RootThemeController private constructor(
     }
 
     private fun setupColorSchemeWatcher() {
-        val signalPtr = NativeBindings.waterui_theme_color_scheme(envPtr)
+        val signalPtr = WatcherJni.themeColorScheme(envPtr)
         if (signalPtr == 0L) {
             Log.w(TAG, "No color scheme signal found in environment")
             return
@@ -82,7 +81,7 @@ class RootThemeController private constructor(
         colorSchemeSignalPtr = signalPtr
 
         // Apply initial value
-        val initial = NativeBindings.waterui_read_computed_color_scheme(signalPtr)
+        val initial = WatcherJni.readComputedColorScheme(signalPtr)
         Log.d(TAG, "Initial color scheme: $initial (0=Light, 1=Dark)")
         applyColorScheme(initial)
 
@@ -94,7 +93,7 @@ class RootThemeController private constructor(
             }
         }
 
-        val guardHandle = NativeBindings.waterui_watch_computed_color_scheme(signalPtr, watcher)
+        val guardHandle = WatcherJni.watchComputedColorScheme(signalPtr, watcher)
         if (guardHandle != 0L) {
             watcherGuard = WatcherGuard(guardHandle)
             Log.d(TAG, "Watcher guard created successfully")
@@ -113,7 +112,7 @@ class RootThemeController private constructor(
             Log.d(TAG, "applyToWindow: no current scheme")
             return
         }
-        val activity = findActivity()
+        val activity = view.findActivity()
         if (activity == null) {
             Log.d(TAG, "applyToWindow: no activity found, view.context=$view.context")
             return
@@ -173,22 +172,11 @@ class RootThemeController private constructor(
         insetsController.isAppearanceLightNavigationBars = useDarkIcons
     }
 
-    private fun findActivity(): Activity? {
-        var ctx = view.context
-        while (ctx is ContextWrapper) {
-            if (ctx is Activity) {
-                return ctx
-            }
-            ctx = ctx.baseContext
-        }
-        return null
-    }
-
     private fun close() {
         watcherGuard?.close()
         watcherGuard = null
         if (colorSchemeSignalPtr != 0L) {
-            NativeBindings.waterui_drop_computed_color_scheme(colorSchemeSignalPtr)
+            WatcherJni.dropComputedColorScheme(colorSchemeSignalPtr)
             colorSchemeSignalPtr = 0L
         }
     }

@@ -5,7 +5,7 @@ import android.view.MotionEvent
 import android.view.View
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.EventType
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -15,7 +15,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataOnEventTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_on_event_id().toTypeId()
+    WatcherJni.metadataOnEventId().toTypeId()
 }
 
 /**
@@ -25,7 +25,7 @@ private val metadataOnEventTypeId: WuiTypeId by lazy {
  * The handler can be called multiple times (Fn, repeatable).
  */
 private val metadataOnEventRenderer = WuiRenderer { context, node, env, registry ->
-    val onEventData = NativeBindings.waterui_force_as_metadata_on_event(node.rawPtr)
+    val onEventData = WatcherJni.forceAsMetadataOnEvent(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
     val envPtr = env.raw()
@@ -48,7 +48,7 @@ private val metadataOnEventRenderer = WuiRenderer { context, node, env, registry
                 MotionEvent.ACTION_HOVER_ENTER -> {
                     if (!isHovered && eventType == EventType.HOVER_ENTER) {
                         isHovered = true
-                        NativeBindings.waterui_call_on_event(handlerPtr, envPtr)
+                        WatcherJni.callOnEvent(handlerPtr, envPtr)
                     } else {
                         isHovered = true
                     }
@@ -57,7 +57,7 @@ private val metadataOnEventRenderer = WuiRenderer { context, node, env, registry
                 MotionEvent.ACTION_HOVER_EXIT -> {
                     if (isHovered && eventType == EventType.HOVER_EXIT) {
                         isHovered = false
-                        NativeBindings.waterui_call_on_event(handlerPtr, envPtr)
+                        WatcherJni.callOnEvent(handlerPtr, envPtr)
                     } else {
                         isHovered = false
                     }
@@ -71,7 +71,7 @@ private val metadataOnEventRenderer = WuiRenderer { context, node, env, registry
     // Cleanup
     container.disposeWith {
         // Drop the repeatable handler
-        NativeBindings.waterui_drop_on_event(handlerPtr)
+        WatcherJni.dropOnEvent(handlerPtr)
     }
 
     container

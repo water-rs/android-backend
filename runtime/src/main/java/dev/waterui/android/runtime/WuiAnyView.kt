@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
 import android.content.Context
 import android.view.View
 import android.widget.TextView
@@ -24,7 +25,7 @@ fun inflateAnyView(
     environment: WuiEnvironment,
     registry: RenderRegistry = RenderRegistry.default()
 ): android.view.View {
-    val typeId = NativeBindings.waterui_view_id(pointer).toTypeId()
+    val typeId = WatcherJni.viewId(pointer).toTypeId()
     val node = WuiNode(pointer, typeId)
     val renderer = registry.resolve(typeId)
 
@@ -33,7 +34,7 @@ fun inflateAnyView(
         // Metadata types don't implement NativeView, they propagate stretch axis from content.
         val isMetadata = registry.isMetadata(typeId)
         val stretchAxis = if (!isMetadata) {
-            StretchAxis.fromInt(NativeBindings.waterui_view_stretch_axis(pointer))
+            StretchAxis.fromInt(WatcherJni.viewStretchAxis(pointer))
         } else {
             null
         }
@@ -48,7 +49,7 @@ fun inflateAnyView(
         return view
     }
 
-    val fallbackPtr = NativeBindings.waterui_view_body(pointer, environment.raw())
+    val fallbackPtr = WatcherJni.viewBody(pointer, environment.raw())
     if (fallbackPtr != 0L) {
         return inflateAnyView(context, fallbackPtr, environment, registry)
     }

@@ -4,7 +4,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiBinding
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -14,7 +14,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataFocusedTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_focused_id().toTypeId()
+    WatcherJni.metadataFocusedId().toTypeId()
 }
 
 /**
@@ -24,7 +24,7 @@ private val metadataFocusedTypeId: WuiTypeId by lazy {
  * The binding reflects whether any focusable child has focus.
  */
 private val metadataFocusedRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_focused(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataFocused(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
 

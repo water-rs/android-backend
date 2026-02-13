@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
 import android.graphics.Typeface
 import android.os.Build
 import android.text.SpannableStringBuilder
@@ -113,15 +114,15 @@ internal class WuiFont(
 ) : NativePointer(handle) {
 
     fun resolveOnce(env: WuiEnvironment): ResolvedFontStruct {
-        val computedPtr = NativeBindings.waterui_resolve_font(raw(), env.raw())
-        val resolved = NativeBindings.waterui_read_computed_resolved_font(computedPtr)
-        NativeBindings.waterui_drop_computed_resolved_font(computedPtr)
+        val computedPtr = WatcherJni.resolveFont(raw(), env.raw())
+        val resolved = WatcherJni.readComputedResolvedFont(computedPtr)
+        WatcherJni.dropComputedResolvedFont(computedPtr)
         return resolved
     }
 
     override fun release(ptr: Long) {
         if (ptr != 0L) {
-            NativeBindings.waterui_drop_font(ptr)
+            WatcherJni.dropFont(ptr)
         }
     }
 }
@@ -131,15 +132,15 @@ internal class WuiColor(
 ) : NativePointer(handle) {
 
     fun resolveOnce(env: WuiEnvironment): ResolvedColorStruct {
-        val computedPtr = NativeBindings.waterui_resolve_color(raw(), env.raw())
-        val color = NativeBindings.waterui_read_computed_resolved_color(computedPtr)
-        NativeBindings.waterui_drop_computed_resolved_color(computedPtr)
+        val computedPtr = WatcherJni.resolveColor(raw(), env.raw())
+        val color = WatcherJni.readComputedResolvedColor(computedPtr)
+        WatcherJni.dropComputedResolvedColor(computedPtr)
         return color
     }
 
     override fun release(ptr: Long) {
         if (ptr != 0L) {
-            NativeBindings.waterui_drop_color(ptr)
+            WatcherJni.dropColor(ptr)
         }
     }
 }

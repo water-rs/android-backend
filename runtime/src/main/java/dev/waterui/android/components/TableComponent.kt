@@ -6,7 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import dev.waterui.android.reactive.WuiComputed
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.TableColumnStruct
@@ -22,10 +22,10 @@ import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.toTypeface
 
-private val tableTypeId: WuiTypeId by lazy { NativeBindings.waterui_table_id().toTypeId() }
+private val tableTypeId: WuiTypeId by lazy { WatcherJni.tableId().toTypeId() }
 
 private val tableRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_table(node.rawPtr)
+    val struct = WatcherJni.forceAsTable(node.rawPtr)
     val computed = WuiComputed.tableColumns(struct.columnsPtr, env)
 
     val tableView = WuiTableGridView(context, env, registry)
@@ -72,7 +72,7 @@ private class WuiTableGridView(
         columnCount = columns.size
 
         val rowsPerColumn = columns.map { col ->
-            if (col.rowsPtr == 0L) 0 else NativeBindings.waterui_any_views_len(col.rowsPtr)
+            if (col.rowsPtr == 0L) 0 else WatcherJni.anyViewsLen(col.rowsPtr)
         }
         val maxDataRows = rowsPerColumn.maxOrNull() ?: 0
         rowCount = 1 + maxDataRows
@@ -88,7 +88,7 @@ private class WuiTableGridView(
                 val col = columns[colIndex]
                 val cellView =
                     if (col.rowsPtr != 0L && rowIndex < (rowsPerColumn[colIndex])) {
-                        val anyViewPtr = NativeBindings.waterui_any_views_get_view(col.rowsPtr, rowIndex)
+                        val anyViewPtr = WatcherJni.anyViewsGetView(col.rowsPtr, rowIndex)
                         if (anyViewPtr != 0L) inflateAnyView(context, anyViewPtr, env, registry) else spacerCell()
                     } else {
                         spacerCell()
@@ -100,7 +100,7 @@ private class WuiTableGridView(
         // Drop AnyViews pointers now that we've consumed their AnyView children.
         for (col in columns) {
             if (col.rowsPtr != 0L) {
-                NativeBindings.waterui_drop_any_views(col.rowsPtr)
+                WatcherJni.dropAnyViews(col.rowsPtr)
             }
         }
 

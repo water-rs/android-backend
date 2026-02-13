@@ -1,7 +1,7 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Typeface
@@ -185,7 +185,7 @@ class WaterUiRootView @JvmOverloads constructor(
         // Step 1: Create the init environment
         // NOTE: We use the raw pointer and do NOT wrap it in WuiEnvironment
         // because waterui_app() will take ownership of it.
-        val initEnvPtr = NativeBindings.waterui_init()
+        val initEnvPtr = WatcherJni.init()
         android.util.Log.d(TAG, "initializeApp: environment created, ptr=$initEnvPtr")
 
         // Step 2: Install system theme into the environment
@@ -199,13 +199,13 @@ class WaterUiRootView @JvmOverloads constructor(
         android.util.Log.d(TAG, "initializeApp: theme installed")
 
         // Also install webview controller and view renderer
-        NativeBindings.waterui_env_install_webview_controller(initEnvPtr)
-        NativeBindings.waterui_env_install_window_manager(initEnvPtr)
+        WatcherJni.envInstallWebViewController(initEnvPtr)
+        WatcherJni.envInstallWindowManager(initEnvPtr)
 
         // Step 3: Call waterui_app() - this TAKES OWNERSHIP of the init env
         // After this call, initEnvPtr is invalid and we must use app.envPtr
         android.util.Log.d(TAG, "initializeApp: calling waterui_app()")
-        val appStruct = NativeBindings.waterui_app(initEnvPtr)
+        val appStruct = WatcherJni.app(initEnvPtr)
         android.util.Log.d(TAG, "initializeApp: waterui_app() returned app with ${appStruct.windows.size} windows, envPtr=${appStruct.envPtr}")
 
         // Step 4: Store the app and create a borrowed view of the returned environment
@@ -230,17 +230,21 @@ class WaterUiRootView @JvmOverloads constructor(
         backgroundTheme?.close()
         backgroundTheme = null
 
-        // 3. Clear theme bridge (signals are owned by Rust after install)
+        // 3. Detach window manager host and close all secondary windows
+        // before dropping the app environment.
+        WindowManager.detachHost(this, app?.envPtr ?: 0L)
+
+        // 4. Clear theme bridge (signals are owned by Rust after install)
         themeBridge = null
 
-        // 4. Clear the borrowed env view (does NOT drop the native pointer)
+        // 5. Clear the borrowed env view (does NOT drop the native pointer)
         renderEnv?.close()
         renderEnv = null
 
-        // 5. Drop the app which owns the environment
+        // 6. Drop the app which owns the environment
         app?.let { appStruct ->
             android.util.Log.d(TAG, "onDetachedFromWindow: dropping app env")
-            NativeBindings.waterui_env_drop(appStruct.envPtr)
+            WatcherJni.dropEnv(appStruct.envPtr)
         }
         app = null
 
@@ -297,15 +301,6 @@ class WaterUiRootView @JvmOverloads constructor(
         // The color scheme may have been overridden by user's Rust code via env.install(theme).
         RootThemeController.setup(this, appStruct.envPtr)
         android.util.Log.d(TAG, "renderRoot: done")
-    }
-
-    private fun findActivity(): android.app.Activity? {
-        var ctx: Context? = context
-        while (ctx is ContextWrapper) {
-            if (ctx is android.app.Activity) return ctx
-            ctx = ctx.baseContext
-        }
-        return null
     }
 
     private fun getSystemColorScheme(): Int {
@@ -501,7 +496,7 @@ private class ThemeBridgeController(
 
     private fun install(envPtr: Long, palette: MaterialThemePalette, fonts: MaterialThemeFonts) {
         // Install color scheme
-        NativeBindings.waterui_theme_install_color_scheme(envPtr, colorSchemeSignal.toComputed())
+        WatcherJni.themeInstallColorScheme(envPtr, colorSchemeSignal.toComputed())
 
         // Install colors
         installColorSlot(envPtr, ColorSlot.Background, palette.background)
@@ -524,13 +519,13 @@ private class ThemeBridgeController(
 
     private fun installColorSlot(envPtr: Long, slot: ColorSlot, argb: Int) {
         val signal = ReactiveColorSignal(argb)
-        NativeBindings.waterui_theme_install_color(envPtr, slot.value, signal.toComputed())
+        WatcherJni.themeInstallColor(envPtr, slot.value, signal.toComputed())
         colorSignals[slot] = signal
     }
 
     private fun installFontSlot(envPtr: Long, slot: FontSlot, font: MaterialThemeFont) {
         val signal = ReactiveFontSignal(font.sizeSp, font.weight)
-        NativeBindings.waterui_theme_install_font(envPtr, slot.value, signal.toComputed())
+        WatcherJni.themeInstallFont(envPtr, slot.value, signal.toComputed())
         fontSignals[slot] = signal
     }
 }

@@ -7,13 +7,14 @@ import android.graphics.drawable.RippleDrawable
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.PopupMenu
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyRustAnimation
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.inflateAnyView
@@ -21,7 +22,7 @@ import dev.waterui.android.runtime.toColorInt
 import dev.waterui.android.runtime.dp
 
 private val menuTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_menu_id().toTypeId()
+    WatcherJni.menuId().toTypeId()
 }
 
 /**
@@ -31,7 +32,7 @@ private val menuTypeId: WuiTypeId by lazy {
  * On Android, this uses PopupMenu attached to a FrameLayout container.
  */
 private val menuRenderer = WuiRenderer { context, node, env, registry ->
-    val menuData = NativeBindings.waterui_force_as_menu(node.rawPtr)
+    val menuData = WatcherJni.forceAsMenu(node.rawPtr)
 
     val envPtr = env.raw()
 
@@ -47,25 +48,27 @@ private val menuRenderer = WuiRenderer { context, node, env, registry ->
 
         // Apply ripple effect using accent color
         val accent = ThemeBridge.accent(env)
-        accent.observe { color ->
-            val colorInt = color.toColorInt()
-            val cornerRadius = 8f.dp(context)
+        accent.observeWithAnimation { color, animation ->
+            applyRustAnimation(animation) {
+                val colorInt = color.toColorInt()
+                val cornerRadius = 8f.dp(context)
 
-            // Create bordered background
-            val border = GradientDrawable().apply {
-                setStroke(1.5f.dp(context).toInt(), colorInt)
-                setCornerRadius(cornerRadius)
-                setColor(Color.TRANSPARENT)
-            }
-            background = border
+                // Create bordered background
+                val border = GradientDrawable().apply {
+                    setStroke(1.5f.dp(context).toInt(), colorInt)
+                    setCornerRadius(cornerRadius)
+                    setColor(Color.TRANSPARENT)
+                }
+                background = border
 
-            // Create ripple with mask
-            val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.15f))
-            val mask = GradientDrawable().apply {
-                setCornerRadius(cornerRadius)
-                setColor(Color.WHITE)
+                // Create ripple with mask
+                val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.15f))
+                val mask = GradientDrawable().apply {
+                    setCornerRadius(cornerRadius)
+                    setColor(Color.WHITE)
+                }
+                foreground = RippleDrawable(rippleColor, null, mask)
             }
-            foreground = RippleDrawable(rippleColor, null, mask)
         }
         accent.attachTo(this)
     }
@@ -89,7 +92,7 @@ private val menuRenderer = WuiRenderer { context, node, env, registry ->
     // Cleanup
     container.disposeWith {
         if (menuData.itemsPtr != 0L) {
-            NativeBindings.waterui_drop_computed_menu_items(menuData.itemsPtr)
+            WatcherJni.dropComputedMenuItems(menuData.itemsPtr)
         }
     }
 
@@ -100,14 +103,14 @@ private val menuRenderer = WuiRenderer { context, node, env, registry ->
  * Shows a popup menu with the specified items.
  */
 private fun showMenu(anchor: View, itemsPtr: Long, envPtr: Long) {
-    val items = NativeBindings.waterui_read_computed_menu_items(itemsPtr)
+    val items = WatcherJni.readComputedMenuItems(itemsPtr)
     if (items.isEmpty()) return
 
     val popup = PopupMenu(anchor.context, anchor)
 
     items.forEachIndexed { index, item ->
         // Read the styled text to get the label
-        val styledStr = NativeBindings.waterui_read_computed_styled_str(item.labelPtr)
+        val styledStr = WatcherJni.readComputedStyledStr(item.labelPtr)
         val label = styledStr.chunks.joinToString("") { it.text }
 
         popup.menu.add(0, index, index, label)
@@ -116,7 +119,7 @@ private fun showMenu(anchor: View, itemsPtr: Long, envPtr: Long) {
     popup.setOnMenuItemClickListener { menuItem ->
         val item = items.getOrNull(menuItem.itemId)
         if (item != null && item.actionPtr != 0L) {
-            NativeBindings.waterui_call_shared_action(item.actionPtr, envPtr)
+            WatcherJni.callSharedAction(item.actionPtr, envPtr)
         }
         true
     }

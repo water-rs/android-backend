@@ -3,7 +3,7 @@ package dev.waterui.android.components
 import android.view.MotionEvent
 import android.view.View
 import dev.waterui.android.layout.PassThroughFrameLayout
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -13,7 +13,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataHittableTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_hittable_id().toTypeId()
+    WatcherJni.metadataHittableId().toTypeId()
 }
 
 /**
@@ -23,12 +23,12 @@ private val metadataHittableTypeId: WuiTypeId by lazy {
  * When disabled, touch events pass through the view to views behind it.
  */
 private val metadataHittableRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_force_as_metadata_hittable(node.rawPtr)
+    val metadata = WatcherJni.forceAsMetadataHittable(node.rawPtr)
 
     var currentEnabled = true
 
     if (metadata.enabledPtr != 0L) {
-        currentEnabled = NativeBindings.waterui_read_computed_bool(metadata.enabledPtr)
+        currentEnabled = WatcherJni.readComputedBool(metadata.enabledPtr)
     }
 
     // Use a custom container that intercepts touch events when disabled
@@ -53,16 +53,16 @@ private val metadataHittableRenderer = WuiRenderer { context, node, env, registr
     val watcherGuards = mutableListOf<Long>()
 
     if (metadata.enabledPtr != 0L) {
-        val watcher = NativeBindings.waterui_create_bool_watcher { value, _ ->
+        val watcher = WatcherJni.createBoolWatcher { value, _ ->
             currentEnabled = value
         }
-        val guard = NativeBindings.waterui_watch_computed_bool(metadata.enabledPtr, watcher)
+        val guard = WatcherJni.watchComputedBool(metadata.enabledPtr, watcher)
         if (guard != 0L) watcherGuards.add(guard)
     }
 
     container.disposeWith {
-        watcherGuards.forEach { NativeBindings.waterui_drop_watcher_guard(it) }
-        if (metadata.enabledPtr != 0L) NativeBindings.waterui_drop_computed_bool(metadata.enabledPtr)
+        watcherGuards.forEach { WatcherJni.dropWatcherGuard(it) }
+        if (metadata.enabledPtr != 0L) WatcherJni.dropComputedBool(metadata.enabledPtr)
     }
 
     container

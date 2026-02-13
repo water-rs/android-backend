@@ -8,20 +8,14 @@ sealed class WuiAnimation {
     /** No animation - changes apply immediately */
     data object None : WuiAnimation()
 
-    /** Default animation (0.25s ease-in-out) */
-    data object Default : WuiAnimation()
-
-    /** Linear animation with constant velocity */
-    data class Linear(val duration: Long) : WuiAnimation()
-
-    /** Ease-in animation that starts slow and accelerates */
-    data class EaseIn(val duration: Long) : WuiAnimation()
-
-    /** Ease-out animation that starts fast and decelerates */
-    data class EaseOut(val duration: Long) : WuiAnimation()
-
-    /** Ease-in-out animation that starts and ends slowly */
-    data class EaseInOut(val duration: Long) : WuiAnimation()
+    /** Timed cubic bezier animation. */
+    data class Bezier(
+        val duration: Long,
+        val x1: Float,
+        val y1: Float,
+        val x2: Float,
+        val y2: Float,
+    ) : WuiAnimation()
 
     /** Spring animation with physics-based movement */
     data class Spring(val stiffness: Float, val damping: Float) : WuiAnimation()
@@ -29,11 +23,7 @@ sealed class WuiAnimation {
     /** Returns duration in milliseconds for timed animations */
     val durationMs: Long
         get() = when (this) {
-            is Linear -> duration
-            is EaseIn -> duration
-            is EaseOut -> duration
-            is EaseInOut -> duration
-            is Default -> 250L
+            is Bezier -> duration
             else -> 0L
         }
 
@@ -42,27 +32,52 @@ sealed class WuiAnimation {
         get() = this !is None
 
     companion object {
+        // Must match ffi/src/jni/components.rs.
+        private const val TAG_NONE = 0
+        private const val TAG_BEZIER = 1
+        private const val TAG_SPRING = 2
+
         /**
-         * Constructs animation from FFI tag and parameters.
-         * Tag values must match WuiAnimation_Tag enum in C header.
+         * Constructs animation from packed native values.
+         *
+         * kindDurationPacked: low 32 bits = tag, high 32 bits = duration_ms
+         * params12Packed: low/high 32 bits = p1/p2 (f32 bits)
+         * params34Packed: low/high 32 bits = p3/p4 (f32 bits)
          */
-        fun fromNative(tag: Int, duration: Long, stiffness: Float, damping: Float): WuiAnimation =
-            when (tag) {
-                0 -> None       // WuiAnimation_None
-                1 -> Default    // WuiAnimation_Default
-                2 -> Linear(duration)      // WuiAnimation_Linear
-                3 -> EaseIn(duration)      // WuiAnimation_EaseIn
-                4 -> EaseOut(duration)     // WuiAnimation_EaseOut
-                5 -> EaseInOut(duration)   // WuiAnimation_EaseInOut
-                6 -> Spring(stiffness, damping) // WuiAnimation_Spring
+        fun fromNative(
+            kindDurationPacked: Long,
+            params12Packed: Long,
+            params34Packed: Long,
+        ): WuiAnimation {
+            val tag = unpackLowU32(kindDurationPacked)
+            val duration = unpackHighU32(kindDurationPacked)
+            val p1 = unpackLowF32(params12Packed)
+            val p2 = unpackHighF32(params12Packed)
+            val p3 = unpackLowF32(params34Packed)
+            val p4 = unpackHighF32(params34Packed)
+
+            return when (tag) {
+                TAG_NONE -> None
+                TAG_BEZIER -> Bezier(duration, p1, p2, p3, p4)
+                TAG_SPRING -> Spring(p1, p2)
                 else -> None
             }
+        }
+
+        private fun unpackLowU32(value: Long): Int = (value and 0xffff_ffffL).toInt()
+        private fun unpackHighU32(value: Long): Long = (value ushr 32) and 0xffff_ffffL
+        private fun unpackLowF32(value: Long): Float = Float.fromBits(unpackLowU32(value))
+        private fun unpackHighF32(value: Long): Float = Float.fromBits((value ushr 32).toInt())
 
         /**
          * Legacy compatibility - constructs from tag only (uses defaults for other params).
          */
-        @Deprecated("Use fromNative(tag, durationMs, stiffness, damping) instead")
+        @Deprecated("Use fromNative(kindDurationPacked, params12Packed, params34Packed) instead")
         fun fromNative(value: Int): WuiAnimation =
-            fromNative(value, 250L, 0f, 0f)
+            when (value) {
+                TAG_BEZIER -> Bezier(250L, 0.42f, 0f, 0.58f, 1f)
+                TAG_SPRING -> Spring(100f, 10f)
+                else -> None
+            }
     }
 }

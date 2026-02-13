@@ -5,7 +5,7 @@ import android.view.MotionEvent
 import android.view.PointerIcon
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.CursorStyle
-import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
@@ -15,7 +15,7 @@ import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataCursorTypeId: WuiTypeId by lazy {
-    NativeBindings.waterui_metadata_cursor_id().toTypeId()
+    WatcherJni.metadataCursorId().toTypeId()
 }
 
 /**
@@ -26,7 +26,7 @@ private val metadataCursorTypeId: WuiTypeId by lazy {
  * Requires API 24+ (Android N) for pointer icon support.
  */
 private val metadataCursorRenderer = WuiRenderer { context, node, env, registry ->
-    val cursorData = NativeBindings.waterui_force_as_metadata_cursor(node.rawPtr)
+    val cursorData = WatcherJni.forceAsMetadataCursor(node.rawPtr)
 
     val container = PassThroughFrameLayout(context)
     var watcherGuardPtr: Long = 0
@@ -41,17 +41,17 @@ private val metadataCursorRenderer = WuiRenderer { context, node, env, registry 
 
     // Read initial cursor style
     if (cursorData.stylePtr != 0L) {
-        currentStyle = CursorStyle.fromInt(NativeBindings.waterui_read_computed_cursor_style(cursorData.stylePtr))
+        currentStyle = CursorStyle.fromInt(WatcherJni.readComputedCursorStyle(cursorData.stylePtr))
     }
 
     // Watch for reactive cursor style changes (API 24+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && cursorData.stylePtr != 0L) {
-        val watcher = NativeBindings.waterui_create_cursor_style_watcher { value, _ ->
+        val watcher = WatcherJni.createCursorStyleWatcher { value, _ ->
             currentStyle = CursorStyle.fromInt(value)
             // Update the pointer icon if we're currently hovering
             container.pointerIcon = getPointerIcon(context, currentStyle)
         }
-        watcherGuardPtr = NativeBindings.waterui_watch_computed_cursor_style(cursorData.stylePtr, watcher)
+        watcherGuardPtr = WatcherJni.watchComputedCursorStyle(cursorData.stylePtr, watcher)
 
         // Set hover listener to apply cursor
         var isHovered = false
@@ -75,10 +75,10 @@ private val metadataCursorRenderer = WuiRenderer { context, node, env, registry 
     // Cleanup
     container.disposeWith {
         if (cursorData.stylePtr != 0L) {
-            NativeBindings.waterui_drop_computed_cursor_style(cursorData.stylePtr)
+            WatcherJni.dropComputedCursorStyle(cursorData.stylePtr)
         }
         if (watcherGuardPtr != 0L) {
-            NativeBindings.waterui_drop_watcher_guard(watcherGuardPtr)
+            WatcherJni.dropWatcherGuard(watcherGuardPtr)
         }
     }
 
