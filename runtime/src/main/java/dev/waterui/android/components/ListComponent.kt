@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -41,12 +42,64 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
     val adapter = WuiListAdapter(context, contentsPtr, env, registry)
     recyclerView.adapter = adapter
     var contentsWatcherGuard: Long = 0L
-    if (contentsPtr != 0L) {
-        contentsWatcherGuard = WatcherJni.anyViewsWatch(contentsPtr, Runnable {
+    var watchedStart = -1
+    var watchedEnd = -1
+    val overscan = 20
+
+    fun computeWatchWindow(): Pair<Int, Int> {
+        if (contentsPtr == 0L) return 0 to 0
+        val count = WatcherJni.anyViewsLen(contentsPtr).coerceAtLeast(0)
+        if (count == 0) return 0 to 0
+        val layout = recyclerView.layoutManager as? LinearLayoutManager ?: return 0 to count
+        val firstVisible = layout.findFirstVisibleItemPosition()
+        val lastVisible = layout.findLastVisibleItemPosition()
+
+        val fallbackEnd = if (count > 0) (overscan + 1).coerceAtMost(count) else 0
+        if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) {
+            return 0 to fallbackEnd
+        }
+
+        val start = (firstVisible - overscan).coerceAtLeast(0)
+        val endExclusive = (lastVisible + 1 + overscan).coerceAtMost(count)
+        return start to endExclusive
+    }
+
+    fun updateWatchWindow(force: Boolean = false) {
+        if (contentsPtr == 0L) return
+        val (newStart, newEnd) = computeWatchWindow()
+        if (!force && newStart == watchedStart && newEnd == watchedEnd) return
+
+        if (contentsWatcherGuard != 0L) {
+            WatcherJni.dropWatcherGuard(contentsWatcherGuard)
+            contentsWatcherGuard = 0L
+        }
+
+        watchedStart = newStart
+        watchedEnd = newEnd
+        var skipInitialEmission = true
+        contentsWatcherGuard = WatcherJni.anyViewsWatchRange(contentsPtr, newStart, newEnd, Runnable {
             recyclerView.post {
-                adapter.reload()
+                if (skipInitialEmission) {
+                    skipInitialEmission = false
+                    return@post
+                }
+                adapter.reloadVisibleRange(watchedStart, watchedEnd)
             }
         })
+    }
+
+    if (contentsPtr != 0L) {
+        recyclerView.addOnLayoutChangeListener { _: View, _, _, _, _, _, _, _, _ ->
+            updateWatchWindow()
+        }
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (dx != 0 || dy != 0) {
+                    updateWatchWindow()
+                }
+            }
+        })
+        updateWatchWindow(force = true)
     }
 
     // Setup editing state watcher if provided
@@ -204,6 +257,7 @@ private class WuiListAdapter(
     // A local order mapping so we can reflect drag/delete immediately without
     // caching AnyView pointers (AnyView is single-consume).
     private val order: MutableList<Int> = mutableListOf()
+    private var knownCount: Int = 0
 
     init {
         setHasStableIds(true)
@@ -214,10 +268,26 @@ private class WuiListAdapter(
         order.clear()
         if (contentsPtr == 0L) return
         val count = WatcherJni.anyViewsLen(contentsPtr)
+        knownCount = count
         for (i in 0 until count) {
             order.add(i)
         }
         notifyDataSetChanged()
+    }
+
+    fun reloadVisibleRange(start: Int, endExclusive: Int) {
+        if (contentsPtr == 0L) return
+        val count = WatcherJni.anyViewsLen(contentsPtr)
+        if (count != knownCount || order.size != count) {
+            reload()
+            return
+        }
+
+        val safeStart = start.coerceIn(0, count)
+        val safeEnd = endExclusive.coerceIn(safeStart, count)
+        if (safeEnd > safeStart) {
+            notifyItemRangeChanged(safeStart, safeEnd - safeStart)
+        }
     }
 
     fun move(fromPosition: Int, toPosition: Int) {
@@ -231,6 +301,7 @@ private class WuiListAdapter(
     fun removeAt(position: Int) {
         if (position !in order.indices) return
         order.removeAt(position)
+        knownCount = (knownCount - 1).coerceAtLeast(0)
         notifyItemRemoved(position)
     }
 

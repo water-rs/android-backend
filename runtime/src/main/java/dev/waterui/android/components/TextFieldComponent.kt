@@ -2,7 +2,9 @@ package dev.waterui.android.components
 
 import android.content.res.ColorStateList
 import android.text.InputType
-import android.text.method.PasswordTransformationMethod
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatEditText
@@ -30,16 +32,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 private val textFieldTypeId: WuiTypeId by lazy { WatcherJni.textFieldId().toTypeId() }
 
 private const val KEYBOARD_TEXT = 0
-private const val KEYBOARD_SECURE = 1
-private const val KEYBOARD_EMAIL = 2
-private const val KEYBOARD_URL = 3
-private const val KEYBOARD_NUMBER = 4
-private const val KEYBOARD_PHONE = 5
+private const val KEYBOARD_EMAIL = 1
+private const val KEYBOARD_URL = 2
+private const val KEYBOARD_NUMBER = 3
+private const val KEYBOARD_PHONE = 4
 
 private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = WatcherJni.forceAsTextField(node.rawPtr)
     val binding = WuiBinding.styledString(struct.valuePtr, env)
     val promptComputed = struct.promptPtr.takeIf { it != 0L }?.let { WuiComputed.styledString(it, env) }
+    val selectionMenuItemsPtr = struct.selectionMenuItemsPtr
 
     // TextField is StretchAxis::Horizontal (Rust-defined):
     // report a minimum usable width in size_that_fits, then expand during place.
@@ -54,11 +56,7 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
 
     val editText = AppCompatEditText(context).apply {
         inputType = resolveInputType(struct.keyboardType)
-        if (struct.keyboardType == KEYBOARD_SECURE) {
-            transformationMethod = PasswordTransformationMethod.getInstance()
-        } else {
-            transformationMethod = null
-        }
+        transformationMethod = null
         setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -73,6 +71,14 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         strokeWidth = strokeWidthPx
     }
     ViewCompat.setBackground(editText, shape)
+
+    if (selectionMenuItemsPtr != 0L) {
+        installSelectionActionMenu(
+            editText = editText,
+            menuItemsPtr = selectionMenuItemsPtr,
+            envPtr = env.raw()
+        )
+    }
 
     val updating = AtomicBoolean(false)
     var lastRendered: dev.waterui.android.runtime.StyledStrStruct? = null
@@ -127,18 +133,64 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
 
     container.disposeWith(binding)
     promptComputed?.let { container.disposeWith(it) }
+    container.disposeWith {
+        if (selectionMenuItemsPtr != 0L) {
+            WatcherJni.dropComputedMenuItems(selectionMenuItemsPtr)
+        }
+    }
     container
 }
 
 private fun resolveInputType(keyboardType: Int): Int =
     when (keyboardType) {
-        KEYBOARD_SECURE -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         KEYBOARD_EMAIL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
         KEYBOARD_URL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         KEYBOARD_NUMBER -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         KEYBOARD_PHONE -> InputType.TYPE_CLASS_PHONE
         else -> InputType.TYPE_CLASS_TEXT
     }
+
+private fun installSelectionActionMenu(
+    editText: AppCompatEditText,
+    menuItemsPtr: Long,
+    envPtr: Long
+) {
+    editText.customSelectionActionModeCallback = object : ActionMode.Callback {
+        private var currentItems = emptyArray<dev.waterui.android.runtime.MenuItemStruct>()
+
+        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+            if (menu == null) return true
+            currentItems = WatcherJni.readComputedMenuItems(menuItemsPtr)
+            currentItems.forEachIndexed { index, item ->
+                val title = WatcherJni.readComputedStyledStr(item.labelPtr).chunks.joinToString("") { it.text }
+                menu.add(0, SELECTION_MENU_ITEM_BASE_ID + index, Menu.NONE, title)
+            }
+            return true
+        }
+
+        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
+
+        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
+            val clicked = item ?: return false
+            val index = clicked.itemId - SELECTION_MENU_ITEM_BASE_ID
+            if (index !in currentItems.indices) {
+                return false
+            }
+            val actionPtr = currentItems[index].actionPtr
+            if (actionPtr != 0L) {
+                WatcherJni.callSharedAction(actionPtr, envPtr)
+            }
+            mode?.finish()
+            return true
+        }
+
+        override fun onDestroyActionMode(mode: ActionMode?) {
+            currentItems = emptyArray()
+        }
+    }
+}
+
+private const val SELECTION_MENU_ITEM_BASE_ID = 0x57_000
 
 internal fun RegistryBuilder.registerWuiTextField() {
     register({ textFieldTypeId }, textFieldRenderer)

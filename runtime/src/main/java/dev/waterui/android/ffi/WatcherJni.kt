@@ -158,9 +158,11 @@ object WatcherJni {
     // ========== AnyViews Functions ==========
 
     @JvmStatic external fun anyViewsLen(handle: Long): Int
+    @JvmStatic external fun anyViewsGetIdsInRange(handle: Long, start: Int, end: Int): IntArray
     @JvmStatic external fun anyViewsGetView(handle: Long, index: Int): Long
     @JvmStatic external fun anyViewsGetId(handle: Long, index: Int): Int
     @JvmStatic external fun anyViewsWatch(handle: Long, callback: Runnable): Long
+    @JvmStatic external fun anyViewsWatchRange(handle: Long, start: Int, end: Int, callback: Runnable): Long
     @JvmStatic external fun dropAnyViews(handle: Long)
 
     // ========== Binding Read/Write/Drop ==========
@@ -431,7 +433,7 @@ object WatcherJni {
     @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
     @JvmStatic external fun gpuSurfaceInit(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
-    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Long
     @JvmStatic external fun gpuSurfaceSetInput(
         statePtr: Long,
         hasPosition: Boolean,

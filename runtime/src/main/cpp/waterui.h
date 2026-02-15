@@ -177,6 +177,12 @@ typedef enum WuiNavigationTitleDisplayMode {
   WuiNavigationTitleDisplayMode_Large = 2,
 } WuiNavigationTitleDisplayMode;
 
+typedef enum WuiNavigationTransition {
+  WuiNavigationTransition_PushPop = 0,
+  WuiNavigationTransition_Fade = 1,
+  WuiNavigationTransition_None = 2,
+} WuiNavigationTransition;
+
 /**
  * Position of the tab bar within the tab container.
  */
@@ -2267,6 +2273,7 @@ typedef struct WuiTextField {
   WuiBinding_StyledStr *value;
   struct WuiText prompt;
   enum WuiKeyboardType keyboard;
+  WuiComputed_MenuItems *selection_menu;
 } WuiTextField;
 
 typedef struct WuiToggle {
@@ -2409,6 +2416,10 @@ typedef struct WuiNavigationStack {
    * The root view of the navigation stack.
    */
   struct WuiAnyView *root;
+  /**
+   * Transition style used for push/pop operations.
+   */
+  enum WuiNavigationTransition transition;
 } WuiNavigationStack;
 
 typedef struct WuiTab {
@@ -2682,11 +2693,21 @@ typedef struct WuiGpuSurface {
    * This is consumed during init and should not be used after.
    */
   void *surface;
-  /**
-   * Render mode for the surface (see `GpuSurfaceRenderMode`).
-   */
-  uint32_t render_mode;
 } WuiGpuSurface;
+
+/**
+ * Result returned by a GpuSurface render invocation.
+ */
+typedef struct WuiGpuSurfaceRenderResult {
+  /**
+   * Whether rendering succeeded.
+   */
+  bool ok;
+  /**
+   * Whether another frame should be scheduled immediately.
+   */
+  bool needs_redraw;
+} WuiGpuSurfaceRenderResult;
 
 /**
  * Callback type for async completion notifications.
@@ -4868,13 +4889,15 @@ struct WuiGpuSurfaceState *waterui_gpu_surface_init(struct WuiGpuSurface *surfac
  *
  * # Returns
  *
- * `true` if rendering succeeded, `false` on error.
+ * Render result containing success + redraw intent.
  *
  * # Safety
  *
  * `state` must be a valid pointer from `waterui_gpu_surface_init`.
  */
-bool waterui_gpu_surface_render(struct WuiGpuSurfaceState *state, uint32_t width, uint32_t height);
+struct WuiGpuSurfaceRenderResult waterui_gpu_surface_render(struct WuiGpuSurfaceState *state,
+                                                            uint32_t width,
+                                                            uint32_t height);
 
 /**
  * Render a single frame into an external texture.
@@ -5671,7 +5694,7 @@ struct WuiWatcher_Id *waterui_new_watcher_id(void *data,
  *
  * This installs both:
  * - `Locale` (snapshot value)
- * - `Computed<Locale>` (reactive signal for dynamic locale updates)
+ * - Shared runtime locale context (waterkit-regional callbacks)
  *
  * # Safety
  * - `env` must be a valid pointer from `waterui_init()` or `waterui_env_new()`.
@@ -5688,7 +5711,7 @@ void waterui_env_install_locale(struct WuiEnv *env, enum WuiLocale locale);
  *
  * This installs both:
  * - `Locale` (snapshot value)
- * - `Computed<Locale>` (reactive signal for dynamic locale updates)
+ * - Shared runtime locale context (waterkit-regional callbacks)
  *
  * # Safety
  * - `env` must be a valid pointer from `waterui_init()` or `waterui_env_new()`.
@@ -6812,6 +6835,16 @@ struct WuiAnyView *waterui_anyviews_get_view(const struct WuiAnyViews *anyview, 
 uintptr_t waterui_anyviews_len(const struct WuiAnyViews *anyviews);
 
 /**
+ * Gets view IDs in `[start, end)` range.
+ *
+ * # Safety
+ * The caller must ensure that `anyviews` is a valid pointer.
+ */
+struct WuiArray_WuiId waterui_anyviews_get_ids_in_range(const struct WuiAnyViews *anyviews,
+                                                         uintptr_t start,
+                                                         uintptr_t end);
+
+/**
  * Watches for changes in a views collection.
  *
  * The callback receives the current list of view IDs (in order) whenever the collection changes.
@@ -6826,6 +6859,24 @@ struct WuiWatcherGuard *waterui_anyviews_watch(const struct WuiAnyViews *anyview
                                                             struct WuiArray_WuiId,
                                                             struct WuiWatcherMetadata*),
                                                void (*drop)(void*));
+
+/**
+ * Watches for changes in `[start, end)` range of a views collection.
+ *
+ * The callback receives the current list of IDs in the watched range.
+ *
+ * # Safety
+ * - `anyviews` must be a valid pointer.
+ * - `data`, `call`, and `drop` must form a valid callback triplet.
+ */
+struct WuiWatcherGuard *waterui_anyviews_watch_range(const struct WuiAnyViews *anyviews,
+                                                     uintptr_t start,
+                                                     uintptr_t end,
+                                                     void *data,
+                                                     void (*call)(void*,
+                                                                  struct WuiArray_WuiId,
+                                                                  struct WuiWatcherMetadata*),
+                                                     void (*drop)(void*));
 
 /**
  * Reads the current value from a computed

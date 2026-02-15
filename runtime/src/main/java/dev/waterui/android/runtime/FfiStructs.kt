@@ -204,7 +204,13 @@ data class PlainStruct(val textBytes: ByteArray) {
 
 data class ColorStruct(val colorPtr: Long)
 
-data class TextFieldStruct(val labelPtr: Long, val valuePtr: Long, val promptPtr: Long, val keyboardType: Int)
+data class TextFieldStruct(
+    val labelPtr: Long,
+    val valuePtr: Long,
+    val promptPtr: Long,
+    val keyboardType: Int,
+    val selectionMenuItemsPtr: Long
+)
 
 data class SecureFieldStruct(val labelPtr: Long, val valuePtr: Long)
 
@@ -882,9 +888,8 @@ data class WebViewStruct(val webviewPtr: Long)
  * GpuSurface component data.
  * - rendererPtr: Opaque pointer to the boxed GpuRenderer trait object.
  *                This is consumed during init and should not be used after.
- * - renderMode: 0=Continuous, 1=OnDemand
  */
-data class GpuSurfaceStruct(val rendererPtr: Long, val renderMode: Int)
+data class GpuSurfaceStruct(val rendererPtr: Long)
 
 // ========== AppliedFilter Structs ==========
 
@@ -985,7 +990,10 @@ enum class TabPosition(val value: Int) {
  * NavigationStack component data.
  * Contains the root view of the navigation stack.
  */
-data class NavigationStackStruct(val rootPtr: Long)
+data class NavigationStackStruct(
+    val rootPtr: Long,
+    val transition: Int
+)
 
 /**
  * Navigation bar configuration.

@@ -18,7 +18,8 @@ import java.nio.ByteBuffer
  * [4..8)  : height (u32 little-endian)
  * [8]     : pixel format (u8): 0=RGBA8, 1=RGBA16F
  * [9]     : hdr flag (u8): 0=SDR, 1=HDR
- * [10..12): reserved
+ * [10]    : wide-gamut flag (u8): 0=not-wide, 1=wide-gamut
+ * [11]    : reserved
  * [12..]  : pixel bytes
  */
 object ImageCodecBridge {
@@ -44,11 +45,9 @@ object ImageCodecBridge {
             return null
         }
 
-        val isHdrBitmap = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            bitmap.config == Bitmap.Config.RGBA_F16 &&
-            bitmap.colorSpace?.isWideGamut == true
-
-        return if (isHdrBitmap) {
+        val preferExtended = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            bitmap.config == Bitmap.Config.RGBA_F16
+        return if (preferExtended) {
             packRgba16f(bitmap)
         } else {
             packRgba8(bitmap)
@@ -66,7 +65,7 @@ object ImageCodecBridge {
         putU32Le(payload, 4, height)
         payload[8] = 0 // RGBA8
         payload[9] = 0 // SDR
-        payload[10] = 0
+        payload[10] = 0 // not wide-gamut (packed to sRGB8)
         payload[11] = 0
 
         var out = 12
@@ -84,20 +83,29 @@ object ImageCodecBridge {
         val width = bitmap.width
         val height = bitmap.height
         val payload = ByteArray(12 + width * height * 8)
+        val wideGamut = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            bitmap.colorSpace?.isWideGamut == true
         putU32Le(payload, 0, width)
         putU32Le(payload, 4, height)
         payload[8] = 1 // RGBA16F
-        payload[9] = 1 // HDR
-        payload[10] = 0
+        payload[9] = 0 // HDR (filled after scan)
+        payload[10] = if (wideGamut) 1 else 0
         payload[11] = 0
 
         var out = 12
+        var hasHdrHeadroom = false
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val c = bitmap.getColor(x, y)
-                val r = android.util.Half.toHalf(c.red())
-                val g = android.util.Half.toHalf(c.green())
-                val b = android.util.Half.toHalf(c.blue())
+                val rf = c.red()
+                val gf = c.green()
+                val bf = c.blue()
+                if (!hasHdrHeadroom && (rf > 1.0f || gf > 1.0f || bf > 1.0f)) {
+                    hasHdrHeadroom = true
+                }
+                val r = android.util.Half.toHalf(rf)
+                val g = android.util.Half.toHalf(gf)
+                val b = android.util.Half.toHalf(bf)
                 val a = android.util.Half.toHalf(c.alpha())
                 putU16Le(payload, out, r.toInt())
                 putU16Le(payload, out + 2, g.toInt())
@@ -106,6 +114,7 @@ object ImageCodecBridge {
                 out += 8
             }
         }
+        payload[9] = if (hasHdrHeadroom) 1 else 0
         return payload
     }
 

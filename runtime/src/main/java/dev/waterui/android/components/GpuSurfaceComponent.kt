@@ -46,7 +46,6 @@ private class GpuSurfaceView(
     private var gpuState: Long = 0L
 
     private var rendererPtr: Long = gpuSurfaceData.rendererPtr
-    private val renderMode: Int = gpuSurfaceData.renderMode
 
     @Volatile
     private var isRendering = false
@@ -292,7 +291,7 @@ private class GpuSurfaceView(
         }
 
         frameCallbackScheduled = false
-        if (renderMode == RENDER_MODE_ON_DEMAND && !needsRender) {
+        if (!needsRender) {
             return
         }
 
@@ -313,9 +312,7 @@ private class GpuSurfaceView(
         val height = surfaceHeight
         val input = captureInputSnapshot()
 
-        if (renderMode == RENDER_MODE_ON_DEMAND) {
-            needsRender = false
-        }
+        needsRender = false
 
         renderExecutor.execute {
             try {
@@ -341,18 +338,21 @@ private class GpuSurfaceView(
                     input.gesture.doubleTap
                 )
 
-                val ok = WatcherJni.gpuSurfaceRender(statePtr, width, height)
+                val packed = WatcherJni.gpuSurfaceRender(statePtr, width, height)
+                val ok = (packed and 1L) != 0L
+                val needsRedraw = (packed and (1L shl 1)) != 0L
                 if (frame <= 3L || frame % 120L == 0L) {
                     Log.i(TAG, "doFrame result frame=" + frame + " ok=" + ok)
                 }
                 if (ok) {
                     consecutiveRenderFailures = 0
+                    if (needsRedraw) {
+                        needsRender = true
+                    }
                 } else {
                     val failures = consecutiveRenderFailures + 1
                     consecutiveRenderFailures = failures
-                    if (renderMode == RENDER_MODE_ON_DEMAND) {
-                        needsRender = true
-                    }
+                    needsRender = true
                     if (failures >= MAX_CONSECUTIVE_RENDER_FAILURES) {
                         post {
                             if (consecutiveRenderFailures >= MAX_CONSECUTIVE_RENDER_FAILURES) {
@@ -366,9 +366,7 @@ private class GpuSurfaceView(
                 val failures = consecutiveRenderFailures + 1
                 consecutiveRenderFailures = failures
                 Log.w(TAG, "GpuSurface render failed: ${t.message}", t)
-                if (renderMode == RENDER_MODE_ON_DEMAND) {
-                    needsRender = true
-                }
+                needsRender = true
                 if (failures >= MAX_CONSECUTIVE_RENDER_FAILURES) {
                     post { pauseRendering() }
                 }
@@ -494,9 +492,6 @@ private class GpuSurfaceView(
     }
 
     private fun requestRenderIfNeeded() {
-        if (renderMode != RENDER_MODE_ON_DEMAND) {
-            return
-        }
         needsRender = true
         scheduleFrameIfNeeded()
     }
@@ -508,7 +503,7 @@ private class GpuSurfaceView(
         if (frameCallbackScheduled) {
             return
         }
-        if (renderMode == RENDER_MODE_ON_DEMAND && !needsRender) {
+        if (!needsRender) {
             return
         }
         frameCallbackScheduled = true
@@ -556,15 +551,13 @@ private class GpuSurfaceView(
                     input.gesture.doubleTap
                 )
 
-                WatcherJni.gpuSurfaceRender(statePtr, width, height)
-                if (renderMode == RENDER_MODE_ON_DEMAND) {
-                    needsRender = false
-                }
+                val packed = WatcherJni.gpuSurfaceRender(statePtr, width, height)
+                val ok = (packed and 1L) != 0L
+                val needsRedraw = (packed and (1L shl 1)) != 0L
+                needsRender = !ok || needsRedraw
             } catch (t: Throwable) {
                 Log.w(TAG, "GpuSurface redraw failed: ${t.message}", t)
-                if (renderMode == RENDER_MODE_ON_DEMAND) {
-                    needsRender = true
-                }
+                needsRender = true
             } finally {
                 renderInFlight.set(false)
                 onFinished?.invoke()
@@ -711,8 +704,6 @@ private class GpuSurfaceView(
         private const val DEFAULT_SIZE_DP = 100f
         private const val MAX_CONSECUTIVE_RENDER_FAILURES = 3
         private const val RENDER_DRAIN_TIMEOUT_MS = 1200L
-        private const val RENDER_MODE_CONTINUOUS = 0
-        private const val RENDER_MODE_ON_DEMAND = 1
     }
 }
 

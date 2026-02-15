@@ -67,6 +67,7 @@ private val plainTypeId: WuiTypeId by lazy {
  */
 private val navigationStackRenderer = WuiRenderer { context, node, env, registry ->
     val struct = WatcherJni.forceAsNavigationStack(node.rawPtr)
+    val transition = struct.transition
 
     val container = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -285,8 +286,21 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
                 val entry = inflateStackEntry(navView)
                 val entryView = entry.view
 
-                // Keep offscreen for slide-in.
-                entryView.translationX = contentHost.width.toFloat()
+                // Prepare initial state for transition.
+                when (transition) {
+                    NAV_TRANSITION_PUSH_POP -> {
+                        entryView.translationX = contentHost.width.toFloat()
+                        entryView.alpha = 1f
+                    }
+                    NAV_TRANSITION_FADE -> {
+                        entryView.translationX = 0f
+                        entryView.alpha = 0f
+                    }
+                    else -> {
+                        entryView.translationX = 0f
+                        entryView.alpha = 1f
+                    }
+                }
                 contentHost.addView(entryView)
                 viewStack.add(entry)
 
@@ -306,10 +320,24 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
 
                 applyToolbarForTop()
 
-                entryView.animate()
-                    .translationX(0f)
-                    .setDuration(250)
-                    .start()
+                when (transition) {
+                    NAV_TRANSITION_PUSH_POP -> {
+                        entryView.animate()
+                            .translationX(0f)
+                            .setDuration(250)
+                            .start()
+                    }
+                    NAV_TRANSITION_FADE -> {
+                        entryView.animate()
+                            .alpha(1f)
+                            .setDuration(250)
+                            .start()
+                    }
+                    else -> {
+                        entryView.translationX = 0f
+                        entryView.alpha = 1f
+                    }
+                }
             }
         }
 
@@ -320,15 +348,27 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
                 val current = viewStack.removeLastOrNull() ?: return@post
                 val currentView = current.view
 
-                // Animate out
-                currentView.animate()
-                    .translationX(contentHost.width.toFloat())
-                    .setDuration(250)
-                    .withEndAction {
-                        contentHost.removeView(currentView)
-                        current.close()
+                val completePop = {
+                    contentHost.removeView(currentView)
+                    current.close()
+                }
+                when (transition) {
+                    NAV_TRANSITION_PUSH_POP -> {
+                        currentView.animate()
+                            .translationX(contentHost.width.toFloat())
+                            .setDuration(250)
+                            .withEndAction { completePop() }
+                            .start()
                     }
-                    .start()
+                    NAV_TRANSITION_FADE -> {
+                        currentView.animate()
+                            .alpha(0f)
+                            .setDuration(250)
+                            .withEndAction { completePop() }
+                            .start()
+                    }
+                    else -> completePop()
+                }
 
                 // Show previous view
                 viewStack.lastOrNull()?.view?.visibility = View.VISIBLE
@@ -865,6 +905,9 @@ internal fun RegistryBuilder.registerWuiNavigationStack() {
 internal fun RegistryBuilder.registerWuiNavigationView() {
     register({ navigationViewTypeId }, navigationViewRenderer)
 }
+
+private const val NAV_TRANSITION_PUSH_POP = 0
+private const val NAV_TRANSITION_FADE = 1
 
 internal fun RegistryBuilder.registerWuiTabs() {
     register({ tabsTypeId }, tabsRenderer)
