@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import android.view.Choreographer
 import android.view.SurfaceHolder
@@ -8,6 +9,8 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.AtomicBoolean
 import dev.waterui.android.runtime.AppliedFilterStruct
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
@@ -55,12 +58,21 @@ private class AppliedFilterView(
 
     companion object {
         private const val TAG = "WaterUI.AppliedFilter"
+        private const val RENDER_DRAIN_TIMEOUT_MS = 1200L
     }
 
     private var statePtr: Long = 0L
     private var isRendering = false
     private var isReady = false
     private var filterEnabled = true
+    @Volatile
+    private var needsRender = true
+    @Volatile
+    private var frameCallbackScheduled = false
+    private val renderInFlight = AtomicBoolean(false)
+    private var renderExecutor: ExecutorService = SharedGpuRenderExecutor.acquire()
+    @Volatile
+    private var hasRenderExecutorLease = true
 
     private var surfaceWidth: Int = 0
     private var surfaceHeight: Int = 0
@@ -114,6 +126,7 @@ private class AppliedFilterView(
         capturer.onSizeChanged(width, height)
 
         if (statePtr == 0L) {
+            ensureRenderExecutor()
             statePtr = WatcherJni.appliedFilterInit(
                 data.contentPtr,
                 data.filterPtr,
@@ -132,51 +145,101 @@ private class AppliedFilterView(
                 }
 
                 isReady = true
-                if (!isRendering) {
-                    isRendering = true
-                    Choreographer.getInstance().postFrameCallback(this)
-                }
+                isRendering = true
+                requestRenderIfNeeded()
             }
+        } else {
+            requestRenderIfNeeded()
         }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         isRendering = false
         isReady = false
+        frameCallbackScheduled = false
         Choreographer.getInstance().removeFrameCallback(this)
+        waitForRenderDrain()
         closeFilterState()
     }
 
     override fun doFrame(frameTimeNanos: Long) {
         if (!filterEnabled || !isRendering || !isReady || statePtr == 0L) return
+        frameCallbackScheduled = false
+        if (!needsRender) {
+            needsRender = WatcherJni.appliedFilterPollRedraw(statePtr)
+            if (!needsRender) {
+                scheduleFrameIfNeeded()
+                return
+            }
+        }
+        if (!renderInFlight.compareAndSet(false, true)) {
+            needsRender = true
+            scheduleFrameIfNeeded()
+            return
+        }
+
+        val activeStatePtr = statePtr
+        val width = surfaceWidth
+        val height = surfaceHeight
+        needsRender = false
 
         val buffer = capturer.capture()
         if (buffer == null) {
-            if (isRendering) {
-                Choreographer.getInstance().postFrameCallback(this)
+            renderInFlight.set(false)
+            needsRender = true
+            scheduleFrameIfNeeded()
+            return
+        }
+
+        ensureRenderExecutor()
+        renderExecutor.execute {
+            var disableReason: String? = null
+            var needsNextFrame = false
+            try {
+                if (!filterEnabled || !isRendering || !isReady || activeStatePtr == 0L || statePtr != activeStatePtr) {
+                    return@execute
+                }
+
+                val ok = WatcherJni.appliedFilterSetInputAHardwareBuffer(
+                    activeStatePtr,
+                    buffer,
+                    width,
+                    height
+                )
+                if (!ok) {
+                    disableReason = "failed to set AHardwareBuffer input"
+                    return@execute
+                }
+
+                if (!WatcherJni.appliedFilterSyncTargets(activeStatePtr)) {
+                    disableReason = "failed to sync filter targets"
+                    return@execute
+                }
+
+                val result = WatcherJni.appliedFilterRender(activeStatePtr, width, height)
+                if (!result.success) {
+                    disableReason = "render failed"
+                    return@execute
+                }
+                needsNextFrame = result.needsRedraw
+            } catch (t: Throwable) {
+                disableReason = "render crashed: ${t.message ?: "unknown"}"
+            } finally {
+                renderInFlight.set(false)
+                post {
+                    if (disableReason != null) {
+                        disableFilter(disableReason!!)
+                        return@post
+                    }
+                    if (!filterEnabled || statePtr != activeStatePtr) {
+                        return@post
+                    }
+                    if (needsNextFrame) {
+                        needsRender = true
+                    }
+                    scheduleFrameIfNeeded()
+                }
             }
-            return
-        }
-
-        val ok = WatcherJni.appliedFilterSetInputAHardwareBuffer(
-            statePtr,
-            buffer,
-            surfaceWidth,
-            surfaceHeight
-        )
-        if (!ok) {
-            disableFilter("failed to set AHardwareBuffer input")
-            return
-        }
-
-        val result = WatcherJni.appliedFilterRender(statePtr, surfaceWidth, surfaceHeight)
-        if (!result.success) {
-            disableFilter("render failed")
-            return
-        }
-
-        if (isRendering) {
-            Choreographer.getInstance().postFrameCallback(this)
         }
     }
 
@@ -199,6 +262,9 @@ private class AppliedFilterView(
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         captureHost.layout(0, 0, right - left, bottom - top)
         outputSurfaceView.layout(0, 0, right - left, bottom - top)
+        if (changed) {
+            requestRenderIfNeeded()
+        }
     }
 
     private fun disableFilter(reason: String) {
@@ -209,6 +275,7 @@ private class AppliedFilterView(
         filterEnabled = false
         isRendering = false
         isReady = false
+        frameCallbackScheduled = false
         Choreographer.getInstance().removeFrameCallback(this)
         closeFilterState()
 
@@ -226,9 +293,61 @@ private class AppliedFilterView(
     private fun close() {
         isRendering = false
         isReady = false
+        frameCallbackScheduled = false
         Choreographer.getInstance().removeFrameCallback(this)
+        waitForRenderDrain()
         capturer.close()
         closeFilterState()
+        shutdownRenderExecutor()
+    }
+
+    private fun requestRenderIfNeeded() {
+        needsRender = true
+        scheduleFrameIfNeeded()
+    }
+
+    private fun scheduleFrameIfNeeded() {
+        if (!filterEnabled || !isRendering || !isReady || statePtr == 0L || surfaceWidth <= 0 || surfaceHeight <= 0) {
+            return
+        }
+        if (frameCallbackScheduled) {
+            return
+        }
+        frameCallbackScheduled = true
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    private fun ensureRenderExecutor() {
+        if (hasRenderExecutorLease) {
+            return
+        }
+        renderExecutor = SharedGpuRenderExecutor.acquire()
+        hasRenderExecutorLease = true
+    }
+
+    private fun shutdownRenderExecutor() {
+        if (!hasRenderExecutorLease) {
+            return
+        }
+        SharedGpuRenderExecutor.release()
+        hasRenderExecutorLease = false
+    }
+
+    private fun waitForRenderDrain() {
+        val deadline = SystemClock.uptimeMillis() + RENDER_DRAIN_TIMEOUT_MS
+        while (renderInFlight.get() && SystemClock.uptimeMillis() < deadline) {
+            try {
+                Thread.sleep(4)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        close()
     }
 }
 

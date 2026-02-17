@@ -25,7 +25,6 @@ import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.findActivity
 import dev.waterui.android.runtime.resolveWuiDynamicRangeMode
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 private val gpuSurfaceTypeId: WuiTypeId by lazy { WatcherJni.gpuSurfaceId().toTypeId() }
@@ -60,14 +59,16 @@ private class GpuSurfaceView(
     private var needsRender = true
 
     @Volatile
+    private var requiresRedrawPolling = false
+
+    @Volatile
     private var frameCallbackScheduled = false
 
     private val renderInFlight = AtomicBoolean(false)
 
-    private var renderExecutor: ExecutorService = createRenderExecutor()
-
+    private var renderExecutor: ExecutorService = SharedGpuRenderExecutor.acquire()
     @Volatile
-    private var renderExecutorClosed = false
+    private var hasRenderExecutorLease = true
 
     @Volatile
     private var consecutiveRenderFailures = 0
@@ -216,17 +217,17 @@ private class GpuSurfaceView(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Log.i(TAG, "surfaceCreated")
+        Log.d(TAG, "surfaceCreated")
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         surfaceWidth = width
         surfaceHeight = height
-        Log.i(TAG, "surfaceChanged")
+        Log.d(TAG, "surfaceChanged")
         needsRender = true
 
         if (gpuState == 0L && rendererPtr != 0L) {
-            Log.i(TAG, "init requested")
+            Log.d(TAG, "init requested")
 
             ensureRenderExecutor()
 
@@ -243,16 +244,17 @@ private class GpuSurfaceView(
                 return
             }
 
-            Log.i(TAG, "init succeeded")
+            Log.d(TAG, "init succeeded")
 
             consecutiveRenderFailures = 0
             isRendering = false
+            requiresRedrawPolling = WatcherJni.gpuSurfaceRequiresRedrawPoll(gpuState)
             resumeRenderingIfPossible()
         }
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        Log.i(TAG, "surfaceDestroyed")
+        Log.d(TAG, "surfaceDestroyed")
 
         pauseRendering()
         waitForRenderDrain()
@@ -269,6 +271,7 @@ private class GpuSurfaceView(
 
         surfaceWidth = 0
         surfaceHeight = 0
+        requiresRedrawPolling = false
         consecutiveRenderFailures = 0
     }
 
@@ -292,13 +295,20 @@ private class GpuSurfaceView(
 
         frameCallbackScheduled = false
         if (!needsRender) {
-            return
+            if (!requiresRedrawPolling) {
+                return
+            }
+            needsRender = WatcherJni.gpuSurfaceNeedsRedraw(gpuState)
+            if (!needsRender) {
+                scheduleFrameIfNeeded()
+                return
+            }
         }
 
         val frame = frameCounter + 1
         frameCounter = frame
         if (frame <= 3L || frame % 120L == 0L) {
-            Log.i(TAG, "doFrame start frame=" + frame + " state=" + gpuState)
+            Log.d(TAG, "doFrame start frame=" + frame + " state=" + gpuState)
         }
 
         if (!renderInFlight.compareAndSet(false, true)) {
@@ -342,7 +352,7 @@ private class GpuSurfaceView(
                 val ok = (packed and 1L) != 0L
                 val needsRedraw = (packed and (1L shl 1)) != 0L
                 if (frame <= 3L || frame % 120L == 0L) {
-                    Log.i(TAG, "doFrame result frame=" + frame + " ok=" + ok)
+                    Log.d(TAG, "doFrame result frame=" + frame + " ok=" + ok)
                 }
                 if (ok) {
                     consecutiveRenderFailures = 0
@@ -411,19 +421,19 @@ private class GpuSurfaceView(
     }
 
     private fun ensureRenderExecutor() {
-        if (!renderExecutorClosed) {
+        if (hasRenderExecutorLease) {
             return
         }
-        renderExecutor = createRenderExecutor()
-        renderExecutorClosed = false
+        renderExecutor = SharedGpuRenderExecutor.acquire()
+        hasRenderExecutorLease = true
     }
 
     private fun shutdownRenderExecutor() {
-        if (renderExecutorClosed) {
+        if (!hasRenderExecutorLease) {
             return
         }
-        renderExecutor.shutdownNow()
-        renderExecutorClosed = true
+        SharedGpuRenderExecutor.release()
+        hasRenderExecutorLease = false
     }
 
     private fun waitForRenderDrain() {
@@ -503,7 +513,7 @@ private class GpuSurfaceView(
         if (frameCallbackScheduled) {
             return
         }
-        if (!needsRender) {
+        if (!needsRender && !requiresRedrawPolling) {
             return
         }
         frameCallbackScheduled = true
@@ -561,15 +571,6 @@ private class GpuSurfaceView(
             } finally {
                 renderInFlight.set(false)
                 onFinished?.invoke()
-            }
-        }
-    }
-
-    private fun createRenderExecutor(): ExecutorService {
-        return Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "WaterUI-GpuSurfaceRenderer").apply {
-                isDaemon = true
-                priority = Thread.NORM_PRIORITY
             }
         }
     }

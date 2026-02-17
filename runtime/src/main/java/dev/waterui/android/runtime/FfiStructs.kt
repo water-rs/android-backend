@@ -945,6 +945,16 @@ data class ViewEffectStruct(
     fun outputSize(): OutputSizeType = OutputSizeType.fromInt(outputSizeType)
 }
 
+/**
+ * Result of a view effect render operation.
+ *
+ * Matches `WuiViewEffectRenderResult` in the FFI.
+ */
+data class ViewEffectRenderResultStruct(
+    val success: Boolean,
+    val needsRedraw: Boolean
+)
+
 // ========== Resolved Value Structs ==========
 
 data class ResolvedColorStruct(

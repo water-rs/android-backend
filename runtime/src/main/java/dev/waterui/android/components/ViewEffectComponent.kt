@@ -2,11 +2,14 @@ package dev.waterui.android.components
 
 import android.content.Context
 import android.hardware.HardwareBuffer
+import android.os.SystemClock
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.FrameLayout
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.AtomicBoolean
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RenderRegistry
@@ -72,6 +75,18 @@ private class ViewEffectView(
     /** Whether we're actively rendering frames */
     private var isRendering = false
 
+    /** Whether a new frame should be rendered on the next vsync */
+    @Volatile
+    private var needsRender = true
+
+    /** Whether a frame callback is currently scheduled */
+    @Volatile
+    private var frameCallbackScheduled = false
+    private val renderInFlight = AtomicBoolean(false)
+    private var renderExecutor: ExecutorService = SharedGpuRenderExecutor.acquire()
+    @Volatile
+    private var hasRenderExecutorLease = true
+
     /** Current surface dimensions in pixels */
     private var surfaceWidth: Int = 0
     private var surfaceHeight: Int = 0
@@ -130,6 +145,7 @@ private class ViewEffectView(
         capturer?.onSizeChanged(width, height)
 
         if (effectState == 0L && viewEffectData.effectPtr != 0L) {
+            ensureRenderExecutor()
             // Initialize GPU resources with the native surface
             effectState = WatcherJni.viewEffectInit(
                 viewEffectData.rawPtr,
@@ -139,9 +155,8 @@ private class ViewEffectView(
             )
 
             if (effectState != 0L) {
-                // Start rendering loop
                 isRendering = true
-                Choreographer.getInstance().postFrameCallback(this)
+                requestRenderIfNeeded()
             } else {
                 error("ViewEffect initialization failed")
             }
@@ -151,7 +166,10 @@ private class ViewEffectView(
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         // Stop rendering and clean up
         isRendering = false
+        frameCallbackScheduled = false
+        Choreographer.getInstance().removeFrameCallback(this)
 
+        waitForRenderDrain()
         capturer?.close()
 
         if (effectState != 0L) {
@@ -166,26 +184,73 @@ private class ViewEffectView(
         if (!isRendering || effectState == 0L) {
             return
         }
-
-        // Capture child view and pass to effect
-        capturer?.capture()?.let { buffer ->
-            val success = WatcherJni.viewEffectSetInputAHardwareBuffer(
-                effectState,
-                buffer,
-                surfaceWidth,
-                surfaceHeight
-            )
-            if (!success) {
-                error("ViewEffect: failed to set AHardwareBuffer input")
-            }
+        frameCallbackScheduled = false
+        if (!needsRender) {
+            return
+        }
+        if (!renderInFlight.compareAndSet(false, true)) {
+            needsRender = true
+            scheduleFrameIfNeeded()
+            return
         }
 
-        // Render frame with the effect
-        WatcherJni.viewEffectRender(effectState)
+        val activeStatePtr = effectState
+        val width = surfaceWidth
+        val height = surfaceHeight
+        needsRender = false
 
-        // Schedule next frame if still rendering
-        if (isRendering) {
-            Choreographer.getInstance().postFrameCallback(this)
+        // Capture child view and pass to effect
+        val buffer = capturer?.capture()
+        if (capturer != null && buffer == null) {
+            renderInFlight.set(false)
+            needsRender = true
+            scheduleFrameIfNeeded()
+            return
+        }
+
+        ensureRenderExecutor()
+        renderExecutor.execute {
+            var needsNextFrame = false
+            var renderFailed = false
+            try {
+                if (!isRendering || activeStatePtr == 0L || effectState != activeStatePtr) {
+                    return@execute
+                }
+
+                if (buffer != null) {
+                    val success = WatcherJni.viewEffectSetInputAHardwareBuffer(
+                        activeStatePtr,
+                        buffer,
+                        width,
+                        height
+                    )
+                    if (!success) {
+                        throw IllegalStateException("ViewEffect: failed to set AHardwareBuffer input")
+                    }
+                }
+
+                val result = WatcherJni.viewEffectRender(activeStatePtr)
+                if (!result.success) {
+                    renderFailed = true
+                } else {
+                    needsNextFrame = result.needsRedraw
+                }
+            } catch (_: Throwable) {
+                renderFailed = true
+            } finally {
+                renderInFlight.set(false)
+                post {
+                    if (effectState != activeStatePtr) {
+                        return@post
+                    }
+                    if (renderFailed) {
+                        needsRender = true
+                    } else if (needsNextFrame) {
+                        needsRender = true
+                    }
+                    scheduleFrameIfNeeded()
+                }
+            }
         }
     }
 
@@ -244,17 +309,69 @@ private class ViewEffectView(
         // Layout output surface view to fill bounds
         outputSurfaceView.layout(0, 0, right - left, bottom - top)
         // Child is measured/laid out when we capture it
+        if (changed) {
+            requestRenderIfNeeded()
+        }
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         // Stop rendering when detached
         isRendering = false
+        frameCallbackScheduled = false
+        Choreographer.getInstance().removeFrameCallback(this)
+        waitForRenderDrain()
         capturer?.close()
+        shutdownRenderExecutor()
+    }
+
+    private fun requestRenderIfNeeded() {
+        needsRender = true
+        scheduleFrameIfNeeded()
+    }
+
+    private fun scheduleFrameIfNeeded() {
+        if (!isRendering || effectState == 0L || surfaceWidth <= 0 || surfaceHeight <= 0) {
+            return
+        }
+        if (!needsRender || frameCallbackScheduled) {
+            return
+        }
+        frameCallbackScheduled = true
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    private fun ensureRenderExecutor() {
+        if (hasRenderExecutorLease) {
+            return
+        }
+        renderExecutor = SharedGpuRenderExecutor.acquire()
+        hasRenderExecutorLease = true
+    }
+
+    private fun shutdownRenderExecutor() {
+        if (!hasRenderExecutorLease) {
+            return
+        }
+        SharedGpuRenderExecutor.release()
+        hasRenderExecutorLease = false
+    }
+
+    private fun waitForRenderDrain() {
+        val deadline = SystemClock.uptimeMillis() + RENDER_DRAIN_TIMEOUT_MS
+        while (renderInFlight.get() && SystemClock.uptimeMillis() < deadline) {
+            try {
+                Thread.sleep(4)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                break
+            }
+        }
     }
 
     companion object {
         private const val DEFAULT_SIZE_DP = 100f
+        private const val RENDER_DRAIN_TIMEOUT_MS = 1200L
     }
 }
 

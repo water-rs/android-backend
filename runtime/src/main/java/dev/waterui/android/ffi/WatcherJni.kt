@@ -434,6 +434,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
     @JvmStatic external fun gpuSurfaceInit(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
     @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Long
+    @JvmStatic external fun gpuSurfaceNeedsRedraw(statePtr: Long): Boolean
+    @JvmStatic external fun gpuSurfaceRequiresRedrawPoll(statePtr: Long): Boolean
     @JvmStatic external fun gpuSurfaceSetInput(
         statePtr: Long,
         hasPosition: Boolean,
@@ -459,6 +461,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataAppliedFilter(viewPtr: Long): dev.waterui.android.runtime.AppliedFilterStruct
     @JvmStatic external fun appliedFilterInit(contentPtr: Long, filterPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
     @JvmStatic external fun appliedFilterSetup(statePtr: Long, callback: Runnable)
+    @JvmStatic external fun appliedFilterSyncTargets(statePtr: Long): Boolean
+    @JvmStatic external fun appliedFilterPollRedraw(statePtr: Long): Boolean
     @JvmStatic external fun appliedFilterSetInputAHardwareBuffer(statePtr: Long, hardwareBuffer: android.hardware.HardwareBuffer, width: Int, height: Int): Boolean
     @JvmStatic external fun appliedFilterRender(statePtr: Long, width: Int, height: Int): dev.waterui.android.runtime.AppliedFilterRenderResultStruct
     @JvmStatic external fun appliedFilterDrop(statePtr: Long)
@@ -468,7 +472,7 @@ object WatcherJni {
     @JvmStatic external fun viewEffectId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsViewEffect(viewPtr: Long): dev.waterui.android.runtime.ViewEffectStruct
     @JvmStatic external fun viewEffectInit(effectPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long
-    @JvmStatic external fun viewEffectRender(statePtr: Long): Boolean
+    @JvmStatic external fun viewEffectRender(statePtr: Long): dev.waterui.android.runtime.ViewEffectRenderResultStruct
     @JvmStatic external fun viewEffectDrop(statePtr: Long)
     @JvmStatic external fun viewEffectSetInputAHardwareBuffer(statePtr: Long, hardwareBuffer: android.hardware.HardwareBuffer, width: Int, height: Int): Boolean
 
