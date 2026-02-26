@@ -285,8 +285,13 @@ internal object NativeBindings {
 
     fun waterui_gpu_surface_id(): TypeIdStruct = WatcherJni.gpuSurfaceId()
     fun waterui_force_as_gpu_surface(viewPtr: Long): GpuSurfaceStruct = WatcherJni.forceAsGpuSurface(viewPtr)
-    fun waterui_gpu_surface_init(rendererPtr: Long, surface: android.view.Surface, width: Int, height: Int): Long =
-        WatcherJni.gpuSurfaceInit(rendererPtr, surface, width, height)
+    fun waterui_gpu_surface_init(
+        rendererPtr: Long,
+        surface: android.view.Surface,
+        width: Int,
+        height: Int,
+        wuiEnvPtr: Long
+    ): Long = WatcherJni.gpuSurfaceInit(rendererPtr, surface, width, height, wuiEnvPtr)
     fun waterui_gpu_surface_render(statePtr: Long, width: Int, height: Int): Boolean =
         WatcherJni.gpuSurfaceRender(statePtr, width, height)
     fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)

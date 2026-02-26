@@ -32,11 +32,10 @@ private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_sur
  * On Android 8.0+ (API 26+), wide color gamut is enabled when available.
  * The wgpu backend handles HDR format selection internally.
  */
-@Suppress("UNUSED_PARAMETER")
 private val gpuSurfaceRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_gpu_surface(node.rawPtr)
 
-    GpuSurfaceView(context, struct)
+    GpuSurfaceView(context, struct, env.raw())
 }
 
 /**
@@ -44,7 +43,8 @@ private val gpuSurfaceRenderer = WuiRenderer { context, node, env, registry ->
  */
 private class GpuSurfaceView(
     context: Context,
-    private val gpuSurfaceData: GpuSurfaceStruct
+    private val gpuSurfaceData: GpuSurfaceStruct,
+    private val envPtr: Long
 ) : SurfaceView(context), SurfaceHolder.Callback, Choreographer.FrameCallback {
 
     /** Opaque pointer to WuiGpuSurfaceState (owns wgpu resources) */
@@ -85,7 +85,8 @@ private class GpuSurfaceView(
                 gpuSurfaceData.rendererPtr,
                 holder.surface,
                 width,
-                height
+                height,
+                envPtr
             )
 
             if (gpuState != 0L) {

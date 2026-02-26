@@ -2789,17 +2789,22 @@ Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceInit(JNIEnv *env, jclass,
                                                         jlong rendererPtr,
                                                         jobject javaSurface,
                                                         jint width,
-                                                        jint height) {
-  if (javaSurface == nullptr || rendererPtr == 0) {
-    return 0;
+                                                        jint height,
+                                                        jlong wuiEnvPtr) {
+  if (javaSurface == nullptr) {
+    fatal_abort("gpuSurfaceInit", "received null Surface");
+  }
+  if (rendererPtr == 0) {
+    fatal_abort("gpuSurfaceInit", "received null renderer pointer");
+  }
+  if (wuiEnvPtr == 0) {
+    fatal_abort("gpuSurfaceInit", "received null WuiEnv pointer");
   }
 
   // Extract ANativeWindow from Java Surface
   ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, javaSurface);
   if (nativeWindow == nullptr) {
-    __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
-                        "Failed to get ANativeWindow from Surface");
-    return 0;
+    fatal_abort("gpuSurfaceInit", "ANativeWindow_fromSurface returned null");
   }
 
   // Create a temporary WuiGpuSurface struct to pass to init
@@ -2807,7 +2812,7 @@ Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceInit(JNIEnv *env, jclass,
   surface.renderer = jlong_to_ptr<void>(rendererPtr);
   WuiGpuSurfaceState *state = g_sym.waterui_gpu_surface_init(
       &surface, nativeWindow, static_cast<uint32_t>(width),
-      static_cast<uint32_t>(height));
+      static_cast<uint32_t>(height), jlong_to_ptr<WuiEnv>(wuiEnvPtr));
 
   // Note: We don't release the ANativeWindow here because wgpu needs it
   // for the lifetime of the surface. It will be released when the surface
@@ -2821,10 +2826,10 @@ Java_dev_waterui_android_ffi_WatcherJni_gpuSurfaceRender(JNIEnv *, jclass,
                                                           jlong statePtr,
                                                           jint width,
                                                           jint height) {
-  bool result = g_sym.waterui_gpu_surface_render(
+  WuiGpuSurfaceRenderResult result = g_sym.waterui_gpu_surface_render(
       jlong_to_ptr<WuiGpuSurfaceState>(statePtr), static_cast<uint32_t>(width),
       static_cast<uint32_t>(height));
-  return result ? JNI_TRUE : JNI_FALSE;
+  return result.ok ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL

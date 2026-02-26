@@ -610,6 +610,20 @@ typedef struct WuiFont WuiFont;
  */
 typedef struct WuiGpuSurfaceState WuiGpuSurfaceState;
 
+/**
+ * Result returned by a GpuSurface render invocation.
+ */
+typedef struct WuiGpuSurfaceRenderResult {
+  /**
+   * Whether rendering succeeded.
+   */
+  bool ok;
+  /**
+   * Whether another frame should be scheduled immediately.
+   */
+  bool needs_redraw;
+} WuiGpuSurfaceRenderResult;
+
 typedef struct WuiLayout WuiLayout;
 
 /**
@@ -2952,6 +2966,7 @@ struct WuiTypeId waterui_gpu_surface_id(void);
  *   - Android: `ANativeWindow*`
  * * `width` - Initial surface width in pixels
  * * `height` - Initial surface height in pixels
+ * * `env` - Pointer to a valid WaterUI environment used during renderer setup
  *
  * # Returns
  *
@@ -2966,7 +2981,8 @@ struct WuiTypeId waterui_gpu_surface_id(void);
 struct WuiGpuSurfaceState *waterui_gpu_surface_init(struct WuiGpuSurface *surface,
                                                     void *layer,
                                                     uint32_t width,
-                                                    uint32_t height);
+                                                    uint32_t height,
+                                                    struct WuiEnv *env);
 
 /**
  * Render a single frame.
@@ -2982,13 +2998,15 @@ struct WuiGpuSurfaceState *waterui_gpu_surface_init(struct WuiGpuSurface *surfac
  *
  * # Returns
  *
- * `true` if rendering succeeded, `false` on error.
+ * Render result containing success + redraw intent.
  *
  * # Safety
  *
  * `state` must be a valid pointer from `waterui_gpu_surface_init`.
  */
-bool waterui_gpu_surface_render(struct WuiGpuSurfaceState *state, uint32_t width, uint32_t height);
+struct WuiGpuSurfaceRenderResult waterui_gpu_surface_render(struct WuiGpuSurfaceState *state,
+                                                            uint32_t width,
+                                                            uint32_t height);
 
 /**
  * Clean up GPU resources.
