@@ -25,6 +25,11 @@ namespace {
 
 constexpr char LOG_TAG[] = "WaterUI.JNI";
 
+[[noreturn]] void fatal_abort(const char *function, const char *message) {
+  __android_log_print(ANDROID_LOG_FATAL, LOG_TAG, "%s: %s", function, message);
+  std::abort();
+}
+
 // Symbols we need for watcher operations and complex struct handling
 #define WATCHER_SYMBOL_LIST(X)                                                 \
   X(waterui_drop_watcher_metadata)                                             \
@@ -425,8 +430,7 @@ jobject box_long(JNIEnv *env, jlong value) {
 void invoke_watcher(JNIEnv *env, WatcherCallbackState *state, jobject value_obj,
                     WuiWatcherMetadata *metadata) {
   if (env == nullptr || state == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("invoke_watcher", "env/state must not be null");
   }
   jobject metadata_obj = new_metadata(env, metadata);
   env->CallVoidMethod(state->callback, state->method, value_obj, metadata_obj);
@@ -442,8 +446,7 @@ void watcher_bool_call(const void *data, bool value,
                        WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_bool_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject boxed = box_boolean(scoped.env, value);
@@ -461,8 +464,7 @@ void watcher_int_call(const void *data, int32_t value,
                       WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_int_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject boxed = box_int(scoped.env, value);
@@ -480,8 +482,7 @@ void watcher_double_call(const void *data, double value,
                          WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_double_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject boxed = box_double(scoped.env, value);
@@ -499,8 +500,7 @@ void watcher_str_call(const void *data, WuiStr value,
                       WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_str_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jstring str = wui_str_to_jstring(scoped.env, value);
@@ -594,8 +594,7 @@ void watcher_styled_str_call(const void *data, WuiStyledStr value,
                              WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_styled_str_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject styled = new_styled_str(scoped.env, value);
@@ -613,8 +612,7 @@ void watcher_resolved_color_call(const void *data, WuiResolvedColor value,
                                  WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_resolved_color_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject color_obj = new_resolved_color(scoped.env, value);
@@ -632,8 +630,7 @@ void watcher_resolved_font_call(const void *data, WuiResolvedFont value,
                                 WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_resolved_font_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject font_obj = new_resolved_font(scoped.env, value);
@@ -677,8 +674,7 @@ void watcher_picker_items_call(const void *data, WuiArray_WuiPickerItem value,
                                WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_picker_items_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject array = picker_items_to_java(scoped.env, value);
@@ -696,8 +692,7 @@ void watcher_anyview_call(const void *data, WuiAnyView *value,
                           WuiWatcherMetadata *metadata) {
   ScopedEnv scoped;
   if (scoped.env == nullptr) {
-    g_sym.waterui_drop_watcher_metadata(metadata);
-    return;
+    fatal_abort("watcher_anyview_call", "failed to acquire JNIEnv");
   }
   auto *state = static_cast<WatcherCallbackState const *>(data);
   jobject boxed = box_long(scoped.env, ptr_to_jlong(value));
