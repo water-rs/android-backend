@@ -68,23 +68,6 @@ internal object NativeBindings {
     fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long) = WatcherJni.themeInstallFont(envPtr, slot, signalPtr)
     fun waterui_theme_font(envPtr: Long, slot: Int): Long = WatcherJni.themeFont(envPtr, slot)
 
-    // ========== Theme: Legacy per-token APIs ==========
-
-    fun waterui_theme_color_background(envPtr: Long): Long = WatcherJni.themeColorBackground(envPtr)
-    fun waterui_theme_color_surface(envPtr: Long): Long = WatcherJni.themeColorSurface(envPtr)
-    fun waterui_theme_color_surface_variant(envPtr: Long): Long = WatcherJni.themeColorSurfaceVariant(envPtr)
-    fun waterui_theme_color_border(envPtr: Long): Long = WatcherJni.themeColorBorder(envPtr)
-    fun waterui_theme_color_foreground(envPtr: Long): Long = WatcherJni.themeColorForeground(envPtr)
-    fun waterui_theme_color_muted_foreground(envPtr: Long): Long = WatcherJni.themeColorMutedForeground(envPtr)
-    fun waterui_theme_color_accent(envPtr: Long): Long = WatcherJni.themeColorAccent(envPtr)
-    fun waterui_theme_color_accent_foreground(envPtr: Long): Long = WatcherJni.themeColorAccentForeground(envPtr)
-    fun waterui_theme_font_body(envPtr: Long): Long = WatcherJni.themeFontBody(envPtr)
-    fun waterui_theme_font_title(envPtr: Long): Long = WatcherJni.themeFontTitle(envPtr)
-    fun waterui_theme_font_headline(envPtr: Long): Long = WatcherJni.themeFontHeadline(envPtr)
-    fun waterui_theme_font_subheadline(envPtr: Long): Long = WatcherJni.themeFontSubheadline(envPtr)
-    fun waterui_theme_font_caption(envPtr: Long): Long = WatcherJni.themeFontCaption(envPtr)
-    fun waterui_theme_font_footnote(envPtr: Long): Long = WatcherJni.themeFontFootnote(envPtr)
-
     // ========== Environment ==========
 
     fun waterui_clone_env(envPtr: Long): Long = WatcherJni.cloneEnv(envPtr)

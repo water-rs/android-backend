@@ -169,20 +169,6 @@ object WatcherJni {
 
     // ========== Theme Functions ==========
 
-    @JvmStatic external fun themeColorBackground(envPtr: Long): Long
-    @JvmStatic external fun themeColorSurface(envPtr: Long): Long
-    @JvmStatic external fun themeColorSurfaceVariant(envPtr: Long): Long
-    @JvmStatic external fun themeColorBorder(envPtr: Long): Long
-    @JvmStatic external fun themeColorForeground(envPtr: Long): Long
-    @JvmStatic external fun themeColorMutedForeground(envPtr: Long): Long
-    @JvmStatic external fun themeColorAccent(envPtr: Long): Long
-    @JvmStatic external fun themeColorAccentForeground(envPtr: Long): Long
-    @JvmStatic external fun themeFontBody(envPtr: Long): Long
-    @JvmStatic external fun themeFontTitle(envPtr: Long): Long
-    @JvmStatic external fun themeFontHeadline(envPtr: Long): Long
-    @JvmStatic external fun themeFontSubheadline(envPtr: Long): Long
-    @JvmStatic external fun themeFontCaption(envPtr: Long): Long
-    @JvmStatic external fun themeFontFootnote(envPtr: Long): Long
     @JvmStatic external fun themeInstallColor(envPtr: Long, slot: Int, signalPtr: Long)
     @JvmStatic external fun themeInstallFont(envPtr: Long, slot: Int, signalPtr: Long)
     @JvmStatic external fun themeInstallColorScheme(envPtr: Long, signalPtr: Long)
