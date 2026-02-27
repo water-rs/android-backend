@@ -99,6 +99,16 @@ class WuiComputed<T>(
                 env = env
             )
 
+        fun float(ptr: Long, env: WuiEnvironment): WuiComputed<Float> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedF32(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.float(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedF32(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedF32(p) },
+                env = env
+            )
+
         fun styledString(ptr: Long, env: WuiEnvironment): WuiComputed<WuiStyledStr> =
             WuiComputed(
                 computedPtr = ptr,

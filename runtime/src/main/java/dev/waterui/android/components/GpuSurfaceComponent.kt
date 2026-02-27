@@ -115,11 +115,14 @@ private class GpuSurfaceView(
         }
 
         // Render frame with current dimensions
-        NativeBindings.waterui_gpu_surface_render(
+        val result = NativeBindings.waterui_gpu_surface_render(
             gpuState,
             surfaceWidth,
             surfaceHeight
         )
+        check(result.success) {
+            "waterui_gpu_surface_render failed for surface ${surfaceWidth}x${surfaceHeight}"
+        }
 
         // Schedule next frame if still rendering
         if (isRendering) {

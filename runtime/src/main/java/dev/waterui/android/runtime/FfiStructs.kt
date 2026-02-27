@@ -177,8 +177,6 @@ data class PlainStruct(val textBytes: ByteArray) {
     override fun hashCode(): Int = textBytes.contentHashCode()
 }
 
-data class ColorStruct(val colorPtr: Long)
-
 data class TextFieldStruct(val labelPtr: Long, val valuePtr: Long, val promptPtr: Long, val keyboardType: Int)
 
 data class SecureFieldStruct(val labelPtr: Long, val valuePtr: Long)
@@ -289,36 +287,6 @@ data class MetadataOnEventStruct(
 )
 
 /**
- * Background type enum matching WuiBackground_Tag in FFI.
- */
-enum class BackgroundType(val value: Int) {
-    COLOR(0),
-    IMAGE(1);
-
-    companion object {
-        fun fromInt(value: Int): BackgroundType = entries.firstOrNull { it.value == value } ?: COLOR
-    }
-}
-
-/**
- * Metadata<Background> struct for background color/image.
- */
-data class MetadataBackgroundStruct(
-    val contentPtr: Long,
-    val backgroundType: Int,
-    val colorPtr: Long,  // Used when backgroundType == COLOR
-    val imagePtr: Long   // Used when backgroundType == IMAGE
-)
-
-/**
- * Metadata<ForegroundColor> struct for foreground/tint color.
- */
-data class MetadataForegroundStruct(
-    val contentPtr: Long,
-    val colorPtr: Long
-)
-
-/**
  * Metadata<Shadow> struct for shadow effects.
  */
 data class MetadataShadowStruct(
@@ -327,6 +295,14 @@ data class MetadataShadowStruct(
     val offsetX: Float,
     val offsetY: Float,
     val radius: Float
+)
+
+/**
+ * Metadata<Opacity> struct for alpha blending.
+ */
+data class MetadataOpacityStruct(
+    val contentPtr: Long,
+    val valuePtr: Long
 )
 
 /**
@@ -381,14 +357,6 @@ data class TextStyleStruct(
 
 data class PickerItemStruct(val tag: Int, val label: StyledStrStruct)
 
-// ========== Photo Structs ==========
-
-/**
- * Photo component data.
- * - source: URL of the image to display
- */
-data class PhotoStruct(val source: String)
-
 // ========== Video Structs ==========
 
 /**
@@ -433,39 +401,13 @@ data class VideoPlayerStruct(
  */
 data class GpuSurfaceStruct(val rendererPtr: Long)
 
-// ========== MediaPicker Structs ==========
-
 /**
- * Media filter type enum matching WuiMediaFilterType in FFI.
+ * Packed result of one gpu surface render call.
  */
-enum class MediaFilterType(val value: Int) {
-    /** Filter for live photos only */
-    LIVE_PHOTO(0),
-    /** Filter for videos only */
-    VIDEO(1),
-    /** Filter for images only */
-    IMAGE(2),
-    /** Filter for all media types */
-    ALL(3);
-
-    companion object {
-        fun fromInt(value: Int): MediaFilterType = entries.firstOrNull { it.value == value } ?: ALL
-    }
-}
-
-/**
- * MediaPicker component data.
- * - filter: Media filter type (image, video, all, etc.)
- */
-data class MediaPickerStruct(
-    val filter: Int,
-    val onSelectionDataPtr: Long,
-    val onSelectionCallPtr: Long
-) {
-    fun filterType(): MediaFilterType = MediaFilterType.fromInt(filter)
-    fun onSelectionDataPtr(): Long = onSelectionDataPtr
-    fun onSelectionCallPtr(): Long = onSelectionCallPtr
-}
+data class GpuSurfaceRenderResultStruct(
+    val success: Boolean,
+    val needsRedraw: Boolean
+)
 
 // ========== Resolved Value Structs ==========
 
@@ -567,14 +509,23 @@ data class TabsStruct(
 /**
  * List component data.
  * - contentsPtr: WuiAnyViews pointer containing ListItem views
+ * - editingPtr: Computed<Boolean> pointer for edit mode
+ * - onDeletePtr: IndexAction pointer (0 if unsupported)
+ * - onMovePtr: MoveAction pointer (0 if unsupported)
  */
-data class ListStruct(val contentsPtr: Long)
+data class ListStruct(
+    val contentsPtr: Long,
+    val editingPtr: Long,
+    val onDeletePtr: Long,
+    val onMovePtr: Long
+)
 
 /**
  * ListItem component data.
  * - contentPtr: AnyView pointer for item content
+ * - deletablePtr: Computed<Boolean> pointer controlling item delete ability
  */
-data class ListItemStruct(val contentPtr: Long)
+data class ListItemStruct(val contentPtr: Long, val deletablePtr: Long)
 
 // ========== Window and App Structs ==========
 

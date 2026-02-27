@@ -131,6 +131,8 @@ public class WaterUIConfig implements InfoMapper {
         
         // Drop callback: void (*)(void*)
         infoMap.put(new Info("void (*)(void*)").pointerTypes("DropCallback"));
+        infoMap.put(new Info("WuiExternalDropFn").pointerTypes("DropCallback"));
+        infoMap.put(new Info("WuiCallback").pointerTypes("DropCallback"));
         
         // Watcher call callbacks for different types
         infoMap.put(new Info("void (*)(void*, bool, struct WuiWatcherMetadata*)").pointerTypes("WatcherCallBool"));

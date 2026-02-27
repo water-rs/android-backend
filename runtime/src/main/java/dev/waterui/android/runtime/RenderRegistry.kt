@@ -77,7 +77,6 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiText()
         registerWuiPlain()
         registerWuiButton()
-        registerWuiColor()
         registerWuiTextField()
         registerWuiSecureField()
         registerWuiStepper()
@@ -90,11 +89,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiSlider()
         registerWuiPicker()
         registerWuiWithEnv()
-        registerWuiPhoto()
         registerWuiVideo()
         registerWuiVideoPlayer()
-        // MediaPicker removed - now uses Button wrapper in Rust
-        // registerWuiMediaPicker()
         registerWuiGpuSurface()
 
         // Navigation components
@@ -109,9 +105,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiSecure()
         registerWuiGesture()
         registerWuiOnEvent()
-        registerWuiBackground()
-        registerWuiForeground()
         registerWuiShadow()
+        registerWuiOpacity()
         registerWuiFocused()
         registerWuiIgnoreSafeArea()
         registerWuiRetain()

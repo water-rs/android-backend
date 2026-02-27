@@ -7,23 +7,17 @@ import dev.waterui.android.runtime.*
  * JNI interface for all WaterUI FFI functions.
  *
  * This object provides access to the Rust WaterUI library via JNI.
- * The native library is loaded via dlopen/dlsym to support dynamic loading.
  */
 object WatcherJni {
     init {
-        // Load the JNI helper library
-        System.loadLibrary("waterui_android")
-        nativeInit()
+        // All JNI exports are provided by Rust.
+        System.loadLibrary("waterui_app")
     }
-
-    @JvmStatic
-    private external fun nativeInit()
 
     // ========== Core Functions ==========
 
     @JvmStatic external fun init(): Long
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
-    @JvmStatic external fun envInstallMediaPickerManager(envPtr: Long)
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
@@ -38,7 +32,6 @@ object WatcherJni {
     @JvmStatic external fun forceAsPlain(viewPtr: Long): PlainStruct
     @JvmStatic external fun forceAsText(viewPtr: Long): Long
     @JvmStatic external fun forceAsButton(viewPtr: Long): ButtonStruct
-    @JvmStatic external fun forceAsColor(viewPtr: Long): Long
     @JvmStatic external fun forceAsTextField(viewPtr: Long): TextFieldStruct
     @JvmStatic external fun forceAsToggle(viewPtr: Long): ToggleStruct
     @JvmStatic external fun forceAsSlider(viewPtr: Long): SliderStruct
@@ -54,16 +47,13 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
-    @JvmStatic external fun forceAsMetadataBackground(viewPtr: Long): MetadataBackgroundStruct
-    @JvmStatic external fun forceAsMetadataForeground(viewPtr: Long): MetadataForegroundStruct
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
+    @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
-    @JvmStatic external fun forceAsPhoto(viewPtr: Long): PhotoStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
-    @JvmStatic external fun forceAsMediaPicker(viewPtr: Long): MediaPickerStruct
 
     // ========== Drop Functions ==========
 
@@ -107,6 +97,7 @@ object WatcherJni {
     // ========== Computed Read/Drop ==========
 
     @JvmStatic external fun readComputedF64(computedPtr: Long): Double
+    @JvmStatic external fun readComputedF32(computedPtr: Long): Float
     @JvmStatic external fun readComputedI32(computedPtr: Long): Int
     @JvmStatic external fun readComputedResolvedColor(computedPtr: Long): ResolvedColorStruct
     @JvmStatic external fun readComputedResolvedFont(computedPtr: Long): ResolvedFontStruct
@@ -116,6 +107,7 @@ object WatcherJni {
     @JvmStatic external fun readComputedColor(computedPtr: Long): Long
     @JvmStatic external fun dropComputedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedF64(computedPtr: Long)
+    @JvmStatic external fun dropComputedF32(computedPtr: Long)
     @JvmStatic external fun dropComputedI32(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedFont(computedPtr: Long)
@@ -148,6 +140,7 @@ object WatcherJni {
     // ========== Watch Computed ==========
 
     @JvmStatic external fun watchComputedF64(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchComputedF32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedI32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedStyledStr(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedColor(computedPtr: Long, watcher: WatcherStruct): Long
@@ -209,7 +202,6 @@ object WatcherJni {
     @JvmStatic external fun textId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun plainId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun buttonId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun textFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun stepperId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun progressId(): dev.waterui.android.runtime.TypeIdStruct
@@ -226,16 +218,13 @@ object WatcherJni {
     @JvmStatic external fun metadataSecureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataGestureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOnEventId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun metadataBackgroundId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun metadataForegroundId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun photoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun mediaPickerId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
 
@@ -280,6 +269,6 @@ object WatcherJni {
         height: Int,
         wuiEnvPtr: Long
     ): Long
-    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Long
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 }
