@@ -12,7 +12,7 @@ class ColorExtensionsTest {
         // or we just put a placeholder to verify the test runner works.
         // In a real scenario, we would add Robolectric.
         
-        val resolved = ResolvedColorStruct(1.0f, 0.0f, 0.0f, 1.0f)
+        val resolved = ResolvedColorStruct(1.0f, 0.0f, 0.0f, 1.0f, 0.0f)
         assertEquals(1.0f, resolved.red, 0.0f)
         assertEquals(1.0f, resolved.opacity, 0.0f)
     }

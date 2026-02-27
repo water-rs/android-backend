@@ -411,7 +411,13 @@ data class GpuSurfaceRenderResultStruct(
 
 // ========== Resolved Value Structs ==========
 
-data class ResolvedColorStruct(val red: Float, val green: Float, val blue: Float, val opacity: Float)
+data class ResolvedColorStruct(
+    val red: Float,
+    val green: Float,
+    val blue: Float,
+    val opacity: Float,
+    val headroom: Float
+)
 
 data class ResolvedFontStruct(val size: Float, val weight: Int)
 

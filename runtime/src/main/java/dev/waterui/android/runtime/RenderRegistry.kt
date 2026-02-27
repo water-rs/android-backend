@@ -86,6 +86,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiContainers()
         registerWuiToggle()
         registerWuiSpacer()
+        registerWuiResolvedColor()
         registerWuiSlider()
         registerWuiPicker()
         registerWuiWithEnv()
