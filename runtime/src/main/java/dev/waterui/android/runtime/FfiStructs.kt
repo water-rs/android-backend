@@ -419,6 +419,92 @@ data class ResolvedColorStruct(
     val headroom: Float
 )
 
+data class ResolvedGradientStopStruct(
+    val position: Float,
+    val color: ResolvedColorStruct
+)
+
+data class ResolvedGradientStruct(
+    val gradientType: Int,
+    val stops: Array<ResolvedGradientStopStruct>,
+    val startX: Float,
+    val startY: Float,
+    val endX: Float,
+    val endY: Float,
+    val startValue: Float,
+    val endValue: Float
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ResolvedGradientStruct) return false
+        return gradientType == other.gradientType &&
+            stops.contentEquals(other.stops) &&
+            startX == other.startX &&
+            startY == other.startY &&
+            endX == other.endX &&
+            endY == other.endY &&
+            startValue == other.startValue &&
+            endValue == other.endValue
+    }
+
+    override fun hashCode(): Int {
+        var result = gradientType
+        result = 31 * result + stops.contentHashCode()
+        result = 31 * result + startX.hashCode()
+        result = 31 * result + startY.hashCode()
+        result = 31 * result + endX.hashCode()
+        result = 31 * result + endY.hashCode()
+        result = 31 * result + startValue.hashCode()
+        result = 31 * result + endValue.hashCode()
+        return result
+    }
+}
+
+data class ShapeKindStruct(
+    val tag: Int,
+    val topLeft: Float,
+    val topRight: Float,
+    val bottomRight: Float,
+    val bottomLeft: Float
+)
+
+data class PathCommandStruct(
+    val tag: Int,
+    val x: Float,
+    val y: Float,
+    val cx: Float,
+    val cy: Float,
+    val c1x: Float,
+    val c1y: Float,
+    val c2x: Float,
+    val c2y: Float,
+    val rx: Float,
+    val ry: Float,
+    val start: Float,
+    val sweep: Float
+)
+
+data class ResolvedShapeStruct(
+    val kind: ShapeKindStruct,
+    val commands: Array<PathCommandStruct>,
+    val fill: ResolvedColorStruct
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ResolvedShapeStruct) return false
+        return kind == other.kind &&
+            commands.contentEquals(other.commands) &&
+            fill == other.fill
+    }
+
+    override fun hashCode(): Int {
+        var result = kind.hashCode()
+        result = 31 * result + commands.contentHashCode()
+        result = 31 * result + fill.hashCode()
+        return result
+    }
+}
+
 data class ResolvedFontStruct(val size: Float, val weight: Int)
 
 // ========== Type ID Struct ==========

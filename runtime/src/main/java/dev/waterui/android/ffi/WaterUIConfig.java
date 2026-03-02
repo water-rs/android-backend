@@ -74,6 +74,7 @@ public class WaterUIConfig implements InfoMapper {
                 "WuiArray_WuiProposalSize", "WuiArray_WuiChildMetadata",
                 "WuiArray_WuiRect", "WuiArray_WuiStyledChunk",
                 "WuiArray_WuiTableColumn", "WuiArray_WuiPickerItem",
+                "WuiArray_WuiPathCommand", "WuiArray_WuiResolvedGradientStop",
                 "WuiArray_WuiSubView").pointerTypes("Pointer"));
 
         // VTable types - skip these as they contain internal function pointers
@@ -81,7 +82,8 @@ public class WaterUIConfig implements InfoMapper {
                 "WuiArrayVTable_____WuiAnyView", "WuiArrayVTable_WuiProposalSize",
                 "WuiArrayVTable_WuiChildMetadata", "WuiArrayVTable_WuiRect",
                 "WuiArrayVTable_WuiStyledChunk", "WuiArrayVTable_WuiTableColumn",
-                "WuiArrayVTable_WuiPickerItem", "WuiArrayVTable_WuiSubView",
+                "WuiArrayVTable_WuiPickerItem", "WuiArrayVTable_WuiPathCommand",
+                "WuiArrayVTable_WuiResolvedGradientStop", "WuiArrayVTable_WuiSubView",
                 "WuiSubViewVTable").skip());
 
         // Slice types
@@ -89,12 +91,17 @@ public class WaterUIConfig implements InfoMapper {
                 "WuiArraySlice_____WuiAnyView", "WuiArraySlice_WuiProposalSize",
                 "WuiArraySlice_WuiChildMetadata", "WuiArraySlice_WuiRect",
                 "WuiArraySlice_WuiStyledChunk", "WuiArraySlice_WuiTableColumn",
-                "WuiArraySlice_WuiPickerItem", "WuiArraySlice_WuiSubView").pointerTypes("Pointer"));
+                "WuiArraySlice_WuiPickerItem", "WuiArraySlice_WuiPathCommand",
+                "WuiArraySlice_WuiResolvedGradientStop", "WuiArraySlice_WuiSubView").pointerTypes("Pointer"));
 
         // ============================================================
         // Data structs - generate proper classes
         // ============================================================
         infoMap.put(new Info("WuiResolvedColor").pointerTypes("WuiResolvedColor"));
+        infoMap.put(new Info("WuiResolvedGradient").pointerTypes("WuiResolvedGradient"));
+        infoMap.put(new Info("WuiResolvedGradientStop").pointerTypes("WuiResolvedGradientStop"));
+        infoMap.put(new Info("WuiResolvedShape").pointerTypes("WuiResolvedShape"));
+        infoMap.put(new Info("WuiShapeKind").pointerTypes("WuiShapeKind"));
         infoMap.put(new Info("WuiResolvedFont").pointerTypes("WuiResolvedFont"));
         infoMap.put(new Info("WuiProposalSize").pointerTypes("WuiProposalSize"));
         infoMap.put(new Info("WuiSize").pointerTypes("WuiSize"));

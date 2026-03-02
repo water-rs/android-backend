@@ -43,6 +43,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsLayoutContainer(viewPtr: Long): LayoutContainerStruct
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
     @JvmStatic external fun forceAsResolvedColor(viewPtr: Long): ResolvedColorStruct
+    @JvmStatic external fun forceAsResolvedGradient(viewPtr: Long): ResolvedGradientStruct
+    @JvmStatic external fun forceAsResolvedShape(viewPtr: Long): ResolvedShapeStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
@@ -196,6 +198,8 @@ object WatcherJni {
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedColorId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun resolvedGradientId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun resolvedShapeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun toggleId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun sliderId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun fixedContainerId(): dev.waterui.android.runtime.TypeIdStruct
