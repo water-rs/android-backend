@@ -48,8 +48,3 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Build debug and release artifacts
         run: ./gradlew --no-daemon :runtime:assembleDebug :runtime:assembleRelease
-
-  android-main-e2e:
-    name: android-main-e2e
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
-    uses: ./.github/workflows/android-e2e-main.yml

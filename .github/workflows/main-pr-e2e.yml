@@ -1,0 +1,18 @@
+name: Android Main PR E2E
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-main-pr-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-main-e2e:
+    name: android-main-e2e
+    uses: ./.github/workflows/android-e2e-main.yml
