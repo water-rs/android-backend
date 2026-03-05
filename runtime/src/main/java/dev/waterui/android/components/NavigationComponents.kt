@@ -88,7 +88,7 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
     }
 
     // Create navigation bar
-    val navBar = createNavBar(context, struct.bar.titleContentPtr, env)
+    val navBar = createNavBar(context, struct.bar.titleContentPtr)
     container.addView(navBar)
 
     // Reactive watchers
@@ -137,7 +137,7 @@ private val navigationViewRenderer = WuiRenderer { context, node, env, registry 
     container
 }
 
-private fun createNavBar(context: android.content.Context, titleContentPtr: Long, env: WuiEnvironment): LinearLayout {
+private fun createNavBar(context: android.content.Context, titleContentPtr: Long): LinearLayout {
     val navBar = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -381,7 +381,7 @@ private fun inflateTabContent(
 
     // Create navigation bar if title is provided
     if (navViewStruct.bar.titleContentPtr != 0L) {
-        val navBar = createNavBar(context, navViewStruct.bar.titleContentPtr, env)
+        val navBar = createNavBar(context, navViewStruct.bar.titleContentPtr)
         container.addView(navBar)
     }
 

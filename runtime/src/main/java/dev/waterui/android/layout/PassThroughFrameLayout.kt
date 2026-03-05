@@ -57,7 +57,19 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        return consumesTouches && super.onTouchEvent(event)
+        if (!consumesTouches) {
+            return false
+        }
+
+        val handled = super.onTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP) {
+            performClick()
+        }
+        return handled
+    }
+
+    override fun performClick(): Boolean {
+        return super.performClick()
     }
 
     /**
@@ -71,7 +83,7 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
             if (child.visibility != View.VISIBLE) continue
 
             // Check if point is within child bounds
-            if (x < child.left || x >= child.right || y < child.top || y >= child.bottom) continue
+            if (!isPointInsideView(child, x, y)) continue
 
             // Transform to child coordinates
             val childX = x - child.left
@@ -100,7 +112,7 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
                     if (child.visibility != View.VISIBLE) continue
 
                     // Check if point is within child bounds
-                    if (x < child.left || x >= child.right || y < child.top || y >= child.bottom) continue
+                    if (!isPointInsideView(child, x, y)) continue
 
                     // Transform to child coordinates
                     val childX = x - child.left
@@ -145,6 +157,10 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
             if (view.getTag(TAG_WANTS_TOUCHES) == true) return true
 
             return false
+        }
+
+        private fun isPointInsideView(view: View, x: Float, y: Float): Boolean {
+            return x >= view.left && x < view.right && y >= view.top && y < view.bottom
         }
 
         /** Tag key for marking views that want to receive touch events */

@@ -1,0 +1,173 @@
+name: Android Main E2E
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-main-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SHARD_TOTAL: "8"
+  AVD_API_LEVEL: "35"
+  AVD_ARCH: x86_64
+  AVD_TARGET: google_apis
+  AVD_PROFILE: pixel_6
+
+jobs:
+  prepare-cli:
+    name: Prepare water CLI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout waterui (main)
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: main
+          path: waterui
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-main-e2e-cli
+          workspaces: |
+            waterui
+
+      - name: Build water CLI
+        run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
+
+      - name: Package water CLI artifact
+        run: |
+          mkdir -p /tmp/water-cli
+          cp waterui/target/debug/water /tmp/water-cli/water
+          chmod +x /tmp/water-cli/water
+
+      - name: Upload water CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: water-cli-linux
+          path: /tmp/water-cli/water
+          if-no-files-found: error
+
+  examples-shard:
+    name: examples-shard-${{ matrix.shard-index }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    needs: prepare-cli
+    strategy:
+      fail-fast: false
+      matrix:
+        shard-index: [0, 1, 2, 3, 4, 5, 6, 7]
+
+    steps:
+      - name: Checkout waterui (main)
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: main
+          path: waterui
+          submodules: recursive
+
+      - name: Overlay android-backend from PR
+        uses: actions/checkout@v4
+        with:
+          path: waterui/backends/android
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: waterui/backends/android
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-main-e2e
+          workspaces: |
+            waterui
+            waterui/backends/android
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache AVD
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.AVD_API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}
+
+      - name: Create emulator snapshot for cache
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.AVD_API_LEVEL }}
+          arch: ${{ env.AVD_ARCH }}
+          target: ${{ env.AVD_TARGET }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: echo "AVD cache primed."
+
+      - name: Download water CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: water-cli-linux
+          path: /tmp/water-cli
+
+      - name: Add water CLI to PATH
+        run: |
+          chmod +x /tmp/water-cli/water
+          echo "/tmp/water-cli" >> "$GITHUB_PATH"
+
+      - name: Run sharded Android example E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.AVD_API_LEVEL }}
+          arch: ${{ env.AVD_ARCH }}
+          target: ${{ env.AVD_TARGET }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: false
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            set -euo pipefail
+            ANDROID_SERIAL="$(adb devices | awk '/^emulator-[0-9]+\s+device$/ {print $1; exit}')"
+            if [ -z "$ANDROID_SERIAL" ]; then
+              echo "::error::No Android emulator device detected."
+              exit 1
+            fi
+            export ANDROID_SERIAL
+            bash "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/run_examples_shard.sh" \
+              --repo-root "$GITHUB_WORKSPACE/waterui" \
+              --shard-index "${{ matrix.shard-index }}" \
+              --shard-total "${{ env.SHARD_TOTAL }}"
+
+      - name: Upload shard logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-e2e-logs-shard-${{ matrix.shard-index }}
+          path: waterui/backends/android/.ci-logs
+          if-no-files-found: ignore

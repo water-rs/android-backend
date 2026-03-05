@@ -26,7 +26,11 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_progress(node.rawPtr)
     val computed = struct.valuePtr.takeIf { it != 0L }?.let { WuiComputed.double(it, env) }
 
-    val isLinear = struct.style != PROGRESS_STYLE_CIRCULAR
+    val isLinear = when (struct.style) {
+        PROGRESS_STYLE_LINEAR -> true
+        PROGRESS_STYLE_CIRCULAR -> false
+        else -> error("unknown progress style: ${struct.style}")
+    }
     
     // Linear progress is StretchAxis::Horizontal (Rust-defined):
     // report a minimum usable width in size_that_fits, then expand during place.
@@ -45,11 +49,7 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     val progressBar = when (struct.style) {
-        PROGRESS_STYLE_CIRCULAR -> ProgressBar(context).apply {
-            // Circular: fixed size, doesn't expand
-            max = 1000
-        }
-        else -> ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+        PROGRESS_STYLE_LINEAR -> ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
             // Linear: expands width to fill container
             max = 1000
             layoutParams = LinearLayout.LayoutParams(
@@ -57,6 +57,11 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
+        PROGRESS_STYLE_CIRCULAR -> ProgressBar(context).apply {
+            // Circular: fixed size, doesn't expand
+            max = 1000
+        }
+        else -> error("unknown progress style: ${struct.style}")
     }
     container.addView(progressBar)
 

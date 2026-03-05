@@ -26,14 +26,15 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
             isHorizontalScrollBarEnabled = true
             addView(content)
         }
+        AXIS_VERTICAL -> ScrollView(context).apply {
+            addView(content)
+        }
         AXIS_ALL -> ScrollView(context).apply {
             val horizontal = HorizontalScrollView(context)
             horizontal.addView(content)
             addView(horizontal)
         }
-        else -> ScrollView(context).apply {
-            addView(content)
-        }
+        else -> error("unknown scroll axis: ${struct.axis}")
     }
 }
 

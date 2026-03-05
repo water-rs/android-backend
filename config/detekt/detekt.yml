@@ -1,0 +1,94 @@
+build:
+  maxIssues: 0
+  weights:
+    complexity: 2
+    LongParameterList: 1
+    style: 1
+    comments: 0
+
+config:
+  validation: true
+  warningsAsErrors: false
+  excludes: ""
+
+complexity:
+  active: true
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 30
+  LongMethod:
+    active: true
+    threshold: 140
+  LongParameterList:
+    active: true
+    functionThreshold: 12
+    constructorThreshold: 12
+  NestedBlockDepth:
+    active: true
+    threshold: 7
+  TooManyFunctions:
+    active: false
+    thresholdInClasses: 20
+    thresholdInObjects: 20
+    thresholdInInterfaces: 20
+    thresholdInEnums: 20
+
+coroutines:
+  active: true
+  GlobalCoroutineUsage:
+    active: true
+  RedundantSuspendModifier:
+    active: true
+  SleepInsteadOfDelay:
+    active: true
+
+empty-blocks:
+  active: true
+  EmptyFunctionBlock:
+    active: false
+
+exceptions:
+  active: true
+  SwallowedException:
+    active: true
+  TooGenericExceptionCaught:
+    active: true
+    exceptionNames:
+      - Error
+      - Exception
+      - RuntimeException
+      - Throwable
+  TooGenericExceptionThrown:
+    active: true
+    exceptionNames:
+      - Error
+      - Exception
+      - RuntimeException
+      - Throwable
+
+performance:
+  active: true
+
+potential-bugs:
+  active: true
+
+style:
+  active: true
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    active: false
+  LoopWithTooManyJumpStatements:
+    active: false
+  WildcardImport:
+    active: false
+
+naming:
+  active: true
+  FunctionNaming:
+    active: true
+    excludes:
+      - "**/runtime/NativeBindings.kt"
+      - "**/ffi/WatcherJni.kt"

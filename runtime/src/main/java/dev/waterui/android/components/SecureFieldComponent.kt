@@ -5,7 +5,6 @@ import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
 import androidx.appcompat.widget.AppCompatEditText
-import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
 import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.layout.AxisExpandingLinearLayout
@@ -18,7 +17,6 @@ import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
-import dev.waterui.android.runtime.dp
 import java.util.concurrent.atomic.AtomicBoolean
 
 private val secureFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_secure_field_id().toTypeId() }
@@ -54,7 +52,7 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
         setCornerSize(radius)
         strokeWidth = strokeWidthPx
     }
-    ViewCompat.setBackground(editText, shape)
+    editText.background = shape
 
     val updating = AtomicBoolean(false)
 

@@ -24,6 +24,7 @@ private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
             style = Paint.Style.FILL
             color = resolved.fill.toColorInt()
         }
+        private val emptyPath = Path()
         private var path: Path? = null
 
         private fun rebuildPath(width: Int, height: Int) {
@@ -40,7 +41,7 @@ private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
             if (path == null) {
                 rebuildPath(width, height)
             }
-            canvas.drawPath(path ?: Path(), paint)
+            canvas.drawPath(path ?: emptyPath, paint)
         }
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -110,7 +111,7 @@ private fun applyCommand(path: Path, cmd: PathCommandStruct, width: Float, heigh
         }
 
         5 -> path.close()
-        else -> throw IllegalStateException("unknown path command tag: ${cmd.tag}")
+        else -> error("unknown path command tag: ${cmd.tag}")
     }
 }
 

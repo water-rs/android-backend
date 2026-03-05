@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wui_missing_component_message">Missing component for typeId=%1$s</string>
+</resources>

@@ -5,7 +5,6 @@ import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
 import androidx.appcompat.widget.AppCompatEditText
-import androidx.core.view.ViewCompat
 import androidx.core.widget.addTextChangedListener
 import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.layout.AxisExpandingLinearLayout
@@ -21,7 +20,6 @@ import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 
-import dev.waterui.android.runtime.dp
 import java.util.concurrent.atomic.AtomicBoolean
 
 private val textFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_text_field_id().toTypeId() }
@@ -69,7 +67,7 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         setCornerSize(radius)
         strokeWidth = strokeWidthPx
     }
-    ViewCompat.setBackground(editText, shape)
+    editText.background = shape
 
     val updating = AtomicBoolean(false)
     binding.observe { value ->
@@ -119,12 +117,13 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
 
 private fun resolveInputType(keyboardType: Int): Int =
     when (keyboardType) {
+        KEYBOARD_TEXT -> InputType.TYPE_CLASS_TEXT
         KEYBOARD_SECURE -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         KEYBOARD_EMAIL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
         KEYBOARD_URL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         KEYBOARD_NUMBER -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         KEYBOARD_PHONE -> InputType.TYPE_CLASS_PHONE
-        else -> InputType.TYPE_CLASS_TEXT
+        else -> error("unknown keyboard type: $keyboardType")
     }
 
 internal fun RegistryBuilder.registerWuiTextField() {

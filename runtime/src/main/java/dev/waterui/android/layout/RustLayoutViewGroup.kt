@@ -49,6 +49,44 @@ class RustLayoutViewGroup @JvmOverloads constructor(
      */
     private fun Float.pxToDp(): Float = this / density
 
+    private var cachedSubviews: Array<SubViewStruct> = emptyArray()
+    private val scratchProposal = ProposalStruct(width = Float.NaN, height = Float.NaN)
+    private val scratchBounds = RectStruct(x = 0f, y = 0f, width = 0f, height = 0f)
+
+    private fun resolveSubviews(): Array<SubViewStruct> {
+        if (cachedSubviews.size != childCount || subviewsOutdated()) {
+            cachedSubviews = Array(childCount) { index ->
+                val descriptor = descriptors.getOrNull(index)
+                SubViewStruct(
+                    view = getChildAt(index),
+                    stretchAxis = descriptor?.stretchAxis ?: StretchAxis.NONE,
+                    priority = descriptor?.priority ?: 0,
+                    density = density
+                )
+            }
+        }
+        return cachedSubviews
+    }
+
+    private fun subviewsOutdated(): Boolean {
+        for (index in 0 until cachedSubviews.size) {
+            if (cachedSubviews[index].view !== getChildAt(index)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    override fun onViewAdded(child: View) {
+        super.onViewAdded(child)
+        cachedSubviews = emptyArray()
+    }
+
+    override fun onViewRemoved(child: View) {
+        super.onViewRemoved(child)
+        cachedSubviews = emptyArray()
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         require(layoutPtr != 0L) { "onMeasure called with null layout pointer" }
 
@@ -60,23 +98,15 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
         val constraints = LayoutConstraints.fromMeasureSpecs(widthMeasureSpec, heightMeasureSpec)
         // Convert pixel constraints to dp for Rust layout engine
-        val parentProposal = constraints.toProposalStruct(density)
+        scratchProposal.width = if (constraints.maxWidth != Int.MAX_VALUE) constraints.maxWidth.toFloat() / density else Float.NaN
+        scratchProposal.height = if (constraints.maxHeight != Int.MAX_VALUE) constraints.maxHeight.toFloat() / density else Float.NaN
 
         // Create SubViewStruct array - Rust will call back to measure each child
         // Pass density so child measurements can convert between dp and pixels
-        val subviews = Array(childCount) { index ->
-            val child = getChildAt(index)
-            val descriptor = descriptors.getOrNull(index)
-            SubViewStruct(
-                view = child,
-                stretchAxis = descriptor?.stretchAxis ?: StretchAxis.NONE,
-                priority = descriptor?.priority ?: 0,
-                density = density
-            )
-        }
+        val subviews = resolveSubviews()
 
         // Rust computes layout in dp, convert result to pixels for Android
-        val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, parentProposal, subviews)
+        val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, scratchProposal, subviews)
         val measuredWidth = requestedSize.width.dpToPx().resolveDimension(constraints.minWidth, constraints.maxWidth)
         val measuredHeight = requestedSize.height.dpToPx().resolveDimension(constraints.minHeight, constraints.maxHeight)
 
@@ -92,28 +122,17 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         }
 
         // Convert pixel bounds to dp for Rust layout engine
-        val bounds = RectStruct(
-            x = 0f,
-            y = 0f,
-            width = (right - left).toFloat().pxToDp(),
-            height = (bottom - top).toFloat().pxToDp()
-        )
+        scratchBounds.x = 0f
+        scratchBounds.y = 0f
+        scratchBounds.width = (right - left).toFloat().pxToDp()
+        scratchBounds.height = (bottom - top).toFloat().pxToDp()
 
         // Create SubViewStruct array for placement
         // Pass density so child measurements can convert between dp and pixels
-        val subviews = Array(childCount) { index ->
-            val child = getChildAt(index)
-            val descriptor = descriptors.getOrNull(index)
-            SubViewStruct(
-                view = child,
-                stretchAxis = descriptor?.stretchAxis ?: StretchAxis.NONE,
-                priority = descriptor?.priority ?: 0,
-                density = density
-            )
-        }
+        val subviews = resolveSubviews()
 
         // Rust returns placements in dp, convert to pixels for Android layout
-        val placements = NativeBindings.waterui_layout_place(layoutPtr, bounds, subviews)
+        val placements = NativeBindings.waterui_layout_place(layoutPtr, scratchBounds, subviews)
 
         for (index in 0 until childCount) {
             val rect = placements[index]
@@ -208,10 +227,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         return false
     }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        return false
-    }
 }
 
 data class ChildDescriptor(
@@ -249,12 +264,6 @@ private data class LayoutConstraints(
         }
     }
 }
-
-/** Convert pixel constraints to dp for Rust layout engine */
-private fun LayoutConstraints.toProposalStruct(density: Float): ProposalStruct = ProposalStruct(
-    width = if (maxWidth != Int.MAX_VALUE) maxWidth.toFloat() / density else Float.NaN,
-    height = if (maxHeight != Int.MAX_VALUE) maxHeight.toFloat() / density else Float.NaN
-)
 
 private fun Float.resolveDimension(min: Int, max: Int): Int {
     if (isNaN()) {

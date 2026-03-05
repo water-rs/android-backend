@@ -1,8 +1,9 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
+import android.util.AttributeSet
 import android.view.View
-import android.widget.TextView
+import androidx.appcompat.widget.AppCompatTextView
 
 /**
  * Tag key for storing stretch axis on inflated views.
@@ -59,7 +60,9 @@ fun inflateAnyView(
         return inflateAnyView(context, fallbackPtr, environment, registry)
     }
 
-    return MissingComponentView(context, typeId)
+    return MissingComponentView(context).apply {
+        bind(typeId)
+    }
 }
 
 /**
@@ -70,11 +73,13 @@ fun View.getWuiStretchAxis(): StretchAxis {
     return getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
 }
 
-private class MissingComponentView(
+private class MissingComponentView @JvmOverloads constructor(
     context: Context,
-    typeId: WuiTypeId
-) : TextView(context) {
-    init {
-        text = "Missing component for typeId=${'$'}typeId"
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : AppCompatTextView(context, attrs, defStyleAttr) {
+
+    fun bind(typeId: WuiTypeId) {
+        text = context.getString(R.string.wui_missing_component_message, typeId.toString())
     }
 }

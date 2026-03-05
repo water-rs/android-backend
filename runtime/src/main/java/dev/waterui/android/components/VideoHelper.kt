@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.content.Context
+import android.util.AttributeSet
 import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
@@ -32,12 +33,14 @@ object AspectRatioMode {
  * - Better streaming support (HLS, DASH, etc.)
  */
 @OptIn(UnstableApi::class)
-class WuiVideoTextureView(
+class WuiVideoTextureView @JvmOverloads constructor(
     context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0,
     private val aspectRatioMode: Int = AspectRatioMode.FIT,
     private val showControls: Boolean = false,
     private val loops: Boolean = true
-) : PlayerView(context) {
+) : PlayerView(context, attrs, defStyleAttr) {
 
     private var exoPlayer: ExoPlayer? = null
     private var currentVolume = 1f

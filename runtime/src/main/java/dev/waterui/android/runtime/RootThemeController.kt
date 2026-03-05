@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import dev.waterui.android.reactive.WatcherCallback
 import dev.waterui.android.reactive.WatcherGuard
 import dev.waterui.android.reactive.WatcherStructFactory
+import java.lang.ref.WeakReference
 
 /**
  * Controls the Activity's appearance based on the root component's environment theme.
@@ -30,11 +31,19 @@ class RootThemeController private constructor(
     companion object {
         private const val TAG = "WaterUI.RootTheme"
 
-        /** The singleton controller (one per app) */
-        private var instance: RootThemeController? = null
+        /** The singleton controller (one per app), held weakly to avoid static view leaks. */
+        private var instanceRef: WeakReference<RootThemeController>? = null
 
         /** The pending root environment (captured from first non-metadata component) */
         private var pendingRootEnv: WuiEnvironment? = null
+
+        private fun currentInstance(): RootThemeController? {
+            val controller = instanceRef?.get()
+            if (controller == null) {
+                instanceRef = null
+            }
+            return controller
+        }
 
         /**
          * Marks an environment as the root content's env (for theme setup).
@@ -57,24 +66,24 @@ class RootThemeController private constructor(
          * Sets up the root theme controller when the view is added to window.
          */
         fun setup(view: View) {
-            if (instance != null) return
+            if (currentInstance() != null) return
             val env = pendingRootEnv ?: return
-            instance = RootThemeController(env, view)
+            instanceRef = WeakReference(RootThemeController(env, view))
         }
 
         /**
          * Called when window becomes available to apply pending theme.
          */
         fun applyPendingTheme() {
-            instance?.applyToWindow()
+            currentInstance()?.applyToWindow()
         }
 
         /**
          * Resets the controller (for hot reload).
          */
         fun reset() {
-            instance?.close()
-            instance = null
+            currentInstance()?.close()
+            instanceRef = null
             pendingRootEnv = null
         }
     }

@@ -44,11 +44,11 @@ data class FixedContainerStruct(val layoutPtr: Long, val childPointers: LongArra
     override fun hashCode(): Int = 31 * layoutPtr.hashCode() + childPointers.contentHashCode()
 }
 
-data class ProposalStruct(val width: Float, val height: Float)
+data class ProposalStruct(var width: Float, var height: Float)
 
 data class SizeStruct(val width: Float, val height: Float)
 
-data class RectStruct(val x: Float, val y: Float, val width: Float, val height: Float)
+data class RectStruct(var x: Float, var y: Float, var width: Float, var height: Float)
 
 /** @deprecated Use StretchAxis enum instead of boolean stretch */
 @Deprecated("Use StretchAxis enum with SubViewStruct instead", ReplaceWith("SubViewStruct"))

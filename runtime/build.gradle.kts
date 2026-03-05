@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
 group = "dev.waterui.android"
@@ -26,7 +27,6 @@ android {
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 35
         consumerProguardFiles("consumer-rules.pro")
 
 
@@ -59,20 +59,47 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    lint {
+        targetSdk = 36
+        abortOnError = true
+        warningsAsErrors = true
+        textReport = true
+        xmlReport = true
+        htmlReport = true
+        sarifReport = true
+    }
 }
 
 kotlin {
     jvmToolchain(21)
 }
 
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    ignoreFailures = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    basePath = rootDir.absolutePath
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "21"
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        sarif.required.set(true)
+        md.required.set(false)
+    }
+}
+
 // Media3 ExoPlayer version
-val media3Version = "1.5.0"
+val media3Version = "1.9.2"
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("com.google.android.material:material:1.13.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // Media3 ExoPlayer for video playback
@@ -87,8 +114,8 @@ dependencies {
     javacppParser("org.bytedeco:javacpp:$javacppVersion")
 
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }
 
 // Directory for compiled config class

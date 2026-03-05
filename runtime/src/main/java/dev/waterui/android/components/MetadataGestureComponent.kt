@@ -3,8 +3,7 @@ package dev.waterui.android.components
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
-import android.view.View
-import android.widget.FrameLayout
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.GestureType
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -26,10 +25,12 @@ private val metadataGestureTypeId: WuiTypeId by lazy {
  * Supports tap, long press, drag, pinch (magnification), and rotation gestures.
  */
 private val metadataGestureRenderer = WuiRenderer { context, node, env, registry ->
-    val metadata = NativeBindings.waterui_metadata_gesture_id()
     val gestureData = NativeBindings.waterui_force_as_metadata_gesture(node.rawPtr)
 
-    val container = FrameLayout(context)
+    val container = PassThroughFrameLayout(context).apply {
+        consumesTouches = true
+        setTag(PassThroughFrameLayout.TAG_WANTS_TOUCHES, true)
+    }
     val envPtr = env.raw()
 
     // Inflate the content
@@ -64,6 +65,9 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
 
             container.setOnTouchListener { _, event ->
                 gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    container.performClick()
+                }
                 true
             }
         }
@@ -77,6 +81,9 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
 
             container.setOnTouchListener { _, event ->
                 gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    container.performClick()
+                }
                 true
             }
         }
@@ -97,6 +104,9 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
 
             container.setOnTouchListener { _, event ->
                 gestureDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    container.performClick()
+                }
                 true
             }
         }
@@ -110,6 +120,9 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
 
             container.setOnTouchListener { _, event ->
                 scaleDetector.onTouchEvent(event)
+                if (event.actionMasked == MotionEvent.ACTION_UP) {
+                    container.performClick()
+                }
                 true
             }
         }
@@ -122,6 +135,7 @@ private val metadataGestureRenderer = WuiRenderer { context, node, env, registry
                     when (event.actionMasked) {
                         MotionEvent.ACTION_POINTER_UP -> {
                             callAction()
+                            container.performClick()
                         }
                     }
                 }

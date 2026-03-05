@@ -138,7 +138,7 @@ private fun buildShader(gradient: ResolvedGradientStruct, width: Float, height: 
             shader
         }
 
-        else -> throw IllegalStateException("unsupported gradient type: ${gradient.gradientType}")
+        else -> error("unsupported gradient type: ${gradient.gradientType}")
     }
 }
 

@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.content.Context
+import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -35,17 +36,23 @@ private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_sur
 private val gpuSurfaceRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_gpu_surface(node.rawPtr)
 
-    GpuSurfaceView(context, struct, env.raw())
+    GpuSurfaceView(
+        context = context,
+        gpuSurfaceData = struct,
+        envPtr = env.raw()
+    )
 }
 
 /**
  * Custom SurfaceView that handles GPU surface lifecycle and frame rendering.
  */
-private class GpuSurfaceView(
+private class GpuSurfaceView @JvmOverloads constructor(
     context: Context,
-    private val gpuSurfaceData: GpuSurfaceStruct,
-    private val envPtr: Long
-) : SurfaceView(context), SurfaceHolder.Callback, Choreographer.FrameCallback {
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0,
+    private val gpuSurfaceData: GpuSurfaceStruct = GpuSurfaceStruct(rendererPtr = 0L),
+    private val envPtr: Long = 0L
+) : SurfaceView(context, attrs, defStyleAttr), SurfaceHolder.Callback, Choreographer.FrameCallback {
 
     /** Opaque pointer to WuiGpuSurfaceState (owns wgpu resources) */
     private var gpuState: Long = 0L
