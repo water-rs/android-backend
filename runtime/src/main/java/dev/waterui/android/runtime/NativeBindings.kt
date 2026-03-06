@@ -81,10 +81,16 @@ internal object NativeBindings {
 
     fun waterui_force_as_layout_container(viewPtr: Long): LayoutContainerStruct = WatcherJni.forceAsLayoutContainer(viewPtr)
     fun waterui_force_as_fixed_container(viewPtr: Long): FixedContainerStruct = WatcherJni.forceAsFixedContainer(viewPtr)
+    fun waterui_layout_measure(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): ViewDimensionsStruct =
+        WatcherJni.layoutMeasure(layoutPtr, proposal, subviews)
     fun waterui_layout_size_that_fits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct =
         WatcherJni.layoutSizeThatFits(layoutPtr, proposal, subviews)
     fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct> =
         WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
+    fun waterui_vertical_alignment_first_baseline_id(): TypeIdStruct =
+        WatcherJni.verticalAlignmentFirstBaselineId()
+    fun waterui_vertical_alignment_last_baseline_id(): TypeIdStruct =
+        WatcherJni.verticalAlignmentLastBaselineId()
     fun waterui_drop_layout(layoutPtr: Long) = WatcherJni.dropLayout(layoutPtr)
 
     // ========== AnyViews ==========
@@ -185,7 +191,7 @@ internal object NativeBindings {
     // ========== Force-as functions ==========
 
     fun waterui_force_as_plain(viewPtr: Long): PlainStruct = WatcherJni.forceAsPlain(viewPtr)
-    fun waterui_force_as_text(viewPtr: Long): TextStruct = TextStruct(WatcherJni.forceAsText(viewPtr))
+    fun waterui_force_as_text(viewPtr: Long): TextStruct = WatcherJni.forceAsText(viewPtr)
     fun waterui_force_as_button(viewPtr: Long): ButtonStruct = WatcherJni.forceAsButton(viewPtr)
     fun waterui_force_as_text_field(viewPtr: Long): TextFieldStruct = WatcherJni.forceAsTextField(viewPtr)
     fun waterui_force_as_toggle(viewPtr: Long): ToggleStruct = WatcherJni.forceAsToggle(viewPtr)

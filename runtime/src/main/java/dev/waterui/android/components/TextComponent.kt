@@ -1,5 +1,7 @@
 package dev.waterui.android.components
 
+import android.view.Gravity
+import android.view.View
 import android.util.TypedValue
 import android.widget.TextView
 import dev.waterui.android.reactive.WuiComputed
@@ -21,6 +23,7 @@ private val textTypeId: WuiTypeId by lazy {
 private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
     val computed = WuiComputed.styledString(struct.contentPtr, env)
+    val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr, env)
     val textView = TextView(context)
     val foreground = ThemeBridge.foreground(env)
     foreground.observe { color ->
@@ -33,6 +36,23 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
         textView.typeface = font.toTypeface()
     }
     bodyFont.attachTo(textView)
+    paragraphAlignment.observe { alignment ->
+        when (alignment) {
+            0 -> {
+                textView.textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                textView.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            }
+            2 -> {
+                textView.textAlignment = View.TEXT_ALIGNMENT_VIEW_END
+                textView.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            }
+            else -> {
+                textView.textAlignment = View.TEXT_ALIGNMENT_CENTER
+                textView.gravity = Gravity.CENTER_HORIZONTAL or Gravity.CENTER_VERTICAL
+            }
+        }
+    }
+    paragraphAlignment.attachTo(textView)
     computed.observeWithAnimation { styled, animation ->
         val resolved = styled.toCharSequence(env)
         textView.applyRustAnimation(animation) {
@@ -42,6 +62,7 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
         textView.requestLayout()
     }
     textView.disposeWith(computed)
+    textView.disposeWith(paragraphAlignment)
     textView
 }
 

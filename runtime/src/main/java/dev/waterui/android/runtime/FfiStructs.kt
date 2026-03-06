@@ -1,5 +1,9 @@
 package dev.waterui.android.runtime
 
+import android.view.View
+import android.widget.TextView
+import dev.waterui.android.layout.RustLayoutViewGroup
+
 /**
  * Data classes that mirror native FFI structs.
  *
@@ -50,6 +54,22 @@ data class SizeStruct(val width: Float, val height: Float)
 
 data class RectStruct(var x: Float, var y: Float, var width: Float, var height: Float)
 
+data class HorizontalGuideStruct(
+    val alignment: TypeIdStruct,
+    val value: Float
+)
+
+data class VerticalGuideStruct(
+    val alignment: TypeIdStruct,
+    val value: Float
+)
+
+data class ViewDimensionsStruct(
+    val size: SizeStruct,
+    val horizontalGuides: Array<HorizontalGuideStruct>,
+    val verticalGuides: Array<VerticalGuideStruct>
+)
+
 /** @deprecated Use StretchAxis enum instead of boolean stretch */
 @Deprecated("Use StretchAxis enum with SubViewStruct instead", ReplaceWith("SubViewStruct"))
 data class ChildMetadataStruct(val proposal: ProposalStruct, val priority: Int, val stretch: Boolean) {
@@ -81,13 +101,54 @@ data class SubViewStruct(
      * @return Size in dp for Rust layout engine
      */
     @Suppress("unused") // Called from native code
-    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): SizeStruct {
-        // Convert dp proposal to pixel MeasureSpec
+    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
+        val proposal = ProposalStruct(proposalWidth, proposalHeight)
+        if (view is RustLayoutViewGroup) {
+            return view.measureForLayout(proposal)
+        }
+
         val widthSpec = proposalToMeasureSpec(proposalWidth * density)
         val heightSpec = proposalToMeasureSpec(proposalHeight * density)
         view.measure(widthSpec, heightSpec)
-        // Convert pixel result back to dp for Rust
-        return SizeStruct(view.measuredWidth.toFloat() / density, view.measuredHeight.toFloat() / density)
+
+        val size = SizeStruct(
+            view.measuredWidth.toFloat() / density,
+            view.measuredHeight.toFloat() / density
+        )
+        val horizontalGuides = emptyArray<HorizontalGuideStruct>()
+        val verticalGuides = if (view is TextView) {
+            textBaselines(view)
+        } else {
+            emptyArray()
+        }
+        return ViewDimensionsStruct(size, horizontalGuides, verticalGuides)
+    }
+
+    private fun textBaselines(textView: TextView): Array<VerticalGuideStruct> {
+        val firstBaseline = if (textView.layout != null && textView.layout.lineCount > 0) {
+            textView.layout.getLineBaseline(0)
+        } else {
+            textView.baseline
+        }
+        val lastBaseline = if (textView.layout != null && textView.layout.lineCount > 0) {
+            textView.layout.getLineBaseline(textView.layout.lineCount - 1)
+        } else {
+            textView.baseline
+        }
+        val guides = mutableListOf<VerticalGuideStruct>()
+        if (firstBaseline >= 0) {
+            guides += VerticalGuideStruct(
+                NativeBindings.waterui_vertical_alignment_first_baseline_id(),
+                firstBaseline.toFloat() / density
+            )
+        }
+        if (lastBaseline >= 0) {
+            guides += VerticalGuideStruct(
+                NativeBindings.waterui_vertical_alignment_last_baseline_id(),
+                lastBaseline.toFloat() / density
+            )
+        }
+        return guides.toTypedArray()
     }
 
     private fun proposalToMeasureSpec(proposalPx: Float): Int {
@@ -166,7 +227,10 @@ data class WatcherStruct(val dataPtr: Long, val callPtr: Long, val dropPtr: Long
 
 data class ButtonStruct(val labelPtr: Long, val actionPtr: Long, val style: Int)
 
-data class TextStruct(val contentPtr: Long)
+data class TextStruct(
+    val contentPtr: Long,
+    val paragraphAlignmentPtr: Long
+)
 
 data class PlainStruct(val textBytes: ByteArray) {
     override fun equals(other: Any?): Boolean {

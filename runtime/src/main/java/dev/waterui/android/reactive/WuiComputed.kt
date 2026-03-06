@@ -164,6 +164,16 @@ class WuiComputed<T>(
                 env = env
             )
 
+        fun horizontalAlignment(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedHorizontalAlignment(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.int(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedHorizontalAlignment(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedHorizontalAlignment(p) },
+                env = env
+            )
+
         fun colorFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
             WuiComputed(
                 computedPtr = ptr,

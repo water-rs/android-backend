@@ -9,8 +9,10 @@ import android.widget.Space
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
+import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
+import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiTypeId
 import kotlin.math.roundToInt
 
@@ -85,6 +87,15 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     override fun onViewRemoved(child: View) {
         super.onViewRemoved(child)
         cachedSubviews = emptyArray()
+    }
+
+    internal fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+        require(layoutPtr != 0L) { "measureForLayout called with null layout pointer" }
+        if (childCount == 0) {
+            return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
+        }
+        val subviews = resolveSubviews()
+        return NativeBindings.waterui_layout_measure(layoutPtr, proposal, subviews)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {

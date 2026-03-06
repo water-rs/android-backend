@@ -30,7 +30,7 @@ object WatcherJni {
     // ========== Force-As Functions ==========
 
     @JvmStatic external fun forceAsPlain(viewPtr: Long): PlainStruct
-    @JvmStatic external fun forceAsText(viewPtr: Long): Long
+    @JvmStatic external fun forceAsText(viewPtr: Long): dev.waterui.android.runtime.TextStruct
     @JvmStatic external fun forceAsButton(viewPtr: Long): ButtonStruct
     @JvmStatic external fun forceAsTextField(viewPtr: Long): TextFieldStruct
     @JvmStatic external fun forceAsToggle(viewPtr: Long): ToggleStruct
@@ -150,6 +150,9 @@ object WatcherJni {
     @JvmStatic external fun watchComputedResolvedFont(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedPickerItems(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedColorScheme(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun readComputedHorizontalAlignment(computedPtr: Long): Int
+    @JvmStatic external fun watchComputedHorizontalAlignment(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun dropComputedHorizontalAlignment(computedPtr: Long)
     @JvmStatic external fun readComputedStr(computedPtr: Long): String
     @JvmStatic external fun watchComputedStr(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun dropComputedStr(computedPtr: Long)
@@ -182,8 +185,11 @@ object WatcherJni {
 
     // ========== Layout Functions ==========
 
+    @JvmStatic external fun layoutMeasure(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): ViewDimensionsStruct
     @JvmStatic external fun layoutSizeThatFits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct
     @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct>
+    @JvmStatic external fun verticalAlignmentFirstBaselineId(): TypeIdStruct
+    @JvmStatic external fun verticalAlignmentLastBaselineId(): TypeIdStruct
 
     // ========== Type ID Functions ==========
 
