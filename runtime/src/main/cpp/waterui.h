@@ -104,13 +104,6 @@ typedef enum WuiMaterial {
   WuiMaterial_UltraThick = 4,
 } WuiMaterial;
 
-typedef enum WuiGradientType {
-  WuiGradientType_Linear = 0,
-  WuiGradientType_Radial = 1,
-  WuiGradientType_Angular = 2,
-  WuiGradientType_Mesh = 3,
-} WuiGradientType;
-
 typedef enum WuiAxis {
   WuiAxis_Horizontal,
   WuiAxis_Vertical,
@@ -222,6 +215,8 @@ typedef enum WuiVideoEventType {
   WuiVideoEventType_Error = 2,
   WuiVideoEventType_Buffering = 3,
   WuiVideoEventType_BufferingEnded = 4,
+  WuiVideoEventType_BufferLevel = 5,
+  WuiVideoEventType_PlaybackMetrics = 6,
 } WuiVideoEventType;
 
 typedef enum WuiProgressStyle {
@@ -357,6 +352,13 @@ typedef enum WuiDragDataTag {
    */
   WuiDragDataTag_Url = 1,
 } WuiDragDataTag;
+
+typedef enum WuiGradientType {
+  WuiGradientType_Linear = 0,
+  WuiGradientType_Radial = 1,
+  WuiGradientType_Angular = 2,
+  WuiGradientType_Mesh = 3,
+} WuiGradientType;
 
 /**
  * Locale enum for common locales (for convenience).
@@ -1470,134 +1472,8 @@ typedef struct WuiMetadata_WuiOffset {
 typedef struct WuiMetadata_WuiOffset WuiMetadataOffset;
 
 /**
- * FFI-safe representation of a blur filter.
- * All values are reactive (Computed) and can be animated.
- */
-typedef struct WuiBlur {
-  /**
-   * Blur radius in points (0 = no blur).
-   */
-  WuiComputed_f32 *radius;
-} WuiBlur;
-
-typedef struct WuiMetadata_WuiBlur {
-  struct WuiAnyView *content;
-  struct WuiBlur value;
-} WuiMetadata_WuiBlur;
-
-/**
- * Type alias for Metadata<Blur> FFI struct
- */
-typedef struct WuiMetadata_WuiBlur WuiMetadataBlur;
-
-/**
- * FFI-safe representation of a brightness filter.
- * All values are reactive (Computed) and can be animated.
- */
-typedef struct WuiBrightness {
-  /**
-   * Brightness adjustment (0 = normal, negative = darker, positive = brighter).
-   */
-  WuiComputed_f32 *amount;
-} WuiBrightness;
-
-typedef struct WuiMetadata_WuiBrightness {
-  struct WuiAnyView *content;
-  struct WuiBrightness value;
-} WuiMetadata_WuiBrightness;
-
-/**
- * Type alias for Metadata<Brightness> FFI struct
- */
-typedef struct WuiMetadata_WuiBrightness WuiMetadataBrightness;
-
-/**
- * FFI-safe representation of a saturation filter.
- * All values are reactive (Computed) and can be animated.
- */
-typedef struct WuiSaturation {
-  /**
-   * Saturation amount (0 = grayscale, 1 = normal, >1 = oversaturated).
-   */
-  WuiComputed_f32 *amount;
-} WuiSaturation;
-
-typedef struct WuiMetadata_WuiSaturation {
-  struct WuiAnyView *content;
-  struct WuiSaturation value;
-} WuiMetadata_WuiSaturation;
-
-/**
- * Type alias for Metadata<Saturation> FFI struct
- */
-typedef struct WuiMetadata_WuiSaturation WuiMetadataSaturation;
-
-/**
- * FFI-safe representation of a contrast filter.
- * All values are reactive (Computed) and can be animated.
- */
-typedef struct WuiContrast {
-  /**
-   * Contrast amount (1 = normal, <1 = less contrast, >1 = more contrast).
-   */
-  WuiComputed_f32 *amount;
-} WuiContrast;
-
-typedef struct WuiMetadata_WuiContrast {
-  struct WuiAnyView *content;
-  struct WuiContrast value;
-} WuiMetadata_WuiContrast;
-
-/**
- * Type alias for Metadata<Contrast> FFI struct
- */
-typedef struct WuiMetadata_WuiContrast WuiMetadataContrast;
-
-/**
- * FFI-safe representation of a hue rotation filter.
- * All values are reactive (Computed) and can be animated.
- */
-typedef struct WuiHueRotation {
-  /**
-   * Hue rotation angle in degrees (0-360).
-   */
-  WuiComputed_f32 *angle;
-} WuiHueRotation;
-
-typedef struct WuiMetadata_WuiHueRotation {
-  struct WuiAnyView *content;
-  struct WuiHueRotation value;
-} WuiMetadata_WuiHueRotation;
-
-/**
- * Type alias for Metadata<HueRotation> FFI struct
- */
-typedef struct WuiMetadata_WuiHueRotation WuiMetadataHueRotation;
-
-/**
- * FFI-safe representation of a grayscale filter.
- * All values are reactive (Computed) and can be animated.
- */
-typedef struct WuiGrayscale {
-  /**
-   * Grayscale intensity (0 = full color, 1 = full grayscale).
-   */
-  WuiComputed_f32 *intensity;
-} WuiGrayscale;
-
-typedef struct WuiMetadata_WuiGrayscale {
-  struct WuiAnyView *content;
-  struct WuiGrayscale value;
-} WuiMetadata_WuiGrayscale;
-
-/**
- * Type alias for Metadata<Grayscale> FFI struct
- */
-typedef struct WuiMetadata_WuiGrayscale WuiMetadataGrayscale;
-
-/**
- * FFI-safe representation of an opacity filter.
- * All values are reactive (Computed) and can be animated.
+ * FFI-safe representation of compositor opacity metadata.
+ * All values are reactive (`Computed`) and can be animated.
  */
 typedef struct WuiOpacity {
   /**
@@ -2036,44 +1912,6 @@ typedef struct Computed_ResolvedColor WuiComputed_ResolvedColor;
 typedef struct Binding_Color WuiBinding_Color;
 
 typedef struct Computed_Color WuiComputed_Color;
-
-typedef struct WuiResolvedGradientStop {
-  float position;
-  struct WuiResolvedColor color;
-} WuiResolvedGradientStop;
-
-typedef struct WuiArraySlice_WuiResolvedGradientStop {
-  struct WuiResolvedGradientStop *head;
-  uintptr_t len;
-} WuiArraySlice_WuiResolvedGradientStop;
-
-typedef struct WuiArrayVTable_WuiResolvedGradientStop {
-  void (*drop)(void*);
-  struct WuiArraySlice_WuiResolvedGradientStop (*slice)(const void*);
-} WuiArrayVTable_WuiResolvedGradientStop;
-
-/**
- * A generic array structure for FFI, representing a contiguous sequence of elements.
- * `WuiArray` can represent multiple types of arrays, for instance, a `&[T]` (in this case, the lifetime of WuiArray is bound to the caller's scope),
- * or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`, `Bytes`, or even a foreign allocated array.
- * For a value type, `WuiArray` contains a destructor function pointer to free the array buffer, whatever it is allocated by Rust side or foreign side.
- * We assume `T` does not contain any non-trivial drop logic, and `WuiArray` will not call `drop` on each element when it is dropped.
- */
-typedef struct WuiArray_WuiResolvedGradientStop {
-  NonNull data;
-  struct WuiArrayVTable_WuiResolvedGradientStop vtable;
-} WuiArray_WuiResolvedGradientStop;
-
-typedef struct WuiResolvedGradient {
-  enum WuiGradientType gradient_type;
-  struct WuiArray_WuiResolvedGradientStop stops;
-  float start_x;
-  float start_y;
-  float end_x;
-  float end_y;
-  float start_value;
-  float end_value;
-} WuiResolvedGradient;
 
 typedef struct WuiArraySlice_u8 {
   uint8_t *head;
@@ -2574,6 +2412,9 @@ typedef struct Binding_Volume WuiBinding_Volume;
 typedef struct WuiVideoEvent {
   enum WuiVideoEventType event_type;
   struct WuiStr error_message;
+  uint32_t buffered_ms;
+  float av_drift_ms;
+  uint64_t dropped_video_frames;
 } WuiVideoEvent;
 
 /**
@@ -3271,11 +3112,6 @@ typedef struct WuiAppliedFilter {
 } WuiAppliedFilter;
 
 /**
- * Callback type for async completion notifications.
- */
-typedef void (*WuiCallback)(void *user_data);
-
-/**
  * Result of a filter render operation.
  */
 typedef struct WuiAppliedFilterRenderResult {
@@ -3289,6 +3125,34 @@ typedef struct WuiAppliedFilterRenderResult {
    */
   bool needs_redraw;
 } WuiAppliedFilterRenderResult;
+
+/**
+ * Resolved output size returned to native before render scheduling.
+ */
+typedef struct WuiAppliedFilterOutputSize {
+  /**
+   * Output width in pixels.
+   */
+  uint32_t width;
+  /**
+   * Output height in pixels.
+   */
+  uint32_t height;
+} WuiAppliedFilterOutputSize;
+
+/**
+ * FFI representation of `FilteredView<Blur>`.
+ */
+typedef struct WuiFilteredBlur {
+  /**
+   * Child content pointer consumed by native backend.
+   */
+  struct WuiAnyView *content;
+  /**
+   * Reactive blur radius pointer.
+   */
+  WuiComputed_f32 *radius;
+} WuiFilteredBlur;
 
 /**
  * Callback for returning rendered RGBA data to Rust.
@@ -3339,6 +3203,44 @@ typedef struct WuiDragData {
    */
   struct WuiStr value;
 } WuiDragData;
+
+typedef struct WuiResolvedGradientStop {
+  float position;
+  struct WuiResolvedColor color;
+} WuiResolvedGradientStop;
+
+typedef struct WuiArraySlice_WuiResolvedGradientStop {
+  struct WuiResolvedGradientStop *head;
+  uintptr_t len;
+} WuiArraySlice_WuiResolvedGradientStop;
+
+typedef struct WuiArrayVTable_WuiResolvedGradientStop {
+  void (*drop)(void*);
+  struct WuiArraySlice_WuiResolvedGradientStop (*slice)(const void*);
+} WuiArrayVTable_WuiResolvedGradientStop;
+
+/**
+ * A generic array structure for FFI, representing a contiguous sequence of elements.
+ * `WuiArray` can represent multiple types of arrays, for instance, a `&[T]` (in this case, the lifetime of WuiArray is bound to the caller's scope),
+ * or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`, `Bytes`, or even a foreign allocated array.
+ * For a value type, `WuiArray` contains a destructor function pointer to free the array buffer, whatever it is allocated by Rust side or foreign side.
+ * We assume `T` does not contain any non-trivial drop logic, and `WuiArray` will not call `drop` on each element when it is dropped.
+ */
+typedef struct WuiArray_WuiResolvedGradientStop {
+  NonNull data;
+  struct WuiArrayVTable_WuiResolvedGradientStop vtable;
+} WuiArray_WuiResolvedGradientStop;
+
+typedef struct WuiResolvedGradient {
+  enum WuiGradientType gradient_type;
+  struct WuiArray_WuiResolvedGradientStop stops;
+  float start_x;
+  float start_y;
+  float end_x;
+  float end_y;
+  float start_value;
+  float end_value;
+} WuiResolvedGradient;
 
 typedef struct WuiId {
   /**
@@ -3391,8 +3293,6 @@ typedef struct WuiLivePhotoSource {
   struct WuiStr video;
 } WuiLivePhotoSource;
 
-typedef struct Computed_ColorScheme WuiComputed_ColorScheme;
-
 typedef struct WuiShapeKind {
   int32_t tag;
   float top_left;
@@ -3406,6 +3306,8 @@ typedef struct WuiResolvedShape {
   struct WuiArray_WuiPathCommand commands;
   struct WuiResolvedColor fill;
 } WuiResolvedShape;
+
+typedef struct Computed_ColorScheme WuiComputed_ColorScheme;
 
 typedef struct WuiArraySlice_WuiId {
   struct WuiId *head;
@@ -3603,6 +3505,12 @@ typedef struct WuiApp {
 
 
 
+
+/**
+ * Type ID for `FilteredView<Blur>`, used by native backends to intercept
+ * before `body` expansion.
+ */
+struct WuiTypeId waterui_filtered_blur_id(void);
 
 /**
  * # Safety
@@ -3868,96 +3776,6 @@ struct WuiTypeId waterui_metadata_offset_id(void);
  * that contains a `Metadata<$ty>`.
  */
 WuiMetadataOffset waterui_force_as_metadata_offset(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Returns the view's TypeId (guaranteed unique within a single binary).
- */
-struct WuiTypeId waterui_metadata_blur_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataBlur waterui_force_as_metadata_blur(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Returns the view's TypeId (guaranteed unique within a single binary).
- */
-struct WuiTypeId waterui_metadata_brightness_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataBrightness waterui_force_as_metadata_brightness(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Returns the view's TypeId (guaranteed unique within a single binary).
- */
-struct WuiTypeId waterui_metadata_saturation_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataSaturation waterui_force_as_metadata_saturation(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Returns the view's TypeId (guaranteed unique within a single binary).
- */
-struct WuiTypeId waterui_metadata_contrast_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataContrast waterui_force_as_metadata_contrast(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Returns the view's TypeId (guaranteed unique within a single binary).
- */
-struct WuiTypeId waterui_metadata_hue_rotation_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataHueRotation waterui_force_as_metadata_hue_rotation(struct WuiAnyView *view);
-
-/**
- * Returns the type ID as a 128-bit value for O(1) comparison.
- * Returns the view's TypeId (guaranteed unique within a single binary).
- */
-struct WuiTypeId waterui_metadata_grayscale_id(void);
-
-/**
- * Force-casts an AnyView to this metadata type
- *
- * # Safety
- * The caller must ensure that `view` is a valid pointer to an `AnyView`
- * that contains a `Metadata<$ty>`.
- */
-WuiMetadataGrayscale waterui_force_as_metadata_grayscale(struct WuiAnyView *view);
 
 /**
  * Returns the type ID as a 128-bit value for O(1) comparison.
@@ -4408,10 +4226,6 @@ struct WuiColor *waterui_color_from_srgba(float red, float green, float blue, fl
  */
 WuiComputed_ResolvedColor *waterui_resolve_color(const struct WuiColor *color,
                                                  const struct WuiEnv *env);
-
-struct WuiResolvedGradient waterui_force_as_resolved_gradient(struct WuiAnyView *view);
-
-struct WuiTypeId waterui_resolved_gradient_id(void);
 
 struct WuiStr waterui_force_as_plain(struct WuiAnyView *view);
 
@@ -5440,26 +5254,18 @@ struct WuiAppliedFilterState *waterui_applied_filter_init(struct WuiAppliedFilte
                                                           uint32_t input_height);
 
 /**
- * Setup the filter synchronously, call callback when ready.
- *
- * This function runs setup on the synchronous FFI path and calls the callback
- * when setup completes.
+ * Await filter setup to completion on the synchronous FFI path.
  *
  * # Arguments
  *
  * * `state` - Pointer to initialized state from `waterui_applied_filter_init`
- * * `callback` - Function to call when setup is complete
- * * `user_data` - Opaque pointer passed to callback
+ * Returns `true` when setup completes successfully.
  *
  * # Safety
  *
  * - `state` must be a valid pointer from `waterui_applied_filter_init`
- * - `callback` must be a valid function pointer
- * - `user_data` must remain valid until callback is invoked
  */
-void waterui_applied_filter_setup(struct WuiAppliedFilterState *state,
-                                  WuiCallback callback,
-                                  void *user_data);
+bool waterui_applied_filter_setup(struct WuiAppliedFilterState *state);
 
 /**
  * Render the filter.
@@ -5482,7 +5288,7 @@ void waterui_applied_filter_setup(struct WuiAppliedFilterState *state,
  * # Safety
  *
  * - `state` must be a valid pointer from `waterui_applied_filter_init`
- * - `waterui_applied_filter_setup` must have completed (callback was called)
+ * - `waterui_applied_filter_setup` must have returned `true`
  */
 struct WuiAppliedFilterRenderResult waterui_applied_filter_render(struct WuiAppliedFilterState *state,
                                                                   uint32_t width,
@@ -5500,6 +5306,19 @@ struct WuiAppliedFilterRenderResult waterui_applied_filter_render(struct WuiAppl
  * - Caller must ensure no concurrent `waterui_applied_filter_render` is running
  */
 bool waterui_applied_filter_sync_targets(struct WuiAppliedFilterState *state);
+
+/**
+ * Resolve the current output size from snapped filter state.
+ *
+ * Call this after `waterui_applied_filter_sync_targets` and before scheduling render work.
+ *
+ * # Safety
+ *
+ * - `state` must be a valid pointer from `waterui_applied_filter_init`
+ */
+struct WuiAppliedFilterOutputSize waterui_applied_filter_resolve_output_size(struct WuiAppliedFilterState *state,
+                                                                             uint32_t input_width,
+                                                                             uint32_t input_height);
 
 /**
  * Poll whether the filter requires a new frame.
@@ -5602,6 +5421,26 @@ void *waterui_applied_filter_get_capture_metal_texture(struct WuiAppliedFilterSt
  * and must not be used after this call.
  */
 void waterui_applied_filter_drop(struct WuiAppliedFilterState *state);
+
+/**
+ * Force-casts `AnyView` to `FilteredView<Blur>`.
+ *
+ * # Safety
+ * Caller must guarantee `view` points to a `FilteredView<Blur>`.
+ */
+struct WuiFilteredBlur waterui_force_as_filtered_blur(struct WuiAnyView *view);
+
+/**
+ * Expands filtered blur into the generic fallback `Metadata<AppliedFilter>` node.
+ *
+ * This consumes `content` and `radius`, rebuilding the fallback subtree exactly
+ * as `FilteredView<Blur>::body()`.
+ *
+ * # Safety
+ * `content` must be a valid `WuiAnyView*`, `radius` must be a valid `WuiComputed<f32>*`.
+ */
+struct WuiAnyView *waterui_filtered_blur_expand(struct WuiAnyView *content,
+                                                WuiComputed_f32 *radius);
 
 /**
  * Installs a `ViewRenderer` into the environment from a native function pointer.
@@ -5771,6 +5610,10 @@ void waterui_drop_on_event(struct WuiOnEventHandler *handler);
  * The gesture pointer must be valid and properly initialized.
  */
 void waterui_drop_gesture(struct WuiGesture *gesture);
+
+struct WuiResolvedGradient waterui_force_as_resolved_gradient(struct WuiAnyView *view);
+
+struct WuiTypeId waterui_resolved_gradient_id(void);
 
 /**
  * Reads the current value from a binding
@@ -6661,6 +6504,10 @@ struct WuiWatcher_Secure *waterui_new_watcher_secure(void *data,
                                                                   struct WuiWatcherMetadata*),
                                                      void (*drop)(void*));
 
+struct WuiResolvedShape waterui_force_as_resolved_shape(struct WuiAnyView *view);
+
+struct WuiTypeId waterui_resolved_shape_id(void);
+
 /**
  * Reads the current value from a computed
  * # Safety
@@ -6825,10 +6672,6 @@ void waterui_call_watcher_resolved_font(const struct WuiWatcher_ResolvedFont *wa
  * The watcher pointer must be valid.
  */
 void waterui_drop_watcher_resolved_font(struct WuiWatcher_ResolvedFont *watcher);
-
-struct WuiResolvedShape waterui_force_as_resolved_shape(struct WuiAnyView *view);
-
-struct WuiTypeId waterui_resolved_shape_id(void);
 
 /**
  * # Safety
