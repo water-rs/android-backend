@@ -46,7 +46,9 @@ internal object NativeBindings {
     fun waterui_toggle_id(): TypeIdStruct = WatcherJni.toggleId()
     fun waterui_slider_id(): TypeIdStruct = WatcherJni.sliderId()
     fun waterui_fixed_container_id(): TypeIdStruct = WatcherJni.fixedContainerId()
+    fun waterui_color_picker_id(): TypeIdStruct = WatcherJni.colorPickerId()
     fun waterui_picker_id(): TypeIdStruct = WatcherJni.pickerId()
+    fun waterui_date_picker_id(): TypeIdStruct = WatcherJni.datePickerId()
     fun waterui_secure_field_id(): TypeIdStruct = WatcherJni.secureFieldId()
     fun waterui_layout_container_id(): TypeIdStruct = WatcherJni.layoutContainerId()
     fun waterui_metadata_env_id(): TypeIdStruct = WatcherJni.metadataEnvId()
@@ -87,10 +89,6 @@ internal object NativeBindings {
         WatcherJni.layoutSizeThatFits(layoutPtr, proposal, subviews)
     fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct> =
         WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
-    fun waterui_vertical_alignment_first_baseline_id(): TypeIdStruct =
-        WatcherJni.verticalAlignmentFirstBaselineId()
-    fun waterui_vertical_alignment_last_baseline_id(): TypeIdStruct =
-        WatcherJni.verticalAlignmentLastBaselineId()
     fun waterui_drop_layout(layoutPtr: Long) = WatcherJni.dropLayout(layoutPtr)
 
     // ========== AnyViews ==========
@@ -159,6 +157,15 @@ internal object NativeBindings {
 
     // ========== Color resolution ==========
 
+    fun waterui_color_from_srgba(red: Float, green: Float, blue: Float, alpha: Float): Long =
+        WatcherJni.colorFromSrgba(red, green, blue, alpha)
+    fun waterui_color_from_linear_rgba_headroom(
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float,
+        headroom: Float
+    ): Long = WatcherJni.colorFromLinearRgbaHeadroom(red, green, blue, alpha, headroom)
     fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long = WatcherJni.resolveColor(colorPtr, envPtr)
     fun waterui_drop_color(colorPtr: Long) = WatcherJni.dropColor(colorPtr)
     fun waterui_read_computed_resolved_color(computedPtr: Long): ResolvedColorStruct = WatcherJni.readComputedResolvedColor(computedPtr)
@@ -199,7 +206,9 @@ internal object NativeBindings {
     fun waterui_force_as_stepper(viewPtr: Long): StepperStruct = WatcherJni.forceAsStepper(viewPtr)
     fun waterui_force_as_progress(viewPtr: Long): ProgressStruct = WatcherJni.forceAsProgress(viewPtr)
     fun waterui_force_as_scroll(viewPtr: Long): ScrollStruct = WatcherJni.forceAsScrollView(viewPtr)
+    fun waterui_force_as_color_picker(viewPtr: Long): ColorPickerStruct = WatcherJni.forceAsColorPicker(viewPtr)
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)
+    fun waterui_force_as_date_picker(viewPtr: Long): DatePickerStruct = WatcherJni.forceAsDatePicker(viewPtr)
     fun waterui_force_as_secure_field(viewPtr: Long): SecureFieldStruct = WatcherJni.forceAsSecureField(viewPtr)
     fun waterui_force_as_resolved_color(viewPtr: Long): ResolvedColorStruct = WatcherJni.forceAsResolvedColor(viewPtr)
     fun waterui_force_as_resolved_gradient(viewPtr: Long): ResolvedGradientStruct = WatcherJni.forceAsResolvedGradient(viewPtr)

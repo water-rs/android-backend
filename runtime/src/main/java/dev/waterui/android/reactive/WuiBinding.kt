@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
+import dev.waterui.android.runtime.DateTimeStruct
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.ResolvedFontStruct
@@ -167,6 +168,38 @@ class WuiBinding<T>(
                 dropper = { ptr -> WatcherJni.dropBindingFloat(ptr) },
                 env = env
             )
+
+        fun color(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Long> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingColor(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingColor(ptr, value) },
+                watcherFactory = { _, callback -> WatcherStructFactory.color(callback) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingColor(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingColor(ptr) },
+                env = env
+            )
+
+        fun dateTime(bindingPtr: Long, env: WuiEnvironment): WuiBinding<DateTimeStruct> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingDateTime(ptr) },
+                writer = { ptr, value ->
+                    WatcherJni.setBindingDateTime(
+                        ptr,
+                        value.year,
+                        value.month,
+                        value.day,
+                        value.hour,
+                        value.minute,
+                        value.second
+                    )
+                },
+                watcherFactory = { _, callback -> WatcherStructFactory.dateTime(callback) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDateTime(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingDateTime(ptr) },
+                env = env
+            )
     }
 }
 
@@ -216,5 +249,13 @@ object WatcherStructFactory {
 
     fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
         return WatcherJni.createPickerItemsWatcher(callback)
+    }
+
+    fun color(callback: WatcherCallback<Long>): WatcherStruct {
+        return WatcherJni.createColorWatcher(callback)
+    }
+
+    fun dateTime(callback: WatcherCallback<DateTimeStruct>): WatcherStruct {
+        return WatcherJni.createDateTimeWatcher(callback)
     }
 }
