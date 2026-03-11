@@ -11,11 +11,12 @@ import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
+import dev.waterui.android.runtime.WuiTextInputFocusTarget
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
-import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.installWuiFocusTarget
 import dev.waterui.android.runtime.toColorInt
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -43,6 +44,7 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
     }
+    editText.installWuiFocusTarget(WuiTextInputFocusTarget(editText))
     container.addView(editText)
 
     val density = context.resources.displayMetrics.density
