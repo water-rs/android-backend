@@ -1,5 +1,6 @@
 package dev.waterui.android.ffi
 
+import android.content.Context
 import dev.waterui.android.reactive.WatcherCallback
 import dev.waterui.android.runtime.*
 
@@ -26,6 +27,7 @@ object WatcherJni {
     @JvmStatic external fun dropAnyview(viewPtr: Long)
     @JvmStatic external fun configureHotReloadEndpoint(host: String, port: Int)
     @JvmStatic external fun configureHotReloadDirectory(path: String)
+    @JvmStatic external fun notifyVideoPictureInPictureUserLeaveHint(context: Context)
 
     // ========== Force-As Functions ==========
 

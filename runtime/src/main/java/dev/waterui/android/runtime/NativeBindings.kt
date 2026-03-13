@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import android.content.Context
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.reactive.WatcherCallback
 
@@ -27,6 +28,8 @@ internal object NativeBindings {
     fun waterui_view_stretch_axis(anyViewPtr: Long): Int = WatcherJni.viewStretchAxis(anyViewPtr)
     fun waterui_configure_hot_reload_endpoint(host: String, port: Int) = WatcherJni.configureHotReloadEndpoint(host, port)
     fun waterui_configure_hot_reload_directory(path: String) = WatcherJni.configureHotReloadDirectory(path)
+    fun notifyVideoPictureInPictureUserLeaveHint(context: Context) =
+        WatcherJni.notifyVideoPictureInPictureUserLeaveHint(context)
 
     // ========== Type Identifiers ==========
 
@@ -304,6 +307,10 @@ internal object NativeBindings {
     fun waterui_create_reactive_font_state(size: Float, weight: Int): Long = WatcherJni.createReactiveFontState(size, weight)
     fun waterui_reactive_font_state_to_computed(statePtr: Long): Long = WatcherJni.reactiveFontStateToComputed(statePtr)
     fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int) = WatcherJni.reactiveFontStateSet(statePtr, size, weight)
+}
+
+fun notifyVideoPictureInPictureUserLeaveHint(context: Context) {
+    NativeBindings.notifyVideoPictureInPictureUserLeaveHint(context)
 }
 
 fun bootstrapWaterUiRuntime() {
