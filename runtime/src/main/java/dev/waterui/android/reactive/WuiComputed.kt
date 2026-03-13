@@ -89,6 +89,16 @@ class WuiComputed<T>(
     }
 
     companion object {
+        fun bool(ptr: Long, env: WuiEnvironment): WuiComputed<Boolean> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedBool(p) },
+                watcherFactory = { _, callback -> WatcherStructFactory.bool(callback) },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedBool(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedBool(p) },
+                env = env
+            )
+
         fun double(ptr: Long, env: WuiEnvironment): WuiComputed<Double> =
             WuiComputed(
                 computedPtr = ptr,

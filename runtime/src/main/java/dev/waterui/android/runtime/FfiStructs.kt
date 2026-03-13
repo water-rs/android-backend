@@ -615,7 +615,18 @@ enum class TabPosition(val value: Int) {
  * NavigationStack component data.
  * Contains the root view of the navigation stack.
  */
-data class NavigationStackStruct(val rootPtr: Long)
+data class NavigationStackStruct(
+    val rootPtr: Long,
+    val transition: Int
+)
+
+/**
+ * Search configuration rendered inside navigation chrome.
+ */
+data class NavigationSearchStruct(
+    val textPtr: Long,
+    val prompt: PlainStruct
+)
 
 /**
  * Navigation bar configuration.
@@ -624,9 +635,13 @@ data class NavigationStackStruct(val rootPtr: Long)
  * - hiddenPtr: Computed<bool> pointer for bar visibility
  */
 data class BarStruct(
-    val titleContentPtr: Long,
+    val titlePtr: Long,
+    val leadingPtr: Long,
+    val trailingPtr: Long,
+    val search: NavigationSearchStruct?,
     val colorPtr: Long,
-    val hiddenPtr: Long
+    val hiddenPtr: Long,
+    val displayMode: Int
 )
 
 /**
@@ -636,6 +651,19 @@ data class BarStruct(
 data class NavigationViewStruct(
     val bar: BarStruct,
     val contentPtr: Long
+)
+
+/**
+ * Split navigation shell rendered by platform backends.
+ */
+data class SplitNavigationContainerStruct(
+    val sidebarPtr: Long,
+    val placeholderPtr: Long,
+    val detailBar: BarStruct,
+    val detailContentPtr: Long,
+    val hasDetail: Boolean,
+    val sidebarWidth: Float,
+    val clearSelectionPtr: Long
 )
 
 /**

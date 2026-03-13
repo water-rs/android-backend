@@ -1,28 +1,36 @@
 package dev.waterui.android.components
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.content.Context
 import android.graphics.Color
-import android.graphics.Typeface
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.android.material.tabs.TabLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.BarStruct
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.NavigationSearchStruct
+import dev.waterui.android.runtime.NavigationStackStruct
+import dev.waterui.android.runtime.NavigationViewStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
+import dev.waterui.android.runtime.SplitNavigationContainerStruct
 import dev.waterui.android.runtime.TabPosition
+import dev.waterui.android.runtime.TabsStruct
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
-
-// ========== Type IDs ==========
 
 private val navigationStackTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_navigation_stack_id().toTypeId()
@@ -36,378 +44,699 @@ private val tabsTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_tabs_id().toTypeId()
 }
 
-// ========== NavigationStack Renderer ==========
-
-/**
- * NavigationStack component renderer.
- *
- * Displays a navigation stack with the root view.
- * Expands to fill available space (StretchAxis.BOTH).
- */
-private val navigationStackRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_navigation_stack(node.rawPtr)
-
-    val container = FrameLayout(context).apply {
-        layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
-    }
-
-    if (struct.rootPtr != 0L) {
-        val rootView = inflateAnyView(context, struct.rootPtr, env, registry)
-        rootView.layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        container.addView(rootView)
-    }
-
-    container
+private val splitNavigationContainerTypeId: WuiTypeId by lazy {
+    NativeBindings.waterui_split_navigation_container_id().toTypeId()
 }
 
-// ========== NavigationView Renderer ==========
+private const val DISPLAY_MODE_AUTOMATIC = 0
+private const val DISPLAY_MODE_INLINE = 1
+private const val DISPLAY_MODE_LARGE = 2
 
-/**
- * NavigationView component renderer.
- *
- * Displays a navigation bar with title and content area.
- * Supports reactive bar color and hidden state.
- * Expands to fill available space (StretchAxis.BOTH).
- */
-private val navigationViewRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_navigation_view(node.rawPtr)
-
-    // Create vertical layout: nav bar at top, content below
-    val container = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
-    }
-
-    // Create navigation bar
-    val navBar = createNavBar(context, struct.bar.titleContentPtr)
-    container.addView(navBar)
-
-    // Reactive watchers
-    var colorComputed: WuiComputed<ResolvedColorStruct>? = null
-
-    // Setup bar color watcher
-    if (struct.bar.colorPtr != 0L) {
-        val colorPtr = NativeBindings.waterui_read_computed_color(struct.bar.colorPtr)
-        if (colorPtr != 0L) {
-            colorComputed = WuiComputed.resolvedColor(colorPtr, env)
-            colorComputed?.observe { newColor ->
-                applyNavBarColor(navBar, newColor)
-            }
-            NativeBindings.waterui_drop_color(colorPtr)
-        }
-    }
-
-    // Note: bar.hidden is Computed<bool> but we don't have JNI support for computed bool yet
-    // For now, skip hidden state reactivity - nav bar is always visible
-
-    // Content area
-    val contentContainer = FrameLayout(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f  // Take remaining space
-        )
-    }
-
-    if (struct.contentPtr != 0L) {
-        val contentView = inflateAnyView(context, struct.contentPtr, env, registry)
-        contentView.layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        contentContainer.addView(contentView)
-    }
-
-    container.addView(contentContainer)
-
-    // Cleanup
-    container.disposeWith {
+private data class NavigationBarSpec(
+    val titleView: View?,
+    val leadingView: View?,
+    val trailingView: View?,
+    val searchBinding: WuiBinding<String>?,
+    val searchPrompt: String,
+    val colorComputed: WuiComputed<ResolvedColorStruct>?,
+    val hiddenComputed: WuiComputed<Boolean>?,
+    val displayMode: Int
+) {
+    fun close() {
+        searchBinding?.close()
         colorComputed?.close()
+        hiddenComputed?.close()
     }
-
-    container
 }
 
-private fun createNavBar(context: android.content.Context, titleContentPtr: Long): LinearLayout {
-    val navBar = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        minimumHeight = (56 * context.resources.displayMetrics.density).toInt()
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        setBackgroundColor(Color.parseColor("#F5F5F5"))
-        setPadding(
-            (16 * context.resources.displayMetrics.density).toInt(),
-            (8 * context.resources.displayMetrics.density).toInt(),
-            (16 * context.resources.displayMetrics.density).toInt(),
-            (8 * context.resources.displayMetrics.density).toInt()
-        )
+private data class NavigationEntry(
+    val contentView: View,
+    val barSpec: NavigationBarSpec?
+)
+
+private fun dp(context: Context, value: Float): Int =
+    (value * context.resources.displayMetrics.density).toInt()
+
+private fun detachFromParent(view: View?) {
+    val parent = view?.parent
+    if (parent is ViewGroup) {
+        parent.removeView(view)
     }
-
-    // Title text
-    val titleView = TextView(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
-        textSize = 18f
-        setTypeface(null, Typeface.BOLD)
-        setTextColor(Color.BLACK)
-
-        // Read title from Computed<StyledStr>
-        if (titleContentPtr != 0L) {
-            val styledStr = NativeBindings.waterui_read_computed_styled_str(titleContentPtr)
-            text = styledStr.chunks.joinToString("") { it.text }
-        }
-    }
-
-    navBar.addView(titleView)
-    return navBar
 }
 
-private fun applyNavBarColor(navBar: View, color: ResolvedColorStruct) {
+private fun resolvePlainText(bytes: ByteArray): String = bytes.decodeToString()
+
+private fun applyNavBarColor(target: View, color: ResolvedColorStruct) {
     val argb = Color.argb(
         (color.opacity * 255).toInt(),
         (color.red * 255).toInt(),
         (color.green * 255).toInt(),
         (color.blue * 255).toInt()
     )
-    navBar.setBackgroundColor(argb)
+    target.setBackgroundColor(argb)
 }
 
-// ========== Tabs Renderer ==========
-
-/**
- * Tabs component renderer.
- *
- * Displays a tab container with customizable tab bar position (top or bottom).
- * Uses TabLayout for top position, BottomNavigationView for bottom position.
- * Expands to fill available space (StretchAxis.BOTH).
- */
-private val tabsRenderer = WuiRenderer { context, node, env, registry ->
-    val struct = NativeBindings.waterui_force_as_tabs(node.rawPtr)
-    val position = TabPosition.fromInt(struct.position)
-
-    // Create container
-    val container = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
+private fun barMinHeight(context: Context, displayMode: Int): Int =
+    when (displayMode) {
+        DISPLAY_MODE_LARGE -> dp(context, 88f)
+        DISPLAY_MODE_INLINE -> dp(context, 56f)
+        else -> dp(context, 64f)
     }
 
-    // Content container
-    val contentContainer = FrameLayout(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f  // Take remaining space
-        )
-    }
-
-    // Track current tab content
-    var currentContentView: View? = null
-
-    // Setup selection binding
-    var selectionBinding: WuiBinding<Int>? = null
-    if (struct.selectionPtr != 0L) {
-        selectionBinding = WuiBinding.int(struct.selectionPtr, env)
-    }
-
-    // Tab switching logic
-    fun showTab(index: Int) {
-        if (index < 0 || index >= struct.tabs.size) return
-
-        // Remove old content
-        currentContentView?.let { contentContainer.removeView(it) }
-
-        // Build tab content (calls waterui_tab_content to get NavigationView)
-        val tab = struct.tabs[index]
-        if (tab.contentPtr != 0L) {
-            val navViewStruct = NativeBindings.waterui_tab_content(tab.contentPtr)
-            // Create a NavigationView-like layout for the tab content
-            val tabContent = inflateTabContent(context, navViewStruct, env, registry)
-            tabContent.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            contentContainer.addView(tabContent)
-            currentContentView = tabContent
-        }
-    }
-
-    // Create tab bar based on position
-    when (position) {
-        TabPosition.TOP -> {
-            // TabLayout at top
-            val tabLayout = TabLayout(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                tabMode = TabLayout.MODE_FIXED
-                tabGravity = TabLayout.GRAVITY_FILL
-            }
-
-            // Add tabs
-            struct.tabs.forEachIndexed { index, tab ->
-                val tabItem = tabLayout.newTab().apply {
-                    text = "Tab ${index + 1}"
-                    tag = tab.id
-                }
-                tabLayout.addTab(tabItem)
-            }
-
-            // Handle tab selection
-            tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-                override fun onTabSelected(tab: TabLayout.Tab?) {
-                    tab?.let {
-                        val index = it.position
-                        showTab(index)
-                        // Update binding
-                        val tabId = struct.tabs.getOrNull(index)?.id?.toInt() ?: return
-                        if (selectionBinding?.current() != tabId) {
-                            selectionBinding?.set(tabId)
-                        }
-                    }
-                }
-                override fun onTabUnselected(tab: TabLayout.Tab?) {}
-                override fun onTabReselected(tab: TabLayout.Tab?) {}
-            })
-
-            // Watch for selection changes from binding
-            selectionBinding?.observe { selectedId ->
-                val index = struct.tabs.indexOfFirst { it.id.toInt() == selectedId }
-                if (index >= 0 && tabLayout.selectedTabPosition != index) {
-                    tabLayout.getTabAt(index)?.select()
-                }
-            }
-
-            // Layout: tab bar at top, content below
-            container.addView(tabLayout)
-            container.addView(contentContainer)
-
-            // Show initial tab
-            val initialIndex = struct.tabs.indexOfFirst {
-                it.id.toInt() == (selectionBinding?.current() ?: 0)
-            }.takeIf { it >= 0 } ?: 0
-            showTab(initialIndex)
-            tabLayout.getTabAt(initialIndex)?.select()
-        }
-
-        TabPosition.BOTTOM -> {
-            // BottomNavigationView at bottom
-            val bottomNav = BottomNavigationView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-
-            // Add menu items programmatically
-            struct.tabs.forEachIndexed { index, tab ->
-                bottomNav.menu.add(0, tab.id.toInt(), index, "Tab ${index + 1}")
-            }
-
-            // Handle navigation selection
-            bottomNav.setOnItemSelectedListener { menuItem ->
-                val index = struct.tabs.indexOfFirst { it.id.toInt() == menuItem.itemId }
-                if (index >= 0) {
-                    showTab(index)
-                    // Update binding
-                    if (selectionBinding?.current() != menuItem.itemId) {
-                        selectionBinding?.set(menuItem.itemId)
-                    }
-                }
-                true
-            }
-
-            // Watch for selection changes from binding
-            selectionBinding?.observe { selectedId ->
-                if (bottomNav.selectedItemId != selectedId) {
-                    bottomNav.selectedItemId = selectedId
-                }
-            }
-
-            // Layout: content at top, tab bar at bottom
-            container.addView(contentContainer)
-            container.addView(bottomNav)
-
-            // Show initial tab
-            val initialId = selectionBinding?.current() ?: struct.tabs.firstOrNull()?.id?.toInt() ?: 0
-            val initialIndex = struct.tabs.indexOfFirst { it.id.toInt() == initialId }.takeIf { it >= 0 } ?: 0
-            showTab(initialIndex)
-            bottomNav.selectedItemId = struct.tabs.getOrNull(initialIndex)?.id?.toInt() ?: 0
-        }
-    }
-
-    // Cleanup
-    container.disposeWith {
-        selectionBinding?.close()
-    }
-
-    container
-}
-
-/**
- * Inflates the content of a tab from NavigationViewStruct.
- * Creates a simple container with the navigation view content.
- */
-private fun inflateTabContent(
-    context: android.content.Context,
-    navViewStruct: dev.waterui.android.runtime.NavigationViewStruct,
+private fun buildBarSpec(
+    context: Context,
+    bar: BarStruct,
     env: WuiEnvironment,
-    registry: dev.waterui.android.runtime.RenderRegistry
-): View {
-    val container = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
+    registry: RenderRegistry
+): NavigationBarSpec {
+    val titleView = if (bar.titlePtr != 0L) inflateAnyView(context, bar.titlePtr, env, registry) else null
+    val leadingView =
+        if (bar.leadingPtr != 0L) inflateAnyView(context, bar.leadingPtr, env, registry) else null
+    val trailingView =
+        if (bar.trailingPtr != 0L) inflateAnyView(context, bar.trailingPtr, env, registry) else null
+
+    val searchBinding = bar.search?.textPtr?.takeIf { it != 0L }?.let { WuiBinding.str(it, env) }
+    val searchPrompt = bar.search?.let { resolvePlainText(it.prompt.textBytes) }.orEmpty()
+
+    val colorComputed = bar.colorPtr.takeIf { it != 0L }?.let { colorPtr ->
+        val rawColor = NativeBindings.waterui_read_computed_color(colorPtr)
+        if (rawColor == 0L) {
+            null
+        } else {
+            WuiComputed.resolvedColor(rawColor, env).also {
+                NativeBindings.waterui_drop_color(rawColor)
+            }
+        }
+    }
+
+    val hiddenComputed = bar.hiddenPtr.takeIf { it != 0L }?.let { WuiComputed.bool(it, env) }
+
+    return NavigationBarSpec(
+        titleView = titleView,
+        leadingView = leadingView,
+        trailingView = trailingView,
+        searchBinding = searchBinding,
+        searchPrompt = searchPrompt,
+        colorComputed = colorComputed,
+        hiddenComputed = hiddenComputed,
+        displayMode = bar.displayMode
+    )
+}
+
+private class NavigationBarView(context: Context) : LinearLayout(context) {
+    private val headerRow = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+    }
+
+    private val leadingSlot = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+    }
+
+    private val titleSlot = FrameLayout(context).apply {
+        layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+    }
+
+    private val trailingSlot = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+    }
+
+    private val searchSlot = FrameLayout(context).apply {
+        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+    }
+
+    private var activeColorComputed: WuiComputed<ResolvedColorStruct>? = null
+    private var activeHiddenComputed: WuiComputed<Boolean>? = null
+    private var activeSearchBinding: WuiBinding<String>? = null
+
+    init {
+        orientation = VERTICAL
+        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        addView(headerRow)
+        addView(searchSlot)
+        headerRow.addView(leadingSlot)
+        headerRow.addView(titleSlot)
+        headerRow.addView(trailingSlot)
+        setPadding(dp(context, 16f), dp(context, 8f), dp(context, 16f), dp(context, 8f))
+    }
+
+    fun bind(spec: NavigationBarSpec?, showBack: Boolean, onBack: (() -> Unit)?) {
+        activeColorComputed?.observe { _ -> }
+        activeHiddenComputed?.observe { _ -> }
+        activeSearchBinding?.observe { _ -> }
+
+        leadingSlot.removeAllViews()
+        titleSlot.removeAllViews()
+        trailingSlot.removeAllViews()
+        searchSlot.removeAllViews()
+
+        activeColorComputed = spec?.colorComputed
+        activeHiddenComputed = spec?.hiddenComputed
+        activeSearchBinding = spec?.searchBinding
+
+        if (spec == null) {
+            visibility = GONE
+            return
+        }
+
+        visibility = VISIBLE
+        minimumHeight = barMinHeight(context, spec.displayMode)
+
+        if (showBack && onBack != null) {
+            val back = TextView(context).apply {
+                text = "←"
+                textSize = 20f
+                setTextColor(Color.BLACK)
+                setPadding(dp(context, 4f), dp(context, 4f), dp(context, 12f), dp(context, 4f))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { onBack() }
+            }
+            leadingSlot.addView(back)
+        }
+
+        detachFromParent(spec.leadingView)
+        detachFromParent(spec.titleView)
+        detachFromParent(spec.trailingView)
+
+        spec.leadingView?.let { leadingSlot.addView(it) }
+        spec.titleView?.let { titleSlot.addView(it) }
+        spec.trailingView?.let { trailingSlot.addView(it) }
+
+        if (spec.searchBinding != null) {
+            val searchField = EditText(context).apply {
+                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+                hint = spec.searchPrompt
+                setSingleLine()
+                setText(spec.searchBinding.current())
+            }
+            var syncing = false
+            searchField.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    if (syncing) {
+                        return
+                    }
+                    spec.searchBinding.set(s?.toString().orEmpty())
+                }
+            })
+            spec.searchBinding.observe { value ->
+                if (searchField.text.toString() == value) {
+                    return@observe
+                }
+                syncing = true
+                searchField.setText(value)
+                searchField.setSelection(value.length)
+                syncing = false
+            }
+            searchSlot.addView(searchField)
+        }
+
+        spec.colorComputed?.observe { color ->
+            applyNavBarColor(this, color)
+        }
+        spec.hiddenComputed?.observe { hidden ->
+            visibility = if (hidden) GONE else VISIBLE
+        }
+        spec.hiddenComputed?.current()?.let { hidden ->
+            visibility = if (hidden) GONE else VISIBLE
+        }
+        spec.colorComputed?.current()?.let { color ->
+            applyNavBarColor(this, color)
+        }
+    }
+}
+
+private class AndroidNavigationStackView(
+    context: Context,
+    private val transition: Int,
+    private val childEnv: WuiEnvironment,
+    private val registry: RenderRegistry
+) : LinearLayout(context) {
+    private val barView = NavigationBarView(context)
+    private val contentContainer = FrameLayout(context).apply {
+        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+    }
+    private val entries = mutableListOf<NavigationEntry>()
+
+    init {
+        orientation = VERTICAL
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
+        addView(barView)
+        addView(contentContainer)
     }
 
-    // Create navigation bar if title is provided
-    if (navViewStruct.bar.titleContentPtr != 0L) {
-        val navBar = createNavBar(context, navViewStruct.bar.titleContentPtr)
-        container.addView(navBar)
-    }
-
-    // Content area
-    val contentContainer = FrameLayout(context).apply {
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f  // Take remaining space
-        )
-    }
-
-    if (navViewStruct.contentPtr != 0L) {
-        val contentView = inflateAnyView(context, navViewStruct.contentPtr, env, registry)
-        contentView.layoutParams = FrameLayout.LayoutParams(
+    fun installRoot(rootView: View, rootBar: NavigationBarSpec?) {
+        contentContainer.removeAllViews()
+        entries.clear()
+        entries += NavigationEntry(rootView, rootBar)
+        rootView.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
-        contentContainer.addView(contentView)
+        contentContainer.addView(rootView)
+        updateChrome()
     }
 
-    container.addView(contentContainer)
-    return container
+    fun push(navView: NavigationViewStruct) {
+        val entry = buildNavigationEntry(context, navView, childEnv, registry)
+        val previous = entries.lastOrNull()?.contentView
+        previous?.visibility = View.GONE
+
+        entry.contentView.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        contentContainer.addView(entry.contentView)
+        entries += entry
+        updateChrome()
+        animateTransition(previous, entry.contentView, isPush = true)
+    }
+
+    fun pop() {
+        if (entries.size <= 1) {
+            return
+        }
+
+        val current = entries.removeLast()
+        val previous = entries.last()
+        previous.contentView.visibility = View.VISIBLE
+        updateChrome()
+        animateTransition(previous.contentView, current.contentView, isPush = false) {
+            contentContainer.removeView(current.contentView)
+            current.barSpec?.close()
+        }
+    }
+
+    fun close() {
+        entries.forEach { it.barSpec?.close() }
+        entries.clear()
+    }
+
+    private fun updateChrome() {
+        val active = entries.lastOrNull()
+        barView.bind(
+            spec = active?.barSpec,
+            showBack = entries.size > 1,
+            onBack = { pop() }
+        )
+    }
+
+    private fun animateTransition(from: View?, to: View, isPush: Boolean, onEnd: (() -> Unit)? = null) {
+        when (transition) {
+            1 -> {
+                to.alpha = 0f
+                to.animate().alpha(1f).setDuration(220L).start()
+                from?.animate()?.alpha(0f)?.setDuration(220L)?.setListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: Animator) {
+                        from.alpha = 1f
+                        onEnd?.invoke()
+                    }
+                })?.start() ?: onEnd?.invoke()
+            }
+            2 -> onEnd?.invoke()
+            else -> {
+                val width = if (contentContainer.width > 0) contentContainer.width.toFloat() else dp(context, 240f).toFloat()
+                to.translationX = if (isPush) width else -width * 0.1f
+                to.alpha = 1f
+                to.animate().translationX(0f).setDuration(240L).start()
+                from?.animate()
+                    ?.translationX(if (isPush) -width * 0.2f else width)
+                    ?.alpha(0.9f)
+                    ?.setDuration(240L)
+                    ?.setListener(object : AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: Animator) {
+                            from.translationX = 0f
+                            from.alpha = 1f
+                            onEnd?.invoke()
+                        }
+                    })
+                    ?.start() ?: onEnd?.invoke()
+            }
+        }
+    }
 }
 
-// ========== Registration ==========
+private fun buildNavigationEntry(
+    context: Context,
+    navView: NavigationViewStruct,
+    env: WuiEnvironment,
+    registry: RenderRegistry
+): NavigationEntry {
+    val contentView = inflateAnyView(context, navView.contentPtr, env, registry).apply {
+        layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+    }
+    return NavigationEntry(contentView = contentView, barSpec = buildBarSpec(context, navView.bar, env, registry))
+}
+
+private fun buildNavigationScreen(
+    context: Context,
+    navView: NavigationViewStruct,
+    env: WuiEnvironment,
+    registry: RenderRegistry
+): Pair<View, NavigationBarSpec> {
+    val barSpec = buildBarSpec(context, navView.bar, env, registry)
+    val contentView = inflateAnyView(context, navView.contentPtr, env, registry)
+    val container = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+    val barView = NavigationBarView(context)
+    barView.bind(barSpec, showBack = false, onBack = null)
+    container.addView(barView)
+    container.addView(contentView.apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+    })
+    return container to barSpec
+}
+
+private val navigationStackRenderer = WuiRenderer { context, node, env, registry ->
+    val struct: NavigationStackStruct = NativeBindings.waterui_force_as_navigation_stack(node.rawPtr)
+    val childEnv = env.clone()
+
+    val stackView = AndroidNavigationStackView(
+        context = context,
+        transition = struct.transition,
+        childEnv = childEnv,
+        registry = registry
+    )
+
+    val callback = object {
+        @Suppress("unused")
+        fun onPush(navView: NavigationViewStruct) {
+            stackView.push(navView)
+        }
+
+        @Suppress("unused")
+        fun onPop() {
+            stackView.pop()
+        }
+    }
+
+    val controllerPtr = NativeBindings.waterui_navigation_controller_new(callback)
+    NativeBindings.waterui_env_install_navigation_controller(childEnv.raw(), controllerPtr)
+
+    val rootBar: NavigationBarSpec?
+    val rootView: View
+    if (struct.rootPtr != 0L && NativeBindings.waterui_view_id(struct.rootPtr).toTypeId() == navigationViewTypeId) {
+        val rootNav = NativeBindings.waterui_force_as_navigation_view(struct.rootPtr)
+        rootBar = buildBarSpec(context, rootNav.bar, childEnv, registry)
+        rootView = inflateAnyView(context, rootNav.contentPtr, childEnv, registry)
+    } else {
+        rootBar = null
+        rootView = if (struct.rootPtr != 0L) {
+            inflateAnyView(context, struct.rootPtr, childEnv, registry)
+        } else {
+            FrameLayout(context)
+        }
+    }
+
+    stackView.installRoot(rootView, rootBar)
+    stackView.disposeWith {
+        stackView.close()
+        NativeBindings.waterui_drop_navigation_controller(controllerPtr)
+        childEnv.close()
+    }
+    stackView
+}
+
+private val navigationViewRenderer = WuiRenderer { context, node, env, registry ->
+    val struct = NativeBindings.waterui_force_as_navigation_view(node.rawPtr)
+
+    if (NativeBindings.waterui_env_has_navigation_controller(env.raw())) {
+        inflateAnyView(context, struct.contentPtr, env, registry)
+    } else {
+        val (view, barSpec) = buildNavigationScreen(context, struct, env, registry)
+        view.disposeWith { barSpec.close() }
+        view
+    }
+}
+
+private fun updateTabSelection(tabButtons: List<LinearLayout>, selectedIndex: Int) {
+    tabButtons.forEachIndexed { index, tab ->
+        tab.alpha = if (index == selectedIndex) 1f else 0.65f
+        tab.setBackgroundColor(if (index == selectedIndex) Color.argb(18, 0, 0, 0) else Color.TRANSPARENT)
+    }
+}
+
+private val tabsRenderer = WuiRenderer { context, node, env, registry ->
+    val struct: TabsStruct = NativeBindings.waterui_force_as_tabs(node.rawPtr)
+    val position = TabPosition.fromInt(struct.position)
+
+    val container = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    val tabBar = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        setPadding(dp(context, 8f), dp(context, 8f), dp(context, 8f), dp(context, 8f))
+    }
+
+    val contentContainer = FrameLayout(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+    }
+
+    var currentContent: View? = null
+    var currentIndex = -1
+    val selectionBinding = struct.selectionPtr.takeIf { it != 0L }?.let { WuiBinding.int(it, env) }
+    val tabButtons = mutableListOf<LinearLayout>()
+
+    fun showTab(index: Int) {
+        if (index !in struct.tabs.indices) {
+            return
+        }
+        currentIndex = index
+        currentContent?.let { contentContainer.removeView(it) }
+        val tab = struct.tabs[index]
+        val nav = NativeBindings.waterui_tab_content(tab.contentPtr)
+        val (screen, barSpec) = buildNavigationScreen(context, nav, env, registry)
+        screen.disposeWith { barSpec.close() }
+        currentContent = screen
+        contentContainer.addView(screen)
+        updateTabSelection(tabButtons, index)
+        val selectedId = tab.id.toInt()
+        if (selectionBinding?.current() != selectedId) {
+            selectionBinding?.set(selectedId)
+        }
+    }
+
+    struct.tabs.forEachIndexed { index, tab ->
+        val label = inflateAnyView(context, tab.labelPtr, env, registry)
+        val tabButton = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setPadding(dp(context, 12f), dp(context, 8f), dp(context, 12f), dp(context, 8f))
+            isClickable = true
+            isFocusable = true
+            addView(label)
+            setOnClickListener { showTab(index) }
+        }
+        tabButtons += tabButton
+        tabBar.addView(tabButton)
+    }
+
+    selectionBinding?.observe { selectedId ->
+        val index = struct.tabs.indexOfFirst { it.id.toInt() == selectedId }
+        if (index >= 0 && index != currentIndex) {
+            showTab(index)
+        } else if (index >= 0) {
+            updateTabSelection(tabButtons, index)
+        }
+    }
+
+    val initialIndex = struct.tabs.indexOfFirst {
+        it.id.toInt() == (selectionBinding?.current() ?: struct.tabs.firstOrNull()?.id?.toInt() ?: 0)
+    }.takeIf { it >= 0 } ?: 0
+
+    if (position == TabPosition.TOP) {
+        container.addView(tabBar)
+        container.addView(contentContainer)
+    } else {
+        container.addView(contentContainer)
+        container.addView(tabBar)
+    }
+
+    showTab(initialIndex)
+
+    container.disposeWith {
+        selectionBinding?.close()
+    }
+    container
+}
+
+private class SplitNavigationLayoutView(
+    context: Context,
+    private val sidebarView: View,
+    private val placeholderView: View,
+    private val detailBar: NavigationBarSpec?,
+    private val detailContentView: View?,
+    private val hasDetail: Boolean,
+    private val sidebarWidth: Float,
+    private val clearSelection: () -> Unit
+) : FrameLayout(context) {
+    private val barView = NavigationBarView(context)
+
+    init {
+        layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        post { rebuild() }
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        rebuild()
+    }
+
+    fun close() {
+        detailBar?.close()
+    }
+
+    private fun isCompact(widthPx: Int): Boolean {
+        val widthDp = widthPx / resources.displayMetrics.density
+        return widthDp < 600f
+    }
+
+    private fun rebuild() {
+        removeAllViews()
+        val compact = isCompact(width.coerceAtLeast(1))
+        if (!compact) {
+            buildRegular()
+        } else if (hasDetail && detailBar != null && detailContentView != null) {
+            buildCompactDetail()
+        } else {
+            detachFromParent(sidebarView)
+            addView(sidebarView.apply {
+                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            })
+        }
+    }
+
+    private fun buildRegular() {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+        }
+        detachFromParent(sidebarView)
+        row.addView(sidebarView.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(context, sidebarWidth), LayoutParams.MATCH_PARENT)
+        })
+        val divider = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(context, 1f), LayoutParams.MATCH_PARENT)
+            setBackgroundColor(Color.argb(32, 0, 0, 0))
+        }
+        row.addView(divider)
+        val detailHost = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
+        }
+        if (hasDetail && detailBar != null && detailContentView != null) {
+            barView.bind(detailBar, showBack = false, onBack = null)
+            detailHost.addView(barView)
+            detachFromParent(detailContentView)
+            detailHost.addView(detailContentView.apply {
+                layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+            })
+        } else {
+            detachFromParent(placeholderView)
+            detailHost.addView(placeholderView.apply {
+                layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            })
+        }
+        row.addView(detailHost)
+        addView(row)
+    }
+
+    private fun buildCompactDetail() {
+        val column = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+        }
+        barView.bind(detailBar, showBack = true, onBack = clearSelection)
+        column.addView(barView)
+        detachFromParent(detailContentView)
+        column.addView(detailContentView.apply {
+            layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        addView(column)
+    }
+}
+
+private val splitNavigationContainerRenderer = WuiRenderer { context, node, env, registry ->
+    val struct: SplitNavigationContainerStruct =
+        NativeBindings.waterui_force_as_split_navigation_container(node.rawPtr)
+
+    val sidebar = inflateAnyView(context, struct.sidebarPtr, env, registry)
+    val placeholder = inflateAnyView(context, struct.placeholderPtr, env, registry)
+    val detailBar = if (struct.hasDetail && struct.detailContentPtr != 0L) {
+        buildBarSpec(context, struct.detailBar, env, registry)
+    } else {
+        null
+    }
+    val detailContent = if (struct.hasDetail && struct.detailContentPtr != 0L) {
+        inflateAnyView(context, struct.detailContentPtr, env, registry)
+    } else {
+        null
+    }
+
+    val container = SplitNavigationLayoutView(
+        context = context,
+        sidebarView = sidebar,
+        placeholderView = placeholder,
+        detailBar = detailBar,
+        detailContentView = detailContent,
+        hasDetail = struct.hasDetail,
+        sidebarWidth = struct.sidebarWidth,
+        clearSelection = {
+            NativeBindings.waterui_call_action(struct.clearSelectionPtr, env.raw())
+        }
+    )
+
+    container.disposeWith {
+        detailBar?.close()
+        if (struct.clearSelectionPtr != 0L) {
+            NativeBindings.waterui_drop_action(struct.clearSelectionPtr)
+        }
+    }
+    container
+}
 
 internal fun RegistryBuilder.registerWuiNavigationStack() {
     register({ navigationStackTypeId }, navigationStackRenderer)
@@ -419,4 +748,8 @@ internal fun RegistryBuilder.registerWuiNavigationView() {
 
 internal fun RegistryBuilder.registerWuiTabs() {
     register({ tabsTypeId }, tabsRenderer)
+}
+
+internal fun RegistryBuilder.registerWuiSplitNavigationContainer() {
+    register({ splitNavigationContainerTypeId }, splitNavigationContainerRenderer)
 }

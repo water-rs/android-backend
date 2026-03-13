@@ -100,6 +100,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiNavigationStack()
         registerWuiNavigationView()
         registerWuiTabs()
+        registerWuiSplitNavigationContainer()
 
         // List component
         registerWuiList()

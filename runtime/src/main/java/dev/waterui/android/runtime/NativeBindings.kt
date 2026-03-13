@@ -140,6 +140,10 @@ internal object NativeBindings {
 
     fun waterui_read_computed_f64(computedPtr: Long): Double = WatcherJni.readComputedF64(computedPtr)
     fun waterui_read_computed_f32(computedPtr: Long): Float = WatcherJni.readComputedF32(computedPtr)
+    fun waterui_read_computed_bool(computedPtr: Long): Boolean = WatcherJni.readComputedBool(computedPtr)
+    fun waterui_drop_computed_bool(computedPtr: Long) = WatcherJni.dropComputedBool(computedPtr)
+    fun waterui_watch_computed_bool(computedPtr: Long, watcher: WatcherStruct): Long =
+        WatcherJni.watchComputedBool(computedPtr, watcher)
     fun waterui_drop_computed_f32(computedPtr: Long) = WatcherJni.dropComputedF32(computedPtr)
     fun waterui_watch_computed_f32(computedPtr: Long, watcher: WatcherStruct): Long =
         WatcherJni.watchComputedF32(computedPtr, watcher)
@@ -237,6 +241,7 @@ internal object NativeBindings {
     fun waterui_navigation_stack_id(): TypeIdStruct = WatcherJni.navigationStackId()
     fun waterui_navigation_view_id(): TypeIdStruct = WatcherJni.navigationViewId()
     fun waterui_tabs_id(): TypeIdStruct = WatcherJni.tabsId()
+    fun waterui_split_navigation_container_id(): TypeIdStruct = WatcherJni.splitNavigationContainerId()
 
     // ========== List Type IDs ==========
 
@@ -253,7 +258,15 @@ internal object NativeBindings {
     fun waterui_force_as_navigation_stack(viewPtr: Long): NavigationStackStruct = WatcherJni.forceAsNavigationStack(viewPtr)
     fun waterui_force_as_navigation_view(viewPtr: Long): NavigationViewStruct = WatcherJni.forceAsNavigationView(viewPtr)
     fun waterui_force_as_tabs(viewPtr: Long): TabsStruct = WatcherJni.forceAsTabs(viewPtr)
+    fun waterui_force_as_split_navigation_container(viewPtr: Long): SplitNavigationContainerStruct =
+        WatcherJni.forceAsSplitNavigationContainer(viewPtr)
     fun waterui_tab_content(contentPtr: Long): NavigationViewStruct = WatcherJni.tabContent(contentPtr)
+    fun waterui_navigation_controller_new(callback: Any): Long = WatcherJni.navigationControllerNew(callback)
+    fun waterui_env_install_navigation_controller(envPtr: Long, controllerPtr: Long) =
+        WatcherJni.envInstallNavigationController(envPtr, controllerPtr)
+    fun waterui_drop_navigation_controller(controllerPtr: Long) = WatcherJni.dropNavigationController(controllerPtr)
+    fun waterui_env_has_navigation_controller(envPtr: Long): Boolean = WatcherJni.envHasNavigationController(envPtr)
+    fun waterui_navigation_pop(envPtr: Long) = WatcherJni.navigationPop(envPtr)
 
     // ========== Metadata Type IDs ==========
 

@@ -121,6 +121,7 @@ object WatcherJni {
 
     @JvmStatic external fun readComputedF64(computedPtr: Long): Double
     @JvmStatic external fun readComputedF32(computedPtr: Long): Float
+    @JvmStatic external fun readComputedBool(computedPtr: Long): Boolean
     @JvmStatic external fun readComputedI32(computedPtr: Long): Int
     @JvmStatic external fun readComputedResolvedColor(computedPtr: Long): ResolvedColorStruct
     @JvmStatic external fun readComputedResolvedFont(computedPtr: Long): ResolvedFontStruct
@@ -133,6 +134,7 @@ object WatcherJni {
     @JvmStatic external fun dropComputedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedF64(computedPtr: Long)
     @JvmStatic external fun dropComputedF32(computedPtr: Long)
+    @JvmStatic external fun dropComputedBool(computedPtr: Long)
     @JvmStatic external fun dropComputedI32(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedFont(computedPtr: Long)
@@ -172,6 +174,7 @@ object WatcherJni {
 
     @JvmStatic external fun watchComputedF64(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedF32(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchComputedBool(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedI32(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedStyledStr(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedColor(computedPtr: Long, watcher: WatcherStruct): Long
@@ -256,6 +259,7 @@ object WatcherJni {
     @JvmStatic external fun navigationStackId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun navigationViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun tabsId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun splitNavigationContainerId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== List Type IDs ==========
 
@@ -272,7 +276,13 @@ object WatcherJni {
     @JvmStatic external fun forceAsNavigationStack(viewPtr: Long): NavigationStackStruct
     @JvmStatic external fun forceAsNavigationView(viewPtr: Long): NavigationViewStruct
     @JvmStatic external fun forceAsTabs(viewPtr: Long): TabsStruct
+    @JvmStatic external fun forceAsSplitNavigationContainer(viewPtr: Long): SplitNavigationContainerStruct
     @JvmStatic external fun tabContent(contentPtr: Long): NavigationViewStruct
+    @JvmStatic external fun navigationControllerNew(callback: Any): Long
+    @JvmStatic external fun envInstallNavigationController(envPtr: Long, controllerPtr: Long)
+    @JvmStatic external fun dropNavigationController(controllerPtr: Long)
+    @JvmStatic external fun envHasNavigationController(envPtr: Long): Boolean
+    @JvmStatic external fun navigationPop(envPtr: Long)
 
     // ========== OnEvent Handler Functions ==========
 
