@@ -63,6 +63,7 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         )
     }
     editText.installWuiFocusTarget(WuiTextInputFocusTarget(editText))
+    installTextSelectionMenu(editText, struct.selectionMenuPtr, env)
     container.addView(editText)
     val shape = MaterialShapeDrawable().apply {
         val radius = 12f * density

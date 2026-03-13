@@ -189,7 +189,12 @@ data class WatcherStruct(val dataPtr: Long, val callPtr: Long, val dropPtr: Long
 
 // ========== View Structs ==========
 
-data class ButtonStruct(val labelPtr: Long, val actionPtr: Long, val style: Int)
+data class ButtonStruct(
+    val labelPtr: Long,
+    val actionPtr: Long,
+    val style: Int,
+    val accessibilityLabelPtr: Long
+)
 
 data class TextStruct(val contentPtr: Long, val paragraphAlignmentPtr: Long)
 
@@ -202,7 +207,55 @@ data class PlainStruct(val textBytes: ByteArray) {
     override fun hashCode(): Int = textBytes.contentHashCode()
 }
 
-data class TextFieldStruct(val labelPtr: Long, val valuePtr: Long, val promptPtr: Long, val keyboardType: Int)
+data class TextFieldStruct(
+    val labelPtr: Long,
+    val valuePtr: Long,
+    val promptPtr: Long,
+    val keyboardType: Int,
+    val selectionMenuPtr: Long
+)
+
+enum class MenuItemTag(val value: Int) {
+    COMMAND(0),
+    DIVIDER(1),
+    MENU(2);
+
+    companion object {
+        fun fromInt(value: Int): MenuItemTag = entries.firstOrNull { it.value == value }
+            ?: error("unsupported menu item tag: $value")
+    }
+}
+
+/**
+ * Android intentionally omits `SystemIcon` from semantic menu nodes.
+ *
+ * `SystemIcon` is not a reliable cross-platform contract here, and icon-pack based icons currently live in the
+ * regular view layer rather than the semantic menu payload.
+ */
+data class MenuItemStruct(
+    val tag: Int,
+    val labelPtr: Long,
+    val actionPtr: Long,
+    val disabledPtr: Long,
+    val selectedPtr: Long,
+    val keyEquivalent: String?,
+    val command: Boolean,
+    val shift: Boolean,
+    val option: Boolean,
+    val control: Boolean,
+    val itemsPtr: Long
+)
+
+data class MenuStruct(
+    val labelPtr: Long,
+    val itemsPtr: Long,
+    val accessibilityLabelPtr: Long
+)
+
+data class MetadataContextMenuStruct(
+    val contentPtr: Long,
+    val itemsPtr: Long
+)
 
 data class SecureFieldStruct(val labelPtr: Long, val valuePtr: Long)
 

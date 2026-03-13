@@ -61,6 +61,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
+    @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
+    @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
 
     // ========== Drop Functions ==========
 
@@ -127,6 +129,7 @@ object WatcherJni {
     @JvmStatic external fun readComputedResolvedFont(computedPtr: Long): ResolvedFontStruct
     @JvmStatic external fun readComputedStyledStr(computedPtr: Long): StyledStrStruct
     @JvmStatic external fun readComputedPickerItems(computedPtr: Long): Array<PickerItemStruct>
+    @JvmStatic external fun readComputedMenuItems(computedPtr: Long): Array<MenuItemStruct>
     @JvmStatic external fun readComputedHorizontalAlignment(computedPtr: Long): Int
     @JvmStatic external fun readComputedDateTime(computedPtr: Long): DateTimeStruct
     @JvmStatic external fun readComputedColorScheme(computedPtr: Long): Int
@@ -140,6 +143,7 @@ object WatcherJni {
     @JvmStatic external fun dropComputedResolvedFont(computedPtr: Long)
     @JvmStatic external fun dropComputedStyledStr(computedPtr: Long)
     @JvmStatic external fun dropComputedPickerItems(computedPtr: Long)
+    @JvmStatic external fun dropComputedMenuItems(computedPtr: Long)
     @JvmStatic external fun dropComputedHorizontalAlignment(computedPtr: Long)
     @JvmStatic external fun dropComputedDateTime(computedPtr: Long)
     @JvmStatic external fun dropComputedColorScheme(computedPtr: Long)
@@ -251,8 +255,10 @@ object WatcherJni {
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
 

@@ -77,6 +77,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiText()
         registerWuiPlain()
         registerWuiButton()
+        registerWuiMenu()
         registerWuiTextField()
         registerWuiSecureField()
         registerWuiStepper()
@@ -114,6 +115,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiFocused()
         registerWuiIgnoreSafeArea()
         registerWuiRetain()
+        registerWuiContextMenu()
     }
     builder.components to builder.metadataTypes
 }

@@ -38,6 +38,7 @@ internal object NativeBindings {
     fun waterui_plain_id(): TypeIdStruct = WatcherJni.plainId()
     fun waterui_button_id(): TypeIdStruct = WatcherJni.buttonId()
     fun waterui_text_field_id(): TypeIdStruct = WatcherJni.textFieldId()
+    fun waterui_menu_id(): TypeIdStruct = WatcherJni.menuId()
     fun waterui_stepper_id(): TypeIdStruct = WatcherJni.stepperId()
     fun waterui_progress_id(): TypeIdStruct = WatcherJni.progressId()
     fun waterui_dynamic_id(): TypeIdStruct = WatcherJni.dynamicId()
@@ -55,11 +56,13 @@ internal object NativeBindings {
     fun waterui_secure_field_id(): TypeIdStruct = WatcherJni.secureFieldId()
     fun waterui_layout_container_id(): TypeIdStruct = WatcherJni.layoutContainerId()
     fun waterui_metadata_env_id(): TypeIdStruct = WatcherJni.metadataEnvId()
+    fun waterui_metadata_context_menu_id(): TypeIdStruct = WatcherJni.metadataContextMenuId()
 
     // ========== Theme: Color Scheme ==========
 
     fun waterui_computed_color_scheme_constant(scheme: Int): Long = WatcherJni.computedColorSchemeConstant(scheme)
     fun waterui_read_computed_color_scheme(ptr: Long): Int = WatcherJni.readComputedColorScheme(ptr)
+    fun waterui_read_computed_menu_items(ptr: Long): Array<MenuItemStruct> = WatcherJni.readComputedMenuItems(ptr)
     fun waterui_drop_computed_color_scheme(ptr: Long) = WatcherJni.dropComputedColorScheme(ptr)
     fun waterui_theme_install_color_scheme(envPtr: Long, signalPtr: Long) = WatcherJni.themeInstallColorScheme(envPtr, signalPtr)
     fun waterui_theme_color_scheme(envPtr: Long): Long = WatcherJni.themeColorScheme(envPtr)
@@ -161,6 +164,7 @@ internal object NativeBindings {
     fun waterui_read_computed_picker_items(computedPtr: Long): Array<PickerItemStruct> = WatcherJni.readComputedPickerItems(computedPtr)
     fun waterui_drop_computed_picker_items(computedPtr: Long) = WatcherJni.dropComputedPickerItems(computedPtr)
     fun waterui_watch_computed_picker_items(computedPtr: Long, watcher: WatcherStruct): Long = WatcherJni.watchComputedPickerItems(computedPtr, watcher)
+    fun waterui_drop_computed_menu_items(computedPtr: Long) = WatcherJni.dropComputedMenuItems(computedPtr)
 
     // ========== Color resolution ==========
 
@@ -208,6 +212,7 @@ internal object NativeBindings {
     fun waterui_force_as_text(viewPtr: Long): TextStruct = WatcherJni.forceAsText(viewPtr)
     fun waterui_force_as_button(viewPtr: Long): ButtonStruct = WatcherJni.forceAsButton(viewPtr)
     fun waterui_force_as_text_field(viewPtr: Long): TextFieldStruct = WatcherJni.forceAsTextField(viewPtr)
+    fun waterui_force_as_menu(viewPtr: Long): MenuStruct = WatcherJni.forceAsMenu(viewPtr)
     fun waterui_force_as_toggle(viewPtr: Long): ToggleStruct = WatcherJni.forceAsToggle(viewPtr)
     fun waterui_force_as_slider(viewPtr: Long): SliderStruct = WatcherJni.forceAsSlider(viewPtr)
     fun waterui_force_as_stepper(viewPtr: Long): StepperStruct = WatcherJni.forceAsStepper(viewPtr)
@@ -221,6 +226,7 @@ internal object NativeBindings {
     fun waterui_force_as_resolved_gradient(viewPtr: Long): ResolvedGradientStruct = WatcherJni.forceAsResolvedGradient(viewPtr)
     fun waterui_force_as_resolved_shape(viewPtr: Long): ResolvedShapeStruct = WatcherJni.forceAsResolvedShape(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
+    fun waterui_force_as_metadata_context_menu(viewPtr: Long): MetadataContextMenuStruct = WatcherJni.forceAsMetadataContextMenu(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
     fun waterui_force_as_metadata_on_event(viewPtr: Long): MetadataOnEventStruct = WatcherJni.forceAsMetadataOnEvent(viewPtr)

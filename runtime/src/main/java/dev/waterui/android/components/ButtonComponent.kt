@@ -60,6 +60,13 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
         }
     }
 
+    val accessibilityLabel = installSemanticAccessibilityLabel(
+        target = container,
+        content = labelView,
+        labelPtr = struct.accessibilityLabelPtr,
+        env = env
+    )
+
     // If label is text, apply appropriate text color based on style
     if (labelView is TextView) {
         when (struct.style) {
@@ -84,6 +91,7 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     container.disposeWith {
+        accessibilityLabel?.close()
         NativeBindings.waterui_drop_action(struct.actionPtr)
     }
     container
