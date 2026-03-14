@@ -33,6 +33,28 @@ enum class StretchAxis(val value: Int) {
     }
 }
 
+enum class HorizontalAlignment(val value: Int) {
+    LEADING(0),
+    CENTER(1),
+    TRAILING(2);
+
+    companion object {
+        fun fromInt(value: Int): HorizontalAlignment = entries.firstOrNull { it.value == value } ?: CENTER
+    }
+}
+
+enum class VerticalAlignment(val value: Int) {
+    TOP(0),
+    CENTER(1),
+    BOTTOM(2),
+    FIRST_BASELINE(3),
+    LAST_BASELINE(4);
+
+    companion object {
+        fun fromInt(value: Int): VerticalAlignment = entries.firstOrNull { it.value == value } ?: CENTER
+    }
+}
+
 data class LayoutContainerStruct(val layoutPtr: Long, val childrenPtr: Long)
 
 data class FixedContainerStruct(val layoutPtr: Long, val childPointers: LongArray) {
@@ -48,9 +70,9 @@ data class ProposalStruct(var width: Float, var height: Float)
 
 data class SizeStruct(val width: Float, val height: Float)
 
-data class HorizontalGuideStruct(val alignment: TypeIdStruct, val value: Float)
+data class HorizontalGuideStruct(val alignment: HorizontalAlignment, val value: Float)
 
-data class VerticalGuideStruct(val alignment: TypeIdStruct, val value: Float)
+data class VerticalGuideStruct(val alignment: VerticalAlignment, val value: Float)
 
 data class ViewDimensionsStruct(
     val size: SizeStruct,
