@@ -598,13 +598,16 @@ private class SplitNavigationLayoutView(
     context: Context,
     private val sidebarView: View,
     private val placeholderView: View,
-    private val detailBar: NavigationBarSpec?,
-    private val detailContentView: View?,
-    private val hasDetail: Boolean,
+    private val selectionBinding: WuiBinding<Int>,
+    private val detailPtr: Long,
     private val sidebarWidth: Float,
-    private val clearSelection: () -> Unit
+    private val env: WuiEnvironment,
+    private val registry: RenderRegistry
 ) : FrameLayout(context) {
     private val barView = NavigationBarView(context)
+    private var currentDetailBar: NavigationBarSpec? = null
+    private var currentDetailView: View? = null
+    private var currentSelectedId: Int = Int.MIN_VALUE
 
     init {
         layoutParams = ViewGroup.LayoutParams(
@@ -624,7 +627,12 @@ private class SplitNavigationLayoutView(
     }
 
     fun close() {
-        detailBar?.close()
+        currentDetailBar?.close()
+        selectionBinding.close()
+    }
+
+    fun refresh() {
+        rebuild()
     }
 
     private fun isCompact(widthPx: Int): Boolean {
@@ -633,11 +641,12 @@ private class SplitNavigationLayoutView(
     }
 
     private fun rebuild() {
+        syncDetailState()
         removeAllViews()
         val compact = isCompact(width.coerceAtLeast(1))
         if (!compact) {
             buildRegular()
-        } else if (hasDetail && detailBar != null && detailContentView != null) {
+        } else if (currentDetailBar != null && currentDetailView != null) {
             buildCompactDetail()
         } else {
             detachFromParent(sidebarView)
@@ -665,11 +674,12 @@ private class SplitNavigationLayoutView(
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
         }
-        if (hasDetail && detailBar != null && detailContentView != null) {
-            barView.bind(detailBar, showBack = false, onBack = null)
+        if (currentDetailBar != null && currentDetailView != null) {
+            barView.bind(currentDetailBar, showBack = false, onBack = null)
             detailHost.addView(barView)
-            detachFromParent(detailContentView)
-            detailHost.addView(detailContentView.apply {
+            val detailView = currentDetailView!!
+            detachFromParent(detailView)
+            detailHost.addView(detailView.apply {
                 layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
             })
         } else {
@@ -687,13 +697,33 @@ private class SplitNavigationLayoutView(
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
-        barView.bind(detailBar, showBack = true, onBack = clearSelection)
+        barView.bind(currentDetailBar, showBack = true, onBack = { selectionBinding.set(0) })
         column.addView(barView)
-        detachFromParent(detailContentView)
-        column.addView(detailContentView.apply {
+        val detailView = currentDetailView!!
+        detachFromParent(detailView)
+        column.addView(detailView.apply {
             layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         })
         addView(column)
+    }
+
+    private fun syncDetailState() {
+        val selectedId = selectionBinding.current()
+        if (selectedId == currentSelectedId) {
+            return
+        }
+        currentSelectedId = selectedId
+        currentDetailBar?.close()
+        currentDetailBar = null
+        currentDetailView = null
+        if (selectedId == 0) {
+            return
+        }
+        val nav = NativeBindings.waterui_split_navigation_detail_content(detailPtr, selectedId)
+        val (screen, barSpec) = buildNavigationScreen(context, nav, env, registry)
+        screen.disposeWith { barSpec.close() }
+        currentDetailBar = barSpec
+        currentDetailView = screen
     }
 }
 
@@ -703,34 +733,27 @@ private val splitNavigationContainerRenderer = WuiRenderer { context, node, env,
 
     val sidebar = inflateAnyView(context, struct.sidebarPtr, env, registry)
     val placeholder = inflateAnyView(context, struct.placeholderPtr, env, registry)
-    val detailBar = if (struct.hasDetail && struct.detailContentPtr != 0L) {
-        buildBarSpec(context, struct.detailBar, env, registry)
-    } else {
-        null
-    }
-    val detailContent = if (struct.hasDetail && struct.detailContentPtr != 0L) {
-        inflateAnyView(context, struct.detailContentPtr, env, registry)
-    } else {
-        null
-    }
+    val selection = WuiBinding.int(struct.selectionPtr, env)
 
     val container = SplitNavigationLayoutView(
         context = context,
         sidebarView = sidebar,
         placeholderView = placeholder,
-        detailBar = detailBar,
-        detailContentView = detailContent,
-        hasDetail = struct.hasDetail,
+        selectionBinding = selection,
+        detailPtr = struct.detailPtr,
         sidebarWidth = struct.sidebarWidth,
-        clearSelection = {
-            NativeBindings.waterui_call_action(struct.clearSelectionPtr, env.raw())
-        }
+        env = env,
+        registry = registry
     )
 
+    selection.observe {
+        container.post { container.refresh() }
+    }
+
     container.disposeWith {
-        detailBar?.close()
-        if (struct.clearSelectionPtr != 0L) {
-            NativeBindings.waterui_drop_action(struct.clearSelectionPtr)
+        container.close()
+        if (struct.detailPtr != 0L) {
+            NativeBindings.waterui_drop_split_navigation_detail(struct.detailPtr)
         }
     }
     container

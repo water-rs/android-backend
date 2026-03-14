@@ -296,6 +296,8 @@ object WatcherJni {
     @JvmStatic external fun forceAsTabs(viewPtr: Long): TabsStruct
     @JvmStatic external fun forceAsSplitNavigationContainer(viewPtr: Long): SplitNavigationContainerStruct
     @JvmStatic external fun tabContent(contentPtr: Long): NavigationViewStruct
+    @JvmStatic external fun splitNavigationDetailContent(detailPtr: Long, selectedId: Int): NavigationViewStruct
+    @JvmStatic external fun dropSplitNavigationDetail(ptr: Long)
     @JvmStatic external fun navigationControllerNew(callback: Any): Long
     @JvmStatic external fun envInstallNavigationController(envPtr: Long, controllerPtr: Long)
     @JvmStatic external fun dropNavigationController(controllerPtr: Long)

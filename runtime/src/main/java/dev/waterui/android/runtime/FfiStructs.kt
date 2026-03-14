@@ -735,11 +735,9 @@ data class NavigationViewStruct(
 data class SplitNavigationContainerStruct(
     val sidebarPtr: Long,
     val placeholderPtr: Long,
-    val detailBar: BarStruct,
-    val detailContentPtr: Long,
-    val hasDetail: Boolean,
-    val sidebarWidth: Float,
-    val clearSelectionPtr: Long
+    val selectionPtr: Long,
+    val detailPtr: Long,
+    val sidebarWidth: Float
 )
 
 /**

@@ -273,6 +273,9 @@ internal object NativeBindings {
     fun waterui_force_as_split_navigation_container(viewPtr: Long): SplitNavigationContainerStruct =
         WatcherJni.forceAsSplitNavigationContainer(viewPtr)
     fun waterui_tab_content(contentPtr: Long): NavigationViewStruct = WatcherJni.tabContent(contentPtr)
+    fun waterui_split_navigation_detail_content(detailPtr: Long, selectedId: Int): NavigationViewStruct =
+        WatcherJni.splitNavigationDetailContent(detailPtr, selectedId)
+    fun waterui_drop_split_navigation_detail(detailPtr: Long) = WatcherJni.dropSplitNavigationDetail(detailPtr)
     fun waterui_navigation_controller_new(callback: Any): Long = WatcherJni.navigationControllerNew(callback)
     fun waterui_env_install_navigation_controller(envPtr: Long, controllerPtr: Long) =
         WatcherJni.envInstallNavigationController(envPtr, controllerPtr)
