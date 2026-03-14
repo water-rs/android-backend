@@ -3,6 +3,7 @@ package dev.waterui.android.reactive
 import android.os.Handler
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
+import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.PickerItemStruct
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -161,6 +162,20 @@ class WuiComputed<T>(
                 },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedPickerItems(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedPickerItems(p) },
+                env = env
+            )
+
+        fun dateVec(ptr: Long, env: WuiEnvironment): WuiComputed<List<DateStruct>> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedDateVec(p).toList() },
+                watcherFactory = { _, callback ->
+                    WatcherStructFactory.dateVec { array, metadata ->
+                        callback.onChanged(array.toList(), metadata)
+                    }
+                },
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedDateVec(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedDateVec(p) },
                 env = env
             )
 

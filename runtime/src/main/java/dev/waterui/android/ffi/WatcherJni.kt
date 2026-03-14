@@ -43,6 +43,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsColorPicker(viewPtr: Long): ColorPickerStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
     @JvmStatic external fun forceAsDatePicker(viewPtr: Long): DatePickerStruct
+    @JvmStatic external fun forceAsMultiDatePicker(viewPtr: Long): MultiDatePickerStruct
     @JvmStatic external fun forceAsSecureField(viewPtr: Long): SecureFieldStruct
     @JvmStatic external fun forceAsLayoutContainer(viewPtr: Long): LayoutContainerStruct
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
@@ -108,6 +109,7 @@ object WatcherJni {
     @JvmStatic external fun setBindingColor(bindingPtr: Long, value: Long)
     @JvmStatic external fun dropBindingColor(bindingPtr: Long)
     @JvmStatic external fun readBindingDateTime(bindingPtr: Long): DateTimeStruct
+    @JvmStatic external fun readBindingDateVec(bindingPtr: Long): Array<DateStruct>
     @JvmStatic external fun setBindingDateTime(
         bindingPtr: Long,
         year: Int,
@@ -117,7 +119,9 @@ object WatcherJni {
         minute: Int,
         second: Int
     )
+    @JvmStatic external fun setBindingDateVec(bindingPtr: Long, dates: Array<DateStruct>)
     @JvmStatic external fun dropBindingDateTime(bindingPtr: Long)
+    @JvmStatic external fun dropBindingDateVec(bindingPtr: Long)
 
     // ========== Computed Read/Drop ==========
 
@@ -132,6 +136,7 @@ object WatcherJni {
     @JvmStatic external fun readComputedMenuItems(computedPtr: Long): Array<MenuItemStruct>
     @JvmStatic external fun readComputedHorizontalAlignment(computedPtr: Long): Int
     @JvmStatic external fun readComputedDateTime(computedPtr: Long): DateTimeStruct
+    @JvmStatic external fun readComputedDateVec(computedPtr: Long): Array<DateStruct>
     @JvmStatic external fun readComputedColorScheme(computedPtr: Long): Int
     @JvmStatic external fun readComputedColor(computedPtr: Long): Long
     @JvmStatic external fun dropComputedColor(computedPtr: Long)
@@ -146,6 +151,7 @@ object WatcherJni {
     @JvmStatic external fun dropComputedMenuItems(computedPtr: Long)
     @JvmStatic external fun dropComputedHorizontalAlignment(computedPtr: Long)
     @JvmStatic external fun dropComputedDateTime(computedPtr: Long)
+    @JvmStatic external fun dropComputedDateVec(computedPtr: Long)
     @JvmStatic external fun dropComputedColorScheme(computedPtr: Long)
 
     // ========== Watcher Creation ==========
@@ -163,6 +169,7 @@ object WatcherJni {
     @JvmStatic external fun createPickerItemsWatcher(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct
     @JvmStatic external fun createColorWatcher(callback: WatcherCallback<Long>): WatcherStruct
     @JvmStatic external fun createDateTimeWatcher(callback: WatcherCallback<DateTimeStruct>): WatcherStruct
+    @JvmStatic external fun createDateVecWatcher(callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
 
     // ========== Watch Binding ==========
 
@@ -173,6 +180,7 @@ object WatcherJni {
     @JvmStatic external fun watchBindingFloat(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingColor(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateTime(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingDateVec(bindingPtr: Long, watcher: WatcherStruct): Long
 
     // ========== Watch Computed ==========
 
@@ -186,6 +194,7 @@ object WatcherJni {
     @JvmStatic external fun watchComputedPickerItems(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedHorizontalAlignment(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedDateTime(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchComputedDateVec(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedColorScheme(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun readComputedStr(computedPtr: Long): String
     @JvmStatic external fun watchComputedStr(computedPtr: Long, watcher: WatcherStruct): Long
@@ -244,6 +253,7 @@ object WatcherJni {
     @JvmStatic external fun colorPickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun pickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun datePickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun multiDatePickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun secureFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun layoutContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct

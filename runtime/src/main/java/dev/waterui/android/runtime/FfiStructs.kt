@@ -329,6 +329,14 @@ data class DatePickerStruct(
     val type: Int
 )
 
+data class MultiDatePickerStruct(
+    val labelPtr: Long,
+    val valuePtr: Long,
+    val rangeStart: DateStruct,
+    val rangeEnd: DateStruct,
+    val decoratedPtr: Long
+)
+
 data class ColorPickerStruct(
     val labelPtr: Long,
     val valuePtr: Long,

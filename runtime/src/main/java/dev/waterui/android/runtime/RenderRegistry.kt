@@ -94,6 +94,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiColorPicker()
         registerWuiPicker()
         registerWuiDatePicker()
+        registerWuiMultiDatePicker()
         registerWuiWithEnv()
         registerWuiGpuSurface()
 
