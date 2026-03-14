@@ -65,8 +65,7 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     editText.addTextChangedListener { text ->
         if (!updating.get()) {
             val textValue = text?.toString().orEmpty()
-            // Set the binding value directly with the string bytes
-            NativeBindings.waterui_set_binding_secure(struct.valuePtr, textValue.encodeToByteArray())
+            NativeBindings.waterui_set_binding_secure(struct.valuePtr, textValue)
         }
     }
 

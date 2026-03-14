@@ -70,11 +70,9 @@ sealed class WuiSignalType<T>(val id: Int) {
     }
     
     object WuiStr : WuiSignalType<String>(3) {
-        override val read: (Long) -> String = { ptr ->
-            NativeBindings.waterui_read_binding_str(ptr).decodeToString()
-        }
+        override val read: (Long) -> String = NativeBindings::waterui_read_binding_str
         override val write: (Long, String) -> Unit = { ptr, value ->
-            NativeBindings.waterui_set_binding_str(ptr, value.encodeToByteArray())
+            NativeBindings.waterui_set_binding_str(ptr, value)
         }
         override val createWatcher = { cb: WatcherCallback<String> -> 
             NativeBindings.waterui_create_string_watcher(cb)
@@ -123,4 +121,3 @@ sealed class WuiSignalType<T>(val id: Int) {
         override val dropBinding: ((Long) -> Unit)? = null
     }
 }
-

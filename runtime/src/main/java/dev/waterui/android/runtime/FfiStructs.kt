@@ -198,14 +198,7 @@ data class ButtonStruct(
 
 data class TextStruct(val contentPtr: Long, val paragraphAlignmentPtr: Long)
 
-data class PlainStruct(val textBytes: ByteArray) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is PlainStruct) return false
-        return textBytes.contentEquals(other.textBytes)
-    }
-    override fun hashCode(): Int = textBytes.contentHashCode()
-}
+data class PlainStruct(val text: String)
 
 data class TextFieldStruct(
     val labelPtr: Long,

@@ -146,13 +146,8 @@ class WuiBinding<T>(
         fun str(bindingPtr: Long, env: WuiEnvironment): WuiBinding<String> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = { ptr ->
-                    val bytes = WatcherJni.readBindingStr(ptr)
-                    bytes.decodeToString()
-                },
-                writer = { ptr, value ->
-                    WatcherJni.setBindingStr(ptr, value.encodeToByteArray())
-                },
+                reader = { ptr -> WatcherJni.readBindingStr(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingStr(ptr, value) },
                 watcherFactory = { _, callback -> WatcherStructFactory.string(callback) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingStr(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingStr(ptr) },

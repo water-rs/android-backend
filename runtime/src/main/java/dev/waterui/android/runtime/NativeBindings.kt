@@ -103,6 +103,10 @@ internal object NativeBindings {
     fun waterui_any_views_len(handle: Long): Int = WatcherJni.anyViewsLen(handle)
     fun waterui_any_views_get_view(handle: Long, index: Int): Long = WatcherJni.anyViewsGetView(handle, index)
     fun waterui_any_views_get_id(handle: Long, index: Int): Int = WatcherJni.anyViewsGetId(handle, index)
+    fun waterui_any_views_get_ids(handle: Long, start: Int, end: Int): IntArray =
+        WatcherJni.anyViewsGetIdsInRange(handle, start, end)
+    fun waterui_any_views_watch(handle: Long, callback: Runnable): Long =
+        WatcherJni.anyViewsWatch(handle, callback)
     fun waterui_drop_any_views(handle: Long) = WatcherJni.dropAnyViews(handle)
 
     // ========== Watcher creation ==========
@@ -129,12 +133,12 @@ internal object NativeBindings {
     fun waterui_set_binding_bool(bindingPtr: Long, value: Boolean) = WatcherJni.setBindingBool(bindingPtr, value)
     fun waterui_set_binding_int(bindingPtr: Long, value: Int) = WatcherJni.setBindingInt(bindingPtr, value)
     fun waterui_set_binding_double(bindingPtr: Long, value: Double) = WatcherJni.setBindingDouble(bindingPtr, value)
-    fun waterui_set_binding_str(bindingPtr: Long, bytes: ByteArray) = WatcherJni.setBindingStr(bindingPtr, bytes)
-    fun waterui_set_binding_secure(bindingPtr: Long, bytes: ByteArray) = WatcherJni.setBindingSecure(bindingPtr, bytes)
+    fun waterui_set_binding_str(bindingPtr: Long, value: String) = WatcherJni.setBindingStr(bindingPtr, value)
+    fun waterui_set_binding_secure(bindingPtr: Long, value: String) = WatcherJni.setBindingSecure(bindingPtr, value)
     fun waterui_read_binding_bool(bindingPtr: Long): Boolean = WatcherJni.readBindingBool(bindingPtr)
     fun waterui_read_binding_int(bindingPtr: Long): Int = WatcherJni.readBindingInt(bindingPtr)
     fun waterui_read_binding_double(bindingPtr: Long): Double = WatcherJni.readBindingDouble(bindingPtr)
-    fun waterui_read_binding_str(bindingPtr: Long): ByteArray = WatcherJni.readBindingStr(bindingPtr)
+    fun waterui_read_binding_str(bindingPtr: Long): String = WatcherJni.readBindingStr(bindingPtr)
     fun waterui_drop_binding_bool(bindingPtr: Long) = WatcherJni.dropBindingBool(bindingPtr)
     fun waterui_drop_binding_int(bindingPtr: Long) = WatcherJni.dropBindingInt(bindingPtr)
     fun waterui_drop_binding_double(bindingPtr: Long) = WatcherJni.dropBindingDouble(bindingPtr)

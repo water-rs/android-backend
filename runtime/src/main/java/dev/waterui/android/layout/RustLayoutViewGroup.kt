@@ -28,7 +28,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     private val layoutPtr: Long = 0L,
-    private val descriptors: List<ChildDescriptor> = emptyList()
+    private var descriptors: List<ChildDescriptor> = emptyList()
 ) : ViewGroup(context, attrs) {
 
     init {
@@ -87,6 +87,14 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     override fun onViewRemoved(child: View) {
         super.onViewRemoved(child)
         cachedSubviews = emptyArray()
+    }
+
+    fun replaceChildren(newChildren: List<View>, newDescriptors: List<ChildDescriptor>) {
+        descriptors = newDescriptors
+        removeAllViews()
+        newChildren.forEach { child -> addView(child) }
+        cachedSubviews = emptyArray()
+        requestLayout()
     }
 
     internal fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {

@@ -1,6 +1,7 @@
 package dev.waterui.android.runtime
 
 import java.io.Closeable
+import dev.waterui.android.reactive.WatcherGuard
 
 /**
  * Canonical wrapper for native pointers obtained via JNI. Kotlin treats them as opaque [Long] values.
@@ -59,6 +60,19 @@ class NativeAnyViews(handle: Long) : NativePointer(handle) {
             }
         }
         return result
+    }
+
+    fun ids(start: Int = 0, end: Int = -1): IntArray {
+        if (isReleased) return IntArray(0)
+        val resolvedEnd = if (end >= 0) end else size()
+        return NativeBindings.waterui_any_views_get_ids(raw(), start, resolvedEnd)
+    }
+
+    fun watch(onChanged: () -> Unit): WatcherGuard {
+        check(!isReleased) { "watch called on released NativeAnyViews" }
+        val guard = NativeBindings.waterui_any_views_watch(raw(), Runnable(onChanged))
+        check(guard != 0L) { "waterui_any_views_watch returned null guard" }
+        return WatcherGuard(guard)
     }
 
     override fun release(ptr: Long) {

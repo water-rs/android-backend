@@ -85,6 +85,8 @@ object WatcherJni {
     @JvmStatic external fun anyViewsLen(handle: Long): Int
     @JvmStatic external fun anyViewsGetView(handle: Long, index: Int): Long
     @JvmStatic external fun anyViewsGetId(handle: Long, index: Int): Int
+    @JvmStatic external fun anyViewsGetIdsInRange(handle: Long, start: Int, end: Int): IntArray
+    @JvmStatic external fun anyViewsWatch(handle: Long, callback: Runnable): Long
     @JvmStatic external fun dropAnyViews(handle: Long)
 
     // ========== Binding Read/Write/Drop ==========
@@ -92,12 +94,12 @@ object WatcherJni {
     @JvmStatic external fun readBindingBool(bindingPtr: Long): Boolean
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
-    @JvmStatic external fun readBindingStr(bindingPtr: Long): ByteArray
+    @JvmStatic external fun readBindingStr(bindingPtr: Long): String
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
-    @JvmStatic external fun setBindingStr(bindingPtr: Long, bytes: ByteArray)
-    @JvmStatic external fun setBindingSecure(bindingPtr: Long, bytes: ByteArray)
+    @JvmStatic external fun setBindingStr(bindingPtr: Long, value: String)
+    @JvmStatic external fun setBindingSecure(bindingPtr: Long, value: String)
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)

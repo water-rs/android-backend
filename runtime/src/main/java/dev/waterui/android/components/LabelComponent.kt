@@ -18,7 +18,7 @@ private val labelTypeId: WuiTypeId by lazy { NativeBindings.waterui_plain_id().t
 private val labelRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_plain(node.rawPtr)
     val textView = TextView(context).apply {
-        text = struct.textBytes.decodeToString()
+        text = struct.text
     }
     Log.d("WaterUI.Label", "render plain len=${textView.text.length}")
     val color = ThemeBridge.foreground(env)
