@@ -516,6 +516,11 @@ data class PickerItemStruct(val tag: Int, val label: StyledStrStruct)
 data class VideoStruct(val url: String)
 
 /**
+ * Opaque WebView wrapper pointer consumed by the Android runtime host view.
+ */
+data class WebViewStruct(val webviewPtr: Long)
+
+/**
  * Video (raw) component data - video without native controls.
  * - sourcePtr: Computed<Str> pointer for reactive URL
  * - volumePtr: Binding<Volume> pointer (f32)

@@ -1,6 +1,7 @@
 package dev.waterui.android.ffi
 
 import android.content.Context
+import android.webkit.WebView
 import dev.waterui.android.reactive.WatcherCallback
 import dev.waterui.android.runtime.*
 
@@ -62,6 +63,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
     @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
     @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
+    @JvmStatic external fun forceAsWebView(viewPtr: Long): WebViewStruct
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
 
@@ -71,6 +73,7 @@ object WatcherJni {
     @JvmStatic external fun dropAction(actionPtr: Long)
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
+    @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
     @JvmStatic external fun dropFont(fontPtr: Long)
     @JvmStatic external fun colorFromSrgba(red: Float, green: Float, blue: Float, alpha: Float): Long
@@ -271,6 +274,7 @@ object WatcherJni {
     @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun webViewId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
 
@@ -300,9 +304,15 @@ object WatcherJni {
     @JvmStatic external fun dropSplitNavigationDetail(ptr: Long)
     @JvmStatic external fun navigationControllerNew(callback: Any): Long
     @JvmStatic external fun envInstallNavigationController(envPtr: Long, controllerPtr: Long)
+    @JvmStatic external fun envInstallWebViewController(envPtr: Long)
     @JvmStatic external fun dropNavigationController(controllerPtr: Long)
     @JvmStatic external fun envHasNavigationController(envPtr: Long): Boolean
     @JvmStatic external fun navigationPop(envPtr: Long)
+
+    // ========== WebView Native Access ==========
+
+    @JvmStatic external fun webviewNativeHandle(webviewPtr: Long): Long
+    @JvmStatic external fun webviewNativeView(handlePtr: Long): WebView
 
     // ========== OnEvent Handler Functions ==========
 

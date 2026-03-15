@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
+import dev.waterui.android.components.WebViewManager
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.ReactiveColorSignal
@@ -139,6 +140,8 @@ class WaterUiRootView @JvmOverloads constructor(
         // creates App::new(content, env), and returns App { windows, env }
         // Native takes ownership of the environment and gets it back in the App.
         if (app == null) {
+            WebViewManager.initialize(context)
+            NativeBindings.waterui_env_install_webview_controller(initEnv.raw())
             android.util.Log.d("WaterUI.RootView", "renderRoot: calling waterui_app()")
             app = NativeBindings.waterui_app(initEnv.raw())
             android.util.Log.d("WaterUI.RootView", "renderRoot: waterui_app() returned app with ${app?.windows?.size} windows")

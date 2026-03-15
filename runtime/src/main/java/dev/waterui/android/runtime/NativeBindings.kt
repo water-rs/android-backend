@@ -243,10 +243,12 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_retain(viewPtr: Long): MetadataRetainStruct = WatcherJni.forceAsMetadataRetain(viewPtr)
     fun waterui_force_as_video(viewPtr: Long): VideoStruct2 = WatcherJni.forceAsVideo(viewPtr)
     fun waterui_force_as_video_player(viewPtr: Long): VideoPlayerStruct = WatcherJni.forceAsVideoPlayer(viewPtr)
+    fun waterui_force_as_web_view(viewPtr: Long): WebViewStruct = WatcherJni.forceAsWebView(viewPtr)
 
     // ========== Media Type IDs ==========
 
     fun waterui_video_id(): TypeIdStruct = WatcherJni.videoId()
+    fun waterui_web_view_id(): TypeIdStruct = WatcherJni.webViewId()
 
     // ========== Navigation Type IDs ==========
 
@@ -279,9 +281,14 @@ internal object NativeBindings {
     fun waterui_navigation_controller_new(callback: Any): Long = WatcherJni.navigationControllerNew(callback)
     fun waterui_env_install_navigation_controller(envPtr: Long, controllerPtr: Long) =
         WatcherJni.envInstallNavigationController(envPtr, controllerPtr)
+    fun waterui_env_install_webview_controller(envPtr: Long) =
+        WatcherJni.envInstallWebViewController(envPtr)
     fun waterui_drop_navigation_controller(controllerPtr: Long) = WatcherJni.dropNavigationController(controllerPtr)
     fun waterui_env_has_navigation_controller(envPtr: Long): Boolean = WatcherJni.envHasNavigationController(envPtr)
     fun waterui_navigation_pop(envPtr: Long) = WatcherJni.navigationPop(envPtr)
+    fun waterui_webview_native_handle(webviewPtr: Long): Long = WatcherJni.webviewNativeHandle(webviewPtr)
+    fun waterui_webview_native_view(handlePtr: Long): android.webkit.WebView = WatcherJni.webviewNativeView(handlePtr)
+    fun waterui_drop_web_view(webviewPtr: Long) = WatcherJni.dropWebView(webviewPtr)
 
     // ========== Metadata Type IDs ==========
 
