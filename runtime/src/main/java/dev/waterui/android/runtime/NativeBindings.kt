@@ -96,6 +96,12 @@ internal object NativeBindings {
         WatcherJni.layoutSizeThatFits(layoutPtr, proposal, subviews)
     fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct> =
         WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
+    fun waterui_layout_lazy_stack_axis(layoutPtr: Long): Int = WatcherJni.layoutLazyStackAxis(layoutPtr)
+    fun waterui_layout_lazy_stack_spacing(layoutPtr: Long): Float = WatcherJni.layoutLazyStackSpacing(layoutPtr)
+    fun waterui_layout_lazy_stack_horizontal_alignment(layoutPtr: Long): Int =
+        WatcherJni.layoutLazyStackHorizontalAlignment(layoutPtr)
+    fun waterui_layout_lazy_stack_vertical_alignment(layoutPtr: Long): Int =
+        WatcherJni.layoutLazyStackVerticalAlignment(layoutPtr)
     fun waterui_drop_layout(layoutPtr: Long) = WatcherJni.dropLayout(layoutPtr)
 
     // ========== AnyViews ==========

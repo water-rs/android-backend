@@ -236,6 +236,10 @@ object WatcherJni {
     @JvmStatic external fun layoutMeasure(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): ViewDimensionsStruct
     @JvmStatic external fun layoutSizeThatFits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct
     @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct>
+    @JvmStatic external fun layoutLazyStackAxis(layoutPtr: Long): Int
+    @JvmStatic external fun layoutLazyStackSpacing(layoutPtr: Long): Float
+    @JvmStatic external fun layoutLazyStackHorizontalAlignment(layoutPtr: Long): Int
+    @JvmStatic external fun layoutLazyStackVerticalAlignment(layoutPtr: Long): Int
 
     // ========== Type ID Functions ==========
 
