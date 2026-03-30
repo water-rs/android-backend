@@ -84,6 +84,24 @@ private fun detachFromParent(view: View?) {
     }
 }
 
+private fun extractTextFromView(view: View): String? {
+    if (view is TextView) {
+        val text = view.text?.toString().orEmpty()
+        if (text.isNotEmpty()) {
+            return text
+        }
+    }
+    if (view is ViewGroup) {
+        for (index in 0 until view.childCount) {
+            val nested = extractTextFromView(view.getChildAt(index))
+            if (!nested.isNullOrEmpty()) {
+                return nested
+            }
+        }
+    }
+    return null
+}
+
 private fun applyNavBarColor(target: View, color: ResolvedColorStruct) {
     val argb = Color.argb(
         (color.opacity * 255).toInt(),
@@ -114,7 +132,9 @@ private fun buildBarSpec(
         if (bar.trailingPtr != 0L) inflateAnyView(context, bar.trailingPtr, env, registry) else null
 
     val searchBinding = bar.search?.textPtr?.takeIf { it != 0L }?.let { WuiBinding.str(it, env) }
-    val searchPrompt = bar.search?.prompt?.text.orEmpty()
+    val searchPrompt = bar.search?.promptPtr?.takeIf { it != 0L }?.let { promptPtr ->
+        extractTextFromView(inflateAnyView(context, promptPtr, env, registry)).orEmpty()
+    }.orEmpty()
 
     val colorComputed = bar.colorPtr.takeIf { it != 0L }?.let { colorPtr ->
         val rawColor = NativeBindings.waterui_read_computed_color(colorPtr)

@@ -706,7 +706,7 @@ data class NavigationStackStruct(
  */
 data class NavigationSearchStruct(
     val textPtr: Long,
-    val prompt: PlainStruct
+    val promptPtr: Long
 )
 
 /**
