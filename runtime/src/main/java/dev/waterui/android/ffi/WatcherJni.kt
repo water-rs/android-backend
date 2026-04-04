@@ -55,6 +55,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
+    @JvmStatic external fun gestureFromPtr(gesturePtr: Long): GestureStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
@@ -71,6 +72,7 @@ object WatcherJni {
 
     @JvmStatic external fun dropLayout(layoutPtr: Long)
     @JvmStatic external fun dropAction(actionPtr: Long)
+    @JvmStatic external fun dropGesture(gesturePtr: Long)
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
     @JvmStatic external fun dropWebView(webviewPtr: Long)

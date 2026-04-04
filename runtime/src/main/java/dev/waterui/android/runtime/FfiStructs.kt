@@ -385,12 +385,21 @@ enum class GestureType(val value: Int) {
     DRAG(2),
     MAGNIFICATION(3),
     ROTATION(4),
-    THEN(5);
+    THEN(5),
+    SIMULTANEOUS(6),
+    EXCLUSIVE(7);
 
     companion object {
-        fun fromInt(value: Int): GestureType = entries.firstOrNull { it.value == value } ?: TAP
+        fun fromInt(value: Int): GestureType =
+            entries.firstOrNull { it.value == value }
+                ?: error("Unsupported GestureType value: $value")
     }
 }
+
+data class GestureStruct(
+    val gestureType: Int,
+    val gestureData: GestureDataStruct
+)
 
 /**
  * Metadata<GestureObserver> struct for gesture recognition.

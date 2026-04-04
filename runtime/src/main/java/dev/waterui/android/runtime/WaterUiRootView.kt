@@ -155,6 +155,7 @@ class WaterUiRootView @JvmOverloads constructor(
         // Use the environment returned from the app for rendering
         // (App::new injects FullScreenOverlayManager into it)
         val renderEnv = WuiEnvironment(appStruct.envPtr)
+        bindBackgroundTheme(renderEnv)
         // Extract main window content
         val mainWindow = appStruct.mainWindow()
         val rootPtr = mainWindow.contentPtr
@@ -201,12 +202,19 @@ class WaterUiRootView @JvmOverloads constructor(
             ThemeBridge.installColorScheme(env, colorSchemeSignalPtr)
 
             materialThemeInstalled = true
-
-            // Set static background color for now (skip reactive observation to debug hang)
-            android.util.Log.d("WaterUI.RootView", "ensureTheme: setting static background to ${palette.background}")
-            setBackgroundColor(palette.background)
         }
         android.util.Log.d("WaterUI.RootView", "ensureTheme: done")
+    }
+
+    private fun bindBackgroundTheme(env: WuiEnvironment) {
+        backgroundTheme?.close()
+        backgroundTheme = ThemeBridge.background(env).also { computed ->
+            computed.observe { color ->
+                val resolvedColor = color.toColorInt()
+                android.util.Log.d("WaterUI.RootView", "bindBackgroundTheme: applying background $resolvedColor")
+                setBackgroundColor(resolvedColor)
+            }
+        }
     }
 
     private fun getSystemColorScheme(): Int {

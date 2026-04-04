@@ -205,6 +205,7 @@ internal object NativeBindings {
 
     fun waterui_call_action(actionPtr: Long, envPtr: Long) = WatcherJni.callAction(actionPtr, envPtr)
     fun waterui_drop_action(actionPtr: Long) = WatcherJni.dropAction(actionPtr)
+    fun waterui_drop_gesture(gesturePtr: Long) = WatcherJni.dropGesture(gesturePtr)
 
     // ========== Watcher guard ==========
 
@@ -241,6 +242,7 @@ internal object NativeBindings {
     fun waterui_force_as_metadata_context_menu(viewPtr: Long): MetadataContextMenuStruct = WatcherJni.forceAsMetadataContextMenu(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
+    fun waterui_gesture_from_ptr(gesturePtr: Long): GestureStruct = WatcherJni.gestureFromPtr(gesturePtr)
     fun waterui_force_as_metadata_on_event(viewPtr: Long): MetadataOnEventStruct = WatcherJni.forceAsMetadataOnEvent(viewPtr)
     fun waterui_force_as_metadata_shadow(viewPtr: Long): MetadataShadowStruct = WatcherJni.forceAsMetadataShadow(viewPtr)
     fun waterui_force_as_metadata_opacity(viewPtr: Long): MetadataOpacityStruct = WatcherJni.forceAsMetadataOpacity(viewPtr)
