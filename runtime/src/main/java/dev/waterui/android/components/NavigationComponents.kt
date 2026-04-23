@@ -290,6 +290,7 @@ private class NavigationBarView(context: Context) : LinearLayout(context) {
     }
 }
 
+@android.annotation.SuppressLint("ViewConstructor")
 private class AndroidNavigationStackView(
     context: Context,
     private val transition: Int,
@@ -344,7 +345,7 @@ private class AndroidNavigationStackView(
             return
         }
 
-        val current = entries.removeLast()
+        val current = entries.removeAt(entries.lastIndex)
         val previous = entries.last()
         previous.contentView.visibility = View.VISIBLE
         updateChrome()
@@ -613,6 +614,7 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
     container
 }
 
+@android.annotation.SuppressLint("ViewConstructor")
 private class SplitNavigationLayoutView(
     context: Context,
     private val sidebarView: View,

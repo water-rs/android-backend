@@ -45,6 +45,7 @@ private val webViewRenderer = WuiRenderer { context, node, env, registry ->
     }
 }
 
+@SuppressLint("ViewConstructor")
 private class WebViewHostView(
     context: Context,
     private val webView: WebView
@@ -299,6 +300,7 @@ class WebViewWrapper(
         eventCallback = callback
     }
 
+    @SuppressLint("RequiresFeature")
     fun injectScript(script: String, time: Int) {
         runOnMainBlocking {
             when (time) {

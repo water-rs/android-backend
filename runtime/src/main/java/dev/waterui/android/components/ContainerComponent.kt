@@ -1,5 +1,6 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
@@ -72,6 +73,7 @@ private fun readLazyStackConfig(layoutPtr: Long): LazyStackConfig? {
     }
 }
 
+@SuppressLint("ViewConstructor")
 private class LazyStackLayoutView(
     context: Context,
     private val nativeViews: NativeAnyViews,
@@ -90,6 +92,7 @@ private class LazyStackLayoutView(
     private var watcherGuard: WatcherGuard? = null
     private var scrollChangedListener: ViewTreeObserver.OnScrollChangedListener? = null
     private var lastCrossConstraintPx: Int = -1
+    private val activeIds = HashSet<Int>()
 
     init {
         clipChildren = false
@@ -399,7 +402,7 @@ private class LazyStackLayoutView(
         }
         val crossConstraintPx = if (config.axis == LAZY_STACK_VERTICAL) width else height
         val visibleWindow = resolveVisibleWindow(viewportRangePx(), crossConstraintPx)
-        val activeIds = HashSet<Int>(visibleWindow.end - visibleWindow.start)
+        activeIds.clear()
         var cursorPx = visibleWindow.leadingOffsetPx
         var requiresRelayout = false
 

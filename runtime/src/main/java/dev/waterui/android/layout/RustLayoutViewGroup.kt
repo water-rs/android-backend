@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Space
+import androidx.core.view.isEmpty
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
@@ -99,7 +100,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
     internal fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
         require(layoutPtr != 0L) { "measureForLayout called with null layout pointer" }
-        if (childCount == 0) {
+        if (isEmpty()) {
             return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
         }
         val subviews = resolveSubviews()
@@ -110,7 +111,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         require(layoutPtr != 0L) { "onMeasure called with null layout pointer" }
 
         // Empty containers should report zero size
-        if (childCount == 0) {
+        if (isEmpty()) {
             setMeasuredDimension(0, 0)
             return
         }
@@ -136,7 +137,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         require(layoutPtr != 0L) { "onLayout called with null layout pointer" }
 
         // Nothing to layout for empty containers
-        if (childCount == 0) {
+        if (isEmpty()) {
             return
         }
 

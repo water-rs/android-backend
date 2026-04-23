@@ -16,6 +16,7 @@ import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.MultiDatePickerStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
@@ -104,8 +105,10 @@ private fun presentMultiDateDialog(
     }
 
     val helperText = TextView(context).apply {
-        val markedSuffix = if (decoratedDates.isEmpty()) "" else " • ${decoratedDates.size} marked"
-        text = "Tap dates to toggle selection$markedSuffix"
+        text = context.getString(
+            R.string.wui_multi_date_picker_helper,
+            decoratedDates.size
+        )
     }
 
     val chips = ChipGroup(context).apply {
