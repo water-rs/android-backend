@@ -33,7 +33,6 @@ private val fixedContainerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_fixed_container_id().toTypeId()
 }
 
-private const val LAZY_STACK_UNSUPPORTED = 0
 private const val LAZY_STACK_VERTICAL = 1
 private const val LAZY_STACK_HORIZONTAL = 2
 

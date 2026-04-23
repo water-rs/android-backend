@@ -48,7 +48,6 @@ private val splitNavigationContainerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_split_navigation_container_id().toTypeId()
 }
 
-private const val DISPLAY_MODE_AUTOMATIC = 0
 private const val DISPLAY_MODE_INLINE = 1
 private const val DISPLAY_MODE_LARGE = 2
 

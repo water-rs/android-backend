@@ -20,6 +20,7 @@ import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
+import java.util.Locale
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -184,6 +185,7 @@ private fun EditableColor.toColorInt(): Int {
 private fun EditableColor.toHexLabel(): String {
     return if (alpha < 1f) {
         String.format(
+            Locale.ROOT,
             "#%02X%02X%02X%02X",
             (alpha.coerceIn(0f, 1f) * 255f).roundToInt(),
             (redSrgb.coerceIn(0f, 1f) * 255f).roundToInt(),
@@ -192,6 +194,7 @@ private fun EditableColor.toHexLabel(): String {
         )
     } else {
         String.format(
+            Locale.ROOT,
             "#%02X%02X%02X",
             (redSrgb.coerceIn(0f, 1f) * 255f).roundToInt(),
             (greenSrgb.coerceIn(0f, 1f) * 255f).roundToInt(),
