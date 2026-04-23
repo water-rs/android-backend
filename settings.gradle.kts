@@ -2,7 +2,7 @@ import org.gradle.api.initialization.resolve.RepositoriesMode
 
 pluginManagement {
     plugins {
-        id("com.android.library") version "8.7.3"
+        id("com.android.library") version "8.9.1"
         id("org.jetbrains.kotlin.android") version "2.0.21"
     }
     repositories {

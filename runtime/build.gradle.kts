@@ -9,7 +9,7 @@ version = "0.1.0-SNAPSHOT"
 
 android {
     namespace = "dev.waterui.android.runtime"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
