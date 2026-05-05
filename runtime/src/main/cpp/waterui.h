@@ -2869,6 +2869,24 @@ typedef struct WuiComputedVideo {
 typedef struct Computed_Video WuiComputed_Video;
 
 /**
+ * FFI representation of a semantic section break carried by a list item.
+ *
+ * Either `label` or `footer` may be null when the corresponding text is
+ * unset. The struct itself appears as a non-null pointer on a `WuiListItem`
+ * only when the item is meant to start a new section.
+ */
+typedef struct WuiListSection {
+  /**
+   * Optional header label shown above the section. Null when unset.
+   */
+  struct WuiStr *label;
+  /**
+   * Optional footer note shown below the section. Null when unset.
+   */
+  struct WuiStr *footer;
+} WuiListSection;
+
+/**
  * FFI representation of a list item.
  */
 typedef struct WuiListItem {
@@ -2880,6 +2898,11 @@ typedef struct WuiListItem {
    * Read-only signal indicating whether this item can be deleted.
    */
   WuiComputed_bool *deletable;
+  /**
+   * When non-null, this item starts a new section described by the value.
+   * Backends must call `waterui_drop_list_section` after consuming the data.
+   */
+  struct WuiListSection *section;
 } WuiListItem;
 
 /**
@@ -5143,6 +5166,18 @@ struct WuiTypeId waterui_dynamic_id(void);
  * - The watcher pointer will be consumed and freed when the Dynamic is dropped.
  */
 void waterui_dynamic_connect(struct WuiDynamic *dynamic, struct WuiWatcher_AnyView *watcher);
+
+/**
+ * Drops a `WuiListSection` allocated by Rust.
+ *
+ * Backends call this after they have copied out the section header/footer
+ * strings.
+ *
+ * # Safety
+ * The pointer must come from `IntoFFI::into_ffi(ListSection)` and must not
+ * have been freed already.
+ */
+void waterui_drop_list_section(struct WuiListSection *section);
 
 struct WuiListItem waterui_force_as_list_item(struct WuiAnyView *view);
 
