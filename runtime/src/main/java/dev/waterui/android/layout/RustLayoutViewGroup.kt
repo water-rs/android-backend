@@ -98,6 +98,39 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         requestLayout()
     }
 
+    /**
+     * Reconciles the children to exactly [ordered] (in that order), reusing the
+     * existing [View] instances already attached for unchanged entries instead of
+     * recreating them. Views attached but not in [ordered] are removed; new views
+     * are inserted at their target index; surviving views are moved into order.
+     *
+     * Unlike [replaceChildren] this preserves a reused child's identity, so its
+     * in-flight animations, focus, and accessibility node survive a membership
+     * change of the surrounding collection (`ForEach`/`List` reconcile).
+     */
+    fun reconcileChildren(ordered: List<View>, newDescriptors: List<ChildDescriptor>) {
+        descriptors = newDescriptors
+        // 1. Detach any currently-attached child that is no longer wanted.
+        for (index in childCount - 1 downTo 0) {
+            val existing = getChildAt(index)
+            if (ordered.none { it === existing }) {
+                removeViewAt(index)
+            }
+        }
+        // 2. Place each wanted child at its target index, reusing instances.
+        ordered.forEachIndexed { index, child ->
+            if (index < childCount && getChildAt(index) === child) {
+                return@forEachIndexed
+            }
+            if (child.parent === this) {
+                removeView(child)
+            }
+            addView(child, index)
+        }
+        cachedSubviews = emptyArray()
+        requestLayout()
+    }
+
     internal fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
         require(layoutPtr != 0L) { "measureForLayout called with null layout pointer" }
         if (isEmpty()) {

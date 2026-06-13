@@ -491,22 +491,37 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
     if (contentsPtr != 0L) {
         val nativeViews = NativeAnyViews(contentsPtr)
         var watcherGuard: WatcherGuard? = null
+        // id -> already-inflated child view, so a membership change reuses the
+        // native views of unchanged ids (preserving their animations/focus/a11y)
+        // and only inflates the ids that actually joined the collection.
+        val renderedChildren = linkedMapOf<Int, View>()
 
         fun syncChildren() {
             if (nativeViews.isReleased) {
                 return
             }
-
-            val inflatedChildren = nativeViews.toList().map { childPtr ->
-                inflateAnyView(context, childPtr, env, registry)
-            }
-            val descriptors = inflatedChildren.map { child ->
-                ChildDescriptor(
-                    typeId = WuiTypeId(0L, 0L),
-                    stretchAxis = child.getWuiStretchAxis()
+            val ids = nativeViews.ids().toList()
+            val seen = HashSet<Int>(ids.size)
+            val ordered = ArrayList<View>(ids.size)
+            val descriptors = ArrayList<ChildDescriptor>(ids.size)
+            ids.forEachIndexed { index, id ->
+                check(seen.add(id)) { "Duplicate child view id in container: $id" }
+                val view = renderedChildren[id] ?: run {
+                    val ptr = nativeViews.viewAt(index)
+                    check(ptr != 0L) { "container failed to materialize child at index $index" }
+                    inflateAnyView(context, ptr, env, registry)
+                }
+                renderedChildren[id] = view
+                ordered.add(view)
+                descriptors.add(
+                    ChildDescriptor(
+                        typeId = WuiTypeId(0L, 0L),
+                        stretchAxis = view.getWuiStretchAxis()
+                    )
                 )
             }
-            group.replaceChildren(inflatedChildren, descriptors)
+            renderedChildren.keys.retainAll(seen)
+            group.reconcileChildren(ordered, descriptors)
         }
 
         syncChildren()

@@ -82,7 +82,10 @@ private class WuiListAdapter(
         }
     }
 
-    class ViewHolder(val container: FrameLayout) : RecyclerView.ViewHolder(container)
+    class ViewHolder(val container: FrameLayout) : RecyclerView.ViewHolder(container) {
+        /** The item id whose content is currently inflated in [container]. */
+        var boundId: Int? = null
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val container = FrameLayout(context).apply {
@@ -95,6 +98,15 @@ private class WuiListAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val id = itemIds[position]
+        // Stable ids + DiffUtil mean a row's content is the same as long as its id
+        // is: if this holder already holds that id's inflated content, keep it so
+        // its in-flight animation, focus, and accessibility node survive the bind
+        // (only re-inflate when the holder is recycled to a different id).
+        if (holder.boundId == id && holder.container.childCount > 0) {
+            return
+        }
+        holder.boundId = id
         holder.container.removeAllViews()
 
         val source = anyViews ?: return
