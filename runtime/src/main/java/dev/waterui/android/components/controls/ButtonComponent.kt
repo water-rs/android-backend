@@ -9,6 +9,7 @@ import android.graphics.drawable.RippleDrawable
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -59,6 +60,14 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
             NativeBindings.waterui_call_action(struct.actionPtr, env.raw())
         }
     }
+
+    val disabled = WuiComputed.bool(struct.disabledPtr, env)
+    disabled.observe { isDisabled ->
+        container.isEnabled = !isDisabled
+        container.isClickable = !isDisabled
+        container.alpha = if (isDisabled) 0.38f else 1f
+    }
+    disabled.attachTo(container)
 
     val accessibilityLabel = installSemanticAccessibilityLabel(
         target = container,

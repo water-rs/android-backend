@@ -6,6 +6,7 @@ import android.widget.LinearLayout
 import com.google.android.material.slider.Slider
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -86,6 +87,12 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
         slider.trackInactiveTintList = ColorStateList.valueOf(color.toColorInt())
     }
     border.attachTo(slider)
+
+    val disabled = WuiComputed.bool(struct.disabledPtr, env)
+    disabled.observe { isDisabled ->
+        slider.isEnabled = !isDisabled
+    }
+    disabled.attachTo(slider)
 
     container.disposeWith(binding)
     container

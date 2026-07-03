@@ -5,6 +5,7 @@ import android.view.Gravity
 import android.widget.LinearLayout
 import com.google.android.material.materialswitch.MaterialSwitch
 import dev.waterui.android.reactive.WuiBinding
+import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -59,6 +60,12 @@ private val toggleRenderer = WuiRenderer { context, node, env, registry ->
         applyColors()
     }
     border.attachTo(switch)
+
+    val disabled = WuiComputed.bool(struct.disabledPtr, env)
+    disabled.observe { isDisabled ->
+        switch.isEnabled = !isDisabled
+    }
+    disabled.attachTo(switch)
 
     val updating = AtomicBoolean(false)
     binding.observe { value ->

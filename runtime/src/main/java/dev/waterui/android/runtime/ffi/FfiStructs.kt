@@ -215,7 +215,8 @@ data class ButtonStruct(
     val labelPtr: Long,
     val actionPtr: Long,
     val style: Int,
-    val accessibilityLabelPtr: Long
+    val accessibilityLabelPtr: Long,
+    val disabledPtr: Long
 )
 
 data class TextStruct(val contentPtr: Long, val paragraphAlignmentPtr: Long)
@@ -274,7 +275,12 @@ data class MetadataContextMenuStruct(
 
 data class SecureFieldStruct(val labelPtr: Long, val valuePtr: Long)
 
-data class ToggleStruct(val labelPtr: Long, val bindingPtr: Long)
+data class ToggleStruct(
+    val labelPtr: Long,
+    val bindingPtr: Long,
+    val style: Int,
+    val disabledPtr: Long
+)
 
 data class SliderStruct(
     val labelPtr: Long,
@@ -282,7 +288,8 @@ data class SliderStruct(
     val maxLabelPtr: Long,
     val rangeStart: Double,
     val rangeEnd: Double,
-    val bindingPtr: Long
+    val bindingPtr: Long,
+    val disabledPtr: Long
 )
 
 data class StepperStruct(
