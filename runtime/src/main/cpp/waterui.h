@@ -458,6 +458,7 @@ typedef enum WuiVideoEventType {
   WuiVideoEventType_PictureInPictureChanged = 7,
   WuiVideoEventType_NextRequested = 8,
   WuiVideoEventType_PreviousRequested = 9,
+  WuiVideoEventType_PlaybackStateChanged = 10,
 } WuiVideoEventType;
 
 typedef enum WuiAspectRatio {
@@ -2899,6 +2900,7 @@ typedef struct WuiVideoEvent {
   float av_drift_ms;
   uint64_t dropped_video_frames;
   bool picture_in_picture_active;
+  bool playback_active;
 } WuiVideoEvent;
 
 typedef struct Binding_Volume WuiBinding_Volume;
@@ -2908,8 +2910,10 @@ typedef struct Binding_Volume WuiBinding_Volume;
  */
 typedef struct WuiVideoPlaybackPolicy {
   bool realtime;
-  uint32_t preferred_forward_buffer_ms;
-  uint32_t live_target_offset_ms;
+  uint32_t vod_start_buffer_ms;
+  uint32_t vod_resume_buffer_ms;
+  uint32_t vod_stall_buffer_ms;
+  uint32_t live_max_video_late_ms;
 } WuiVideoPlaybackPolicy;
 
 /**
