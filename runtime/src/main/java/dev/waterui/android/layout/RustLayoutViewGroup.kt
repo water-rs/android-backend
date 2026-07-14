@@ -1,7 +1,7 @@
 package dev.waterui.android.layout
 
+import android.annotation.SuppressLint
 import android.content.Context
-import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -14,7 +14,8 @@ import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
 import dev.waterui.android.runtime.ViewDimensionsStruct
-import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.disposeAndRemoveView
+import dev.waterui.android.runtime.disposeWith
 import kotlin.math.roundToInt
 
 /**
@@ -25,17 +26,22 @@ import kotlin.math.roundToInt
  * 1. `size_that_fits` - Rust calls back to measure children as needed
  * 2. `place` - Returns final positions for all children
  */
-class RustLayoutViewGroup @JvmOverloads constructor(
+@SuppressLint("ViewConstructor")
+class RustLayoutViewGroup(
     context: Context,
-    attrs: AttributeSet? = null,
-    private val layoutPtr: Long = 0L,
+    private val layoutPtr: Long,
     private var descriptors: List<ChildDescriptor> = emptyList()
-) : ViewGroup(context, attrs) {
+) : ViewGroup(context) {
+    private val layoutWatcher = NativeBindings.waterui_layout_watch_invalidation(layoutPtr, this)
 
     init {
         // Match UIKit/SwiftUI default behavior: allow shadows/overlays to draw outside bounds.
         clipChildren = false
         clipToPadding = false
+        disposeWith {
+            NativeBindings.waterui_layout_watcher_drop(layoutWatcher)
+            NativeBindings.waterui_drop_layout(layoutPtr)
+        }
     }
 
     /** Screen density for converting between dp (Rust) and pixels (Android) */
@@ -57,13 +63,16 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     private val scratchBounds = RectStruct(x = 0f, y = 0f, width = 0f, height = 0f)
 
     private fun resolveSubviews(): Array<SubViewStruct> {
+        check(descriptors.size == childCount) {
+            "Rust layout descriptor count ${descriptors.size} does not match child count $childCount"
+        }
         if (cachedSubviews.size != childCount || subviewsOutdated()) {
             cachedSubviews = Array(childCount) { index ->
-                val descriptor = descriptors.getOrNull(index)
+                val descriptor = descriptors[index]
                 SubViewStruct(
                     view = getChildAt(index),
-                    stretchAxis = descriptor?.stretchAxis ?: StretchAxis.NONE,
-                    priority = descriptor?.priority ?: 0,
+                    stretchAxis = descriptor.stretchAxis,
+                    priority = descriptor.priority,
                     density = density
                 )
             }
@@ -90,23 +99,15 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         cachedSubviews = emptyArray()
     }
 
-    fun replaceChildren(newChildren: List<View>, newDescriptors: List<ChildDescriptor>) {
-        descriptors = newDescriptors
-        removeAllViews()
-        newChildren.forEach { child -> addView(child) }
-        cachedSubviews = emptyArray()
-        requestLayout()
-    }
-
     /**
      * Reconciles the children to exactly [ordered] (in that order), reusing the
      * existing [View] instances already attached for unchanged entries instead of
      * recreating them. Views attached but not in [ordered] are removed; new views
      * are inserted at their target index; surviving views are moved into order.
      *
-     * Unlike [replaceChildren] this preserves a reused child's identity, so its
-     * in-flight animations, focus, and accessibility node survive a membership
-     * change of the surrounding collection (`ForEach`/`List` reconcile).
+     * A reused child's identity is preserved, so its in-flight animations,
+     * focus, and accessibility node survive a membership change of the
+     * surrounding collection (`ForEach`/`List` reconcile).
      */
     fun reconcileChildren(ordered: List<View>, newDescriptors: List<ChildDescriptor>) {
         descriptors = newDescriptors
@@ -114,7 +115,7 @@ class RustLayoutViewGroup @JvmOverloads constructor(
         for (index in childCount - 1 downTo 0) {
             val existing = getChildAt(index)
             if (ordered.none { it === existing }) {
-                removeViewAt(index)
+                disposeAndRemoveView(existing)
             }
         }
         // 2. Place each wanted child at its target index, reusing instances.
@@ -132,7 +133,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     }
 
     internal fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
-        require(layoutPtr != 0L) { "measureForLayout called with null layout pointer" }
         if (isEmpty()) {
             return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
         }
@@ -141,8 +141,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        require(layoutPtr != 0L) { "onMeasure called with null layout pointer" }
-
         // Empty containers should report zero size
         if (isEmpty()) {
             setMeasuredDimension(0, 0)
@@ -167,8 +165,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        require(layoutPtr != 0L) { "onLayout called with null layout pointer" }
-
         // Nothing to layout for empty containers
         if (isEmpty()) {
             return
@@ -222,10 +218,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
      * If no interactive view is found in any child, the touch passes through.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) {
-            android.util.Log.d("WaterUI", "Touch.RustLayoutViewGroup: childCount=$childCount, point=(${ev.x.toInt()}, ${ev.y.toInt()})")
-        }
-
         // iOS-like hit-testing: find the child containing an interactive view
         for (i in childCount - 1 downTo 0) {
             val child = getChildAt(i)
@@ -233,9 +225,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 
             // Check if point is within child bounds
             if (!isPointInView(child, ev.x, ev.y)) {
-                if (ev.action == MotionEvent.ACTION_DOWN) {
-                    android.util.Log.d("WaterUI", "  [$i] ${child.javaClass.simpleName}: not in bounds")
-                }
                 continue
             }
 
@@ -246,10 +235,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
             // Check if this child has an interactive view at this point
             val interactiveView = PassThroughFrameLayout.findInteractiveViewIn(child, childX, childY)
 
-            if (ev.action == MotionEvent.ACTION_DOWN) {
-                android.util.Log.d("WaterUI.Touch", "  [$i] ${child.javaClass.simpleName}: interactive=${interactiveView?.javaClass?.simpleName ?: "null"}")
-            }
-
             if (interactiveView != null) {
                 // This child has an interactive target - dispatch to it
                 val childEvent = MotionEvent.obtain(ev)
@@ -257,19 +242,11 @@ class RustLayoutViewGroup @JvmOverloads constructor(
                 val handled = child.dispatchTouchEvent(childEvent)
                 childEvent.recycle()
 
-                if (ev.action == MotionEvent.ACTION_DOWN) {
-                    android.util.Log.d("WaterUI.Touch", "  [$i] dispatched, handled=$handled")
-                }
-
                 if (handled) return true
             }
             // No interactive view in this child, continue to next child (pass-through)
         }
 
-        // No interactive view found in any child
-        if (ev.action == MotionEvent.ACTION_DOWN) {
-            android.util.Log.d("WaterUI.Touch", "  No interactive view found")
-        }
         return false
     }
 
@@ -283,7 +260,6 @@ class RustLayoutViewGroup @JvmOverloads constructor(
 }
 
 data class ChildDescriptor(
-    val typeId: WuiTypeId,
     val stretchAxis: StretchAxis,
     val priority: Int = 0
 )

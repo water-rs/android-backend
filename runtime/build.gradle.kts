@@ -4,9 +4,6 @@ plugins {
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
-group = "dev.waterui.android"
-version = "0.1.0-SNAPSHOT"
-
 android {
     namespace = "dev.waterui.android.runtime"
     compileSdk = 36
@@ -15,12 +12,6 @@ android {
     defaultConfig {
         minSdk = 24
         consumerProguardFiles("consumer-rules.pro")
-
-
-    }
-
-    buildFeatures {
-        compose = false
     }
 
     compileOptions {
@@ -32,12 +23,6 @@ android {
     kotlinOptions {
         jvmTarget = "21"
         freeCompilerArgs += listOf("-Xjvm-default=all")
-    }
-
-    sourceSets {
-        getByName("main") {
-            jniLibs.srcDir("src/main/jniLibs")
-        }
     }
 
     packaging {
@@ -81,12 +66,12 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.dynamicanimation:dynamicanimation:1.1.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("androidx.webkit:webkit:1.15.0")
-    implementation("com.google.android.material:material:1.13.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-
+    implementation("androidx.lifecycle:lifecycle-runtime:2.11.0")
+    implementation("androidx.webkit:webkit:1.16.0")
+    implementation("com.google.android.material:material:1.14.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

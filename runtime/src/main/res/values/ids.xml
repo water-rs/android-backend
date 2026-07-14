@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="wui_secure_view_count" type="id" />
+    <item name="wui_stretch_axis" type="id" />
+    <item name="wui_layout_priority" type="id" />
+    <item name="wui_focus_target" type="id" />
+    <item name="wui_wants_touches" type="id" />
+    <item name="wui_disposables" type="id" />
+    <item name="wui_dynamic_range" type="id" />
+    <item name="wui_spring_animation" type="id" />
+    <item name="wui_transform_spring_animations" type="id" />
+</resources>

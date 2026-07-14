@@ -1,18 +1,11 @@
 package dev.waterui.android.reactive
 
-import android.os.Handler
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.DateTimeStruct
-import dev.waterui.android.runtime.PickerItemStruct
-import dev.waterui.android.runtime.ResolvedColorStruct
-import dev.waterui.android.runtime.ResolvedFontStruct
-import dev.waterui.android.runtime.StyledStrStruct
-import dev.waterui.android.runtime.VideoStruct
 import dev.waterui.android.runtime.WatcherStruct
-import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiAnimation
 
 /**
@@ -23,86 +16,59 @@ class WuiBinding<T>(
     bindingPtr: Long,
     private val reader: (Long) -> T,
     private val writer: (Long, T) -> Unit,
-    private val watcherFactory: (Long, WatcherCallback<T>) -> WatcherStruct,
+    private val watcherFactory: (WatcherCallback<T>) -> WatcherStruct,
     private val watcherRegistrar: (Long, WatcherStruct) -> Long,
     private val dropper: (Long) -> Unit,
-    private val env: WuiEnvironment
+    private val valueReleaser: (T) -> Unit = {},
+    private val valuesEqual: (T, T) -> Boolean = { left, right -> left == right },
+    private val writerConsumesValue: Boolean = false
 ) : NativePointer(bindingPtr) {
-
-    private var watcherGuard: WatcherGuard? = null
-    private var syncingFromRust = false
-    private var observer: ((T, WuiAnimation) -> Unit)? = null
-    private var currentValue: T = reader(bindingPtr)
-
-    fun current(): T = currentValue
+    private val subscription = NativeSignalSubscription(
+        read = { reader(raw()) },
+        subscribe = { onValue ->
+            val watcher = watcherFactory { value, metadata ->
+                check(Looper.myLooper() === Looper.getMainLooper()) {
+                    "WaterUI binding updates must run on the Android main thread"
+                }
+                onValue(value, metadata.animation)
+            }
+            val guardHandle = watcherRegistrar(raw(), watcher)
+            check(guardHandle != 0L) {
+                "WaterUI binding watcher registration returned a null guard"
+            }
+            WatcherGuard(guardHandle)
+        },
+        isOwnerReleased = { isReleased },
+        releaseValue = valueReleaser,
+        valuesEqual = valuesEqual
+    )
 
     fun observe(onValue: (T) -> Unit) {
         observeWithAnimation { value, _ -> onValue(value) }
     }
 
     fun observeWithAnimation(onValue: (T, WuiAnimation) -> Unit) {
-        observer = onValue
-        onValue(currentValue, WuiAnimation.NONE)
-        ensureWatcher()
+        subscription.observe(onValue)
     }
 
-    private fun ensureWatcher() {
-        if (watcherGuard != null || isReleased) return
-        // Use Handler to post to main thread - this ensures the callback returns immediately
-        // even if called synchronously from Rust, preventing deadlocks
-        val mainHandler = Handler(Looper.getMainLooper())
-        val watcher = watcherFactory(raw()) { value, metadata ->
-            // IMPORTANT: Extract animation IMMEDIATELY before posting, because the metadata
-            // pointer may become invalid after this callback returns to Rust
-            val animation = metadata.animation
-            
-            // Post to main thread using Handler - this queues the message and returns immediately
-            // This prevents deadlocks when Rust calls the callback synchronously during watch() registration
-            mainHandler.post {
-                // Skip if value hasn't changed (prevents unnecessary UI updates)
-                if (currentValue == value) return@post
-                
-                syncingFromRust = true
-                try {
-                    currentValue = value
-                    observer?.invoke(value, animation)
-                } finally {
-                    syncingFromRust = false
-                }
-            }
-        }
-        val guardHandle = watcherRegistrar(raw(), watcher)
-        if (guardHandle != 0L) {
-            watcherGuard = WatcherGuard(guardHandle)
-        }
+    fun clearObserver() {
+        subscription.clearObserver()
     }
 
-    private var isSettingValue = false
-    
     fun set(value: T) {
-        // Prevent feedback loops:
-        // 1. If we're currently syncing from Rust, don't write back
-        // 2. If we're already in the middle of a set() call, don't recurse
-        // 3. If value hasn't changed, skip
-        if (syncingFromRust || isSettingValue || currentValue == value) return
-        
-        isSettingValue = true
-        try {
-            currentValue = value
-            // Notify observer immediately so UI updates
-            observer?.invoke(value, WuiAnimation.NONE)
-            // Write to Rust
-            writer(raw(), value)
-        } finally {
-            isSettingValue = false
+        check(!isReleased) { "cannot update a released WaterUI binding" }
+        if (subscription.isWatching && subscription.currentMatches(value)) return
+
+        writer(raw(), value)
+        if (!writerConsumesValue && !isReleased && !subscription.isWatching) {
+            subscription.acceptLocal(value)
         }
     }
 
     override fun close() {
-        super.close()
-        watcherGuard?.close()
-        watcherGuard = null
-        observer = null
+        val bindingPtr = takeRaw()
+        subscription.close()
+        release(bindingPtr)
     }
 
     override fun release(ptr: Long) {
@@ -110,73 +76,90 @@ class WuiBinding<T>(
     }
 
     companion object {
-        fun bool(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Boolean> =
+        fun bool(bindingPtr: Long): WuiBinding<Boolean> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingBool(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingBool(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.bool(callback) },
+                watcherFactory = WatcherJni::createBoolWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingBool(ptr, watcher) },
-                dropper = { ptr -> WatcherJni.dropBindingBool(ptr) },
-                env = env
+                dropper = { ptr -> WatcherJni.dropBindingBool(ptr) }
             )
 
-        fun int(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
+        fun int(bindingPtr: Long): WuiBinding<Int> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingInt(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingInt(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.int(callback) },
+                watcherFactory = WatcherJni::createIntWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingInt(ptr, watcher) },
-                dropper = { ptr -> WatcherJni.dropBindingInt(ptr) },
-                env = env
+                dropper = { ptr -> WatcherJni.dropBindingInt(ptr) }
             )
 
-        fun double(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Double> =
+        fun id(bindingPtr: Long): WuiBinding<Int> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = WatcherJni::readBindingId,
+                writer = WatcherJni::setBindingId,
+                watcherFactory = WatcherJni::createIdWatcher,
+                watcherRegistrar = WatcherJni::watchBindingId,
+                dropper = WatcherJni::dropBindingId
+            )
+
+        fun double(bindingPtr: Long): WuiBinding<Double> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingDouble(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingDouble(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.double(callback) },
+                watcherFactory = WatcherJni::createDoubleWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDouble(ptr, watcher) },
-                dropper = { ptr -> WatcherJni.dropBindingDouble(ptr) },
-                env = env
+                dropper = { ptr -> WatcherJni.dropBindingDouble(ptr) }
             )
 
-        fun str(bindingPtr: Long, env: WuiEnvironment): WuiBinding<String> =
+        fun str(bindingPtr: Long): WuiBinding<String> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingStr(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingStr(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.string(callback) },
+                watcherFactory = WatcherJni::createStringWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingStr(ptr, watcher) },
-                dropper = { ptr -> WatcherJni.dropBindingStr(ptr) },
-                env = env
+                dropper = { ptr -> WatcherJni.dropBindingStr(ptr) }
             )
 
-        fun float(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Float> =
+        fun styledPlain(bindingPtr: Long): WuiBinding<String> =
             WuiBinding(
                 bindingPtr = bindingPtr,
-                reader = { ptr -> WatcherJni.readBindingFloat(ptr) },
-                writer = { ptr, value -> WatcherJni.setBindingFloat(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.float(callback) },
-                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingFloat(ptr, watcher) },
-                dropper = { ptr -> WatcherJni.dropBindingFloat(ptr) },
-                env = env
+                reader = WatcherJni::readBindingStyledStrPlain,
+                writer = WatcherJni::setBindingStyledStrPlain,
+                watcherFactory = WatcherJni::createStyledStrPlainWatcher,
+                watcherRegistrar = WatcherJni::watchBindingStyledStr,
+                dropper = WatcherJni::dropBindingStyledStr
             )
 
-        fun color(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Long> =
+        fun secure(bindingPtr: Long): WuiBinding<String> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = WatcherJni::readBindingSecure,
+                writer = WatcherJni::setBindingSecure,
+                watcherFactory = WatcherJni::createSecureWatcher,
+                watcherRegistrar = WatcherJni::watchBindingSecure,
+                dropper = WatcherJni::dropBindingSecure
+            )
+
+        fun color(bindingPtr: Long): WuiBinding<Long> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingColor(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingColor(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.color(callback) },
+                watcherFactory = WatcherJni::createColorWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingColor(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingColor(ptr) },
-                env = env
+                valueReleaser = WatcherJni::dropColor,
+                valuesEqual = { _, _ -> false },
+                writerConsumesValue = true
             )
 
-        fun dateTime(bindingPtr: Long, env: WuiEnvironment): WuiBinding<DateTimeStruct> =
+        fun dateTime(bindingPtr: Long): WuiBinding<DateTimeStruct> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingDateTime(ptr) },
@@ -191,82 +174,20 @@ class WuiBinding<T>(
                         value.second
                     )
                 },
-                watcherFactory = { _, callback -> WatcherStructFactory.dateTime(callback) },
+                watcherFactory = WatcherJni::createDateTimeWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDateTime(ptr, watcher) },
-                dropper = { ptr -> WatcherJni.dropBindingDateTime(ptr) },
-                env = env
+                dropper = { ptr -> WatcherJni.dropBindingDateTime(ptr) }
             )
 
-        fun dateVec(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Array<DateStruct>> =
+        fun dateVec(bindingPtr: Long): WuiBinding<Array<DateStruct>> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingDateVec(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingDateVec(ptr, value) },
-                watcherFactory = { _, callback -> WatcherStructFactory.dateVec(callback) },
+                watcherFactory = WatcherJni::createDateVecWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDateVec(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingDateVec(ptr) },
-                env = env
+                valuesEqual = { left, right -> left.contentEquals(right) }
             )
-    }
-}
-
-/**
- * Produces watcher struct handles backed by JNI trampolines.
- */
-object WatcherStructFactory {
-    fun bool(callback: WatcherCallback<Boolean>): WatcherStruct {
-        return WatcherJni.createBoolWatcher(callback)
-    }
-
-    fun int(callback: WatcherCallback<Int>): WatcherStruct {
-        return WatcherJni.createIntWatcher(callback)
-    }
-
-    fun double(callback: WatcherCallback<Double>): WatcherStruct {
-        return WatcherJni.createDoubleWatcher(callback)
-    }
-
-    fun float(callback: WatcherCallback<Float>): WatcherStruct {
-        return WatcherJni.createFloatWatcher(callback)
-    }
-
-    fun string(callback: WatcherCallback<String>): WatcherStruct {
-        return WatcherJni.createStringWatcher(callback)
-    }
-
-    fun video(callback: WatcherCallback<VideoStruct>): WatcherStruct {
-        return WatcherJni.createVideoWatcher(callback)
-    }
-
-    fun anyView(callback: WatcherCallback<Long>): WatcherStruct {
-        return WatcherJni.createAnyViewWatcher(callback)
-    }
-
-    fun styledString(callback: WatcherCallback<StyledStrStruct>): WatcherStruct {
-        return WatcherJni.createStyledStrWatcher(callback)
-    }
-
-    fun resolvedColor(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct {
-        return WatcherJni.createResolvedColorWatcher(callback)
-    }
-
-    fun resolvedFont(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct {
-        return WatcherJni.createResolvedFontWatcher(callback)
-    }
-
-    fun pickerItems(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct {
-        return WatcherJni.createPickerItemsWatcher(callback)
-    }
-
-    fun color(callback: WatcherCallback<Long>): WatcherStruct {
-        return WatcherJni.createColorWatcher(callback)
-    }
-
-    fun dateTime(callback: WatcherCallback<DateTimeStruct>): WatcherStruct {
-        return WatcherJni.createDateTimeWatcher(callback)
-    }
-
-    fun dateVec(callback: WatcherCallback<Array<DateStruct>>): WatcherStruct {
-        return WatcherJni.createDateVecWatcher(callback)
     }
 }

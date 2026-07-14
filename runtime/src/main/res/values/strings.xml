@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="wui_missing_component_message">Missing component for typeId=%1$s</string>
     <string name="wui_multi_date_picker_helper">Tap dates to toggle selection. Marked dates: %1$d</string>
+    <string name="wui_select_time">Select time</string>
+    <string name="wui_select_dates">Select dates</string>
+    <plurals name="wui_select_dates_marked">
+        <item quantity="one">Select dates (%1$d marked)</item>
+        <item quantity="other">Select dates (%1$d marked)</item>
+    </plurals>
+    <plurals name="wui_dates_selected">
+        <item quantity="one">%1$d date selected</item>
+        <item quantity="other">%1$d dates selected</item>
+    </plurals>
+    <string name="wui_clear">Clear</string>
+    <string name="wui_select_color">Select color</string>
+    <string name="wui_color_red">Red</string>
+    <string name="wui_color_green">Green</string>
+    <string name="wui_color_blue">Blue</string>
+    <string name="wui_color_alpha">Alpha</string>
+    <string name="wui_color_hdr">HDR headroom</string>
+    <string name="wui_decrement_value">Decrease %1$s</string>
+    <string name="wui_increment_value">Increase %1$s</string>
+    <string name="wui_navigation_back">Back</string>
 </resources>

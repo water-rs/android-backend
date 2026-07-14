@@ -164,6 +164,6 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
         }
 
         /** Tag key for marking views that want to receive touch events */
-        const val TAG_WANTS_TOUCHES = 0x57554902 // "WUI\x02"
+        val TAG_WANTS_TOUCHES: Int get() = dev.waterui.android.runtime.R.id.wui_wants_touches
     }
 }

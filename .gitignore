@@ -1,5 +1,6 @@
 # Android backend local build artifacts
 /.gradle/
+/.kotlin/
 /.idea/
 /.cxx/
 /build/

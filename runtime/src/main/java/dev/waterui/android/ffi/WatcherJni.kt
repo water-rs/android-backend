@@ -2,6 +2,7 @@ package dev.waterui.android.ffi
 
 import android.content.Context
 import android.webkit.WebView
+import dev.waterui.android.components.WebViewFactory
 import dev.waterui.android.reactive.WatcherCallback
 import dev.waterui.android.runtime.*
 
@@ -19,15 +20,16 @@ object WatcherJni {
     // ========== Core Functions ==========
 
     @JvmStatic external fun init(): Long
+    @JvmStatic external fun gpuRuntimeCreate(callback: GpuRuntimeReadyCallback)
+    @JvmStatic external fun envInstallGpuRuntime(envPtr: Long, runtimePtr: Long)
+    @JvmStatic external fun dropGpuRuntime(runtimePtr: Long)
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
     @JvmStatic external fun cloneEnv(envPtr: Long): Long
     @JvmStatic external fun dropEnv(envPtr: Long)
-    @JvmStatic external fun dropAnyview(viewPtr: Long)
-    @JvmStatic external fun configureHotReloadEndpoint(host: String, port: Int)
-    @JvmStatic external fun configureHotReloadDirectory(path: String)
+    @JvmStatic external fun envInstallLocaleTag(envPtr: Long, localeTag: String)
     @JvmStatic external fun notifyVideoPictureInPictureUserLeaveHint(context: Context)
 
     // ========== Force-As Functions ==========
@@ -43,12 +45,14 @@ object WatcherJni {
     @JvmStatic external fun forceAsScrollView(viewPtr: Long): ScrollStruct
     @JvmStatic external fun forceAsColorPicker(viewPtr: Long): ColorPickerStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
+    @JvmStatic external fun forceAsPickerItem(viewPtr: Long): PickerItemStruct
     @JvmStatic external fun forceAsDatePicker(viewPtr: Long): DatePickerStruct
     @JvmStatic external fun forceAsMultiDatePicker(viewPtr: Long): MultiDatePickerStruct
     @JvmStatic external fun forceAsSecureField(viewPtr: Long): SecureFieldStruct
     @JvmStatic external fun forceAsLayoutContainer(viewPtr: Long): LayoutContainerStruct
     @JvmStatic external fun forceAsFixedContainer(viewPtr: Long): FixedContainerStruct
     @JvmStatic external fun forceAsResolvedColor(viewPtr: Long): ResolvedColorStruct
+    @JvmStatic external fun forceAsColor(viewPtr: Long): Long
     @JvmStatic external fun forceAsResolvedGradient(viewPtr: Long): ResolvedGradientStruct
     @JvmStatic external fun forceAsResolvedShape(viewPtr: Long): ResolvedShapeStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
@@ -57,15 +61,22 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
     @JvmStatic external fun gestureFromPtr(gesturePtr: Long): GestureStruct
     @JvmStatic external fun forceAsMetadataOnEvent(viewPtr: Long): MetadataOnEventStruct
+    @JvmStatic external fun forceAsMetadataLifecycleHook(viewPtr: Long): MetadataLifecycleHookStruct
     @JvmStatic external fun forceAsMetadataShadow(viewPtr: Long): MetadataShadowStruct
+    @JvmStatic external fun forceAsMetadataBorder(viewPtr: Long): MetadataBorderStruct
+    @JvmStatic external fun forceAsMetadataScale(viewPtr: Long): MetadataScaleStruct
+    @JvmStatic external fun forceAsMetadataRotation(viewPtr: Long): MetadataRotationStruct
+    @JvmStatic external fun forceAsMetadataOffset(viewPtr: Long): MetadataOffsetStruct
+    @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
+    @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
+    @JvmStatic external fun forceAsMetadataHittable(viewPtr: Long): MetadataHittableStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
-    @JvmStatic external fun forceAsVideo(viewPtr: Long): VideoStruct2
-    @JvmStatic external fun forceAsVideoPlayer(viewPtr: Long): VideoPlayerStruct
     @JvmStatic external fun forceAsWebView(viewPtr: Long): WebViewStruct
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
+    @JvmStatic external fun forceAsMenuItem(viewPtr: Long): MenuItemStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
 
     // ========== Drop Functions ==========
@@ -74,44 +85,53 @@ object WatcherJni {
     @JvmStatic external fun dropAction(actionPtr: Long)
     @JvmStatic external fun dropGesture(gesturePtr: Long)
     @JvmStatic external fun callAction(actionPtr: Long, envPtr: Long)
+    @JvmStatic external fun callSharedAction(actionPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropSharedAction(actionPtr: Long)
+    @JvmStatic external fun dropTabContent(contentPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
     @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
     @JvmStatic external fun dropFont(fontPtr: Long)
-    @JvmStatic external fun colorFromSrgba(red: Float, green: Float, blue: Float, alpha: Float): Long
     @JvmStatic external fun colorFromLinearRgbaHeadroom(red: Float, green: Float, blue: Float, alpha: Float, headroom: Float): Long
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
     @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
     @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
-    @JvmStatic external fun getAnimation(metadataPtr: Long): Int
+    @JvmStatic external fun getAnimationKindDurationPacked(metadataPtr: Long): Long
+    @JvmStatic external fun getAnimationParams12Packed(metadataPtr: Long): Long
+    @JvmStatic external fun getAnimationParams34Packed(metadataPtr: Long): Long
 
     // ========== AnyViews Functions ==========
 
     @JvmStatic external fun anyViewsLen(handle: Long): Int
     @JvmStatic external fun anyViewsGetView(handle: Long, index: Int): Long
-    @JvmStatic external fun anyViewsGetId(handle: Long, index: Int): Int
     @JvmStatic external fun anyViewsGetIdsInRange(handle: Long, start: Int, end: Int): IntArray
-    @JvmStatic external fun anyViewsWatch(handle: Long, callback: Runnable): Long
+    @JvmStatic external fun anyViewsWatch(handle: Long, callback: NativeAnyViewsWatcher): Long
     @JvmStatic external fun dropAnyViews(handle: Long)
+    @JvmStatic external fun dropAnyView(viewPtr: Long)
 
     // ========== Binding Read/Write/Drop ==========
 
     @JvmStatic external fun readBindingBool(bindingPtr: Long): Boolean
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
+    @JvmStatic external fun readBindingId(bindingPtr: Long): Int
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
     @JvmStatic external fun readBindingStr(bindingPtr: Long): String
+    @JvmStatic external fun readBindingStyledStrPlain(bindingPtr: Long): String
+    @JvmStatic external fun readBindingSecure(bindingPtr: Long): String
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
+    @JvmStatic external fun setBindingId(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
     @JvmStatic external fun setBindingStr(bindingPtr: Long, value: String)
+    @JvmStatic external fun setBindingStyledStrPlain(bindingPtr: Long, value: String)
     @JvmStatic external fun setBindingSecure(bindingPtr: Long, value: String)
+    @JvmStatic external fun dropBindingSecure(bindingPtr: Long)
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
+    @JvmStatic external fun dropBindingId(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
     @JvmStatic external fun dropBindingStr(bindingPtr: Long)
-    @JvmStatic external fun readBindingFloat(bindingPtr: Long): Float
-    @JvmStatic external fun setBindingFloat(bindingPtr: Long, value: Float)
-    @JvmStatic external fun dropBindingFloat(bindingPtr: Long)
+    @JvmStatic external fun dropBindingStyledStr(bindingPtr: Long)
     @JvmStatic external fun readBindingColor(bindingPtr: Long): Long
     @JvmStatic external fun setBindingColor(bindingPtr: Long, value: Long)
     @JvmStatic external fun dropBindingColor(bindingPtr: Long)
@@ -139,14 +159,10 @@ object WatcherJni {
     @JvmStatic external fun readComputedResolvedColor(computedPtr: Long): ResolvedColorStruct
     @JvmStatic external fun readComputedResolvedFont(computedPtr: Long): ResolvedFontStruct
     @JvmStatic external fun readComputedStyledStr(computedPtr: Long): StyledStrStruct
-    @JvmStatic external fun readComputedPickerItems(computedPtr: Long): Array<PickerItemStruct>
-    @JvmStatic external fun readComputedMenuItems(computedPtr: Long): Array<MenuItemStruct>
     @JvmStatic external fun readComputedHorizontalAlignment(computedPtr: Long): Int
-    @JvmStatic external fun readComputedDateTime(computedPtr: Long): DateTimeStruct
     @JvmStatic external fun readComputedDateVec(computedPtr: Long): Array<DateStruct>
     @JvmStatic external fun readComputedColorScheme(computedPtr: Long): Int
-    @JvmStatic external fun readComputedColor(computedPtr: Long): Long
-    @JvmStatic external fun dropComputedColor(computedPtr: Long)
+    @JvmStatic external fun readComputedCursorStyle(computedPtr: Long): Int
     @JvmStatic external fun dropComputedF64(computedPtr: Long)
     @JvmStatic external fun dropComputedF32(computedPtr: Long)
     @JvmStatic external fun dropComputedBool(computedPtr: Long)
@@ -154,26 +170,32 @@ object WatcherJni {
     @JvmStatic external fun dropComputedResolvedColor(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedFont(computedPtr: Long)
     @JvmStatic external fun dropComputedStyledStr(computedPtr: Long)
-    @JvmStatic external fun dropComputedPickerItems(computedPtr: Long)
-    @JvmStatic external fun dropComputedMenuItems(computedPtr: Long)
     @JvmStatic external fun dropComputedHorizontalAlignment(computedPtr: Long)
-    @JvmStatic external fun dropComputedDateTime(computedPtr: Long)
     @JvmStatic external fun dropComputedDateVec(computedPtr: Long)
     @JvmStatic external fun dropComputedColorScheme(computedPtr: Long)
+    @JvmStatic external fun dropComputedCursorStyle(computedPtr: Long)
 
     // ========== Watcher Creation ==========
 
     @JvmStatic external fun createBoolWatcher(callback: WatcherCallback<Boolean>): WatcherStruct
     @JvmStatic external fun createIntWatcher(callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createIdWatcher(callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createCursorStyleWatcher(callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createColorSchemeWatcher(callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createHorizontalAlignmentWatcher(
+        callback: WatcherCallback<Int>
+    ): WatcherStruct
     @JvmStatic external fun createDoubleWatcher(callback: WatcherCallback<Double>): WatcherStruct
     @JvmStatic external fun createFloatWatcher(callback: WatcherCallback<Float>): WatcherStruct
     @JvmStatic external fun createStringWatcher(callback: WatcherCallback<String>): WatcherStruct
-    @JvmStatic external fun createVideoWatcher(callback: WatcherCallback<VideoStruct>): WatcherStruct
+    @JvmStatic external fun createSecureWatcher(callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createStyledStrPlainWatcher(
+        callback: WatcherCallback<String>
+    ): WatcherStruct
     @JvmStatic external fun createAnyViewWatcher(callback: WatcherCallback<Long>): WatcherStruct
     @JvmStatic external fun createStyledStrWatcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
     @JvmStatic external fun createResolvedColorWatcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
     @JvmStatic external fun createResolvedFontWatcher(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
-    @JvmStatic external fun createPickerItemsWatcher(callback: WatcherCallback<Array<PickerItemStruct>>): WatcherStruct
     @JvmStatic external fun createColorWatcher(callback: WatcherCallback<Long>): WatcherStruct
     @JvmStatic external fun createDateTimeWatcher(callback: WatcherCallback<DateTimeStruct>): WatcherStruct
     @JvmStatic external fun createDateVecWatcher(callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
@@ -182,9 +204,11 @@ object WatcherJni {
 
     @JvmStatic external fun watchBindingBool(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingInt(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingId(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDouble(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingStr(bindingPtr: Long, watcher: WatcherStruct): Long
-    @JvmStatic external fun watchBindingFloat(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingSecure(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingStyledStr(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingColor(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateTime(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateVec(bindingPtr: Long, watcher: WatcherStruct): Long
@@ -198,17 +222,10 @@ object WatcherJni {
     @JvmStatic external fun watchComputedStyledStr(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedColor(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedFont(computedPtr: Long, watcher: WatcherStruct): Long
-    @JvmStatic external fun watchComputedPickerItems(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedHorizontalAlignment(computedPtr: Long, watcher: WatcherStruct): Long
-    @JvmStatic external fun watchComputedDateTime(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedDateVec(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedColorScheme(computedPtr: Long, watcher: WatcherStruct): Long
-    @JvmStatic external fun readComputedStr(computedPtr: Long): String
-    @JvmStatic external fun watchComputedStr(computedPtr: Long, watcher: WatcherStruct): Long
-    @JvmStatic external fun dropComputedStr(computedPtr: Long)
-    @JvmStatic external fun readComputedVideo(computedPtr: Long): VideoStruct
-    @JvmStatic external fun watchComputedVideo(computedPtr: Long, watcher: WatcherStruct): Long
-    @JvmStatic external fun dropComputedVideo(computedPtr: Long)
+    @JvmStatic external fun watchComputedCursorStyle(computedPtr: Long, watcher: WatcherStruct): Long
 
     // ========== Dynamic Connect ==========
 
@@ -219,9 +236,15 @@ object WatcherJni {
     @JvmStatic external fun createReactiveColorState(argb: Int): Long
     @JvmStatic external fun reactiveColorStateToComputed(statePtr: Long): Long
     @JvmStatic external fun reactiveColorStateSet(statePtr: Long, argb: Int)
+    @JvmStatic external fun dropReactiveColorState(statePtr: Long)
+    @JvmStatic external fun createReactiveColorSchemeState(scheme: Int): Long
+    @JvmStatic external fun reactiveColorSchemeStateToComputed(statePtr: Long): Long
+    @JvmStatic external fun reactiveColorSchemeStateSet(statePtr: Long, scheme: Int)
+    @JvmStatic external fun dropReactiveColorSchemeState(statePtr: Long)
     @JvmStatic external fun createReactiveFontState(size: Float, weight: Int): Long
     @JvmStatic external fun reactiveFontStateToComputed(statePtr: Long): Long
     @JvmStatic external fun reactiveFontStateSet(statePtr: Long, size: Float, weight: Int)
+    @JvmStatic external fun dropReactiveFontState(statePtr: Long)
 
     // ========== Theme Functions ==========
 
@@ -231,7 +254,6 @@ object WatcherJni {
     @JvmStatic external fun themeColor(envPtr: Long, slot: Int): Long
     @JvmStatic external fun themeFont(envPtr: Long, slot: Int): Long
     @JvmStatic external fun themeColorScheme(envPtr: Long): Long
-    @JvmStatic external fun computedColorSchemeConstant(scheme: Int): Long
 
     // ========== Layout Functions ==========
 
@@ -242,6 +264,8 @@ object WatcherJni {
     @JvmStatic external fun layoutLazyStackSpacing(layoutPtr: Long): Float
     @JvmStatic external fun layoutLazyStackHorizontalAlignment(layoutPtr: Long): Int
     @JvmStatic external fun layoutLazyStackVerticalAlignment(layoutPtr: Long): Int
+    @JvmStatic external fun layoutWatchInvalidation(layoutPtr: Long, owner: android.view.View): Long
+    @JvmStatic external fun layoutWatcherDrop(watcherPtr: Long)
 
     // ========== Type ID Functions ==========
 
@@ -255,7 +279,10 @@ object WatcherJni {
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun appliedFilterId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun viewEffectId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedColorId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedGradientId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedShapeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun toggleId(): dev.waterui.android.runtime.TypeIdStruct
@@ -263,6 +290,7 @@ object WatcherJni {
     @JvmStatic external fun fixedContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun colorPickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun pickerId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun pickerItemId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun datePickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun multiDatePickerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun secureFieldId(): dev.waterui.android.runtime.TypeIdStruct
@@ -271,15 +299,30 @@ object WatcherJni {
     @JvmStatic external fun metadataSecureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataGestureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOnEventId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataLifecycleHookId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataShadowId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataBorderId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataScaleId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataRotationId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataOffsetId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataCursorId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataClipShapeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataHittableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataStandardDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataHighDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsMetadataStandardDynamicRange(
+        viewPtr: Long
+    ): dev.waterui.android.runtime.MetadataDynamicRangeStruct
+    @JvmStatic external fun forceAsMetadataHighDynamicRange(
+        viewPtr: Long
+    ): dev.waterui.android.runtime.MetadataDynamicRangeStruct
     @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun videoId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun videoPlayerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun menuItemId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun webViewId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
@@ -298,6 +341,15 @@ object WatcherJni {
 
     @JvmStatic external fun forceAsList(viewPtr: Long): dev.waterui.android.runtime.ListStruct
     @JvmStatic external fun forceAsListItem(viewPtr: Long): dev.waterui.android.runtime.ListItemStruct
+    @JvmStatic external fun callIndexAction(actionPtr: Long, envPtr: Long, index: Long)
+    @JvmStatic external fun dropIndexAction(actionPtr: Long)
+    @JvmStatic external fun callMoveAction(
+        actionPtr: Long,
+        envPtr: Long,
+        fromIndex: Long,
+        toIndex: Long
+    )
+    @JvmStatic external fun dropMoveAction(actionPtr: Long)
 
     // ========== Navigation Force-As Functions ==========
 
@@ -305,15 +357,16 @@ object WatcherJni {
     @JvmStatic external fun forceAsNavigationView(viewPtr: Long): NavigationViewStruct
     @JvmStatic external fun forceAsTabs(viewPtr: Long): TabsStruct
     @JvmStatic external fun forceAsSplitNavigationContainer(viewPtr: Long): SplitNavigationContainerStruct
-    @JvmStatic external fun tabContent(contentPtr: Long): NavigationViewStruct
-    @JvmStatic external fun splitNavigationDetailContent(detailPtr: Long, selectedId: Int): NavigationViewStruct
+    @JvmStatic external fun tabContent(contentPtr: Long, envPtr: Long): NavigationViewStruct
+    @JvmStatic external fun splitNavigationDetailContent(
+        detailPtr: Long,
+        selectedId: Int,
+        envPtr: Long
+    ): NavigationViewStruct
     @JvmStatic external fun dropSplitNavigationDetail(ptr: Long)
-    @JvmStatic external fun navigationControllerNew(callback: Any): Long
-    @JvmStatic external fun envInstallNavigationController(envPtr: Long, controllerPtr: Long)
-    @JvmStatic external fun envInstallWebViewController(envPtr: Long)
-    @JvmStatic external fun dropNavigationController(controllerPtr: Long)
+    @JvmStatic external fun envInstallNavigationController(envPtr: Long, callback: Any)
+    @JvmStatic external fun envInstallWebViewController(envPtr: Long, factory: WebViewFactory)
     @JvmStatic external fun envHasNavigationController(envPtr: Long): Boolean
-    @JvmStatic external fun navigationPop(envPtr: Long)
 
     // ========== WebView Native Access ==========
 
@@ -323,7 +376,15 @@ object WatcherJni {
     // ========== OnEvent Handler Functions ==========
 
     @JvmStatic external fun callOnEvent(handlerPtr: Long, envPtr: Long)
+    @JvmStatic external fun callOnHoverEvent(
+        handlerPtr: Long,
+        envPtr: Long,
+        x: Float,
+        y: Float
+    )
     @JvmStatic external fun dropOnEvent(handlerPtr: Long)
+    @JvmStatic external fun callLifecycleHook(handlerPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropLifecycleHook(handlerPtr: Long)
 
     // ========== Retain Functions ==========
 
@@ -333,13 +394,46 @@ object WatcherJni {
 
     @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
-    @JvmStatic external fun gpuSurfaceInit(
+    @JvmStatic external fun gpuSurfaceCreate(
+        owner: android.view.View,
         rendererPtr: Long,
+        hasPictureInPictureHostId: Boolean,
+        pictureInPictureHostId: Long,
+        wuiEnvPtr: Long
+    ): Long
+    @JvmStatic external fun gpuSurfaceMeasure(
+        statePtr: Long,
+        width: Float,
+        height: Float
+    ): ViewDimensionsStruct
+    @JvmStatic external fun gpuSurfacePriority(statePtr: Long): Int
+    @JvmStatic external fun gpuSurfaceIsReady(statePtr: Long): Boolean
+    @JvmStatic external fun gpuSurfaceAttach(
+        statePtr: Long,
         surface: android.view.Surface,
         width: Int,
         height: Int,
-        wuiEnvPtr: Long
-    ): Long
-    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Long
+        prefersHdr: Boolean
+    )
+    @JvmStatic external fun gpuSurfaceDetach(statePtr: Long)
+    @Suppress("LongParameterList") // Signature mirrors the allocation-free native GPU input ABI.
+    @JvmStatic external fun gpuSurfaceSetInput(
+        statePtr: Long,
+        hasPosition: Boolean,
+        x: Float,
+        y: Float,
+        hasHit: Boolean,
+        hitX: Float,
+        hitY: Float,
+        gestureActive: Boolean,
+        pinchScale: Float,
+        hasPinchCenter: Boolean,
+        pinchCenterX: Float,
+        pinchCenterY: Float,
+        panOffsetX: Float,
+        panOffsetY: Float,
+        doubleTap: Boolean
+    )
+    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 }
