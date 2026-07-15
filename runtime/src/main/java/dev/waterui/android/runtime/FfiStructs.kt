@@ -335,6 +335,8 @@ data class ContainerStruct(val layoutPtr: Long, val contentsPtr: Long)
  */
 data class MetadataEnvStruct(val contentPtr: Long, val envPtr: Long)
 
+data class MetadataNavigationTransitionStruct(val contentPtr: Long, val id: Int)
+
 // ========== Metadata Structs ==========
 
 /**
@@ -678,27 +680,13 @@ data class TypeIdStruct(val low: Long, val high: Long) {
 // ========== Navigation Structs ==========
 
 /**
- * Tab position enum matching WuiTabPosition in FFI.
- */
-enum class TabPosition(val value: Int) {
-    /** Tab bar at top of container */
-    TOP(0),
-    /** Tab bar at bottom of container */
-    BOTTOM(1);
-
-    companion object {
-        fun fromInt(value: Int): TabPosition = entries.firstOrNull { it.value == value }
-            ?: error("unknown tab position: $value")
-    }
-}
-
-/**
  * NavigationStack component data.
  * Contains the root view of the navigation stack.
  */
 data class NavigationStackStruct(
     val rootPtr: Long,
-    val transition: Int
+    val transition: Int,
+    val transitionSourceId: Int
 )
 
 /**
@@ -709,6 +697,12 @@ data class NavigationSearchStruct(
     val promptPtr: Long
 )
 
+/** One semantic native navigation toolbar item. */
+data class NavigationToolbarItemStruct(
+    val placement: Int,
+    val contentPtr: Long
+)
+
 /**
  * Navigation bar configuration.
  * - titleContentPtr: Computed<StyledStr> pointer for title text
@@ -717,8 +711,8 @@ data class NavigationSearchStruct(
  */
 data class BarStruct(
     val titlePtr: Long,
-    val leadingPtr: Long,
-    val trailingPtr: Long,
+    val subtitlePtr: Long,
+    val toolbar: Array<NavigationToolbarItemStruct>,
     val search: NavigationSearchStruct?,
     val colorPtr: Long,
     val hiddenPtr: Long,
@@ -731,7 +725,12 @@ data class BarStruct(
  */
 data class NavigationViewStruct(
     val bar: BarStruct,
-    val contentPtr: Long
+    val contentPtr: Long,
+    val popEnabledPtr: Long,
+    val popAttemptedPtr: Long,
+    val appearPtr: Long,
+    val disappearPtr: Long,
+    val popPtr: Long
 )
 
 /**
@@ -740,9 +739,15 @@ data class NavigationViewStruct(
 data class SplitNavigationContainerStruct(
     val sidebarPtr: Long,
     val placeholderPtr: Long,
-    val selectionPtr: Long,
+    val primarySelectionPtr: Long,
+    val contentPtr: Long,
+    val secondarySelectionPtr: Long,
     val detailPtr: Long,
-    val sidebarWidth: Float
+    val columnVisibilityPtr: Long,
+    val sidebarMinWidth: Float,
+    val sidebarIdealWidth: Float,
+    val sidebarMaxWidth: Float,
+    val style: Int
 )
 
 /**
@@ -754,7 +759,9 @@ data class SplitNavigationContainerStruct(
 data class TabStruct(
     val id: Long,
     val labelPtr: Long,
-    val contentPtr: Long
+    val contentPtr: Long,
+    val badgePtr: Long,
+    val enabledPtr: Long
 )
 
 /**
@@ -766,16 +773,16 @@ data class TabStruct(
 data class TabsStruct(
     val selectionPtr: Long,
     val tabs: Array<TabStruct>,
-    val position: Int
+    val style: Int
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is TabsStruct) return false
         return selectionPtr == other.selectionPtr &&
                tabs.contentEquals(other.tabs) &&
-               position == other.position
+               style == other.style
     }
-    override fun hashCode(): Int = 31 * (31 * selectionPtr.hashCode() + tabs.contentHashCode()) + position
+    override fun hashCode(): Int = 31 * (31 * selectionPtr.hashCode() + tabs.contentHashCode()) + style
 }
 
 // ========== List Structs ==========

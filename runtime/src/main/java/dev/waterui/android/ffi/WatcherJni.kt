@@ -57,6 +57,12 @@ object WatcherJni {
     @JvmStatic external fun forceAsResolvedShape(viewPtr: Long): ResolvedShapeStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
+    @JvmStatic external fun forceAsMetadataNavigationTransitionSource(
+        viewPtr: Long
+    ): MetadataNavigationTransitionStruct
+    @JvmStatic external fun forceAsMetadataNavigationTransitionDestination(
+        viewPtr: Long
+    ): MetadataNavigationTransitionStruct
     @JvmStatic external fun forceAsMetadataSecure(viewPtr: Long): MetadataSecureStruct
     @JvmStatic external fun forceAsMetadataGesture(viewPtr: Long): MetadataGestureStruct
     @JvmStatic external fun gestureFromPtr(gesturePtr: Long): GestureStruct
@@ -296,6 +302,8 @@ object WatcherJni {
     @JvmStatic external fun secureFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun layoutContainerId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataEnvId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataNavigationTransitionSourceId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataNavigationTransitionDestinationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataSecureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataGestureId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOnEventId(): dev.waterui.android.runtime.TypeIdStruct
@@ -354,6 +362,7 @@ object WatcherJni {
     // ========== Navigation Force-As Functions ==========
 
     @JvmStatic external fun forceAsNavigationStack(viewPtr: Long): NavigationStackStruct
+    @JvmStatic external fun navigationStackRoot(rootPtr: Long, envPtr: Long): Long
     @JvmStatic external fun forceAsNavigationView(viewPtr: Long): NavigationViewStruct
     @JvmStatic external fun forceAsTabs(viewPtr: Long): TabsStruct
     @JvmStatic external fun forceAsSplitNavigationContainer(viewPtr: Long): SplitNavigationContainerStruct
@@ -365,6 +374,10 @@ object WatcherJni {
     ): NavigationViewStruct
     @JvmStatic external fun dropSplitNavigationDetail(ptr: Long)
     @JvmStatic external fun envInstallNavigationController(envPtr: Long, callback: Any)
+    @JvmStatic external fun navigationRequestPop(envPtr: Long, count: Int)
+    @JvmStatic external fun navigationCompleteNativePop(envPtr: Long, count: Int)
+    @JvmStatic external fun navigationTransitionCompleted(envPtr: Long, id: Long): Boolean
+    @JvmStatic external fun navigationTransitionCancelled(envPtr: Long, id: Long): Boolean
     @JvmStatic external fun envInstallWebViewController(envPtr: Long, factory: WebViewFactory)
     @JvmStatic external fun envHasNavigationController(envPtr: Long): Boolean
 

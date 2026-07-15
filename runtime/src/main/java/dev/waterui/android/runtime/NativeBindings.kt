@@ -65,6 +65,10 @@ internal object NativeBindings {
     fun waterui_secure_field_id(): TypeIdStruct = WatcherJni.secureFieldId()
     fun waterui_layout_container_id(): TypeIdStruct = WatcherJni.layoutContainerId()
     fun waterui_metadata_env_id(): TypeIdStruct = WatcherJni.metadataEnvId()
+    fun waterui_metadata_navigation_transition_source_id(): TypeIdStruct =
+        WatcherJni.metadataNavigationTransitionSourceId()
+    fun waterui_metadata_navigation_transition_destination_id(): TypeIdStruct =
+        WatcherJni.metadataNavigationTransitionDestinationId()
     fun waterui_metadata_context_menu_id(): TypeIdStruct = WatcherJni.metadataContextMenuId()
 
     // ========== Theme: Color Scheme ==========
@@ -192,6 +196,14 @@ internal object NativeBindings {
     fun waterui_force_as_resolved_gradient(viewPtr: Long): ResolvedGradientStruct = WatcherJni.forceAsResolvedGradient(viewPtr)
     fun waterui_force_as_resolved_shape(viewPtr: Long): ResolvedShapeStruct = WatcherJni.forceAsResolvedShape(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
+    fun waterui_force_as_metadata_navigation_transition_source(
+        viewPtr: Long
+    ): MetadataNavigationTransitionStruct =
+        WatcherJni.forceAsMetadataNavigationTransitionSource(viewPtr)
+    fun waterui_force_as_metadata_navigation_transition_destination(
+        viewPtr: Long
+    ): MetadataNavigationTransitionStruct =
+        WatcherJni.forceAsMetadataNavigationTransitionDestination(viewPtr)
     fun waterui_force_as_metadata_context_menu(viewPtr: Long): MetadataContextMenuStruct = WatcherJni.forceAsMetadataContextMenu(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
@@ -250,6 +262,8 @@ internal object NativeBindings {
     // ========== Navigation Force-As Functions ==========
 
     fun waterui_force_as_navigation_stack(viewPtr: Long): NavigationStackStruct = WatcherJni.forceAsNavigationStack(viewPtr)
+    fun waterui_navigation_stack_root(rootPtr: Long, envPtr: Long): Long =
+        WatcherJni.navigationStackRoot(rootPtr, envPtr)
     fun waterui_force_as_navigation_view(viewPtr: Long): NavigationViewStruct = WatcherJni.forceAsNavigationView(viewPtr)
     fun waterui_force_as_tabs(viewPtr: Long): TabsStruct = WatcherJni.forceAsTabs(viewPtr)
     fun waterui_force_as_split_navigation_container(viewPtr: Long): SplitNavigationContainerStruct =
@@ -264,6 +278,14 @@ internal object NativeBindings {
     fun waterui_drop_split_navigation_detail(detailPtr: Long) = WatcherJni.dropSplitNavigationDetail(detailPtr)
     fun waterui_env_install_navigation_controller(envPtr: Long, callback: Any) =
         WatcherJni.envInstallNavigationController(envPtr, callback)
+    fun waterui_navigation_request_pop(envPtr: Long, count: Int) =
+        WatcherJni.navigationRequestPop(envPtr, count)
+    fun waterui_navigation_complete_native_pop(envPtr: Long, count: Int) =
+        WatcherJni.navigationCompleteNativePop(envPtr, count)
+    fun waterui_navigation_transition_completed(envPtr: Long, id: Long): Boolean =
+        WatcherJni.navigationTransitionCompleted(envPtr, id)
+    fun waterui_navigation_transition_cancelled(envPtr: Long, id: Long): Boolean =
+        WatcherJni.navigationTransitionCancelled(envPtr, id)
     fun waterui_env_install_webview_controller(envPtr: Long, factory: WebViewFactory) =
         WatcherJni.envInstallWebViewController(envPtr, factory)
     fun waterui_env_has_navigation_controller(envPtr: Long): Boolean = WatcherJni.envHasNavigationController(envPtr)
