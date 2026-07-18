@@ -30,8 +30,6 @@ object WatcherJni {
     @JvmStatic external fun cloneEnv(envPtr: Long): Long
     @JvmStatic external fun dropEnv(envPtr: Long)
     @JvmStatic external fun envInstallLocaleTag(envPtr: Long, localeTag: String)
-    @JvmStatic external fun notifyVideoPictureInPictureUserLeaveHint(context: Context)
-
     // ========== Force-As Functions ==========
 
     @JvmStatic external fun forceAsPlain(viewPtr: Long): PlainStruct
@@ -407,6 +405,16 @@ object WatcherJni {
 
     @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
+    @JvmStatic external fun androidVideoSurfaceHostId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsAndroidVideoSurfaceHost(
+        viewPtr: Long
+    ): dev.waterui.android.runtime.AndroidVideoSurfaceHostStruct
+    @JvmStatic external fun androidVideoSurfaceHostAttach(
+        bridgePtr: Long,
+        host: android.view.View
+    )
+    @JvmStatic external fun androidVideoSurfaceHostDrop(bridgePtr: Long)
+    @JvmStatic external fun androidVideoSurfaceHostSurfaceDestroyed(bridgePtr: Long)
     @JvmStatic external fun gpuSurfaceCreate(
         owner: android.view.View,
         rendererPtr: Long,

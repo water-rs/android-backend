@@ -560,6 +560,11 @@ data class GpuSurfaceStruct(
     val pictureInPictureHostId: Long
 )
 
+data class AndroidVideoSurfaceHostStruct(
+    val contentPtr: Long,
+    val bridgePtr: Long
+)
+
 data class MetadataDynamicRangeStruct(val contentPtr: Long)
 
 // ========== Resolved Value Structs ==========

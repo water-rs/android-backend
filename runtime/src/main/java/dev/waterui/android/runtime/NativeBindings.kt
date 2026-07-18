@@ -31,9 +31,6 @@ internal object NativeBindings {
     fun waterui_view_id(anyViewPtr: Long): TypeIdStruct = WatcherJni.viewId(anyViewPtr)
     fun waterui_view_body(anyViewPtr: Long, envPtr: Long): Long = WatcherJni.viewBody(anyViewPtr, envPtr)
     fun waterui_view_stretch_axis(anyViewPtr: Long): Int = WatcherJni.viewStretchAxis(anyViewPtr)
-    fun notifyVideoPictureInPictureUserLeaveHint(context: Context) =
-        WatcherJni.notifyVideoPictureInPictureUserLeaveHint(context)
-
     // ========== Type Identifiers ==========
 
     fun waterui_empty_id(): TypeIdStruct = WatcherJni.emptyId()
@@ -342,6 +339,20 @@ internal object NativeBindings {
 
     fun waterui_gpu_surface_id(): TypeIdStruct = WatcherJni.gpuSurfaceId()
     fun waterui_force_as_gpu_surface(viewPtr: Long): GpuSurfaceStruct = WatcherJni.forceAsGpuSurface(viewPtr)
+    fun waterui_android_video_surface_host_id(): TypeIdStruct =
+        WatcherJni.androidVideoSurfaceHostId()
+    fun waterui_force_as_android_video_surface_host(
+        viewPtr: Long
+    ): AndroidVideoSurfaceHostStruct =
+        WatcherJni.forceAsAndroidVideoSurfaceHost(viewPtr)
+    fun waterui_android_video_surface_host_attach(
+        bridgePtr: Long,
+        host: android.view.View
+    ) = WatcherJni.androidVideoSurfaceHostAttach(bridgePtr, host)
+    fun waterui_android_video_surface_host_drop(bridgePtr: Long) =
+        WatcherJni.androidVideoSurfaceHostDrop(bridgePtr)
+    fun waterui_android_video_surface_host_surface_destroyed(bridgePtr: Long) =
+        WatcherJni.androidVideoSurfaceHostSurfaceDestroyed(bridgePtr)
     fun waterui_gpu_surface_create(
         owner: android.view.View,
         rendererPtr: Long,
@@ -426,10 +437,6 @@ internal object NativeBindings {
         WatcherJni.reactiveColorSchemeStateSet(statePtr, scheme)
     fun waterui_drop_reactive_color_scheme_state(statePtr: Long) =
         WatcherJni.dropReactiveColorSchemeState(statePtr)
-}
-
-fun notifyVideoPictureInPictureUserLeaveHint(context: Context) {
-    NativeBindings.notifyVideoPictureInPictureUserLeaveHint(context)
 }
 
 fun bootstrapWaterUiRuntime() {
