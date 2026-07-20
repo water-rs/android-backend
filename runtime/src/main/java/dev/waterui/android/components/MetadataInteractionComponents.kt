@@ -21,8 +21,8 @@ private val metadataHittableTypeId: WuiTypeId by lazy {
 private class HittableLayout(context: Context) : PassThroughFrameLayout(context) {
     var hitTestingEnabled = true
 
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
-        hitTestingEnabled && super.dispatchTouchEvent(event)
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean =
+        hitTestingEnabled && super.dispatchTouchEvent(ev)
 }
 
 private fun pointerIconType(style: Int): Int = when (style) {

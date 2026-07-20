@@ -1,12 +1,11 @@
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
-    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    id("dev.detekt") version "2.0.0-alpha.5"
 }
 
 android {
     namespace = "dev.waterui.android.runtime"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
@@ -20,11 +19,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions {
-        jvmTarget = "21"
-        freeCompilerArgs += listOf("-Xjvm-default=all")
-    }
-
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -32,35 +26,33 @@ android {
     }
 
     lint {
-        targetSdk = 36
+        targetSdk = 37
         abortOnError = true
         warningsAsErrors = true
-        textReport = true
-        xmlReport = true
-        htmlReport = true
-        sarifReport = true
     }
 }
 
 kotlin {
-    jvmToolchain(21)
+    compilerOptions {
+        freeCompilerArgs.add("-Xjvm-default=all")
+    }
 }
 
 detekt {
+    toolVersion = "2.0.0-alpha.5"
     buildUponDefaultConfig = true
-    allRules = false
     ignoreFailures = false
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
-    basePath = rootDir.absolutePath
+    basePath = rootProject.layout.projectDirectory
 }
 
-tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
     jvmTarget = "21"
     reports {
-        xml.required.set(true)
+        checkstyle.required.set(true)
         html.required.set(true)
         sarif.required.set(true)
-        md.required.set(false)
+        markdown.required.set(false)
     }
 }
 

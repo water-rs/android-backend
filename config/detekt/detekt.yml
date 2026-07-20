@@ -1,37 +1,29 @@
-build:
-  maxIssues: 0
-  weights:
-    complexity: 2
-    LongParameterList: 1
-    style: 1
-    comments: 0
-
 config:
   validation: true
   warningsAsErrors: false
-  excludes: ""
+  excludes: []
 
 complexity:
   active: true
   CyclomaticComplexMethod:
     active: true
-    threshold: 30
+    allowedComplexity: 30
   LongMethod:
     active: true
-    threshold: 140
+    allowedLines: 140
   LongParameterList:
     active: true
-    functionThreshold: 12
-    constructorThreshold: 12
+    allowedFunctionParameters: 12
+    allowedConstructorParameters: 12
   NestedBlockDepth:
     active: true
-    threshold: 7
+    allowedDepth: 7
   TooManyFunctions:
     active: false
-    thresholdInClasses: 20
-    thresholdInObjects: 20
-    thresholdInInterfaces: 20
-    thresholdInEnums: 20
+    allowedFunctionsPerClass: 20
+    allowedFunctionsPerObject: 20
+    allowedFunctionsPerInterface: 20
+    allowedFunctionsPerEnum: 20
 
 coroutines:
   active: true
