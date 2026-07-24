@@ -59,17 +59,20 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
         env = env
     )
 
-    fun updateButton(selected: Array<DateStruct>, decoratedDates: List<DateStruct>) {
+    fun updateButton(selected: Array<DateStruct>, decoratedDates: Array<DateStruct>) {
         val summary = formatSelectionSummary(
             context,
             selected.map(DateStruct::toLocalDate),
-            decoratedDates.map(DateStruct::toLocalDate).toSet()
+            decoratedDates.mapTo(
+                HashSet(decoratedDates.size),
+                DateStruct::toLocalDate,
+            ),
         )
         button.text = summary
     }
 
     var currentSelection: Array<DateStruct> = emptyArray()
-    var currentDecorated: List<DateStruct> = emptyList()
+    var currentDecorated: Array<DateStruct> = emptyArray()
 
     fun refreshButton() {
         updateButton(currentSelection, currentDecorated)
@@ -96,9 +99,13 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
             rangeStart = rangeStart,
             rangeEnd = rangeEnd,
             initialSelection = currentSelection.map(DateStruct::toLocalDate),
-            decoratedDates = currentDecorated.map(DateStruct::toLocalDate).toSet(),
+            decoratedDates = currentDecorated.mapTo(
+                HashSet(currentDecorated.size),
+                DateStruct::toLocalDate,
+            ),
         ) { selected ->
-            binding.set(selected.sorted().map(LocalDate::toStruct).toTypedArray())
+            val ordered = selected.sorted()
+            binding.set(Array(ordered.size) { index -> ordered[index].toStruct() })
         }
     }
 

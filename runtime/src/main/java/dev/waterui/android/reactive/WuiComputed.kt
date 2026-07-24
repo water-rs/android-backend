@@ -121,13 +121,13 @@ class WuiComputed<T>(
             )
         }
 
-        fun dateVec(ptr: Long): WuiComputed<List<DateStruct>> =
+        fun dateVec(ptr: Long): WuiComputed<Array<DateStruct>> =
             WuiComputed(
                 computedPtr = ptr,
-                reader = { p -> WatcherJni.readComputedDateVec(p).toList() },
+                reader = WatcherJni::readComputedDateVec,
                 watcherFactory = { callback ->
                     WatcherJni.createDateVecWatcher { array, metadata ->
-                        callback.onChanged(array.toList(), metadata)
+                        callback.onChanged(array, metadata)
                     }
                 },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedDateVec(p, watcher) },

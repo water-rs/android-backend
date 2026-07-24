@@ -89,7 +89,7 @@ private class LazyStackLayoutView(
     private val renderedChildren = linkedMapOf<Int, View>()
     private val measuredMainAxisPx = linkedMapOf<Int, Int>()
     private val measuredCrossAxisPx = linkedMapOf<Int, Int>()
-    private var itemIds: List<Int> = emptyList()
+    private var itemIds = IntArray(0)
     private val watcherGuard: WatcherGuard
     private var scrollChangedListener: ViewTreeObserver.OnScrollChangedListener? = null
     private var lastCrossConstraintPx: Int = -1
@@ -99,9 +99,9 @@ private class LazyStackLayoutView(
         clipChildren = false
         clipToPadding = false
         watcherGuard = nativeViews.watch { ids ->
-            syncIds(ids.toList())
+            syncIds(ids)
         }
-        syncIds(nativeViews.ids().toList())
+        syncIds(nativeViews.ids())
         addOnAttachStateChangeListener(object : OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) {
                 if (scrollChangedListener != null) {
@@ -129,7 +129,7 @@ private class LazyStackLayoutView(
         }
     }
 
-    private fun syncIds(ids: List<Int>) {
+    private fun syncIds(ids: IntArray) {
         val seenIds = HashSet<Int>(ids.size)
         ids.forEach { id ->
             check(seenIds.add(id)) { "Duplicate child view id in LazyStackLayoutView: $id" }
@@ -169,7 +169,7 @@ private class LazyStackLayoutView(
             lastCrossConstraintPx = crossConstraintPx
             measuredMainAxisPx.clear()
             measuredCrossAxisPx.clear()
-            renderedChildren.values.toList().forEach(::disposeAndRemoveView)
+            renderedChildren.values.forEach(::disposeAndRemoveView)
             renderedChildren.clear()
         }
     }
@@ -542,8 +542,7 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
 
 private val fixedContainerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_fixed_container(node.rawPtr)
-    val childPointers = struct.childPointers.toList()
-    val inflatedChildren = childPointers.map { childPtr ->
+    val inflatedChildren = struct.childPointers.map { childPtr ->
         inflateAnyView(context, childPtr, env, registry)
     }
     val descriptors = inflatedChildren.map { child ->
