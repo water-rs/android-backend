@@ -258,7 +258,13 @@ data class ProgressStruct(
     val fourColor: Boolean
 )
 
-data class ScrollStruct(val axis: Int, val contentPtr: Long)
+data class ScrollStruct(
+    val axis: Int,
+    val contentPtr: Long,
+    val targetXPtr: Long,
+    val targetYPtr: Long,
+    val scrollGenerationPtr: Long
+)
 
 data class DynamicStruct(val dynamicPtr: Long)
 
@@ -798,12 +804,17 @@ data class TabsStruct(
  * - editingPtr: Computed<Boolean> pointer for edit mode
  * - onDeletePtr: IndexAction pointer (0 if unsupported)
  * - onMovePtr: MoveAction pointer (0 if unsupported)
+ * - targetIndexPtr: Computed<Int> requested row (0 if uncontrolled)
+ * - scrollGenerationPtr: Computed<Int> request generation (0 if uncontrolled)
  */
 data class ListStruct(
     val contentsPtr: Long,
     val editingPtr: Long,
     val onDeletePtr: Long,
-    val onMovePtr: Long
+    val onMovePtr: Long,
+    val targetIndexPtr: Long,
+    val scrollGenerationPtr: Long,
+    val usesSections: Boolean
 )
 
 /**
