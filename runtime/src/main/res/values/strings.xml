@@ -21,4 +21,6 @@
     <string name="wui_decrement_value">Decrease %1$s</string>
     <string name="wui_increment_value">Increase %1$s</string>
     <string name="wui_navigation_back">Back</string>
+    <string name="wui_list_delete_item">Delete item</string>
+    <string name="wui_list_move_item">Drag to reorder item</string>
 </resources>

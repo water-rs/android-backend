@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import android.app.Activity
 import android.content.Context
 import dev.waterui.android.components.WebViewFactory
 import dev.waterui.android.ffi.WatcherJni
@@ -18,6 +19,12 @@ internal object NativeBindings {
         // Initialize WatcherJni and load libwaterui_app.so.
         WatcherJni
     }
+
+    fun initializeAndroidContext(activity: Activity): Long =
+        WatcherJni.initializeAndroidContext(activity)
+
+    fun releaseAndroidContext(owner: Long) =
+        WatcherJni.releaseAndroidContext(owner)
 
     // ========== Core Functions ==========
 
@@ -164,7 +171,7 @@ internal object NativeBindings {
 
     // ========== Dynamic ==========
 
-    fun waterui_force_as_dynamic(viewPtr: Long): DynamicStruct = DynamicStruct(WatcherJni.forceAsDynamic(viewPtr))
+    fun waterui_force_as_dynamic(viewPtr: Long): DynamicStruct = WatcherJni.forceAsDynamic(viewPtr)
     fun waterui_drop_dynamic(dynamicPtr: Long) = WatcherJni.dropDynamic(dynamicPtr)
     fun waterui_dynamic_connect(dynamicPtr: Long, watcher: WatcherStruct) = WatcherJni.dynamicConnect(dynamicPtr, watcher)
 
@@ -439,6 +446,11 @@ internal object NativeBindings {
         WatcherJni.dropReactiveColorSchemeState(statePtr)
 }
 
-fun bootstrapWaterUiRuntime() {
+fun bootstrapWaterUiRuntime(activity: Activity): Long {
     NativeBindings.bootstrapNativeBindings()
+    return NativeBindings.initializeAndroidContext(activity)
+}
+
+fun releaseWaterUiRuntime(owner: Long) {
+    NativeBindings.releaseAndroidContext(owner)
 }

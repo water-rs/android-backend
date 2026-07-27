@@ -1,5 +1,6 @@
 package dev.waterui.android.ffi
 
+import android.app.Activity
 import android.content.Context
 import android.webkit.WebView
 import dev.waterui.android.components.WebViewFactory
@@ -19,6 +20,8 @@ object WatcherJni {
 
     // ========== Core Functions ==========
 
+    @JvmStatic external fun initializeAndroidContext(activity: Activity): Long
+    @JvmStatic external fun releaseAndroidContext(owner: Long)
     @JvmStatic external fun init(): Long
     @JvmStatic external fun gpuRuntimeCreate(callback: GpuRuntimeReadyCallback)
     @JvmStatic external fun envInstallGpuRuntime(envPtr: Long, runtimePtr: Long)
@@ -53,7 +56,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsColor(viewPtr: Long): Long
     @JvmStatic external fun forceAsResolvedGradient(viewPtr: Long): ResolvedGradientStruct
     @JvmStatic external fun forceAsResolvedShape(viewPtr: Long): ResolvedShapeStruct
-    @JvmStatic external fun forceAsDynamic(viewPtr: Long): Long
+    @JvmStatic external fun forceAsDynamic(viewPtr: Long): dev.waterui.android.runtime.DynamicStruct
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
     @JvmStatic external fun forceAsMetadataNavigationTransitionSource(
         viewPtr: Long

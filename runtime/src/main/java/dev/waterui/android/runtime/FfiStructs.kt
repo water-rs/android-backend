@@ -120,16 +120,23 @@ data class SubViewStruct(
      *
      * @param proposalWidth Proposed width in dp (density-independent points)
      * @param proposalHeight Proposed height in dp (density-independent points)
-     * @return Size in dp for Rust layout engine
+     * @return Measured dimensions in dp for the Rust layout engine
      */
     @Suppress("unused") // Called from native code
-    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): SizeStruct {
+    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
         // Convert dp proposal to pixel MeasureSpec
         val widthSpec = proposalToMeasureSpec(proposalWidth * density)
         val heightSpec = proposalToMeasureSpec(proposalHeight * density)
         view.measure(widthSpec, heightSpec)
         // Convert pixel result back to dp for Rust
-        return SizeStruct(view.measuredWidth.toFloat() / density, view.measuredHeight.toFloat() / density)
+        return ViewDimensionsStruct(
+            size = SizeStruct(
+                view.measuredWidth.toFloat() / density,
+                view.measuredHeight.toFloat() / density
+            ),
+            horizontalGuides = emptyArray(),
+            verticalGuides = emptyArray()
+        )
     }
 
     private fun proposalToMeasureSpec(proposalPx: Float): Int {
@@ -331,9 +338,6 @@ data class ColorPickerStruct(
     val supportAlpha: Boolean,
     val supportHdr: Boolean
 )
-
-// Alias for container struct returned by force_as_layout_container
-data class ContainerStruct(val layoutPtr: Long, val contentsPtr: Long)
 
 /**
  * Metadata<Environment> struct for WithEnv component.

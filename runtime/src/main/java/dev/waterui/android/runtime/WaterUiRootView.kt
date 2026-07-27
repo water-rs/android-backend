@@ -14,6 +14,8 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.view.isEmpty
@@ -43,9 +45,20 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     init {
+        clipChildren = false
+        clipToPadding = false
         requireNotNull(context.findWaterUiContext()) {
             "WaterUiRootView is missing its WaterUiContext"
         }.setRootEnvironmentConsumer(::captureRootEnvironment)
+        ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
+            val safeArea = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+            windowInsets
+        }
+        ViewCompat.requestApplyInsets(this)
     }
 
     fun setRenderRegistry(renderRegistry: RenderRegistry) {
@@ -132,7 +145,9 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     private fun beginRenderRoot() {
-        val initEnv = WuiEnvironment.create()
+        val runtimeOwner = context.applicationContext as? WaterUiRuntimeOwner
+            ?: error("WaterUiRootView requires a WaterUiRuntimeOwner Application")
+        val initEnv = runtimeOwner.createWaterUiEnvironment()
         pendingEnvironment = initEnv
         installSystemLocale(initEnv, context.resources.configuration)
         materialTheme = MaterialThemeSignals.install(
@@ -179,7 +194,11 @@ class WaterUiRootView @JvmOverloads constructor(
 
     private fun captureRootEnvironment(env: WuiEnvironment) {
         if (rootThemeController == null) {
-            rootThemeController = RootThemeController(env, this)
+            rootThemeController = RootThemeController(env, this) { scheme ->
+                checkNotNull(materialTheme) {
+                    "WaterUI root color scheme changed before platform theme installation"
+                }.updateColors(MaterialThemePalette.from(context, scheme))
+            }
         }
     }
 
@@ -293,6 +312,18 @@ private data class MaterialThemePalette(
                 "colorTertiaryContainer"
             )
         )
+
+        fun from(context: Context, scheme: ColorScheme): MaterialThemePalette {
+            val configuration = Configuration(context.resources.configuration)
+            configuration.uiMode =
+                (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                    when (scheme) {
+                        ColorScheme.Light -> Configuration.UI_MODE_NIGHT_NO
+                        ColorScheme.Dark -> Configuration.UI_MODE_NIGHT_YES
+                    }
+            val configuredContext = context.createConfigurationContext(configuration)
+            return from(createMaterialContext(configuredContext))
+        }
     }
 }
 
@@ -379,12 +410,16 @@ private class MaterialThemeSignals private constructor(
     private val fonts: Map<FontSlot, ReactiveFontSignal>,
     private val colorScheme: ReactiveColorSchemeSignal
 ) : Closeable {
+    fun updateColors(palette: MaterialThemePalette) {
+        colors.forEach { (slot, signal) -> signal.setValue(palette[slot]) }
+    }
+
     fun update(
         palette: MaterialThemePalette,
         typography: MaterialTypographyPalette,
         scheme: ColorScheme
     ) {
-        colors.forEach { (slot, signal) -> signal.setValue(palette[slot]) }
+        updateColors(palette)
         fonts.forEach { (slot, signal) -> signal.setValue(typography[slot]) }
         colorScheme.setValue(scheme)
     }

@@ -9,7 +9,7 @@ android {
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
         consumerProguardFiles("consumer-rules.pro")
     }
 
@@ -70,6 +70,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime:2.11.0")
     implementation("androidx.webkit:webkit:1.16.0")
     implementation("com.google.android.material:material:1.14.0")
+    implementation("me.zhanghai.android.fastscroll:library:1.3.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

@@ -6,6 +6,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Choreographer
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -29,6 +30,7 @@ import dev.waterui.android.runtime.disposeWith
 import kotlin.math.roundToInt
 
 private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_surface_id().toTypeId() }
+private const val GPU_SURFACE_LOG_TAG = "WaterUI.GpuSurface"
 
 private val gpuSurfaceRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_gpu_surface(node.rawPtr)
@@ -53,7 +55,7 @@ private class GpuSurfaceView(
     private val prefersHdr: Boolean,
     hasPictureInPictureHostId: Boolean,
     pictureInPictureHostId: Long
-) : SurfaceView(context), SurfaceHolder.Callback, Choreographer.FrameCallback {
+) : SurfaceView(context), SurfaceHolder.Callback2, Choreographer.FrameCallback {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val choreographer = Choreographer.getInstance()
     private var statePtr = 0L
@@ -61,6 +63,7 @@ private class GpuSurfaceView(
     private var rendererReady = false
     private var setupPending = false
     private var layoutRequestedWhileSetup = false
+    private var surfaceRedrawCompletion: Runnable? = null
     private var rendererPrefersHdr: Boolean? = null
     private lateinit var cachedDimensions: ViewDimensionsStruct
     private val frameScheduler = GpuFrameScheduler(
@@ -149,14 +152,51 @@ private class GpuSurfaceView(
         disposeWith(::disposeNativeState)
     }
 
-    override fun surfaceCreated(_holder: SurfaceHolder) = Unit
+    override fun surfaceCreated(_holder: SurfaceHolder) {
+        Log.d(GPU_SURFACE_LOG_TAG, "surfaceCreated")
+    }
 
     override fun surfaceChanged(holder: SurfaceHolder, _format: Int, width: Int, height: Int) {
+        Log.d(
+            GPU_SURFACE_LOG_TAG,
+            "surfaceChanged ${width}x$height attached=$surfaceAttached previous=${surfaceWidth}x$surfaceHeight"
+        )
         require(width > 0 && height > 0) { "GpuSurface dimensions must be positive: ${width}x$height" }
         surfaceWidth = width
         surfaceHeight = height
-        requestMaximumFrameRate(holder.surface)
+    }
 
+    override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
+        scheduleSurfaceRedraw(holder, null)
+    }
+
+    override fun surfaceRedrawNeededAsync(holder: SurfaceHolder, drawingFinished: Runnable) {
+        check(surfaceRedrawCompletion == null) {
+            "GpuSurface received a second redraw request before completing the first"
+        }
+        surfaceRedrawCompletion = drawingFinished
+        scheduleSurfaceRedraw(holder, drawingFinished)
+    }
+
+    private fun scheduleSurfaceRedraw(holder: SurfaceHolder, completion: Runnable?) {
+        mainHandler.post {
+            if (completion != null && surfaceRedrawCompletion !== completion) {
+                return@post
+            }
+            if (!holder.surface.isValid) {
+                finishSurfaceRedraw()
+                return@post
+            }
+            attachSurfaceIfNeeded(holder)
+            pushInput()
+            frameScheduler.resume()
+            if (refreshRendererReadiness()) {
+                frameScheduler.requestFrame()
+            }
+        }
+    }
+
+    private fun attachSurfaceIfNeeded(holder: SurfaceHolder) {
         if (!surfaceAttached) {
             NativeBindings.waterui_gpu_surface_attach(
                 statePtr = statePtr,
@@ -168,21 +208,18 @@ private class GpuSurfaceView(
             surfaceAttached = true
             setupPending = !refreshRendererReadiness()
         }
-
-        pushInput()
-        frameScheduler.resume()
-        if (refreshRendererReadiness()) {
-            frameScheduler.requestFrame()
-        }
+        requestMaximumFrameRate(holder.surface)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Log.d(GPU_SURFACE_LOG_TAG, "surfaceDestroyed attached=$surfaceAttached")
         frameScheduler.pause()
         clearFrameRate(holder.surface)
         if (surfaceAttached) {
             NativeBindings.waterui_gpu_surface_detach(statePtr)
             surfaceAttached = false
         }
+        finishSurfaceRedraw()
     }
 
     override fun doFrame(_frameTimeNanos: Long) {
@@ -295,7 +332,13 @@ private class GpuSurfaceView(
             doubleTap = false
             pushInput()
         }
+        finishSurfaceRedraw()
         return needsRedraw
+    }
+
+    private fun finishSurfaceRedraw() {
+        surfaceRedrawCompletion?.run()
+        surfaceRedrawCompletion = null
     }
 
     private fun pushInput() {
@@ -421,7 +464,7 @@ private class GpuSurfaceView(
         ) {
             PixelFormat.RGBA_F16
         } else {
-            PixelFormat.RGBA_8888
+            PixelFormat.OPAQUE
         }
         holder.setFormat(format)
     }
