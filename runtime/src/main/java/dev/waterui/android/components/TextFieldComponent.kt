@@ -47,8 +47,15 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val horizontalPadding = 12f.dp(context).toInt()
     val verticalPadding = 8f.dp(context).toInt()
 
+    val singleLine = struct.lineLimit == 1
     val editText = AppCompatEditText(context).apply {
-        inputType = resolveInputType(struct.keyboardType)
+        inputType = resolveInputType(struct.keyboardType, singleLine)
+        // `lineLimit == 0` means the field has no limit; anything else caps the
+        // visible lines. A single-line field also suppresses the Enter key.
+        isSingleLine = singleLine
+        if (struct.lineLimit > 0) {
+            maxLines = struct.lineLimit
+        }
         setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -141,7 +148,18 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     container
 }
 
-private fun resolveInputType(keyboardType: Int): Int =
+private fun resolveInputType(keyboardType: Int, singleLine: Boolean): Int {
+    val base = resolveKeyboardInputType(keyboardType)
+    // Only a text keyboard can carry the multi-line flag; numeric and phone
+    // keypads have no newline key to enable.
+    return if (!singleLine && base and InputType.TYPE_CLASS_TEXT != 0) {
+        base or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+    } else {
+        base
+    }
+}
+
+private fun resolveKeyboardInputType(keyboardType: Int): Int =
     when (keyboardType) {
         KEYBOARD_TEXT -> InputType.TYPE_CLASS_TEXT
         KEYBOARD_EMAIL -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS

@@ -262,6 +262,15 @@ object WatcherJni {
     @JvmStatic external fun themeFont(envPtr: Long, slot: Int): Long
     @JvmStatic external fun themeColorScheme(envPtr: Long): Long
 
+    /**
+     * Returns the disabled signal in force at this point in the view tree.
+     *
+     * Disabled state is a scoped subtree attribute installed by `.disabled(...)`,
+     * never a field on an individual control's configuration; every interactive
+     * control reads it from the environment it is already handed.
+     */
+    @JvmStatic external fun envDisabled(envPtr: Long): Long
+
     // ========== Layout Functions ==========
 
     @JvmStatic external fun layoutMeasure(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): ViewDimensionsStruct

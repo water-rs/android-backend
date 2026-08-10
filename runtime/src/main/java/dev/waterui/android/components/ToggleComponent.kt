@@ -8,6 +8,7 @@ import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.materialswitch.MaterialSwitch
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.InteractionBridge
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -74,7 +75,7 @@ private val toggleRenderer = WuiRenderer { context, node, env, registry ->
     }
     border.attachTo(control)
 
-    val disabled = WuiComputed.bool(struct.disabledPtr)
+    val disabled = InteractionBridge.disabled(env)
     disabled.observe { isDisabled ->
         control.isEnabled = !isDisabled
         container.alpha = if (isDisabled) 0.38f else 1f

@@ -162,8 +162,7 @@ data class ButtonStruct(
     val labelPtr: Long,
     val actionPtr: Long,
     val style: Int,
-    val accessibilityLabelPtr: Long,
-    val disabledPtr: Long
+    val accessibilityLabelPtr: Long
 )
 
 data class TextStruct(val contentPtr: Long, val paragraphAlignmentPtr: Long)
@@ -177,7 +176,12 @@ data class TextFieldStruct(
     val promptPtr: Long,
     val promptAlignmentPtr: Long,
     val keyboardType: Int,
-    val selectionMenuPtr: Long
+    val selectionMenuPtr: Long,
+    /**
+     * Maximum number of lines the field accepts: `1` is single-line, a larger
+     * value caps a multi-line field, and `0` means no limit.
+     */
+    val lineLimit: Int
 )
 
 enum class MenuItemTag(val value: Int) {
@@ -232,8 +236,7 @@ data class ToggleStruct(
     val labelPtr: Long,
     val accessibilityLabelPtr: Long,
     val bindingPtr: Long,
-    val style: Int,
-    val disabledPtr: Long
+    val style: Int
 )
 
 data class SliderStruct(
@@ -243,8 +246,7 @@ data class SliderStruct(
     val maxLabelPtr: Long,
     val rangeStart: Double,
     val rangeEnd: Double,
-    val bindingPtr: Long,
-    val disabledPtr: Long
+    val bindingPtr: Long
 )
 
 data class StepperStruct(

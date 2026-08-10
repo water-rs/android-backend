@@ -85,6 +85,8 @@ internal object NativeBindings {
     fun waterui_theme_install_color(envPtr: Long, slot: Int, signalPtr: Long) = WatcherJni.themeInstallColor(envPtr, slot, signalPtr)
     fun waterui_theme_color(envPtr: Long, slot: Int): Long = WatcherJni.themeColor(envPtr, slot)
 
+    fun waterui_env_disabled(envPtr: Long): Long = WatcherJni.envDisabled(envPtr)
+
     // ========== Theme: Slot-based Font API ==========
 
     fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long) = WatcherJni.themeInstallFont(envPtr, slot, signalPtr)

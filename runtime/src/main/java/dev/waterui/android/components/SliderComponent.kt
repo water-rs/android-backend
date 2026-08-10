@@ -7,6 +7,7 @@ import com.google.android.material.slider.Slider
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.InteractionBridge
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -89,7 +90,7 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     }
     border.attachTo(slider)
 
-    val disabled = WuiComputed.bool(struct.disabledPtr)
+    val disabled = InteractionBridge.disabled(env)
     disabled.observe { isDisabled ->
         slider.isEnabled = !isDisabled
     }
