@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -162,6 +163,7 @@ class WebViewWrapper(
     private val documentStartScripts = mutableMapOf<Long, ScriptHandler>()
     private val documentEndScripts = linkedMapOf<Long, String>()
     private val handlerNativePtrs = linkedMapOf<String, Long>()
+    private val handlerScriptIds = linkedMapOf<String, Long>()
     private val webView = WebView(context)
     private val baseBridgeScript = context.readRawText(R.raw.waterui_webview_bridge)
     private val handlerScriptTemplate = context.readRawText(R.raw.waterui_webview_handler)
@@ -303,13 +305,26 @@ class WebViewWrapper(
     }
 
     fun addHandler(name: String, nativePtr: Long) {
+        // Re-registering a name replaces the handler, so drop the previous wrapper
+        // script instead of stacking a second copy on every page load.
+        removeHandlerScript(name)
         handlerNativePtrs[name] = nativePtr
         ensureBridgeInstalled()
-        injectScriptOnMain(buildHandlerScript(name), SCRIPT_INJECTION_TIME_DOCUMENT_START)
+        handlerScriptIds[name] =
+            injectScriptOnMain(buildHandlerScript(name), SCRIPT_INJECTION_TIME_DOCUMENT_START)
     }
 
     fun removeHandler(name: String) {
         handlerNativePtrs.remove(name)
+        // Without this the wrapper stays injected and the page keeps a callable
+        // `window.<name>` whose messages have no handler behind them.
+        removeHandlerScript(name)
+    }
+
+    private fun removeHandlerScript(name: String) {
+        val scriptId = handlerScriptIds.remove(name) ?: return
+        documentStartScripts.remove(scriptId)?.remove()
+        documentEndScripts.remove(scriptId)
     }
 
     fun setCookie(cookie: String) {
@@ -354,6 +369,7 @@ class WebViewWrapper(
         redirectPolicy = null
         eventCallback = null
         handlerNativePtrs.clear()
+        handlerScriptIds.clear()
         documentStartScripts.values.forEach(ScriptHandler::remove)
         documentStartScripts.clear()
         documentEndScripts.clear()
@@ -374,7 +390,7 @@ class WebViewWrapper(
     }
 
     @SuppressLint("RequiresFeature")
-    private fun injectScriptOnMain(script: String, time: Int) {
+    private fun injectScriptOnMain(script: String, time: Int): Long {
         val scriptId = nextScriptId
         nextScriptId += 1
         when (time) {
@@ -391,6 +407,7 @@ class WebViewWrapper(
             SCRIPT_INJECTION_TIME_DOCUMENT_END -> documentEndScripts[scriptId] = script
             else -> error("unsupported script injection time: $time")
         }
+        return scriptId
     }
 
     private fun currentUrl(): String = requireNotNull(webView.url) {
@@ -461,8 +478,15 @@ class WebViewWrapper(
         @JavascriptInterface
         fun postMessage(name: String, requestId: String, payloadBase64: String) {
             bridgeHandler.post {
+                // This entry point is reachable from ordinary page script, so an
+                // unknown handler name is rejected back to JavaScript rather than
+                // crashing the host application.
                 val nativePtr = handlerNativePtrs[name]
-                    ?: error("WebViewWrapper bridge received message for missing handler '$name'")
+                if (nativePtr == null) {
+                    Log.w(LOG_TAG, "page script called WaterUI handler '$name', which is not registered")
+                    resolveMessage(requestId, false, "no WaterUI handler named '$name'")
+                    return@post
+                }
                 nativeOnMessage(nativePtr, name, requestId, payloadBase64)
             }
         }
@@ -489,6 +513,7 @@ class WebViewWrapper(
     )
 
     companion object {
+        private const val LOG_TAG = "WaterUIWebView"
         private const val BRIDGE_OBJECT = "__wateruiBridge"
         private const val EVENT_WILL_NAVIGATE = 1
         private const val EVENT_LOADING = 2
