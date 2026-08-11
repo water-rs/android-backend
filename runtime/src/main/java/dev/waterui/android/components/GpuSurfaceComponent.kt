@@ -63,7 +63,8 @@ private class GpuSurfaceView(
     private var rendererReady = false
     private var setupPending = false
     private var layoutRequestedWhileSetup = false
-    private var surfaceRedrawCompletion: Runnable? = null
+    private val surfaceRedrawCompletions = ArrayDeque<Runnable>()
+    private var frameRateDeclared = false
     private var rendererPrefersHdr: Boolean? = null
     private lateinit var cachedDimensions: ViewDimensionsStruct
     private val frameScheduler = GpuFrameScheduler(
@@ -143,9 +144,11 @@ private class GpuSurfaceView(
             width = Float.NaN,
             height = Float.NaN
         )
+        // onMeasure reports the size the Rust renderer measured for the incoming
+        // proposal, so the surface asks its parent to propose rather than dictate.
         layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         )
         isClickable = true
         holder.addCallback(this)
@@ -154,8 +157,20 @@ private class GpuSurfaceView(
 
     override fun surfaceCreated(_holder: SurfaceHolder) {
         Log.d(GPU_SURFACE_LOG_TAG, "surfaceCreated")
+        check(!surfaceAttached) {
+            "GpuSurface received surfaceCreated while a previous surface is still attached"
+        }
     }
 
+    /**
+     * Attaches the native swapchain.
+     *
+     * `SurfaceView` always delivers `surfaceChanged` right after `surfaceCreated`,
+     * and it is the first callback that carries the real buffer dimensions, so this
+     * is where attachment belongs. `surfaceRedrawNeeded`/`surfaceRedrawNeededAsync`
+     * are draw-report callbacks that a window may never issue, so they only
+     * schedule and complete redraws.
+     */
     override fun surfaceChanged(holder: SurfaceHolder, _format: Int, width: Int, height: Int) {
         Log.d(
             GPU_SURFACE_LOG_TAG,
@@ -164,57 +179,79 @@ private class GpuSurfaceView(
         require(width > 0 && height > 0) { "GpuSurface dimensions must be positive: ${width}x$height" }
         surfaceWidth = width
         surfaceHeight = height
+        attachSurfaceIfNeeded(holder)
+        pushInput()
+        resumeRendering()
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        scheduleSurfaceRedraw(holder, null)
+        scheduleSurfaceRedraw(holder)
     }
 
     override fun surfaceRedrawNeededAsync(holder: SurfaceHolder, drawingFinished: Runnable) {
-        check(surfaceRedrawCompletion == null) {
-            "GpuSurface received a second redraw request before completing the first"
-        }
-        surfaceRedrawCompletion = drawingFinished
-        scheduleSurfaceRedraw(holder, drawingFinished)
+        // Several redraw requests can legitimately be in flight at once — a resize
+        // arriving while an earlier request is still queued — and every one of them
+        // owns a completion that `ViewRootImpl` waits on, so they all get to run.
+        surfaceRedrawCompletions.addLast(drawingFinished)
+        scheduleSurfaceRedraw(holder)
     }
 
-    private fun scheduleSurfaceRedraw(holder: SurfaceHolder, completion: Runnable?) {
-        mainHandler.post {
-            if (completion != null && surfaceRedrawCompletion !== completion) {
-                return@post
+    private fun scheduleSurfaceRedraw(holder: SurfaceHolder) {
+        check(
+            mainHandler.post {
+                if (!holder.surface.isValid) {
+                    finishSurfaceRedraw()
+                    return@post
+                }
+                check(surfaceAttached) {
+                    "GpuSurface was asked to redraw a surface it never attached"
+                }
+                // A redraw request is also the moment an occluded surface becomes
+                // visible again, and Rust reports "no frame needed" for an occluded
+                // surface, so the render loop is re-armed here.
+                resumeRendering()
+                if (!rendererReady) {
+                    // wgpu setup is asynchronous and `ViewRootImpl` blocks the
+                    // window's first draw report on this completion, so the report
+                    // is never held hostage to GPU setup: it is answered now and the
+                    // surface paints when Rust fires its redraw callback on setup
+                    // completion.
+                    finishSurfaceRedraw()
+                }
             }
-            if (!holder.surface.isValid) {
-                finishSurfaceRedraw()
-                return@post
-            }
-            attachSurfaceIfNeeded(holder)
-            pushInput()
-            frameScheduler.resume()
-            if (refreshRendererReadiness()) {
-                frameScheduler.requestFrame()
-            }
+        ) { "Android main looper rejected a GpuSurface redraw request" }
+    }
+
+    /** Resumes the frame loop and asks for a frame once the renderer can draw one. */
+    private fun resumeRendering() {
+        if (!surfaceAttached) {
+            return
+        }
+        frameScheduler.resume()
+        if (refreshRendererReadiness()) {
+            frameScheduler.requestFrame()
         }
     }
 
     private fun attachSurfaceIfNeeded(holder: SurfaceHolder) {
-        if (!surfaceAttached) {
-            NativeBindings.waterui_gpu_surface_attach(
-                statePtr = statePtr,
-                surface = holder.surface,
-                width = width,
-                height = height,
-                prefersHdr = frozenRendererHdrPreference()
-            )
-            surfaceAttached = true
-            setupPending = !refreshRendererReadiness()
+        if (surfaceAttached) {
+            return
         }
-        requestMaximumFrameRate(holder.surface)
+        NativeBindings.waterui_gpu_surface_attach(
+            statePtr = statePtr,
+            surface = holder.surface,
+            width = surfaceWidth,
+            height = surfaceHeight,
+            prefersHdr = frozenRendererHdrPreference()
+        )
+        surfaceAttached = true
+        setupPending = !refreshRendererReadiness()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Log.d(GPU_SURFACE_LOG_TAG, "surfaceDestroyed attached=$surfaceAttached")
         frameScheduler.pause()
-        clearFrameRate(holder.surface)
+        clearDeclaredFrameRate(holder.surface)
         if (surfaceAttached) {
             NativeBindings.waterui_gpu_surface_detach(statePtr)
             surfaceAttached = false
@@ -226,13 +263,20 @@ private class GpuSurfaceView(
         frameScheduler.onFrame()
     }
 
-    /** Called from Rust's redraw callback; the callback may arrive on any thread. */
+    /**
+     * Called from Rust's redraw callback; the callback may arrive on any thread.
+     *
+     * The request is *always* delivered asynchronously, never inline, even when it
+     * already arrives on the main looper. `waterui_gpu_surface_render` holds an
+     * exclusive borrow of the native surface state for the whole of its call and
+     * the renderer may request a redraw from inside it, so running the request
+     * inline would re-enter the FFI (`waterui_gpu_surface_is_ready`) while that
+     * borrow is live.
+     */
     @Keep
     fun requestNativeRedraw() {
-        if (Looper.myLooper() === Looper.getMainLooper()) {
-            redrawRequest.run()
-        } else {
-            mainHandler.post(redrawRequest)
+        check(mainHandler.post(redrawRequest)) {
+            "Android main looper rejected a GpuSurface redraw request"
         }
     }
 
@@ -280,21 +324,32 @@ private class GpuSurfaceView(
         configureRendererSurfaceFormat()
         configurePresentationDynamicRange()
         super.onAttachedToWindow()
-        if (surfaceAttached) {
-            requestMaximumFrameRate(holder.surface)
-            frameScheduler.resume()
-            if (refreshRendererReadiness()) {
-                frameScheduler.requestFrame()
-            }
-        }
+        resumeRendering()
     }
 
     override fun onDetachedFromWindow() {
         frameScheduler.pause()
         if (surfaceAttached) {
-            clearFrameRate(holder.surface)
+            clearDeclaredFrameRate(holder.surface)
         }
         super.onDetachedFromWindow()
+    }
+
+    // Rust reports "no further frame needed" for a frame that wgpu refused because
+    // the surface was occluded, which stops the loop. Becoming visible again is the
+    // signal that the occlusion is over, so the loop is re-armed here.
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE) {
+            resumeRendering()
+        }
+    }
+
+    override fun onVisibilityAggregated(isVisible: Boolean) {
+        super.onVisibilityAggregated(isVisible)
+        if (isVisible) {
+            resumeRendering()
+        }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -332,13 +387,15 @@ private class GpuSurfaceView(
             doubleTap = false
             pushInput()
         }
+        updateFrameRateDeclaration(continuous = needsRedraw)
         finishSurfaceRedraw()
         return needsRedraw
     }
 
     private fun finishSurfaceRedraw() {
-        surfaceRedrawCompletion?.run()
-        surfaceRedrawCompletion = null
+        while (surfaceRedrawCompletions.isNotEmpty()) {
+            surfaceRedrawCompletions.removeFirst().run()
+        }
     }
 
     private fun pushInput() {
@@ -411,6 +468,44 @@ private class GpuSurfaceView(
             else -> error("unknown MeasureSpec mode: ${MeasureSpec.getMode(measureSpec)}")
         }
 
+    /**
+     * Keeps the declared frame rate in step with the renderer's actual cadence.
+     *
+     * The renderer's cadence is not known statically: it reports per frame whether
+     * it wants another one. Declaring the display's maximum refresh rate
+     * unconditionally would ask the system for a high-refresh mode for a surface
+     * that may draw once and stop, so the declaration is made only while the
+     * renderer keeps asking for frames and is dropped as soon as it goes idle.
+     */
+    private fun updateFrameRateDeclaration(continuous: Boolean) {
+        if (continuous == frameRateDeclared) {
+            return
+        }
+        val surface = holder.surface
+        check(surface.isValid) { "GpuSurface rendered a frame into an invalid surface" }
+        if (continuous) {
+            requestMaximumFrameRate(surface)
+        } else {
+            clearFrameRate(surface)
+        }
+        frameRateDeclared = continuous
+    }
+
+    /**
+     * Drops a live frame-rate declaration. A declaration belongs to the surface, so
+     * one made against a surface that Android has already torn down is gone with it
+     * and only the local flag has to be cleared.
+     */
+    private fun clearDeclaredFrameRate(surface: Surface) {
+        if (!frameRateDeclared) {
+            return
+        }
+        frameRateDeclared = false
+        if (surface.isValid) {
+            clearFrameRate(surface)
+        }
+    }
+
     private fun requestMaximumFrameRate(surface: Surface) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return
@@ -450,21 +545,30 @@ private class GpuSurfaceView(
             when (inheritedDynamicRange()) {
                 SurfaceDynamicRange.STANDARD -> false
                 SurfaceDynamicRange.HIGH -> true
-                null -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                    resources.configuration.isScreenHdr
+                null -> resources.configuration.isScreenHdr
             }
         }
 
     private fun frozenRendererHdrPreference(): Boolean = rendererPrefersHdr
         ?: resolvedRendererHdrPreference().also { rendererPrefersHdr = it }
 
+    /**
+     * Selects a surface format whose alpha channel matches what Rust negotiates.
+     *
+     * `waterui_gpu_surface_attach` (`ffi/src/components/visual/gpu_surface.rs`)
+     * takes the first composite alpha mode the swapchain reports in the order
+     * `PreMultiplied`, `PostMultiplied`, `Inherit`, `Opaque`, so the renderer writes
+     * premultiplied alpha whenever the surface has an alpha channel at all.
+     * `PixelFormat.OPAQUE` drops that channel, which leaves translucent renderer
+     * output composited against nothing, so the SDR path asks for `TRANSLUCENT`
+     * (RGBA_8888). `RGBA_F16` is itself a four-channel format, so the HDR path
+     * already agrees with the same negotiation.
+     */
     private fun configureRendererSurfaceFormat() {
-        val format = if (
-            frozenRendererHdrPreference() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-        ) {
+        val format = if (frozenRendererHdrPreference()) {
             PixelFormat.RGBA_F16
         } else {
-            PixelFormat.OPAQUE
+            PixelFormat.TRANSLUCENT
         }
         holder.setFormat(format)
     }

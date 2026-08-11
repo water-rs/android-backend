@@ -52,6 +52,98 @@ class GpuFrameSchedulerTest {
     }
 
     @Test
+    fun requestRaisedDuringRenderSurvivesTheFrameResult() {
+        var posted = 0
+        var renders = 0
+        lateinit var scheduler: GpuFrameScheduler
+        scheduler = GpuFrameScheduler(
+            postFrame = { posted += 1 },
+            cancelFrame = {},
+            renderFrame = {
+                renders += 1
+                if (renders == 1) {
+                    // A native redraw callback landing while the frame renders.
+                    scheduler.requestFrame()
+                }
+                false
+            }
+        )
+
+        scheduler.resume()
+        scheduler.requestFrame()
+        scheduler.onFrame()
+
+        assertEquals(2, posted)
+        scheduler.onFrame()
+        assertEquals(2, renders)
+    }
+
+    @Test
+    fun lateFrameCallbackAfterPauseIsDropped() {
+        var renders = 0
+        val scheduler = GpuFrameScheduler(
+            postFrame = {},
+            cancelFrame = {},
+            renderFrame = {
+                renders += 1
+                false
+            }
+        )
+
+        scheduler.resume()
+        scheduler.requestFrame()
+        scheduler.pause()
+        // Choreographer had already dequeued this callback when the cancel ran.
+        scheduler.onFrame()
+
+        assertEquals(0, renders)
+    }
+
+    @Test
+    fun lateFrameCallbackAfterDisposeIsDropped() {
+        var renders = 0
+        val scheduler = GpuFrameScheduler(
+            postFrame = {},
+            cancelFrame = {},
+            renderFrame = {
+                renders += 1
+                false
+            }
+        )
+
+        scheduler.resume()
+        scheduler.requestFrame()
+        scheduler.dispose()
+        scheduler.onFrame()
+
+        assertEquals(0, renders)
+    }
+
+    @Test
+    fun resumeAfterLateFrameCallbackStillRendersTheOutstandingRequest() {
+        var posted = 0
+        var renders = 0
+        val scheduler = GpuFrameScheduler(
+            postFrame = { posted += 1 },
+            cancelFrame = {},
+            renderFrame = {
+                renders += 1
+                false
+            }
+        )
+
+        scheduler.resume()
+        scheduler.requestFrame()
+        scheduler.pause()
+        scheduler.onFrame()
+        scheduler.resume()
+        scheduler.onFrame()
+
+        assertEquals(2, posted)
+        assertEquals(1, renders)
+    }
+
+    @Test
     fun pauseCancelsPostedFrameAndResumeRestoresIt() {
         var posted = 0
         var cancelled = 0
