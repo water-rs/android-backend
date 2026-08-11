@@ -161,6 +161,13 @@ class WaterUiRootView @JvmOverloads constructor(
             WebViewFactory(context)
         )
 
+        // The environment handed to `waterui_app` must already own the GPU runtime:
+        // any `GpuSurface` in the tree resolves it out of the environment while the
+        // view body runs, and a missing runtime is a panic there. `GpuRuntime::new`
+        // creates the wgpu adapter and device eagerly, so every app currently waits
+        // for a device before its first view is inflated. Deferring that cost needs
+        // the FFI to install a runtime handle whose device is created on first use;
+        // it cannot be deferred from here without breaking the contract above.
         NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
             mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
         }
