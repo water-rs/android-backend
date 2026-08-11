@@ -171,6 +171,7 @@ class WebViewWrapper(
     private var lastNavigationUrl: String? = null
     private var nextScriptId = 1L
     private var bridgeInstalled = false
+    private var bridgeOriginPatterns: List<String>? = null
     private val bridge = JsBridge()
 
     init {
@@ -307,6 +308,32 @@ class WebViewWrapper(
         // no per-handler script, and nothing that could shadow a page global.
         handlerNativePtrs[name] = nativePtr
         ensureBridgeInstalled()
+    }
+
+    /**
+     * Restricts which documents may reach the bridge.
+     *
+     * A handler is a capability, so a page the view navigates to is not entitled
+     * to the handlers the application registered. The patterns are matched
+     * against the origin `WebViewCompat` reports for the calling frame.
+     */
+    fun setBridgeOrigins(patterns: String) {
+        bridgeOriginPatterns = if (patterns == "*") {
+            null
+        } else {
+            patterns.split('\n').filter(String::isNotEmpty)
+        }
+    }
+
+    private fun currentOriginMayUseBridge(): Boolean {
+        val patterns = bridgeOriginPatterns ?: return true
+        val url = webView.url ?: return false
+        val uri = android.net.Uri.parse(url)
+        val scheme = uri.scheme ?: return false
+        val host = uri.host ?: return false
+        val port = uri.port
+        val origin = if (port >= 0) "$scheme://$host:$port" else "$scheme://$host"
+        return patterns.any { it == "$origin/*" || it == origin }
     }
 
     fun removeHandler(name: String) {
@@ -505,6 +532,10 @@ class WebViewWrapper(
         @JavascriptInterface
         fun send(envelope: String) {
             bridgeHandler.post {
+                if (!currentOriginMayUseBridge()) {
+                    Log.w(LOG_TAG, "a document outside the bridge origin policy tried to call a WaterUI handler")
+                    return@post
+                }
                 val anyHandler = handlerNativePtrs.values.firstOrNull()
                 if (anyHandler == null) {
                     Log.w(LOG_TAG, "page script used the WaterUI bridge before any handler was registered")
