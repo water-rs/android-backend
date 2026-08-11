@@ -19,10 +19,19 @@ import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 private val androidVideoSurfaceHostTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_android_video_surface_host_id().toTypeId()
 }
+
+/** How long a decoder may take to hand back a Surface Android is tearing down. */
+private const val SURFACE_RELEASE_TIMEOUT_MILLIS = 2_000L
+
+/** How long the decoder thread waits for the host view to produce a Surface. */
+private const val SURFACE_ACTIVATION_TIMEOUT_MILLIS = 5_000L
 
 private val androidVideoSurfaceHostRenderer = WuiRenderer { context, node, env, registry ->
     val host = NativeBindings.waterui_force_as_android_video_surface_host(node.rawPtr)
@@ -43,6 +52,14 @@ private class AndroidVideoSurfaceHost(
     private val protectedSurface = createSurfaceView(secure = true)
     private var request: SurfaceRequest? = null
     private var disposed = false
+
+    /**
+     * Latch a `surfaceDestroyed` on the main thread waits on until the decoder
+     * acknowledges that it stopped using the Surface. Written on the main thread and
+     * counted down from the decoder thread.
+     */
+    @Volatile
+    private var pendingSurfaceRelease: CountDownLatch? = null
 
     private data class SurfaceRequest(
         val view: SurfaceView,
@@ -83,6 +100,9 @@ private class AndroidVideoSurfaceHost(
         check(Looper.myLooper() !== Looper.getMainLooper()) {
             "video Surface acquisition must run on the decoder thread"
         }
+        // Reaching a fresh acquisition proves the decoder tore down whatever it was
+        // feeding before, so it doubles as the release acknowledgement.
+        acknowledgeSurfaceRelease()
         val pending = SurfaceRequest(
             if (secure) protectedSurface else clearSurface,
             CompletableFuture()
@@ -90,14 +110,29 @@ private class AndroidVideoSurfaceHost(
         check(mainHandler.post { activateVideoSurface(pending) }) {
             "Android main looper rejected video Surface activation"
         }
-        return pending.future.get()
+        return awaitActivation(pending)
     }
 
     @Keep
     fun deactivateVideoSurface() {
+        // Called from the decoder thread once it has released the Surface.
+        acknowledgeSurfaceRelease()
         check(mainHandler.post(::deactivateOnMainThread)) {
             "Android main looper rejected video Surface deactivation"
         }
+    }
+
+    private fun awaitActivation(pending: SurfaceRequest): Surface = try {
+        pending.future.get(SURFACE_ACTIVATION_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+    } catch (timeout: TimeoutException) {
+        throw IllegalStateException(
+            "video surface host did not produce a Surface within ${SURFACE_ACTIVATION_TIMEOUT_MILLIS}ms",
+            timeout
+        )
+    }
+
+    private fun acknowledgeSurfaceRelease() {
+        pendingSurfaceRelease?.countDown()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -116,6 +151,19 @@ private class AndroidVideoSurfaceHost(
         completeSurfaceRequest(holder)
     }
 
+    /**
+     * Android reclaims the Surface as soon as this returns, so it must not return
+     * while a decoder still holds it — a `MediaCodec` writing into a reclaimed
+     * Surface is a native use-after-free.
+     *
+     * `waterui_android_video_surface_host_surface_destroyed` is fire-and-forget: it
+     * only queues a lifecycle event for the decoder thread. Until the FFI gains a
+     * real acknowledgement (see the report accompanying this change), the closest
+     * available signal is the decoder's next call back into this host —
+     * `deactivateVideoSurface` when it shuts the pipeline down, or
+     * `acquireVideoSurface` when it rebuilds one — both of which happen after it has
+     * stopped feeding the destroyed Surface.
+     */
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         val pending = request?.takeIf { it.view.holder === holder } ?: return
         request = null
@@ -125,7 +173,14 @@ private class AndroidVideoSurfaceHost(
             )
             return
         }
+        val released = CountDownLatch(1)
+        pendingSurfaceRelease = released
         NativeBindings.waterui_android_video_surface_host_surface_destroyed(bridgePtr)
+        val acknowledged = released.await(SURFACE_RELEASE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+        pendingSurfaceRelease = null
+        check(acknowledged) {
+            "video decoder did not release the destroyed Surface within ${SURFACE_RELEASE_TIMEOUT_MILLIS}ms"
+        }
     }
 
     private fun activateVideoSurface(pending: SurfaceRequest) {
@@ -156,6 +211,8 @@ private class AndroidVideoSurfaceHost(
 
     private fun disposeNativeBridge() {
         disposed = true
+        // A disposed host owns no decoder, so nothing is left holding the Surface.
+        acknowledgeSurfaceRelease()
         request?.future?.completeExceptionally(
             IllegalStateException("video surface host was disposed during activation")
         )
