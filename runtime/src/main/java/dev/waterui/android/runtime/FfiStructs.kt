@@ -489,6 +489,8 @@ data class MetadataOffsetStruct(
 
 data class MetadataCursorStruct(val contentPtr: Long, val stylePtr: Long)
 
+data class MetadataAccessibilityIdentifierStruct(val contentPtr: Long, val identifier: String)
+
 data class MetadataClipShapeStruct(
     val contentPtr: Long,
     val commands: Array<PathCommandStruct>

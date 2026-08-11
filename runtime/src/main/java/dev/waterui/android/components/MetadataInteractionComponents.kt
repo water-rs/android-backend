@@ -3,6 +3,8 @@ package dev.waterui.android.components
 import android.content.Context
 import android.view.MotionEvent
 import android.view.PointerIcon
+import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -16,6 +18,9 @@ private val metadataCursorTypeId: WuiTypeId by lazy {
 }
 private val metadataHittableTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_metadata_hittable_id().toTypeId()
+}
+private val metadataAccessibilityIdentifierTypeId: WuiTypeId by lazy {
+    NativeBindings.waterui_ignorable_metadata_accessibility_identifier_id().toTypeId()
 }
 
 private class HittableLayout(context: Context) : PassThroughFrameLayout(context) {
@@ -65,7 +70,33 @@ private val metadataHittableRenderer = WuiRenderer { context, node, env, registr
         }
 }
 
+private val metadataAccessibilityIdentifierRenderer = WuiRenderer { context, node, env, registry ->
+    val metadata =
+        NativeBindings.waterui_force_as_ignorable_metadata_accessibility_identifier(node.rawPtr)
+    PassThroughFrameLayout(context)
+        .attachMetadataContent(context, metadata.contentPtr, env, registry)
+        .apply {
+            // Expose the identifier as the node's view-id resource name so
+            // UiAutomator/Espresso can match it, and mirror it on the view tag
+            // for plain view-hierarchy lookups. Invisible to TalkBack.
+            tag = metadata.identifier
+            accessibilityDelegate = object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(
+                    host: View,
+                    info: AccessibilityNodeInfo,
+                ) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.viewIdResourceName = metadata.identifier
+                }
+            }
+        }
+}
+
 internal fun RegistryBuilder.registerWuiInteractionMetadata() {
     registerMetadata({ metadataCursorTypeId }, metadataCursorRenderer)
     registerMetadata({ metadataHittableTypeId }, metadataHittableRenderer)
+    registerMetadata(
+        { metadataAccessibilityIdentifierTypeId },
+        metadataAccessibilityIdentifierRenderer,
+    )
 }

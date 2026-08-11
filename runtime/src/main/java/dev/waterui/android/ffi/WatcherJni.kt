@@ -75,6 +75,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataRotation(viewPtr: Long): MetadataRotationStruct
     @JvmStatic external fun forceAsMetadataOffset(viewPtr: Long): MetadataOffsetStruct
     @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityIdentifier(viewPtr: Long): MetadataAccessibilityIdentifierStruct
     @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
     @JvmStatic external fun forceAsMetadataHittable(viewPtr: Long): MetadataHittableStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
@@ -324,6 +325,7 @@ object WatcherJni {
     @JvmStatic external fun metadataRotationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOffsetId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataCursorId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityIdentifierId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataClipShapeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataHittableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct

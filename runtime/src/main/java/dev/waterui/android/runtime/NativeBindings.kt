@@ -228,6 +228,11 @@ internal object NativeBindings {
         WatcherJni.forceAsMetadataOffset(viewPtr)
     fun waterui_force_as_metadata_cursor(viewPtr: Long): MetadataCursorStruct =
         WatcherJni.forceAsMetadataCursor(viewPtr)
+
+    fun waterui_force_as_ignorable_metadata_accessibility_identifier(
+        viewPtr: Long,
+    ): MetadataAccessibilityIdentifierStruct =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityIdentifier(viewPtr)
     fun waterui_force_as_metadata_clip_shape(viewPtr: Long): MetadataClipShapeStruct =
         WatcherJni.forceAsMetadataClipShape(viewPtr)
     fun waterui_force_as_metadata_hittable(viewPtr: Long): MetadataHittableStruct =
@@ -311,6 +316,9 @@ internal object NativeBindings {
     fun waterui_metadata_rotation_id(): TypeIdStruct = WatcherJni.metadataRotationId()
     fun waterui_metadata_offset_id(): TypeIdStruct = WatcherJni.metadataOffsetId()
     fun waterui_metadata_cursor_id(): TypeIdStruct = WatcherJni.metadataCursorId()
+
+    fun waterui_ignorable_metadata_accessibility_identifier_id(): TypeIdStruct =
+        WatcherJni.ignorableMetadataAccessibilityIdentifierId()
     fun waterui_metadata_clip_shape_id(): TypeIdStruct = WatcherJni.metadataClipShapeId()
     fun waterui_metadata_hittable_id(): TypeIdStruct = WatcherJni.metadataHittableId()
     fun waterui_metadata_opacity_id(): TypeIdStruct = WatcherJni.metadataOpacityId()
