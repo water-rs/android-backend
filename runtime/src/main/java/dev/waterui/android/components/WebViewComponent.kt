@@ -167,6 +167,7 @@ class WebViewWrapper(
     private val webView = WebView(context)
     private val baseBridgeScript = context.readRawText(R.raw.waterui_webview_bridge)
     private val handlerScriptTemplate = context.readRawText(R.raw.waterui_webview_handler)
+    private val evalScriptTemplate = context.readRawText(R.raw.waterui_webview_eval)
     private var eventCallback: WebViewEventCallback? = null
     private var redirectPolicy: WuiComputed<Boolean>? = null
     private var redirectsEnabled = true
@@ -346,13 +347,49 @@ class WebViewWrapper(
     }
 
     fun runJavaScript(script: String, callbackData: Long, callbackFn: Long) {
-        webView.evaluateJavascript(script) { result ->
+        val wrapped = evalScriptTemplate.replace(EVAL_SOURCE_TOKEN, JSONObject.quote(script))
+        webView.evaluateJavascript(wrapped) { result ->
+            val outcome = parseEvalOutcome(result)
             nativeCompleteJsResult(
                 callbackData,
                 callbackFn,
-                true,
-                result ?: "null"
+                outcome.success,
+                outcome.payload
             )
+        }
+    }
+
+    private class EvalOutcome(val success: Boolean, val payload: String)
+
+    /**
+     * Decodes the envelope produced by `waterui_webview_eval.js`.
+     *
+     * `evaluateJavascript` reports nothing when a script throws, so without the
+     * envelope a failure was indistinguishable from a null result and every
+     * evaluation was reported as a success.
+     */
+    private fun parseEvalOutcome(raw: String?): EvalOutcome {
+        if (raw == null) {
+            return EvalOutcome(false, "WebView returned no result")
+        }
+        // evaluateJavascript JSON-encodes the wrapper's own return value, so the
+        // envelope arrives as a quoted string.
+        val envelopeText = try {
+            JSONObject("{\"e\":$raw}").getString("e")
+        } catch (error: org.json.JSONException) {
+            Log.w(LOG_TAG, "WebView eval returned a malformed envelope", error)
+            return EvalOutcome(false, "WebView returned a malformed result")
+        }
+        return try {
+            val envelope = JSONObject(envelopeText)
+            if (envelope.optBoolean("ok", false)) {
+                EvalOutcome(true, envelope.optString("value", "null"))
+            } else {
+                EvalOutcome(false, envelope.optString("message", "JavaScript evaluation failed"))
+            }
+        } catch (error: org.json.JSONException) {
+            Log.w(LOG_TAG, "WebView eval envelope was not an object", error)
+            EvalOutcome(false, "WebView returned a malformed result")
         }
     }
 
@@ -527,6 +564,7 @@ class WebViewWrapper(
         private const val SCRIPT_INJECTION_TIME_DOCUMENT_END = 1
 
         private const val HANDLER_NAME_TOKEN = "__WATERUI_HANDLER_NAME_JSON__"
+        private const val EVAL_SOURCE_TOKEN = "__WATERUI_EVAL_SOURCE__"
     }
 }
 
