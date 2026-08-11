@@ -23,12 +23,19 @@ private val metadataShadowTypeId: WuiTypeId by lazy {
 private val metadataShadowRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_shadow(node.rawPtr)
 
+    // `colorPtr` is an unresolved WuiColor, not a computed. It has to be
+    // resolved against this environment before it can be read as one; handing
+    // the raw colour to `colorFromComputed` makes Rust reinterpret it as a
+    // signal and dereference whatever the misread layout points at.
+    val resolvedPtr = NativeBindings.waterui_resolve_color(metadata.colorPtr, env.raw())
+    NativeBindings.waterui_drop_color(metadata.colorPtr)
+
     val container = PassThroughFrameLayout(context)
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
 
     container.elevation = metadata.radius.dp(context)
 
-    WuiComputed.colorFromComputed(metadata.colorPtr).also { color ->
+    WuiComputed.colorFromComputed(resolvedPtr).also { color ->
         color.observe { resolvedColor ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val shadowColor = resolvedColor.toColorInt()
