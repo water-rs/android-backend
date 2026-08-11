@@ -163,10 +163,7 @@ class WebViewWrapper(
     private val documentStartScripts = mutableMapOf<Long, ScriptHandler>()
     private val documentEndScripts = linkedMapOf<Long, String>()
     private val handlerNativePtrs = linkedMapOf<String, Long>()
-    private val handlerScriptIds = linkedMapOf<String, Long>()
     private val webView = WebView(context)
-    private val baseBridgeScript = context.readRawText(R.raw.waterui_webview_bridge)
-    private val handlerScriptTemplate = context.readRawText(R.raw.waterui_webview_handler)
     private val evalScriptTemplate = context.readRawText(R.raw.waterui_webview_eval)
     private var eventCallback: WebViewEventCallback? = null
     private var redirectPolicy: WuiComputed<Boolean>? = null
@@ -306,26 +303,14 @@ class WebViewWrapper(
     }
 
     fun addHandler(name: String, nativePtr: Long) {
-        // Re-registering a name replaces the handler, so drop the previous wrapper
-        // script instead of stacking a second copy on every page load.
-        removeHandlerScript(name)
+        // One bridge serves every handler name, so registration is just bookkeeping:
+        // no per-handler script, and nothing that could shadow a page global.
         handlerNativePtrs[name] = nativePtr
         ensureBridgeInstalled()
-        handlerScriptIds[name] =
-            injectScriptOnMain(buildHandlerScript(name), SCRIPT_INJECTION_TIME_DOCUMENT_START)
     }
 
     fun removeHandler(name: String) {
         handlerNativePtrs.remove(name)
-        // Without this the wrapper stays injected and the page keeps a callable
-        // `window.<name>` whose messages have no handler behind them.
-        removeHandlerScript(name)
-    }
-
-    private fun removeHandlerScript(name: String) {
-        val scriptId = handlerScriptIds.remove(name) ?: return
-        documentStartScripts.remove(scriptId)?.remove()
-        documentEndScripts.remove(scriptId)
     }
 
     fun setCookie(cookie: String) {
@@ -395,9 +380,9 @@ class WebViewWrapper(
 
     fun getWebView(): WebView = webView
 
-    fun resolveMessage(requestId: String, success: Boolean, payloadBase64: String) {
-        val js = "window.__wateruiResolve(${JSONObject.quote(requestId)}, ${if (success) "true" else "false"}, ${JSONObject.quote(payloadBase64)});"
-        webView.evaluateJavascript(js, null)
+    /** Evaluates a reply script rendered by the shared bridge on the Rust side. */
+    fun evaluateBridgeScript(script: String) {
+        webView.evaluateJavascript(script, null)
     }
 
     fun release() {
@@ -406,7 +391,6 @@ class WebViewWrapper(
         redirectPolicy = null
         eventCallback = null
         handlerNativePtrs.clear()
-        handlerScriptIds.clear()
         documentStartScripts.values.forEach(ScriptHandler::remove)
         documentStartScripts.clear()
         documentEndScripts.clear()
@@ -423,7 +407,10 @@ class WebViewWrapper(
             return
         }
         bridgeInstalled = true
-        injectScriptOnMain(baseBridgeScript, SCRIPT_INJECTION_TIME_DOCUMENT_START)
+        // Transport first: the shared script calls `__wateruiSend`, so the adapter
+        // onto Android's injected object has to exist before it runs.
+        injectScriptOnMain(TRANSPORT_SCRIPT, SCRIPT_INJECTION_TIME_DOCUMENT_START)
+        injectScriptOnMain(nativeBridgeScript(), SCRIPT_INJECTION_TIME_DOCUMENT_START)
     }
 
     @SuppressLint("RequiresFeature")
@@ -450,11 +437,6 @@ class WebViewWrapper(
     private fun currentUrl(): String = requireNotNull(webView.url) {
         "WebView URL is unavailable before the first navigation"
     }
-
-    private fun buildHandlerScript(name: String): String = handlerScriptTemplate.replace(
-        HANDLER_NAME_TOKEN,
-        JSONObject.quote(name)
-    )
 
     private fun emitLoading(progress: Float) {
         emitEvent(
@@ -512,19 +494,23 @@ class WebViewWrapper(
     }
 
     private inner class JsBridge {
+        /**
+         * Receives one `waterui.invoke(...)` envelope.
+         *
+         * The envelope is handed to Rust unparsed: its format belongs to
+         * `waterui_webview::bridge` and is not duplicated here. Rust also decides
+         * how to reject an unknown handler, so page script cannot crash the app
+         * through this entry point.
+         */
         @JavascriptInterface
-        fun postMessage(name: String, requestId: String, payloadBase64: String) {
+        fun send(envelope: String) {
             bridgeHandler.post {
-                // This entry point is reachable from ordinary page script, so an
-                // unknown handler name is rejected back to JavaScript rather than
-                // crashing the host application.
-                val nativePtr = handlerNativePtrs[name]
-                if (nativePtr == null) {
-                    Log.w(LOG_TAG, "page script called WaterUI handler '$name', which is not registered")
-                    resolveMessage(requestId, false, "no WaterUI handler named '$name'")
+                val anyHandler = handlerNativePtrs.values.firstOrNull()
+                if (anyHandler == null) {
+                    Log.w(LOG_TAG, "page script used the WaterUI bridge before any handler was registered")
                     return@post
                 }
-                nativeOnMessage(nativePtr, name, requestId, payloadBase64)
+                nativeOnBridgeMessage(anyHandler, envelope)
             }
         }
     }
@@ -542,16 +528,17 @@ class WebViewWrapper(
         result: String
     )
 
-    private external fun nativeOnMessage(
-        nativePtr: Long,
-        name: String,
-        requestId: String,
-        payloadBase64: String
-    )
+    private external fun nativeOnBridgeMessage(nativePtr: Long, envelope: String)
+
+    private external fun nativeBridgeScript(): String
 
     companion object {
         private const val LOG_TAG = "WaterUIWebView"
         private const val BRIDGE_OBJECT = "__wateruiBridge"
+
+        /** Adapts the shared bridge's one-function transport onto Android's injected object. */
+        private const val TRANSPORT_SCRIPT =
+            "globalThis.__wateruiSend = function (envelope) { $BRIDGE_OBJECT.send(envelope); };"
         private const val EVENT_WILL_NAVIGATE = 1
         private const val EVENT_LOADING = 2
         private const val EVENT_LOADED = 3
@@ -563,7 +550,6 @@ class WebViewWrapper(
         private const val SCRIPT_INJECTION_TIME_DOCUMENT_START = 0
         private const val SCRIPT_INJECTION_TIME_DOCUMENT_END = 1
 
-        private const val HANDLER_NAME_TOKEN = "__WATERUI_HANDLER_NAME_JSON__"
         private const val EVAL_SOURCE_TOKEN = "__WATERUI_EVAL_SOURCE__"
     }
 }
