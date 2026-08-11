@@ -345,6 +345,16 @@ class WebViewWrapper(
         cookieManager.flush()
     }
 
+    /**
+     * Returns the current cookies as newline-separated Set-Cookie strings.
+     *
+     * Each line is only `name=value`. `CookieManager.getCookie` returns the
+     * request-header form, and Android exposes no other way to enumerate the
+     * store, so domain, path, expiry, Secure, HttpOnly and SameSite are simply
+     * not available to us here. `WebViewHandle::get_cookies` documents this for
+     * the Rust side; do not synthesise attributes to close the gap, because a
+     * guess is indistinguishable from a fact once it crosses the bridge.
+     */
     fun getCookies(callbackData: Long, callbackFn: Long) {
         val url = currentUrl()
         mainHandler.post {
