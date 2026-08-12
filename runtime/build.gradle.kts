@@ -1,6 +1,6 @@
 plugins {
     id("com.android.library")
-    id("dev.detekt") version "2.0.0-alpha.5"
+    id("dev.detekt") version "2.0.0-alpha.6"
 }
 
 android {
@@ -39,7 +39,7 @@ kotlin {
 }
 
 detekt {
-    toolVersion = "2.0.0-alpha.5"
+    toolVersion = "2.0.0-alpha.6"
     buildUponDefaultConfig = true
     ignoreFailures = false
     config.setFrom(files("$rootDir/config/detekt/detekt.yml"))

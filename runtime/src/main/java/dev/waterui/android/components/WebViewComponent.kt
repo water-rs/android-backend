@@ -19,6 +19,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.annotation.RawRes
+import androidx.core.net.toUri
 import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -328,7 +329,7 @@ class WebViewWrapper(
     private fun currentOriginMayUseBridge(): Boolean {
         val patterns = bridgeOriginPatterns ?: return true
         val url = webView.url ?: return false
-        val uri = android.net.Uri.parse(url)
+        val uri = url.toUri()
         val scheme = uri.scheme ?: return false
         val host = uri.host ?: return false
         val port = uri.port

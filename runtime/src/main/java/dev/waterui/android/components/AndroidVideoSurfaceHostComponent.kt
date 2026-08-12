@@ -1,5 +1,6 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -9,6 +10,7 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.Keep
+import androidx.core.view.isEmpty
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -43,6 +45,7 @@ private val androidVideoSurfaceHostRenderer = WuiRenderer { context, node, env, 
 }
 
 @Keep
+@SuppressLint("ViewConstructor")
 private class AndroidVideoSurfaceHost(
     context: Context,
     private val bridgePtr: Long
@@ -79,7 +82,7 @@ private class AndroidVideoSurfaceHost(
     }
 
     fun attachContent(content: View) {
-        check(childCount == 0) { "video surface host content may only be attached once" }
+        check(isEmpty()) { "video surface host content may only be attached once" }
         addView(content)
         addSurfaceView(clearSurface)
         addSurfaceView(protectedSurface)

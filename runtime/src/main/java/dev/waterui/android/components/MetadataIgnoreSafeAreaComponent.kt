@@ -1,5 +1,6 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
@@ -17,6 +18,7 @@ private val metadataIgnoreSafeAreaTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_metadata_ignore_safe_area_id().toTypeId()
 }
 
+@SuppressLint("ViewConstructor")
 private class IgnoreSafeAreaLayout(
     context: Context,
     private val top: Boolean,
