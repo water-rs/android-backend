@@ -151,6 +151,13 @@ private class GpuSurfaceView(
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
         isClickable = true
+        // A plain SurfaceView composites behind the window with a hole punched
+        // through it, so wherever the renderer leaves alpha at zero the screen
+        // shows the punched-out black, not the app content underneath. Media
+        // overlay z-order keeps the surface above the window content so its
+        // transparency blends over the UI, which is what translucent GPU
+        // content (icons, shapes) needs.
+        setZOrderMediaOverlay(true)
         holder.addCallback(this)
         disposeWith(::disposeNativeState)
     }
