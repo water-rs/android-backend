@@ -2,6 +2,9 @@ package dev.waterui.android.runtime
 
 import android.content.Context
 import android.content.res.Configuration
+import android.view.GestureDetector
+import android.view.MotionEvent
+import dev.waterui.android.ffi.InspectorJni
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Handler
@@ -196,6 +199,39 @@ class WaterUiRootView @JvmOverloads constructor(
         )
         check(rootThemeController != null) {
             "WaterUI root content did not produce a renderable native view"
+        }
+        installInspectGesture(renderEnv)
+    }
+
+    /**
+     * Offers the inspector on a two-finger long press, in a debug build.
+     *
+     * A phone has no secondary click, and a two-finger long press is unlikely to
+     * be something the application itself claimed. The inspector runs on the
+     * developer's computer, so this reports where to attach rather than opening
+     * anything here.
+     *
+     * Does nothing when no endpoint is running, which is every release build.
+     */
+    private fun installInspectGesture(env: WuiEnvironment) {
+        if (!InspectorJni.isAvailable(env.raw())) {
+            return
+        }
+        val detector = GestureDetector(
+            context,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onLongPress(event: MotionEvent) {
+                    if (event.pointerCount >= 2) {
+                        InspectorJni.open(env.raw())
+                    }
+                }
+            }
+        )
+        // Observes only: the touch is passed on so the application still receives
+        // everything it would have.
+        setOnTouchListener { _, event ->
+            detector.onTouchEvent(event)
+            false
         }
     }
 
