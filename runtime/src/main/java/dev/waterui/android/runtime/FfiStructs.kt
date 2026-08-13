@@ -490,6 +490,17 @@ data class MetadataOffsetStruct(
 data class MetadataCursorStruct(val contentPtr: Long, val stylePtr: Long)
 
 data class MetadataAccessibilityIdentifierStruct(val contentPtr: Long, val identifier: String)
+data class MetadataAccessibilityLabelStruct(val contentPtr: Long, val labelPtr: Long)
+data class MetadataAccessibilityValueStruct(val contentPtr: Long, val value: Int)
+data class MetadataAccessibilityStateStruct(
+    val contentPtr: Long,
+    val disabledPtr: Long,
+    val selectedPtr: Long,
+    val checkedPtr: Long,
+    val expandedPtr: Long,
+    val busyPtr: Long,
+    val hiddenPtr: Long,
+)
 
 data class MetadataClipShapeStruct(
     val contentPtr: Long,

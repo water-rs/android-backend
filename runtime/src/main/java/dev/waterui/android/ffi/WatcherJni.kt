@@ -76,6 +76,12 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataOffset(viewPtr: Long): MetadataOffsetStruct
     @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
     @JvmStatic external fun forceAsIgnorableMetadataAccessibilityIdentifier(viewPtr: Long): MetadataAccessibilityIdentifierStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityLabel(viewPtr: Long): MetadataAccessibilityLabelStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityRole(viewPtr: Long): MetadataAccessibilityValueStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityHidden(viewPtr: Long): MetadataAccessibilityValueStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityChildren(viewPtr: Long): MetadataAccessibilityValueStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityState(viewPtr: Long): MetadataAccessibilityStateStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityStateSignal(viewPtr: Long): MetadataAccessibilityStateStruct
     @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
     @JvmStatic external fun forceAsMetadataHittable(viewPtr: Long): MetadataHittableStruct
     @JvmStatic external fun forceAsMetadataOpacity(viewPtr: Long): MetadataOpacityStruct
@@ -326,6 +332,12 @@ object WatcherJni {
     @JvmStatic external fun metadataOffsetId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataCursorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataAccessibilityIdentifierId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityLabelId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityRoleId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityHiddenId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityChildrenId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityStateId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityStateSignalId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataClipShapeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataHittableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataOpacityId(): dev.waterui.android.runtime.TypeIdStruct

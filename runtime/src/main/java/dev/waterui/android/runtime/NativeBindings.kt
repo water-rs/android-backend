@@ -233,6 +233,18 @@ internal object NativeBindings {
         viewPtr: Long,
     ): MetadataAccessibilityIdentifierStruct =
         WatcherJni.forceAsIgnorableMetadataAccessibilityIdentifier(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_label(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityLabel(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_role(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityRole(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_hidden(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityHidden(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_children(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityChildren(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_state(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityState(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_state_signal(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityStateSignal(viewPtr)
     fun waterui_force_as_metadata_clip_shape(viewPtr: Long): MetadataClipShapeStruct =
         WatcherJni.forceAsMetadataClipShape(viewPtr)
     fun waterui_force_as_metadata_hittable(viewPtr: Long): MetadataHittableStruct =
@@ -319,6 +331,18 @@ internal object NativeBindings {
 
     fun waterui_ignorable_metadata_accessibility_identifier_id(): TypeIdStruct =
         WatcherJni.ignorableMetadataAccessibilityIdentifierId()
+    fun waterui_ignorable_metadata_accessibility_label_id() =
+        WatcherJni.ignorableMetadataAccessibilityLabelId()
+    fun waterui_ignorable_metadata_accessibility_role_id() =
+        WatcherJni.ignorableMetadataAccessibilityRoleId()
+    fun waterui_ignorable_metadata_accessibility_hidden_id() =
+        WatcherJni.ignorableMetadataAccessibilityHiddenId()
+    fun waterui_ignorable_metadata_accessibility_children_id() =
+        WatcherJni.ignorableMetadataAccessibilityChildrenId()
+    fun waterui_ignorable_metadata_accessibility_state_id() =
+        WatcherJni.ignorableMetadataAccessibilityStateId()
+    fun waterui_ignorable_metadata_accessibility_state_signal_id() =
+        WatcherJni.ignorableMetadataAccessibilityStateSignalId()
     fun waterui_metadata_clip_shape_id(): TypeIdStruct = WatcherJni.metadataClipShapeId()
     fun waterui_metadata_hittable_id(): TypeIdStruct = WatcherJni.metadataHittableId()
     fun waterui_metadata_opacity_id(): TypeIdStruct = WatcherJni.metadataOpacityId()

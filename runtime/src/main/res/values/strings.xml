@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="wui_accessibility_mixed">Mixed</string>
+    <string name="wui_accessibility_busy">Busy</string>
+    <string name="wui_accessibility_mixed_busy">Mixed, busy</string>
     <string name="wui_multi_date_picker_helper">Tap dates to toggle selection. Marked dates: %1$d</string>
     <string name="wui_select_time">Select time</string>
     <string name="wui_select_dates">Select dates</string>
