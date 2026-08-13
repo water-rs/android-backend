@@ -303,9 +303,13 @@ private class GpuSurfaceView(
             }
             MotionEvent.ACTION_UP -> {
                 performClick()
-                clearActiveInput()
+                // Keep panOffset and pinchScale: the renderer settles the
+                // gesture from the state pushed with active=false, so zeroing
+                // them here would snap the camera back to where the gesture
+                // started. They reset on the next ACTION_DOWN.
+                releaseActiveInput()
             }
-            MotionEvent.ACTION_CANCEL -> clearActiveInput()
+            MotionEvent.ACTION_CANCEL -> releaseActiveInput()
         }
         gestureActive = hasHit || scaleDetector.isInProgress
         pushInput()
@@ -427,14 +431,15 @@ private class GpuSurfaceView(
         pinchCenterY = detector.focusY
     }
 
-    private fun clearActiveInput() {
+    /**
+     * Ends the gesture while preserving its final pan and pinch values, which
+     * the renderer needs for the settling frame.
+     */
+    private fun releaseActiveInput() {
         hasPointerPosition = false
         hasHit = false
         hasPinchCenter = false
         gestureActive = false
-        pinchScale = 1f
-        panOffsetX = 0f
-        panOffsetY = 0f
     }
 
     private fun disposeNativeState() {
