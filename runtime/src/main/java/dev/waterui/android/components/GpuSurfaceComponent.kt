@@ -538,15 +538,18 @@ private class GpuSurfaceView(
         }
     }
 
+    // An HDR-capable *screen* is not evidence the *content* is HDR: a renderer
+    // that never declared a preference is SDR content, and forcing it into an
+    // RGBA_F16 swapchain doubles buffer memory for zero visual gain — and on
+    // Pixel 9 gralloc rejects the F16 composer-overlay allocation outright,
+    // losing the Vulkan device. HDR is therefore opt-in: declared by the
+    // renderer or inherited from an ancestor's dynamic-range scope, never
+    // inferred from display capability.
     private fun resolvedRendererHdrPreference(): Boolean =
         if (hasHdrPreference) {
             prefersHdr
         } else {
-            when (inheritedDynamicRange()) {
-                SurfaceDynamicRange.STANDARD -> false
-                SurfaceDynamicRange.HIGH -> true
-                null -> resources.configuration.isScreenHdr
-            }
+            inheritedDynamicRange() == SurfaceDynamicRange.HIGH
         }
 
     private fun frozenRendererHdrPreference(): Boolean = rendererPrefersHdr
@@ -575,12 +578,7 @@ private class GpuSurfaceView(
 
     private fun configurePresentationDynamicRange() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            val standardRange = if (hasHdrPreference) {
-                !prefersHdr
-            } else {
-                inheritedDynamicRange() == SurfaceDynamicRange.STANDARD
-            }
-            setDesiredHdrHeadroom(if (standardRange) 1f else 0f)
+            setDesiredHdrHeadroom(if (frozenRendererHdrPreference()) 0f else 1f)
         }
     }
 
