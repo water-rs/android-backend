@@ -1,7 +1,9 @@
 package dev.waterui.android.components
 
 import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorSpace
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -21,7 +23,6 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.toColorInt
 import java.util.Locale
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -111,7 +112,7 @@ private fun showColorDialog(
         orientation = LinearLayout.VERTICAL
         setPadding(24, 24, 24, 0)
     }
-    val preview = View(context).apply {
+    val preview = HdrColorPreviewView(context).apply {
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             48f.dp(context).roundToInt(),
@@ -188,8 +189,22 @@ private fun applyButtonPreview(button: MaterialButton, color: EditableColor) {
     button.text = color.toHexLabel()
 }
 
-private fun updatePreview(view: View, color: EditableColor) {
-    view.setBackgroundColor(color.toColorInt())
+private fun updatePreview(view: HdrColorPreviewView, color: EditableColor) {
+    view.setColor(color.toColorLong())
+}
+
+private class HdrColorPreviewView(context: android.content.Context) : View(context) {
+    private var color: Long = Color.pack(Color.TRANSPARENT)
+
+    fun setColor(color: Long) {
+        this.color = color
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        canvas.drawColor(color)
+    }
 }
 
 private fun EditableColor.toColorInt(): Int {
@@ -198,6 +213,17 @@ private fun EditableColor.toColorInt(): Int {
     val g = (greenSrgb.coerceIn(0f, 1f) * 255f).roundToInt()
     val b = (blueSrgb.coerceIn(0f, 1f) * 255f).roundToInt()
     return Color.argb(a, r, g, b)
+}
+
+private fun EditableColor.toColorLong(): Long {
+    val scale = if (headroom.isFinite() && headroom > 0f) 1f + headroom else 1f
+    return Color.pack(
+        srgbToLinear(redSrgb) * scale,
+        srgbToLinear(greenSrgb) * scale,
+        srgbToLinear(blueSrgb) * scale,
+        alpha.coerceIn(0f, 1f),
+        ColorSpace.get(ColorSpace.Named.LINEAR_EXTENDED_SRGB),
+    )
 }
 
 private fun EditableColor.toHexLabel(): String {
@@ -222,14 +248,21 @@ private fun EditableColor.toHexLabel(): String {
 }
 
 private fun ResolvedColorStruct.toEditableColor(): EditableColor {
-    val colorInt = toColorInt()
     return EditableColor(
-        redSrgb = Color.red(colorInt) / 255f,
-        greenSrgb = Color.green(colorInt) / 255f,
-        blueSrgb = Color.blue(colorInt) / 255f,
+        redSrgb = linearToSrgb(red).coerceIn(0f, 1f),
+        greenSrgb = linearToSrgb(green).coerceIn(0f, 1f),
+        blueSrgb = linearToSrgb(blue).coerceIn(0f, 1f),
         alpha = opacity.coerceIn(0f, 1f),
         headroom = headroom.coerceAtLeast(0f),
     )
+}
+
+private fun linearToSrgb(value: Float): Float {
+    return if (value <= 0.003_130_8f) {
+        value * 12.92f
+    } else {
+        1.055f * value.pow(1f / 2.4f) - 0.055f
+    }
 }
 
 private fun srgbToLinear(value: Float): Float {

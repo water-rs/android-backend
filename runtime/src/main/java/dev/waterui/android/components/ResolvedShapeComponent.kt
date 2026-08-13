@@ -10,7 +10,7 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.toColorLong
 
 private val resolvedShapeTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_resolved_shape_id().toTypeId()
@@ -27,7 +27,7 @@ private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
 
         init {
             fill.observe { color ->
-                paint.color = color.toColorInt()
+                paint.setColor(color.toColorLong())
                 invalidate()
             }
             disposeWith(fill)

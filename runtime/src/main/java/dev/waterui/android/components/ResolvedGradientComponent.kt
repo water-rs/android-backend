@@ -11,7 +11,7 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedGradientStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
-import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.toColorLong
 import kotlin.math.PI
 import kotlin.math.min
 
@@ -47,7 +47,7 @@ internal fun RegistryBuilder.registerWuiResolvedGradient() {
 }
 
 private fun buildShader(gradient: ResolvedGradientStruct, width: Float, height: Float): Shader {
-    val colors = IntArray(gradient.stops.size) { index -> gradient.stops[index].color.toColorInt() }
+    val colors = LongArray(gradient.stops.size) { index -> gradient.stops[index].color.toColorLong() }
     val positions = FloatArray(gradient.stops.size) { index -> gradient.stops[index].position }
 
     return when (gradient.gradientType) {
@@ -89,7 +89,7 @@ private fun buildShader(gradient: ResolvedGradientStruct, width: Float, height: 
 
             val sweepFraction = sweep / (2f * PI).toFloat()
             val mappedSize = colors.size + if (sweepFraction < 1f) 2 else 1
-            val mappedColors = IntArray(mappedSize)
+            val mappedColors = LongArray(mappedSize)
             val mappedPositions = FloatArray(mappedSize)
             colors.copyInto(mappedColors)
             positions.forEachIndexed { index, position ->

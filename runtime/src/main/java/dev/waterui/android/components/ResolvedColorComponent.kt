@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.content.Context
+import android.graphics.Canvas
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -8,7 +9,7 @@ import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.toColorInt
+import dev.waterui.android.runtime.toColorLong
 
 private val resolvedColorTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_resolved_color_id().toTypeId()
@@ -32,8 +33,16 @@ private val resolvedColorRenderer = WuiRenderer { context, node, _, _ ->
 }
 
 private class ColorFillView(context: Context) : StretchVisualView(context) {
+    private var color: Long = android.graphics.Color.pack(android.graphics.Color.TRANSPARENT)
+
     fun setResolvedColor(color: ResolvedColorStruct) {
-        setBackgroundColor(color.toColorInt())
+        this.color = color.toColorLong()
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        canvas.drawColor(color)
     }
 }
 
