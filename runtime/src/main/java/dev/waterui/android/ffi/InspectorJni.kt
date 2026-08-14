@@ -29,4 +29,12 @@ object InspectorJni {
 
     /** Reveals one accessibility node in the inspector. */
     @JvmStatic external fun inspectNode(envPtr: Long, node: Long)
+
+    /**
+     * Whether anything is watching the accessibility tree.
+     *
+     * The view hierarchy is walked only when the answer is yes, so an
+     * application with no inspector attached pays nothing for the channel.
+     */
+    @JvmStatic external fun wantsTree(envPtr: Long): Boolean
 }
