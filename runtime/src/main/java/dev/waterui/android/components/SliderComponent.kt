@@ -84,11 +84,9 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
         slider.haloTintList = tint
     }
     accent.attachTo(slider)
-    val border = ThemeBridge.border(env)
-    border.observe { color ->
-        slider.trackInactiveTintList = ColorStateList.valueOf(color.toColorInt())
-    }
-    border.attachTo(slider)
+    // The inactive track keeps its Widget.Material3.Slider default
+    // (surfaceContainerHighest); colorOutline is a high-contrast stroke color
+    // and rendered the track far darker than a Compose slider.
 
     val disabled = InteractionBridge.disabled(env)
     disabled.observe { isDisabled ->

@@ -1,16 +1,17 @@
 package dev.waterui.android.components
 
 import android.content.Context
+import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
+import android.widget.LinearLayout
 import android.widget.RadioGroup
-import android.widget.Spinner
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.radiobutton.MaterialRadioButton
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.textfield.TextInputLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativeViewCollection
@@ -80,15 +81,25 @@ private fun buildMenuPicker(
     selection: WuiBinding<Int>,
     source: NativeViewCollection<PickerOption>
 ): View {
-    val labels = ArrayList<CharSequence>()
-    val adapter = ArrayAdapter(
+    // Compose M3's menu picker is the exposed dropdown menu: a read-only
+    // filled text field with a trailing chevron opening an elevated M3 menu.
+    // The legacy Spinner used framework item layouts and no Material chrome.
+    val layout = TextInputLayout(
         context,
-        android.R.layout.simple_spinner_item,
-        labels
-    ).apply {
-        setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        null,
+        com.google.android.material.R.attr.textInputFilledExposedDropdownMenuStyle
+    ).apply { isHintEnabled = false }
+    val field = MaterialAutoCompleteTextView(layout.context).apply {
+        inputType = InputType.TYPE_NULL
     }
-    val spinner = Spinner(context).apply { this.adapter = adapter }
+    layout.addView(
+        field,
+        LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    )
+
     var options = emptyList<PickerOption>()
     var selectedTag: Int? = null
     var reconciling = false
@@ -100,18 +111,14 @@ private fun buildMenuPicker(
         val tag = requireNotNull(selectedTag) { "picker selection did not initialize" }
         val index = options.indexOfFirst { it.tag == tag }
         require(index >= 0) { "picker selection tag $tag is not present" }
-        if (spinner.selectedItemPosition != index) {
-            spinner.setSelection(index)
-        }
+        field.setText(options[index].text, false)
     }
 
     fun publishLabels() {
         if (reconciling) {
             return
         }
-        labels.clear()
-        labels.addAll(options.map(PickerOption::text))
-        adapter.notifyDataSetChanged()
+        field.setSimpleItems(options.map { it.text.toString() }.toTypedArray())
         syncSelection()
     }
 
@@ -130,17 +137,13 @@ private fun buildMenuPicker(
         reconciling = false
         publishLabels()
     }
-    spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-            val tag = options[position].tag
-            if (tag != selectedTag) {
-                selection.set(tag)
-            }
+    field.setOnItemClickListener { _, _, position, _ ->
+        val tag = options[position].tag
+        if (tag != selectedTag) {
+            selection.set(tag)
         }
-
-        override fun onNothingSelected(parent: AdapterView<*>?) = Unit
     }
-    return spinner
+    return layout
 }
 
 private fun buildSegmentedPicker(
@@ -157,7 +160,14 @@ private fun buildSegmentedPicker(
         selection = selection,
         source = source,
         createButton = {
-            MaterialButton(context).apply {
+            // Segmented buttons need the outlined style for the group to draw
+            // its shared outline and inter-segment dividers; default filled
+            // buttons render as a row of separate pills.
+            MaterialButton(
+                context,
+                null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
                 id = View.generateViewId()
                 isCheckable = true
             }

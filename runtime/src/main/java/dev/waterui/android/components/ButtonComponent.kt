@@ -4,11 +4,14 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
+import com.google.android.material.shape.MaterialShapeDrawable
+import com.google.android.material.shape.RelativeCornerSize
+import com.google.android.material.shape.ShapeAppearanceModel
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.InteractionBridge
@@ -36,6 +39,87 @@ private object ButtonStyle {
     const val BORDERED_PROMINENT = 5
 }
 
+/**
+ * Material 3 button chrome for one WaterUI button style.
+ *
+ * A WaterUI button label is an arbitrary view, so `MaterialButton` (a
+ * `TextView`) cannot host it; the container stays a `FrameLayout` and this
+ * chrome reproduces the Compose M3 button spec on it: stadium shape, 40dp
+ * min height, `ButtonDefaults.ContentPadding` (24/8; text buttons 12/8),
+ * outlined stroke in `colorOutline`, and the M3 disabled tokens
+ * (`onSurface` at 12% container / 38% content) instead of whole-view alpha.
+ */
+private data class ButtonChrome(
+    /** Slot filling the container, or null for text-style buttons. */
+    val fillSlot: ColorSlot?,
+    /** Slot for a 1dp outline stroke, or null. */
+    val strokeSlot: ColorSlot?,
+    /** Slot tinting the ripple state layer. */
+    val rippleSlot: ColorSlot,
+    val horizontalPaddingDp: Float,
+    /** Contained styles reserve the M3 40dp minimum button height. */
+    val hasMinHeight: Boolean,
+    val underlineLabel: Boolean = false
+) {
+    val verticalPaddingDp: Float get() = 8f
+}
+
+/**
+ * Compose M3 mapping: the default `Button` is filled, so AUTOMATIC and
+ * BORDERED_PROMINENT project to the filled button; BORDERED projects to
+ * `OutlinedButton` (hairline `colorOutline` stroke, accent label);
+ * PLAIN/LINK/BORDERLESS project to `TextButton` chrome.
+ */
+private fun buttonChrome(style: Int): ButtonChrome = when (style) {
+    ButtonStyle.AUTOMATIC,
+    ButtonStyle.BORDERED_PROMINENT -> ButtonChrome(
+        fillSlot = ColorSlot.Accent,
+        strokeSlot = null,
+        rippleSlot = ColorSlot.AccentForeground,
+        horizontalPaddingDp = 24f,
+        hasMinHeight = true
+    )
+    ButtonStyle.BORDERED -> ButtonChrome(
+        fillSlot = null,
+        strokeSlot = ColorSlot.Border,
+        rippleSlot = ColorSlot.Accent,
+        horizontalPaddingDp = 24f,
+        hasMinHeight = true
+    )
+    ButtonStyle.BORDERLESS,
+    ButtonStyle.PLAIN -> ButtonChrome(
+        fillSlot = null,
+        strokeSlot = null,
+        rippleSlot = ColorSlot.Accent,
+        horizontalPaddingDp = 12f,
+        hasMinHeight = false
+    )
+    ButtonStyle.LINK -> ButtonChrome(
+        fillSlot = null,
+        strokeSlot = null,
+        rippleSlot = ColorSlot.Accent,
+        horizontalPaddingDp = 12f,
+        hasMinHeight = false,
+        underlineLabel = true
+    )
+    else -> error("unknown button style: $style")
+}
+
+private fun labelForegroundSlot(style: Int): ColorSlot = when (style) {
+    ButtonStyle.AUTOMATIC,
+    ButtonStyle.BORDERED_PROMINENT -> ColorSlot.AccentForeground
+    ButtonStyle.LINK,
+    ButtonStyle.BORDERLESS,
+    ButtonStyle.BORDERED -> ColorSlot.Accent
+    ButtonStyle.PLAIN -> ColorSlot.Foreground
+    else -> error("unknown button style: $style")
+}
+
+private const val DISABLED_CONTAINER_ALPHA = 0.12f
+private const val DISABLED_CONTENT_ALPHA = 0.38f
+private const val RIPPLE_ALPHA = 0.12f
+private const val MIN_BUTTON_HEIGHT_DP = 40f
+
 private val buttonTypeId: WuiTypeId by lazy { NativeBindings.waterui_button_id().toTypeId() }
 
 private val buttonRenderer = WuiRenderer { context, node, env, registry ->
@@ -48,35 +132,37 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
     )
     val labelView = inflateAnyView(context, struct.labelPtr, labelEnv, registry)
 
+    val chrome = buttonChrome(struct.style)
     val container = FrameLayout(context).apply {
         disposeWith(labelEnv)
         isClickable = true
         isFocusable = true
 
-        // Apply style-based appearance following Material Design guidelines
-        when (struct.style) {
-            ButtonStyle.AUTOMATIC -> applyAutomaticStyle(this, context, env)
-            ButtonStyle.PLAIN -> applyPlainStyle(this, context)
-            ButtonStyle.LINK -> applyLinkStyle(this, labelView, context, env)
-            ButtonStyle.BORDERLESS -> applyBorderlessStyle(this, context, env)
-            ButtonStyle.BORDERED -> applyBorderedStyle(this, context, env)
-            ButtonStyle.BORDERED_PROMINENT -> applyBorderedProminentStyle(this, context, env)
-            else -> error("unknown button style: ${struct.style}")
+        val horizontal = chrome.horizontalPaddingDp.dp(context).toInt()
+        val vertical = chrome.verticalPaddingDp.dp(context).toInt()
+        setPadding(horizontal, vertical, horizontal, vertical)
+        if (chrome.hasMinHeight) {
+            minimumHeight = MIN_BUTTON_HEIGHT_DP.dp(context).toInt()
         }
 
-        addView(labelView)
+        if (chrome.underlineLabel && labelView is TextView) {
+            labelView.paintFlags = labelView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        }
+
+        addView(
+            labelView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+        )
         setOnClickListener {
             NativeBindings.waterui_call_action(struct.actionPtr, env.raw())
         }
     }
 
-    val disabled = InteractionBridge.disabled(env)
-    disabled.observe { isDisabled ->
-        container.isEnabled = !isDisabled
-        container.isClickable = !isDisabled
-        container.alpha = if (isDisabled) 0.38f else 1f
-    }
-    disabled.attachTo(container)
+    installButtonChrome(container, labelView, chrome, context, env)
 
     installSemanticAccessibilityLabel(
         target = container,
@@ -91,162 +177,104 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
     container
 }
 
-private fun labelForegroundSlot(style: Int): ColorSlot = when (style) {
-    ButtonStyle.AUTOMATIC,
-    ButtonStyle.LINK,
-    ButtonStyle.BORDERLESS,
-    ButtonStyle.BORDERED -> ColorSlot.Accent
-    ButtonStyle.BORDERED_PROMINENT -> ColorSlot.AccentForeground
-    ButtonStyle.PLAIN -> ColorSlot.Foreground
-    else -> error("unknown button style: $style")
-}
-
 /**
- * Automatic style: Standard Material button with ripple effect.
- * Uses accent color for ripple, standard padding.
+ * Wires the reactive theme colors and the disabled state into the M3 chrome.
+ * All color inputs are observed; the drawable set is rebuilt whenever any of
+ * them (or the disabled state) changes.
  */
-private fun applyAutomaticStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 16f.dp(context).toInt()
-    val vertical = 8f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
-
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.2f))
-        view.foreground = RippleDrawable(rippleColor, null, null)
-    }
-    accent.attachTo(view)
-}
-
-/**
- * Plain style: No background, minimal padding.
- * Text-only appearance for inline actions.
- */
-private fun applyPlainStyle(view: FrameLayout, context: Context) {
-    val padding = 8f.dp(context).toInt()
-    view.setPadding(padding, padding, padding, padding)
-    // No background or foreground effects
-}
-
-/**
- * Link style: Accent text, no background, appears as a hyperlink.
- * Adds underline effect to TextView labels.
- */
-private fun applyLinkStyle(
-    view: FrameLayout,
+private fun installButtonChrome(
+    container: FrameLayout,
     labelView: View,
+    chrome: ButtonChrome,
     context: Context,
     env: WuiEnvironment
 ) {
-    val horizontal = 4f.dp(context).toInt()
-    val vertical = 4f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
+    // The M3 button silhouette is a stadium: corners at half the resolved
+    // height, whatever that height is.
+    val stadium = ShapeAppearanceModel.builder()
+        .setAllCornerSizes(RelativeCornerSize(0.5f))
+        .build()
 
-    // Add underline effect for text labels
-    if (labelView is TextView) {
-        labelView.paintFlags = labelView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
-    }
+    var fillColor: Int? = null
+    var strokeColor: Int? = null
+    var rippleColor: Int? = null
+    var onSurfaceColor: Int? = null
+    var isDisabled = false
 
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(color.toColorInt(), 0.1f))
-        view.foreground = RippleDrawable(rippleColor, null, null)
-    }
-    accent.attachTo(view)
-}
+    fun rebuild() {
+        val onSurface = onSurfaceColor ?: return
+        val shape = MaterialShapeDrawable(stadium)
+        var hasBackground = false
 
-/**
- * Borderless style: No visible border, but with ripple feedback.
- * Good for toolbar actions and secondary buttons.
- */
-private fun applyBorderlessStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 12f.dp(context).toInt()
-    val vertical = 8f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
-
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.15f))
-        view.foreground = RippleDrawable(rippleColor, null, null)
-    }
-    accent.attachTo(view)
-}
-
-/**
- * Bordered style: Outlined button with colored border.
- * Material Design "Outlined Button" style.
- */
-private fun applyBorderedStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 16f.dp(context).toInt()
-    val vertical = 8f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
-
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val colorInt = color.toColorInt()
-        val strokeWidth = 1.5f.dp(context).toInt()
-        val cornerRadius = 8f.dp(context)
-
-        val border = GradientDrawable().apply {
-            setStroke(strokeWidth, colorInt)
-            setCornerRadius(cornerRadius)
-            setColor(Color.TRANSPARENT)
+        if (chrome.fillSlot != null) {
+            val fill = fillColor ?: return
+            shape.fillColor = ColorStateList.valueOf(
+                if (isDisabled) adjustAlpha(onSurface, DISABLED_CONTAINER_ALPHA) else fill
+            )
+            hasBackground = true
+        } else {
+            shape.fillColor = ColorStateList.valueOf(Color.TRANSPARENT)
         }
-        view.background = border
-
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(colorInt, 0.15f))
-        val mask = GradientDrawable().apply {
-            setCornerRadius(cornerRadius)
-            setColor(colorInt)
+        if (chrome.strokeSlot != null) {
+            val stroke = strokeColor ?: return
+            shape.setStroke(
+                1f.dp(context),
+                if (isDisabled) adjustAlpha(onSurface, DISABLED_CONTAINER_ALPHA) else stroke
+            )
+            hasBackground = true
         }
-        view.foreground = RippleDrawable(rippleColor, null, mask)
+        container.background = if (hasBackground) shape else null
+
+        val ripple = rippleColor ?: return
+        val mask = MaterialShapeDrawable(stadium)
+        mask.fillColor = ColorStateList.valueOf(Color.WHITE)
+        container.foreground = RippleDrawable(
+            ColorStateList.valueOf(adjustAlpha(ripple, RIPPLE_ALPHA)),
+            null,
+            mask
+        )
+
+        labelView.alpha = if (isDisabled) DISABLED_CONTENT_ALPHA else 1f
     }
-    accent.attachTo(view)
-}
 
-/**
- * Bordered Prominent style: Filled button with accent background.
- * Material Design "Filled Button" or "Primary Button" style.
- */
-private fun applyBorderedProminentStyle(view: FrameLayout, context: Context, env: WuiEnvironment) {
-    val horizontal = 20f.dp(context).toInt()
-    val vertical = 10f.dp(context).toInt()
-    view.setPadding(horizontal, vertical, horizontal, vertical)
+    val onSurface = ThemeBridge.foreground(env)
+    onSurface.observe { color ->
+        onSurfaceColor = color.toColorInt()
+        rebuild()
+    }
+    onSurface.attachTo(container)
 
-    val accent = ThemeBridge.accent(env)
-    val accentForeground = ThemeBridge.accentForeground(env)
-    var accentColor: Int? = null
-    var foregroundColor: Int? = null
-    fun applyColors() {
-        val colorInt = accentColor ?: return
-        val onAccentInt = foregroundColor ?: return
-        val cornerRadius = 8f.dp(context)
-
-        val bg = GradientDrawable().apply {
-            setColor(colorInt)
-            setCornerRadius(cornerRadius)
+    chrome.fillSlot?.let { slot ->
+        val fill = ThemeBridge.color(env, slot)
+        fill.observe { color ->
+            fillColor = color.toColorInt()
+            rebuild()
         }
-        view.background = bg
-
-        val rippleColor = ColorStateList.valueOf(adjustAlpha(onAccentInt, 0.25f))
-        val mask = GradientDrawable().apply {
-            setCornerRadius(cornerRadius)
-            setColor(onAccentInt)
+        fill.attachTo(container)
+    }
+    chrome.strokeSlot?.let { slot ->
+        val stroke = ThemeBridge.color(env, slot)
+        stroke.observe { color ->
+            strokeColor = color.toColorInt()
+            rebuild()
         }
-        view.foreground = RippleDrawable(rippleColor, null, mask)
+        stroke.attachTo(container)
     }
-    accent.observe { color ->
-        accentColor = color.toColorInt()
-        applyColors()
+    val ripple = ThemeBridge.color(env, chrome.rippleSlot)
+    ripple.observe { color ->
+        rippleColor = color.toColorInt()
+        rebuild()
     }
-    accentForeground.observe { color ->
-        foregroundColor = color.toColorInt()
-        applyColors()
+    ripple.attachTo(container)
+
+    val disabled = InteractionBridge.disabled(env)
+    disabled.observe { value ->
+        isDisabled = value
+        container.isEnabled = !value
+        container.isClickable = !value
+        rebuild()
     }
-    accent.attachTo(view)
-    accentForeground.attachTo(view)
+    disabled.attachTo(container)
 }
 
 /**

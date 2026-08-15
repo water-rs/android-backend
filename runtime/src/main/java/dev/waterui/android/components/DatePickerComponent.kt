@@ -17,6 +17,7 @@ import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -155,7 +156,8 @@ private fun showTimeDialog(
     val layout = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
-        setPadding(24, 24, 24, 0)
+        val inset = 24f.dp(context).toInt()
+        setPadding(inset, inset, inset, 0)
     }
     val hourPicker = newPicker(context, 0, 23, initial.hour)
     val minutePicker = newPicker(context, 0, 59, initial.minute)

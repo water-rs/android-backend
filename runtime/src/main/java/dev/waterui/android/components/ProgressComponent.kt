@@ -100,11 +100,9 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
         }
         signal.attachTo(progressBar)
     }
-    val border = ThemeBridge.border(env)
-    border.observe { color ->
-        progressBar.trackColor = color.toColorInt()
-    }
-    border.attachTo(progressBar)
+    // The track keeps its Widget.Material3 indicator default
+    // (secondaryContainer-family); colorOutline is a stroke color and made
+    // the track darker and more saturated than Compose's progress track.
     container
 }
 

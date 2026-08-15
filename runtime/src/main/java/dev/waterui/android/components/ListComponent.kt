@@ -195,8 +195,6 @@ private class WuiListAdapter(
     )
 
     private val editing = WuiComputed.bool(editingPtr)
-    private val surface = ThemeBridge.surface(env)
-    private val border = ThemeBridge.border(env)
     private val mutedForeground = ThemeBridge.mutedForeground(env)
     private val motion = MaterialListMotion(context)
     private val source = NativeAnyViews(contentsPtr)
@@ -229,8 +227,6 @@ private class WuiListAdapter(
         )
     }
     private var isEditing = false
-    private var surfaceColor = 0
-    private var borderColor = 0
     private var sectionTextColor = 0
 
     init {
@@ -242,14 +238,6 @@ private class WuiListAdapter(
             isEditing = value
             notifyItemRangeChanged(0, itemCount, EDITING_PAYLOAD)
         }
-        surface.observe { color ->
-            surfaceColor = color.toColorInt()
-            notifyItemRangeChanged(0, itemCount, THEME_PAYLOAD)
-        }
-        border.observe { color ->
-            borderColor = color.toColorInt()
-            notifyItemRangeChanged(0, itemCount, THEME_PAYLOAD)
-        }
         mutedForeground.observe { color ->
             sectionTextColor = color.toColorInt()
             notifyItemRangeChanged(0, itemCount, THEME_PAYLOAD)
@@ -259,9 +247,11 @@ private class WuiListAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListItemHolder {
         val horizontalMargin = 12f.dp(context).toInt()
         val verticalMargin = 4f.dp(context).toInt()
-        val card = MaterialCardView(context).apply {
-            radius = 12f.dp(context)
-            strokeWidth = 1f.dp(context).toInt()
+        val card = MaterialCardView(
+            context,
+            null,
+            com.google.android.material.R.attr.materialCardViewOutlinedStyle
+        ).apply {
             layoutParams = RecyclerView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -520,16 +510,15 @@ private class WuiListAdapter(
         itemIds = IntArray(0)
         footerAfter = emptyMap()
         editing.close()
-        surface.close()
-        border.close()
         mutedForeground.close()
         if (onDeletePtr != 0L) NativeBindings.waterui_drop_index_action(onDeletePtr)
         if (onMovePtr != 0L) NativeBindings.waterui_drop_move_action(onMovePtr)
     }
 
     private fun bindTheme(holder: ListItemHolder) {
-        holder.card.setCardBackgroundColor(surfaceColor)
-        holder.card.strokeColor = borderColor
+        // Card container/stroke stay on the M3 outlined-card style defaults;
+        // repainting them with Surface/Border flattened the elevation tint
+        // and darkened the outline versus a Compose Card.
         holder.header.setTextColor(sectionTextColor)
         holder.footer.setTextColor(sectionTextColor)
     }

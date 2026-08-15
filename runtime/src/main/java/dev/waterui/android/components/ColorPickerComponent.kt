@@ -110,7 +110,8 @@ private fun showColorDialog(
     var current = initial
     val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(24, 24, 24, 0)
+        val inset = 24f.dp(context).toInt()
+        setPadding(inset, inset, inset, 0)
     }
     val preview = HdrColorPreviewView(context).apply {
         layoutParams = LinearLayout.LayoutParams(
