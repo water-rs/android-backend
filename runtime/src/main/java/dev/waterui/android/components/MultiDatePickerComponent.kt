@@ -1,29 +1,29 @@
 package dev.waterui.android.components
 
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
-import android.widget.CalendarView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.DateStruct
-import dev.waterui.android.runtime.MultiDatePickerStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.R
+import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyResolvedFont
+import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.toColorInt
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
@@ -32,6 +32,10 @@ private val multiDatePickerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_multi_date_picker_id().toTypeId()
 }
 
+// Compose-style multi-date selection: the running selection lives inline as
+// removable M3 input chips, and dates are added (or toggled off) through the
+// native MaterialDatePicker dialog. The previous realization embedded the
+// pre-Material framework CalendarView in a hand-built dialog.
 private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_multi_date_picker(node.rawPtr)
     val binding = WuiBinding.dateVec(struct.valuePtr)
@@ -41,17 +45,51 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
     require(rangeStart <= rangeEnd) { "multi-date picker range must not be empty" }
 
     val container = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+    }
+    val headerRow = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
-    val button = MaterialButton(context)
-
-    container.addView(
+    val button = MaterialButton(context).apply {
+        text = context.getString(R.string.wui_select_dates)
+    }
+    headerRow.addView(
         labelView,
         LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
     )
-    container.addView(button)
+    headerRow.addView(button)
+    container.addView(
+        headerRow,
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+    )
+
+    val helperText = TextView(context)
+    val helperFont = ThemeBridge.bodyFont(env)
+    helperFont.observe(helperText::applyResolvedFont)
+    helperFont.attachTo(helperText)
+    val helperColor = ThemeBridge.mutedForeground(env)
+    helperColor.observe { color -> helperText.setTextColor(color.toColorInt()) }
+    helperColor.attachTo(helperText)
+    container.addView(helperText)
+
+    val chips = ChipGroup(context).apply {
+        isSingleLine = false
+        chipSpacingHorizontal = 8f.dp(context).roundToInt()
+        chipSpacingVertical = 8f.dp(context).roundToInt()
+    }
+    container.addView(
+        chips,
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+    )
+
     installSemanticAccessibilityLabel(
         target = button,
         content = labelView,
@@ -59,183 +97,70 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
         env = env
     )
 
-    fun updateButton(selected: Array<DateStruct>, decoratedDates: Array<DateStruct>) {
-        val summary = formatSelectionSummary(
-            context,
-            selected.map(DateStruct::toLocalDate),
-            decoratedDates.mapTo(
-                HashSet(decoratedDates.size),
-                DateStruct::toLocalDate,
-            ),
-        )
-        button.text = summary
+    var currentSelection: List<LocalDate> = emptyList()
+    var currentDecorated: Set<LocalDate> = emptySet()
+
+    fun publish(selection: Collection<LocalDate>) {
+        val ordered = selection.sorted()
+        binding.set(Array(ordered.size) { index -> ordered[index].toStruct() })
     }
 
-    var currentSelection: Array<DateStruct> = emptyArray()
-    var currentDecorated: Array<DateStruct> = emptyArray()
-
-    fun refreshButton() {
-        updateButton(currentSelection, currentDecorated)
-    }
-
-    binding.observe { selected ->
-        require(selected.all { it.toLocalDate() in rangeStart..rangeEnd }) {
-            "multi-date picker selection contains a date outside its range"
-        }
-        currentSelection = selected
-        refreshButton()
-    }
-    decorated.observe { decoratedDates ->
-        require(decoratedDates.all { it.toLocalDate() in rangeStart..rangeEnd }) {
-            "multi-date picker decoration contains a date outside its range"
-        }
-        currentDecorated = decoratedDates
-        refreshButton()
-    }
-
-    button.setOnClickListener {
-        presentMultiDateDialog(
-            context = context,
-            rangeStart = rangeStart,
-            rangeEnd = rangeEnd,
-            initialSelection = currentSelection.map(DateStruct::toLocalDate),
-            decoratedDates = currentDecorated.mapTo(
-                HashSet(currentDecorated.size),
-                DateStruct::toLocalDate,
-            ),
-        ) { selected ->
-            val ordered = selected.sorted()
-            binding.set(Array(ordered.size) { index -> ordered[index].toStruct() })
-        }
-    }
-
-    container.disposeWith(binding)
-    container.disposeWith(decorated)
-    container
-}
-
-private fun presentMultiDateDialog(
-    context: android.content.Context,
-    rangeStart: LocalDate,
-    rangeEnd: LocalDate,
-    initialSelection: List<LocalDate>,
-    decoratedDates: Set<LocalDate>,
-    onPicked: (Set<LocalDate>) -> Unit
-) {
-    val selectedDates = initialSelection.toMutableSet()
-
-    val calendarView = CalendarView(context).apply {
-        minDate = rangeStart.atStartOfDay(zone()).toInstant().toEpochMilli()
-        maxDate = rangeEnd.plusDays(1).atStartOfDay(zone()).toInstant().toEpochMilli() - 1
-        val initial = initialSelection.firstOrNull() ?: rangeStart
-        date = initial.atStartOfDay(zone()).toInstant().toEpochMilli()
-    }
-
-    val helperText = TextView(context).apply {
-        text = context.getString(
+    fun refresh() {
+        helperText.text = context.getString(
             R.string.wui_multi_date_picker_helper,
-            decoratedDates.size
+            currentDecorated.size
         )
-    }
-
-    val chips = ChipGroup(context).apply {
-        isSingleLine = false
-        chipSpacingHorizontal = 8f.dp(context).roundToInt()
-        chipSpacingVertical = 8f.dp(context).roundToInt()
-    }
-
-    fun refreshChips() {
+        helperText.visibility = if (currentDecorated.isEmpty()) View.GONE else View.VISIBLE
         chips.removeAllViews()
-        selectedDates.sorted().forEach { date ->
+        currentSelection.forEach { date ->
             val chip = Chip(context).apply {
                 text = formatDate(context, date)
                 isCloseIconVisible = true
                 setOnCloseIconClickListener {
-                    selectedDates.remove(date)
-                    refreshChips()
+                    publish(currentSelection - date)
                 }
             }
             chips.addView(chip)
         }
     }
 
-    calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
-        val selected = LocalDate.of(year, month + 1, dayOfMonth)
-        if (!selectedDates.add(selected)) {
-            selectedDates.remove(selected)
+    binding.observe { selected ->
+        val dates = selected.map(DateStruct::toLocalDate)
+        require(dates.all { it in rangeStart..rangeEnd }) {
+            "multi-date picker selection contains a date outside its range"
         }
-        refreshChips()
+        currentSelection = dates.sorted()
+        refresh()
+    }
+    decorated.observe { decoratedDates ->
+        val dates = decoratedDates.mapTo(HashSet(decoratedDates.size), DateStruct::toLocalDate)
+        require(dates.all { it in rangeStart..rangeEnd }) {
+            "multi-date picker decoration contains a date outside its range"
+        }
+        currentDecorated = dates
+        refresh()
     }
 
-    refreshChips()
-
-    val content = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        val padding = 24f.dp(context).roundToInt()
-        setPadding(padding, padding, padding, 0)
-        addView(helperText)
-        addView(
-            calendarView,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
-        addView(
-            ScrollView(context).apply {
-                addView(
-                    chips,
-                    ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-                )
-            },
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
-    }
-
-    MaterialAlertDialogBuilder(context)
-        .setTitle(R.string.wui_select_dates)
-        .setView(content)
-        .setNeutralButton(R.string.wui_clear) { _, _ ->
-            onPicked(emptySet())
-        }
-        .setPositiveButton(android.R.string.ok) { _, _ ->
-            onPicked(selectedDates)
-        }
-        .setNegativeButton(android.R.string.cancel, null)
-        .show()
-}
-
-private fun formatSelectionSummary(
-    context: android.content.Context,
-    selected: List<LocalDate>,
-    decorated: Set<LocalDate>
-): String {
-    if (selected.isEmpty()) {
-        return if (decorated.isEmpty()) {
-            context.getString(R.string.wui_select_dates)
-        } else {
-            context.resources.getQuantityString(
-                R.plurals.wui_select_dates_marked,
-                decorated.size,
-                decorated.size
-            )
+    button.setOnClickListener {
+        showMaterialDatePicker(
+            context = context,
+            initial = currentSelection.firstOrNull() ?: rangeStart,
+            min = rangeStart,
+            max = rangeEnd
+        ) { picked ->
+            // Picking an already-selected date toggles it off, mirroring the
+            // toggle semantics of an inline multi-select calendar.
+            if (picked in currentSelection) {
+                publish(currentSelection - picked)
+            } else {
+                publish(currentSelection + picked)
+            }
         }
     }
-    return when (selected.size) {
-        1 -> formatDate(context, selected.first())
-        2 -> "${formatDate(context, selected[0])}, ${formatDate(context, selected[1])}"
-        else -> context.resources.getQuantityString(
-            R.plurals.wui_dates_selected,
-            selected.size,
-            selected.size
-        )
-    }
+
+    container.disposeWith(binding)
+    container.disposeWith(decorated)
+    container
 }
 
 private fun formatDate(context: android.content.Context, date: LocalDate): String =
@@ -246,8 +171,6 @@ private fun formatDate(context: android.content.Context, date: LocalDate): Strin
 private fun DateStruct.toLocalDate(): LocalDate = LocalDate.of(year, month, day)
 
 private fun LocalDate.toStruct(): DateStruct = DateStruct(year, monthValue, dayOfMonth)
-
-private fun zone(): ZoneId = ZoneId.systemDefault()
 
 internal fun RegistryBuilder.registerWuiMultiDatePicker() {
     register({ multiDatePickerTypeId }, multiDatePickerRenderer)

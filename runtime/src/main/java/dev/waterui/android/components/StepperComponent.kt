@@ -1,15 +1,11 @@
 package dev.waterui.android.components
 
-import android.content.Context
-import android.content.res.ColorStateList
-import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.shape.CornerFamily
-import com.google.android.material.shape.ShapeAppearanceModel
+import com.google.android.material.button.MaterialButtonGroup
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -19,14 +15,18 @@ import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.applyResolvedFont
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
-import dev.waterui.android.runtime.toColorInt
 
 private val stepperTypeId: WuiTypeId by lazy { NativeBindings.waterui_stepper_id().toTypeId() }
 
+// The −/+ pair is a Material connected button group: the group owns the
+// shared silhouette, inner-corner morphing, and RTL corner order that the
+// previous hand-built GradientDrawable got wrong, and the buttons keep their
+// Widget.Material3 colors, typography, and touch targets.
 private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_stepper(node.rawPtr)
     val binding = WuiBinding.int(struct.bindingPtr)
@@ -35,8 +35,6 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     val rangeEnd = struct.rangeEnd
     require(rangeStart <= rangeEnd) { "stepper range must not be empty" }
 
-    val cornerRadiusPx = 12f.dp(context)
-    val buttonSize = 44f.dp(context).toInt()
     val spacingPx = 8f.dp(context).toInt()
 
     val container = LinearLayout(context).apply {
@@ -56,6 +54,9 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
 
     if (struct.valueFormatterPtr != 0L) {
         val valueView = TextView(context)
+        val bodyFont = ThemeBridge.bodyFont(env)
+        bodyFont.observe(valueView::applyResolvedFont)
+        bodyFont.attachTo(valueView)
         val value = ReactiveStyledText(struct.valueFormatterPtr, env)
         value.attach { styled -> valueView.text = styled }
         container.addView(
@@ -68,28 +69,9 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
         container.disposeWith(value)
     }
 
-    val controlGroup = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = cornerRadiusPx
-        }
-    }
-
-    val decrement = stepperButton(
-        context,
-        "−",
-        buttonSize,
-        stepperShape(cornerRadiusPx, roundsLeadingCorners = true)
-    )
-    val increment = stepperButton(
-        context,
-        "+",
-        buttonSize,
-        stepperShape(cornerRadiusPx, roundsLeadingCorners = false)
-    )
-
+    val controlGroup = MaterialButtonGroup(context)
+    val decrement = MaterialButton(context).apply { text = "−" }
+    val increment = MaterialButton(context).apply { text = "+" }
     controlGroup.addView(decrement)
     controlGroup.addView(increment)
     container.addView(controlGroup)
@@ -132,63 +114,9 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
         binding.set(newValue)
     }
 
-    val accent = ThemeBridge.accent(env)
-    accent.observe { color ->
-        val tint = ColorStateList.valueOf(color.toColorInt())
-        decrement.backgroundTintList = tint
-        increment.backgroundTintList = tint
-    }
-    accent.attachTo(container)
-
-    val accentForeground = ThemeBridge.accentForeground(env)
-    accentForeground.observe { color ->
-        val colorInt = color.toColorInt()
-        decrement.setTextColor(colorInt)
-        increment.setTextColor(colorInt)
-    }
-    accentForeground.attachTo(container)
-
-    val surfaceVariant = ThemeBridge.surfaceVariant(env)
-    surfaceVariant.observe { color ->
-        (controlGroup.background as GradientDrawable).setColor(color.toColorInt())
-    }
-    surfaceVariant.attachTo(container)
-
     container.disposeWith(binding)
     container.disposeWith(stepComputed)
     container
-}
-
-private fun stepperButton(
-    context: Context,
-    label: String,
-    size: Int,
-    shape: ShapeAppearanceModel
-): MaterialButton = MaterialButton(context).apply {
-    text = label
-    textSize = 18f
-    minWidth = size
-    minimumWidth = size
-    minHeight = size
-    minimumHeight = size
-    insetTop = 0
-    insetBottom = 0
-    setPadding(0, 0, 0, 0)
-    shapeAppearanceModel = shape
-}
-
-private fun stepperShape(
-    radius: Float,
-    roundsLeadingCorners: Boolean
-): ShapeAppearanceModel {
-    val leadingRadius = if (roundsLeadingCorners) radius else 0f
-    val trailingRadius = if (roundsLeadingCorners) 0f else radius
-    return ShapeAppearanceModel.builder()
-        .setTopLeftCorner(CornerFamily.ROUNDED, leadingRadius)
-        .setBottomLeftCorner(CornerFamily.ROUNDED, leadingRadius)
-        .setTopRightCorner(CornerFamily.ROUNDED, trailingRadius)
-        .setBottomRightCorner(CornerFamily.ROUNDED, trailingRadius)
-        .build()
 }
 
 internal fun RegistryBuilder.registerWuiStepper() {

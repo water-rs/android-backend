@@ -25,7 +25,7 @@ class WuiStyledStr internal constructor(
     private val chunks: List<StyledChunk>
 ) : Closeable {
     fun bind(env: WuiEnvironment, onValue: (CharSequence) -> Unit): Closeable =
-        ResolvedStyledTextBinding(chunks, env, onValue)
+        ResolvedStyledTextBinding(chunks, env, env.requirePxPerSp(), onValue)
 
     override fun close() {
         chunks.forEach(StyledChunk::close)
@@ -85,9 +85,14 @@ internal class StyledTextStyle(
     private val foreground: WuiColor?,
     private val background: WuiColor?
 ) : Closeable {
-    fun resolve(env: WuiEnvironment, onChange: () -> Unit): ResolvedStyledTextStyle =
+    fun resolve(
+        env: WuiEnvironment,
+        pxPerSp: Float,
+        onChange: () -> Unit
+    ): ResolvedStyledTextStyle =
         ResolvedStyledTextStyle(
             font = font.resolve(env),
+            pxPerSp = pxPerSp,
             italic = italic,
             underline = underline,
             strikethrough = strikethrough,
@@ -113,11 +118,12 @@ internal class StyledTextStyle(
 private class ResolvedStyledTextBinding(
     chunks: List<StyledChunk>,
     env: WuiEnvironment,
+    pxPerSp: Float,
     private val onValue: (CharSequence) -> Unit
 ) : Closeable {
     private var initializing = true
     private val chunks = chunks.map { chunk ->
-        ResolvedStyledChunk(chunk.text, chunk.style.resolve(env, ::publishIfReady))
+        ResolvedStyledChunk(chunk.text, chunk.style.resolve(env, pxPerSp, ::publishIfReady))
     }
 
     init {
@@ -162,6 +168,7 @@ private data class ResolvedStyledChunk(
 
 internal class ResolvedStyledTextStyle(
     font: WuiComputed<ResolvedFontStruct>,
+    private val pxPerSp: Float,
     private val italic: Boolean,
     private val underline: Boolean,
     private val strikethrough: Boolean,
@@ -203,8 +210,11 @@ internal class ResolvedStyledTextStyle(
             end,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
+        // Sizes are sp values; convert through the font-scale-aware factor so
+        // styled runs honor the system font-size setting, and round only at
+        // the final pixel value so fractional sp sizes survive.
         builder.setSpan(
-            AbsoluteSizeSpan(font.size.roundToInt(), true),
+            AbsoluteSizeSpan((font.size * pxPerSp).roundToInt(), false),
             start,
             end,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -296,7 +306,7 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
 }
 
 internal fun TextView.applyResolvedFont(font: ResolvedFontStruct) {
-    setTextSize(TypedValue.COMPLEX_UNIT_DIP, font.size)
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, font.size)
     typeface = font.toTypeface()
 }
 

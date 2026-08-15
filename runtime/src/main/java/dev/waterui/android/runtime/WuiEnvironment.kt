@@ -6,6 +6,13 @@ package dev.waterui.android.runtime
 class WuiEnvironment(
     envPtr: Long
 ) : NativePointer(envPtr) {
+    /**
+     * Pixels per sp unit for the hosting activity, stamped by the root view
+     * and inherited by every environment derived from it. Text sizes travel
+     * through the theme bridge in sp; zero means the root never stamped it.
+     */
+    var pxPerSp: Float = 0f
+
     companion object {
         fun create(): WuiEnvironment {
             val envPtr = NativeBindings.waterui_init()
@@ -15,7 +22,14 @@ class WuiEnvironment(
 
     fun clone(): WuiEnvironment {
         val cloned = NativeBindings.waterui_clone_env(raw())
-        return WuiEnvironment(cloned)
+        return WuiEnvironment(cloned).also { it.pxPerSp = pxPerSp }
+    }
+
+    fun requirePxPerSp(): Float {
+        check(pxPerSp > 0f) {
+            "WaterUI environment has no pxPerSp; the root view must stamp it before rendering"
+        }
+        return pxPerSp
     }
 
     override fun release(ptr: Long) {

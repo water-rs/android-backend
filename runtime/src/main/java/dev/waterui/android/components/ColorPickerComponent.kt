@@ -172,7 +172,18 @@ private fun colorSlider(
     val layout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
-    val title = TextView(context).apply { text = context.getString(label) }
+    val title = TextView(context).apply {
+        text = context.getString(label)
+        // The dialog helper has no theme-bridge env; the M3 body-medium
+        // appearance keeps the label on Material typography (and sp).
+        val attributes = context.obtainStyledAttributes(
+            intArrayOf(com.google.android.material.R.attr.textAppearanceBodyMedium)
+        )
+        val appearance = attributes.getResourceId(0, 0)
+        attributes.recycle()
+        check(appearance != 0) { "WaterUI Material theme is missing textAppearanceBodyMedium" }
+        setTextAppearance(appearance)
+    }
     val slider = Slider(context).apply {
         valueFrom = min
         valueTo = max

@@ -256,23 +256,11 @@ object ThemeBridge {
     fun tertiaryContainer(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
         color(env, ColorSlot.TertiaryContainer)
 
+    // Non-body slots are consumed on the Rust side through styled text and
+    // arrive here already resolved; only the body slot needs a direct
+    // accessor, for widgets that set a control font themselves.
     fun bodyFont(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
         font(env, FontSlot.Body)
-
-    fun titleFont(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
-        font(env, FontSlot.Title)
-
-    fun headlineFont(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
-        font(env, FontSlot.Headline)
-
-    fun subheadlineFont(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
-        font(env, FontSlot.Subheadline)
-
-    fun captionFont(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
-        font(env, FontSlot.Caption)
-
-    fun footnoteFont(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
-        font(env, FontSlot.Footnote)
 }
 
 fun Closeable.attachTo(view: android.view.View) {

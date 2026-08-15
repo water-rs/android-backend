@@ -190,6 +190,7 @@ class WaterUiRootView @JvmOverloads constructor(
 
         val app = NativeBindings.waterui_app(initEnv.takeRaw())
         val renderEnv = WuiEnvironment(app.takeEnvironment())
+        renderEnv.pxPerSp = context.pxPerSp()
         environment = renderEnv
         bindBackgroundTheme(renderEnv)
         val child = inflateAnyView(context, app.takeContent(), renderEnv, registry)
@@ -432,8 +433,10 @@ private data class MaterialTypographyPalette(
             val typeface = requireNotNull(textView.typeface) {
                 "WaterUI Material theme $name did not resolve a typeface"
             }
+            // Theme font sizes travel in sp so the whole UI follows the
+            // user's font-scale setting, mirroring Compose's sp typography.
             return ResolvedFontStruct(
-                size = textView.textSize / context.resources.displayMetrics.density,
+                size = textView.textSize / context.pxPerSp(),
                 weight = typeface.toWaterUiFontWeight(),
                 family = null
             )

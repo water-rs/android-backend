@@ -1,12 +1,20 @@
 package dev.waterui.android.components
 
-import android.app.DatePickerDialog
+import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.NumberPicker
+import androidx.fragment.app.FragmentActivity
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.datepicker.CalendarConstraints
+import com.google.android.material.datepicker.CompositeDateValidator
+import com.google.android.material.datepicker.DateValidatorPointBackward
+import com.google.android.material.datepicker.DateValidatorPointForward
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.timepicker.MaterialTimePicker
+import com.google.android.material.timepicker.TimeFormat
+import com.google.android.material.datepicker.MaterialDatePicker
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.DatePickerStruct
 import dev.waterui.android.runtime.DatePickerType
@@ -19,10 +27,12 @@ import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.requireActivity
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -95,7 +105,7 @@ private fun presentPicker(
 ) {
     when (pickerType) {
         DatePickerType.DATE -> {
-            showDateDialog(context, current.toLocalDate(), rangeStart.toLocalDate(), rangeEnd.toLocalDate()) { date ->
+            showMaterialDatePicker(context, current.toLocalDate(), rangeStart.toLocalDate(), rangeEnd.toLocalDate()) { date ->
                 onPicked(LocalDateTime.of(date, current.toLocalTime()))
             }
         }
@@ -110,14 +120,14 @@ private fun presentPicker(
             }
         }
         DatePickerType.DATE_HOUR_AND_MINUTE -> {
-            showDateDialog(context, current.toLocalDate(), rangeStart.toLocalDate(), rangeEnd.toLocalDate()) { date ->
+            showMaterialDatePicker(context, current.toLocalDate(), rangeStart.toLocalDate(), rangeEnd.toLocalDate()) { date ->
                 showTimeDialog(context, current.toLocalTime(), includeSeconds = false) { time ->
                     onPicked(LocalDateTime.of(date, time))
                 }
             }
         }
         DatePickerType.DATE_HOUR_MINUTE_AND_SECOND -> {
-            showDateDialog(context, current.toLocalDate(), rangeStart.toLocalDate(), rangeEnd.toLocalDate()) { date ->
+            showMaterialDatePicker(context, current.toLocalDate(), rangeStart.toLocalDate(), rangeEnd.toLocalDate()) { date ->
                 showTimeDialog(context, current.toLocalTime(), includeSeconds = true) { time ->
                     onPicked(LocalDateTime.of(date, time))
                 }
@@ -126,25 +136,47 @@ private fun presentPicker(
     }
 }
 
-private fun showDateDialog(
+internal fun supportFragmentManager(context: android.content.Context) =
+    (context.requireActivity() as? FragmentActivity
+        ?: error("WaterUI date picker requires a FragmentActivity host"))
+        .supportFragmentManager
+
+// MaterialDatePicker works in UTC epoch millis regardless of the device zone.
+internal fun LocalDate.toUtcMillis(): Long =
+    atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+
+internal fun localDateFromUtcMillis(millis: Long): LocalDate =
+    Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+
+internal fun dateRangeConstraints(min: LocalDate, max: LocalDate): CalendarConstraints =
+    CalendarConstraints.Builder()
+        .setStart(min.withDayOfMonth(1).toUtcMillis())
+        .setEnd(max.withDayOfMonth(1).toUtcMillis())
+        .setValidator(
+            CompositeDateValidator.allOf(
+                listOf(
+                    DateValidatorPointForward.from(min.toUtcMillis()),
+                    DateValidatorPointBackward.before(max.plusDays(1).toUtcMillis())
+                )
+            )
+        )
+        .build()
+
+internal fun showMaterialDatePicker(
     context: android.content.Context,
     initial: LocalDate,
     min: LocalDate,
     max: LocalDate,
     onPicked: (LocalDate) -> Unit
 ) {
-    val dialog = DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            onPicked(LocalDate.of(year, month + 1, dayOfMonth))
-        },
-        initial.year,
-        initial.monthValue - 1,
-        initial.dayOfMonth,
-    )
-    dialog.datePicker.minDate = min.atStartOfDay(zone()).toInstant().toEpochMilli()
-    dialog.datePicker.maxDate = max.plusDays(1).atStartOfDay(zone()).toInstant().toEpochMilli() - 1
-    dialog.show()
+    val picker = MaterialDatePicker.Builder.datePicker()
+        .setSelection(initial.toUtcMillis())
+        .setCalendarConstraints(dateRangeConstraints(min, max))
+        .build()
+    picker.addOnPositiveButtonClickListener { millis ->
+        onPicked(localDateFromUtcMillis(millis))
+    }
+    picker.show(supportFragmentManager(context), "waterui.date_picker")
 }
 
 private fun showTimeDialog(
@@ -153,6 +185,23 @@ private fun showTimeDialog(
     includeSeconds: Boolean,
     onPicked: (LocalTime) -> Unit
 ) {
+    if (!includeSeconds) {
+        val timeFormat =
+            if (DateFormat.is24HourFormat(context)) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H
+        val picker = MaterialTimePicker.Builder()
+            .setTimeFormat(timeFormat)
+            .setHour(initial.hour)
+            .setMinute(initial.minute)
+            .build()
+        picker.addOnPositiveButtonClickListener {
+            onPicked(LocalTime.of(picker.hour, picker.minute, 0))
+        }
+        picker.show(supportFragmentManager(context), "waterui.time_picker")
+        return
+    }
+
+    // Material has no seconds-precision time picker; the spinner dialog is
+    // the deliberate realization for HOUR_MINUTE_AND_SECOND, not a fallback.
     val layout = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
@@ -165,20 +214,13 @@ private fun showTimeDialog(
 
     layout.addView(hourPicker)
     layout.addView(minutePicker)
-    if (includeSeconds) {
-        layout.addView(secondPicker)
-    }
+    layout.addView(secondPicker)
 
     MaterialAlertDialogBuilder(context)
         .setTitle(R.string.wui_select_time)
         .setView(layout)
         .setPositiveButton(android.R.string.ok) { _, _ ->
-            val time = LocalTime.of(
-                hourPicker.value,
-                minutePicker.value,
-                if (includeSeconds) secondPicker.value else 0,
-            )
-            onPicked(time)
+            onPicked(LocalTime.of(hourPicker.value, minutePicker.value, secondPicker.value))
         }
         .setNegativeButton(android.R.string.cancel, null)
         .show()
@@ -246,8 +288,6 @@ private fun LocalDateTime.clamp(min: LocalDateTime, max: LocalDateTime): LocalDa
         else -> this
     }
 }
-
-private fun zone(): ZoneId = ZoneId.systemDefault()
 
 internal fun RegistryBuilder.registerWuiDatePicker() {
     register({ datePickerTypeId }, datePickerRenderer)
