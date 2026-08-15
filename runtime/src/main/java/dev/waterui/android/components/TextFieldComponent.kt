@@ -1,13 +1,10 @@
 package dev.waterui.android.components
 
-import android.content.res.ColorStateList
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
-import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.widget.addTextChangedListener
-import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
@@ -19,7 +16,6 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.installWuiFocusTarget
 import dev.waterui.android.runtime.toColorInt
@@ -44,11 +40,9 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)
 
-    val horizontalPadding = 12f.dp(context).toInt()
-    val verticalPadding = 8f.dp(context).toInt()
-
     val singleLine = struct.lineLimit == 1
-    val editText = AppCompatEditText(context).apply {
+    val input = createMaterialTextInput(context)
+    val editText = input.editText.apply {
         inputType = resolveInputType(struct.keyboardType, singleLine)
         // `lineLimit == 0` means the field has no limit; anything else caps the
         // visible lines. A single-line field also suppresses the Enter key.
@@ -56,20 +50,10 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         if (struct.lineLimit > 0) {
             maxLines = struct.lineLimit
         }
-        setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
     }
     editText.installWuiFocusTarget(WuiTextInputFocusTarget(editText))
     installTextSelectionMenu(editText, struct.selectionMenuPtr, env)
-    container.addView(editText)
-    val shape = MaterialShapeDrawable().apply {
-        setCornerSize(12f.dp(context))
-        strokeWidth = 1f.dp(context)
-    }
-    editText.background = shape
+    container.addView(input.layout)
 
     val bindingSynchronizer = TextInputBindingSynchronizer(
         currentEditorValue = {
@@ -118,18 +102,6 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         labelPtr = struct.accessibilityLabelPtr,
         env = env
     )
-
-    val surfaceColor = ThemeBridge.surface(env)
-    surfaceColor.observe { color ->
-        shape.fillColor = ColorStateList.valueOf(color.toColorInt())
-    }
-    surfaceColor.attachTo(editText)
-
-    val borderColor = ThemeBridge.border(env)
-    borderColor.observe { color ->
-        shape.setStroke(shape.strokeWidth, color.toColorInt())
-    }
-    borderColor.attachTo(editText)
 
     val foreground = ThemeBridge.foreground(env)
     foreground.observe { color -> editText.setTextColor(color.toColorInt()) }

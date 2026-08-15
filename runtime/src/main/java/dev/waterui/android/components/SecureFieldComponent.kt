@@ -1,12 +1,9 @@
 package dev.waterui.android.components
 
-import android.content.res.ColorStateList
 import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.widget.LinearLayout
-import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.widget.addTextChangedListener
-import com.google.android.material.shape.MaterialShapeDrawable
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.NativeBindings
@@ -17,7 +14,6 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.installWuiFocusTarget
 import dev.waterui.android.runtime.toColorInt
@@ -33,22 +29,13 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)
 
-    val editText = AppCompatEditText(context).apply {
+    val input = createMaterialTextInput(context)
+    val editText = input.editText.apply {
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         transformationMethod = PasswordTransformationMethod.getInstance()
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        )
     }
     editText.installWuiFocusTarget(WuiTextInputFocusTarget(editText))
-    container.addView(editText)
-
-    val shape = MaterialShapeDrawable().apply {
-        setCornerSize(12f.dp(context))
-        strokeWidth = 1f.dp(context)
-    }
-    editText.background = shape
+    container.addView(input.layout)
 
     val bindingSynchronizer = TextInputBindingSynchronizer(
         currentEditorValue = {
@@ -77,18 +64,6 @@ private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
         labelPtr = struct.accessibilityLabelPtr,
         env = env
     )
-
-    val surfaceColor = ThemeBridge.surface(env)
-    surfaceColor.observe { color ->
-        shape.fillColor = ColorStateList.valueOf(color.toColorInt())
-    }
-    surfaceColor.attachTo(editText)
-
-    val borderColor = ThemeBridge.border(env)
-    borderColor.observe { color ->
-        shape.setStroke(shape.strokeWidth, color.toColorInt())
-    }
-    borderColor.attachTo(editText)
 
     val foreground = ThemeBridge.foreground(env)
     foreground.observe { color -> editText.setTextColor(color.toColorInt()) }
