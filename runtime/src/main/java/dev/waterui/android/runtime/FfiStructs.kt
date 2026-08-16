@@ -785,13 +785,19 @@ data class SplitNavigationContainerStruct(
  * - id: Unique tab identifier (u64)
  * - labelPtr: AnyView pointer for tab label
  * - contentPtr: WuiTabContent pointer for lazy content building
+ * - systemIconPtr: WuiSystemIcon pointer, or 0 when the icon is not a platform
+ *   symbol. A tab item takes an icon separately from its title, so it cannot be
+ *   read back out of the label view.
+ * - iconPtr: AnyView pointer for an icon that is not a platform symbol, or 0.
  */
 data class TabStruct(
     val id: Long,
     val labelPtr: Long,
     val contentPtr: Long,
     val badgePtr: Long,
-    val enabledPtr: Long
+    val enabledPtr: Long,
+    val systemIconPtr: Long,
+    val iconPtr: Long
 )
 
 /**
