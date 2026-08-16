@@ -91,7 +91,8 @@ private val splitNavigationContainerTypeId: WuiTypeId by lazy {
 
 private const val DISPLAY_MODE_AUTOMATIC = 0
 private const val DISPLAY_MODE_INLINE = 1
-private const val DISPLAY_MODE_LARGE = 2
+private const val DISPLAY_MODE_MEDIUM = 2
+private const val DISPLAY_MODE_LARGE = 3
 private const val TOOLBAR_PRINCIPAL = 0
 private const val TOOLBAR_PRIMARY_ACTION = 1
 private const val TOOLBAR_SECONDARY_ACTION = 2
@@ -362,6 +363,11 @@ private class NavigationBarView(
         AppCompatR.attr.actionBarSize,
         "actionBarSize"
     )
+    private val mediumToolbarHeight = requiredThemeDimension(
+        context,
+        MaterialR.attr.collapsingToolbarLayoutMediumSize,
+        "collapsingToolbarLayoutMediumSize"
+    )
     private val largeToolbarHeight = requiredThemeDimension(
         context,
         MaterialR.attr.collapsingToolbarLayoutLargeSize,
@@ -451,13 +457,14 @@ private class NavigationBarView(
         }
 
         visibility = VISIBLE
-        val largeTitle = when (spec.displayMode) {
-            DISPLAY_MODE_AUTOMATIC -> !showBack
-            DISPLAY_MODE_INLINE -> false
-            DISPLAY_MODE_LARGE -> true
+        val titleHeight = when (spec.displayMode) {
+            DISPLAY_MODE_AUTOMATIC -> if (showBack) compactToolbarHeight else largeToolbarHeight
+            DISPLAY_MODE_INLINE -> compactToolbarHeight
+            DISPLAY_MODE_MEDIUM -> mediumToolbarHeight
+            DISPLAY_MODE_LARGE -> largeToolbarHeight
             else -> error("unknown navigation display mode: ${spec.displayMode}")
         }
-        configureTitleMode(largeTitle)
+        configureTitleMode(titleHeight)
 
         if (showBack && onBack != null) {
             toolbar.navigationIcon = AppCompatResources.getDrawable(
@@ -582,10 +589,13 @@ private class NavigationBarView(
         bottomToolbar.visibility = GONE
     }
 
-    private fun configureTitleMode(large: Boolean) {
+    // A bar taller than the action bar collapses on scroll; one that is
+    // exactly the action bar's height has nothing to collapse into.
+    private fun configureTitleMode(height: Int) {
+        val collapses = height > compactToolbarHeight
         val params = collapsingToolbar.layoutParams as LayoutParams
-        params.height = if (large) largeToolbarHeight else compactToolbarHeight
-        params.scrollFlags = if (large) {
+        params.height = height
+        params.scrollFlags = if (collapses) {
             LayoutParams.SCROLL_FLAG_SCROLL or
                 LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED or
                 LayoutParams.SCROLL_FLAG_SNAP
