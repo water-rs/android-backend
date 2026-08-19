@@ -846,10 +846,12 @@ data class ListStruct(
  * ListItem component data.
  * - contentPtr: AnyView pointer for item content
  * - deletablePtr: Computed<Boolean> pointer controlling item delete ability
+ * - selectedPtr: Computed<Boolean> pointer marking the row as the current selection
  */
 data class ListItemStruct(
     val contentPtr: Long,
     val deletablePtr: Long,
+    val selectedPtr: Long,
     val sectionLabel: String?,
     val sectionFooter: String?
 )

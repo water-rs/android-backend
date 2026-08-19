@@ -121,6 +121,7 @@ private class MaterialListMotion(context: Context) {
 private class ListItemModel(
     contentPtr: Long,
     deletablePtr: Long,
+    selectedPtr: Long,
     val sectionLabel: String?,
     val sectionFooter: String?,
     private val context: Context,
@@ -131,12 +132,22 @@ private class ListItemModel(
     private var contentView: View? = null
     private var contentDisposed = false
     private val deletable = WuiComputed.bool(deletablePtr)
+    private val selected = WuiComputed.bool(selectedPtr)
     var isDeletable = false
         private set
+    var isSelected = false
+        private set
+
+    // The bound holder's hook; selection can change while the row is on screen.
+    var onSelectedChanged: ((Boolean) -> Unit)? = null
 
     init {
         deletable.observe { value ->
             isDeletable = value
+        }
+        selected.observe { value ->
+            isSelected = value
+            onSelectedChanged?.invoke(value)
         }
     }
 
@@ -151,7 +162,9 @@ private class ListItemModel(
     }
 
     override fun close() {
+        onSelectedChanged = null
         deletable.close()
+        selected.close()
         val view = contentView
         if (view == null) {
             NativeBindings.waterui_drop_any_view(contentPtr)
@@ -219,6 +232,7 @@ private class WuiListAdapter(
         return ListItemModel(
             contentPtr = item.contentPtr,
             deletablePtr = item.deletablePtr,
+            selectedPtr = item.selectedPtr,
             sectionLabel = item.sectionLabel,
             sectionFooter = item.sectionFooter,
             context = context,
@@ -258,6 +272,10 @@ private class WuiListAdapter(
             ).apply {
                 setMargins(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin)
             }
+            // A selected row shows Material's checked-card container tint, not
+            // a check icon: selection chrome, not a checkbox.
+            isCheckable = true
+            checkedIcon = null
         }
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -375,6 +393,8 @@ private class WuiListAdapter(
         }
         holder.model = model
         holder.ownsModel = !usesSections
+        holder.card.isChecked = model.isSelected
+        model.onSelectedChanged = { value -> holder.card.isChecked = value }
         bindTheme(holder)
         bindEditing(holder, animate = false)
         bindSectionText(holder.header, model.sectionLabel)
@@ -616,6 +636,7 @@ private class WuiListAdapter(
 
     private fun releaseHolderModel(holder: ListItemHolder) {
         val model = holder.model ?: return
+        model.onSelectedChanged = null
         if (holder.ownsModel) {
             visibleFlatModels.remove(model)
             model.close()
