@@ -492,6 +492,17 @@ data class MetadataCursorStruct(val contentPtr: Long, val stylePtr: Long)
 data class MetadataAccessibilityIdentifierStruct(val contentPtr: Long, val identifier: String)
 data class MetadataAccessibilityLabelStruct(val contentPtr: Long, val labelPtr: Long)
 data class MetadataAccessibilityValueStruct(val contentPtr: Long, val value: Int)
+
+/**
+ * A navigation link's marker.
+ *
+ * The marker carries nothing but its content: it exists so a backend that draws
+ * an affordance around the row a link sits in — the iOS disclosure chevron — can
+ * recognise one. Material lists have no such affordance, so nothing here
+ * registers the type and the marker falls through to its content; the struct
+ * exists because the JNI cast is generated for every ignorable metadata.
+ */
+data class NavigationLinkHintStruct(val contentPtr: Long)
 data class MetadataAccessibilityStateStruct(
     val contentPtr: Long,
     val disabledPtr: Long,
