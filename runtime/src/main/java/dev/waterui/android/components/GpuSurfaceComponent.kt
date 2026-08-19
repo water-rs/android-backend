@@ -151,13 +151,31 @@ private class GpuSurfaceView(
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
         isClickable = true
-        // A plain SurfaceView composites behind the window with a hole punched
-        // through it, so wherever the renderer leaves alpha at zero the screen
-        // shows the punched-out black, not the app content underneath. Media
-        // overlay z-order keeps the surface above the window content so its
-        // transparency blends over the UI, which is what translucent GPU
-        // content (icons, shapes) needs.
-        setZOrderMediaOverlay(true)
+        // A SurfaceView never composites *within* the view tree: its surface is
+        // either below the window, which punches a hole through it, or above
+        // the window entirely. Below the window, everywhere the renderer leaves
+        // alpha at zero shows the punched-out black rather than the content
+        // behind it, which turns every translucent icon and shape into a black
+        // tile. `setZOrderMediaOverlay` does not avoid that — it only orders
+        // this surface against other surfaces, still underneath the window.
+        //
+        // So the side is chosen by what the content is. In-flow SDR content is
+        // translucent and small, and needs its transparency to blend over the
+        // UI, so it goes on top. An HDR presentation surface is opaque and
+        // full-bleed, and gains from staying below the window where ordinary
+        // views can still draw over it.
+        //
+        // Both sides are compromises of the same limitation: a view that is
+        // meant to overlap in-flow GPU content cannot, because z-order here is
+        // not the tree's. `TextureView` is the only Android view that composites
+        // GPU output in tree order with alpha, and is where in-flow surfaces
+        // belong; moving them is a backend change of its own, not a detail of
+        // this one.
+        if (hasHdrPreference && prefersHdr) {
+            setZOrderMediaOverlay(true)
+        } else {
+            setZOrderOnTop(true)
+        }
         holder.addCallback(this)
         disposeWith(::disposeNativeState)
     }

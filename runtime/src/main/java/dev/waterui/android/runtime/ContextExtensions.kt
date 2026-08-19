@@ -3,6 +3,7 @@ package dev.waterui.android.runtime
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import androidx.activity.OnBackPressedDispatcherOwner
 
 internal fun Context.requireActivity(): Activity {
     var current = this
@@ -18,6 +19,20 @@ internal fun Context.requireActivity(): Activity {
         }
     }
 }
+
+/// The activity that owns this context's back dispatcher.
+///
+/// A view's context is not the activity: WaterUI wraps it in [WaterUiContext],
+/// and themed inflation wraps it again, so casting the context straight to
+/// [OnBackPressedDispatcherOwner] fails even though the host activity is one.
+/// The owner has to be reached through the same unwrapping [requireActivity]
+/// does.
+internal fun Context.requireOnBackPressedDispatcherOwner(): OnBackPressedDispatcherOwner =
+    requireActivity() as? OnBackPressedDispatcherOwner
+        ?: error(
+            "WaterUI navigation requires an activity that owns an OnBackPressedDispatcher, " +
+                "got ${requireActivity()::class.java.name}"
+        )
 
 internal class WaterUiContext(base: Context) : ContextWrapper(base) {
     private var rootEnvironmentConsumer: ((WuiEnvironment) -> Unit)? = null

@@ -59,7 +59,17 @@ private data class ButtonChrome(
     val horizontalPaddingDp: Float,
     /** Contained styles reserve the M3 40dp minimum button height. */
     val hasMinHeight: Boolean,
-    val underlineLabel: Boolean = false
+    val underlineLabel: Boolean = false,
+    /**
+     * Whether the label is centred in the container.
+     *
+     * A button with chrome centres its label inside the shape it draws. A button
+     * without chrome draws no shape to centre in, and is what a list row's
+     * navigation link is made of, so centring its label there is what turns an
+     * ordinary row into a stray centred word. Its label keeps the alignment the
+     * label itself asks for instead.
+     */
+    val centersLabel: Boolean = true
 ) {
     val verticalPaddingDp: Float get() = 8f
 }
@@ -92,7 +102,8 @@ private fun buttonChrome(style: Int): ButtonChrome = when (style) {
         strokeSlot = null,
         rippleSlot = ColorSlot.Accent,
         horizontalPaddingDp = 12f,
-        hasMinHeight = false
+        hasMinHeight = false,
+        centersLabel = false
     )
     ButtonStyle.LINK -> ButtonChrome(
         fillSlot = null,
@@ -154,7 +165,11 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+                if (chrome.centersLabel) {
+                    Gravity.CENTER
+                } else {
+                    Gravity.START or Gravity.CENTER_VERTICAL
+                }
             )
         )
         setOnClickListener {

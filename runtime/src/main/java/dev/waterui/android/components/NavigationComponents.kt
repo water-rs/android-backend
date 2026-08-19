@@ -15,7 +15,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.annotation.Keep
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -41,6 +40,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.search.SearchBar
 import com.google.android.material.search.SearchView
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.navigation.NavigationBarView as MaterialNavigationBarView
 import com.google.android.material.navigationrail.NavigationRailView
 import com.google.android.material.transition.MaterialFadeThrough
 import com.google.android.material.transition.MaterialContainerTransform
@@ -70,6 +70,7 @@ import dev.waterui.android.runtime.disposeWuiTree
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.requireActivity
+import dev.waterui.android.runtime.requireOnBackPressedDispatcherOwner
 import dev.waterui.android.runtime.toColorInt
 import java.io.Closeable
 
@@ -88,6 +89,15 @@ private val tabsTypeId: WuiTypeId by lazy {
 private val splitNavigationContainerTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_split_navigation_container_id().toTypeId()
 }
+
+/// The narrowest a detail pane is still worth showing beside a sidebar.
+///
+/// Material's list-detail guidance keeps a detail pane at least this wide, and
+/// `SlidingPaneLayout` reads it as the threshold for laying the two panes out
+/// side by side: with the example's 280dp sidebar the pair needs a window past
+/// the expanded breakpoint, so a phone collapses to one pane and a tablet does
+/// not.
+private const val DETAIL_PANE_MIN_WIDTH_DP = 360f
 
 private const val DISPLAY_MODE_AUTOMATIC = 0
 private const val DISPLAY_MODE_INLINE = 1
@@ -610,8 +620,15 @@ private class NavigationBarView(
             update(null)
             return
         }
-        val textView = view as? TextView
-            ?: error("semantic navigation title and subtitle must render as native TextView")
+        val textView = view.semanticTextView()
+        if (textView == null) {
+            check(view.rendersNothing()) {
+                "semantic navigation title and subtitle must render a native TextView, " +
+                    "but ${view.javaClass.name} contains none"
+            }
+            update(null)
+            return
+        }
         update(textView.text)
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(
@@ -632,6 +649,47 @@ private class NavigationBarView(
         }
         textView.addTextChangedListener(watcher)
         semanticTextWatchers += textView to watcher
+    }
+
+    /// The `TextView` at or below this view.
+    ///
+    /// A semantic title reaches the bar wrapped in whatever the view tree put
+    /// around it: an environment scope and each metadata modifier add a group
+    /// of their own, so the text is a descendant rather than the root the
+    /// renderer handed back. The bar mirrors that view's text into the
+    /// collapsing toolbar, so it needs the `TextView` itself.
+    private fun View.semanticTextView(): TextView? {
+        if (this is TextView) {
+            return this
+        }
+        val group = this as? ViewGroup ?: return null
+        for (index in 0 until group.childCount) {
+            group.getChildAt(index).semanticTextView()?.let { return it }
+        }
+        return null
+    }
+
+    /// Whether this view tree carries nothing the bar could show.
+    ///
+    /// A bar's title and subtitle are always views, so a page that declares no
+    /// subtitle still sends one: WaterUI's empty view, inside whatever scopes
+    /// the tree wrapped around it. That is "no subtitle", not a subtitle the
+    /// bar failed to read, and the two have to be told apart because only the
+    /// second one is a bug.
+    private fun View.rendersNothing(): Boolean {
+        if (this is WuiEmptyView) {
+            return true
+        }
+        val group = this as? ViewGroup ?: return false
+        if (group.childCount == 0) {
+            return false
+        }
+        for (index in 0 until group.childCount) {
+            if (!group.getChildAt(index).rendersNothing()) {
+                return false
+            }
+        }
+        return true
     }
 
     private fun addToolbarView(target: Toolbar, view: View, gravity: Int) {
@@ -749,8 +807,7 @@ private class AndroidNavigationStackView(
         if (backCallbackInstalled) {
             return
         }
-        val dispatcherOwner = context as? OnBackPressedDispatcherOwner
-            ?: error("WaterUI navigation requires an OnBackPressedDispatcherOwner host")
+        val dispatcherOwner = context.requireOnBackPressedDispatcherOwner()
         val lifecycleOwner = checkNotNull(findViewTreeLifecycleOwner()) {
             "WaterUI navigation requires a ViewTreeLifecycleOwner"
         }
@@ -1351,8 +1408,15 @@ private class AdaptiveTabsView(
     private val style: Int
 ) : ViewGroup(context) {
     private val content = FrameLayout(context)
-    private val bottomBar = BottomNavigationView(context)
-    private val rail = NavigationRailView(context)
+    // Material 3's navigation bar labels every destination; the auto mode this
+    // defaults to is the Material 2 behaviour of dropping every label but the
+    // selected one once a bar has four of them.
+    private val bottomBar = BottomNavigationView(context).apply {
+        labelVisibilityMode = MaterialNavigationBarView.LABEL_VISIBILITY_LABELED
+    }
+    private val rail = NavigationRailView(context).apply {
+        labelVisibilityMode = MaterialNavigationBarView.LABEL_VISIBILITY_LABELED
+    }
     private var selectedIndex = -1
     private var usesRail = false
     private var synchronizing = false
@@ -1392,8 +1456,8 @@ private class AdaptiveTabsView(
             }
         }
 
-        bottomBar.setOnItemSelectedListener { item -> selectId(item.itemId, user = true) }
-        rail.setOnItemSelectedListener { item -> selectId(item.itemId, user = true) }
+        bottomBar.setOnItemSelectedListener { item -> onItemSelected(item.itemId) }
+        rail.setOnItemSelectedListener { item -> onItemSelected(item.itemId) }
         selection.observe { selectedId -> selectId(selectedId, user = false) }
         disposeWith {
             selection.close()
@@ -1464,6 +1528,20 @@ private class AdaptiveTabsView(
         }
         rail.visibility = if (usesRail) VISIBLE else GONE
         bottomBar.visibility = if (usesRail) GONE else VISIBLE
+    }
+
+    /// Handles a tap on one of the two tab surfaces.
+    ///
+    /// `selectId` mirrors the new selection onto both surfaces, and assigning
+    /// `selectedItemId` runs this listener again — so without the guard a tap
+    /// recurses until the stack runs out. While it is set, the incoming
+    /// selection is the one this view is already applying rather than a fresh
+    /// choice by the user, and accepting it is all that is left to do.
+    private fun onItemSelected(id: Int): Boolean {
+        if (synchronizing) {
+            return true
+        }
+        return selectId(id, user = true)
     }
 
     private fun selectId(id: Int, user: Boolean): Boolean {
@@ -1571,6 +1649,9 @@ private class SplitNavigationLayoutView(
     private var predictiveTarget: View? = null
     private var backCallbackInstalled = false
     private var lastOuterSlideable: Boolean? = null
+    /// Which pane this view last asked the layout to show, so that asking again
+    /// for the same one cannot schedule layouts forever.
+    private var appliedPaneShowsDetail: Boolean? = null
     private var lastInnerSlideable: Boolean? = null
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackStarted(backEvent: BackEventCompat) {
@@ -1639,14 +1720,26 @@ private class SplitNavigationLayoutView(
             )
             innerPane.addView(
                 detailPane,
-                SlidingPaneLayout.LayoutParams(0, SlidingPaneLayout.LayoutParams.MATCH_PARENT)
-                    .apply { weight = if (style == 2) 2f else 1f }
+                SlidingPaneLayout.LayoutParams(
+                    DETAIL_PANE_MIN_WIDTH_DP.dp(context).toInt(),
+                    SlidingPaneLayout.LayoutParams.MATCH_PARENT
+                ).apply { weight = if (style == 2) 2f else 1f }
             )
         }
+        // `SlidingPaneLayout` lays its panes side by side while they both fit and
+        // overlaps them when they do not, and it decides that by measuring the
+        // widths the panes ask for — a pane at width 0 with a weight asks for
+        // nothing and is handed whatever is left. With the detail pane asking for
+        // nothing the sidebar alone always fits, so a phone gets both columns
+        // crammed side by side instead of the pushed page it should show. The
+        // pane asks for the narrowest width it is usable at and keeps its weight,
+        // so it still takes the extra room on a window wide enough for both.
         outerPane.addView(
             trailing,
-            SlidingPaneLayout.LayoutParams(0, SlidingPaneLayout.LayoutParams.MATCH_PARENT)
-                .apply { weight = if (style == 1) 1f else 2f }
+            SlidingPaneLayout.LayoutParams(
+                DETAIL_PANE_MIN_WIDTH_DP.dp(context).toInt(),
+                SlidingPaneLayout.LayoutParams.MATCH_PARENT
+            ).apply { weight = if (style == 1) 1f else 2f }
         )
         addView(
             outerPane,
@@ -1692,8 +1785,7 @@ private class SplitNavigationLayoutView(
             "WaterUI split navigation requires a ViewTreeLifecycleOwner"
         }
         if (!backCallbackInstalled) {
-            val dispatcherOwner = context as? OnBackPressedDispatcherOwner
-                ?: error("WaterUI split navigation requires an OnBackPressedDispatcherOwner host")
+            val dispatcherOwner = context.requireOnBackPressedDispatcherOwner()
             dispatcherOwner.onBackPressedDispatcher.addCallback(lifecycleOwner, backCallback)
             backCallbackInstalled = true
         }
@@ -1715,6 +1807,48 @@ private class SplitNavigationLayoutView(
             lastOuterSlideable = outerPane.isSlideable
             lastInnerSlideable = innerPane?.isSlideable
             updateBackState()
+        }
+    }
+
+    /// Shows whichever pane the current selection means.
+    ///
+    /// KNOWN GAP: this is applied where the selection changes, which is right
+    /// while the layout stays put, but a `SlidingPaneLayout` only learns whether
+    /// it can slide once it has been measured and comes up showing the list. A
+    /// selection made before that first measure — every phone-width launch, and
+    /// every rotation back from a two-pane window — therefore leaves the list on
+    /// screen with its own detail hidden behind it, and the user has to pick the
+    /// row again. Re-applying this from `onLayout` when slideability changes is
+    /// the obvious repair and does fix the visible behaviour, but it puts the
+    /// window into an input-dispatch stall — "Waited 5025ms for
+    /// FocusEvent(hasFocus=true)" with an idle main thread — so the transition
+    /// needs to be driven from wherever the window's focus is settled, not from
+    /// layout.
+    private fun applySelectedPaneState() {
+        if (visibility != 0) {
+            return
+        }
+        // Both calls ask for a layout, and this runs off the back of one, so
+        // asking for the pane that is already showing would schedule layouts
+        // forever.
+        showOuterPane(showsDetail = primarySelectedId != 0)
+    }
+
+    /// Puts one of the two outer panes on screen, once.
+    ///
+    /// Every route into the outer pane goes through here so the record of which
+    /// pane was asked for stays true; a caller that opened or closed the pane
+    /// behind this record would leave it stale, and the next re-apply would skip
+    /// the change it was supposed to make.
+    private fun showOuterPane(showsDetail: Boolean) {
+        if (appliedPaneShowsDetail == showsDetail) {
+            return
+        }
+        appliedPaneShowsDetail = showsDetail
+        if (showsDetail) {
+            outerPane.closePane()
+        } else {
+            outerPane.openPane()
         }
     }
 
@@ -1765,7 +1899,7 @@ private class SplitNavigationLayoutView(
 
         if (nextSelectedId == 0) {
             showPlaceholder()
-            outerPane.openPane()
+            applySelectedPaneState()
             updateBackState()
             return
         }
@@ -1774,9 +1908,7 @@ private class SplitNavigationLayoutView(
         activeContent = screen
         attachScreen(contentPane, screen)
         screen.state.appeared()
-        if (visibility == 0) {
-            outerPane.closePane()
-        }
+        applySelectedPaneState()
         refreshSecondary(secondarySelectedId.coerceAtLeast(0))
         updateBackState()
     }
@@ -1793,7 +1925,7 @@ private class SplitNavigationLayoutView(
 
         if (nextSelectedId == 0) {
             showPlaceholder()
-            outerPane.openPane()
+            applySelectedPaneState()
             updateBackState()
             return
         }
@@ -1801,9 +1933,7 @@ private class SplitNavigationLayoutView(
         val screen = details.getOrPut(nextSelectedId) { buildScreen(detailPtr, nextSelectedId) }
         activeDetail = screen
         attachScreen(detailPane, screen)
-        if (visibility == 0) {
-            outerPane.closePane()
-        }
+        applySelectedPaneState()
         screen.state.appeared()
         updateBackState()
     }
@@ -1923,21 +2053,21 @@ private class SplitNavigationLayoutView(
     private fun applyVisibility() {
         when (visibility) {
             0 -> {
-                if (primarySelectedId > 0) outerPane.closePane() else outerPane.openPane()
+                showOuterPane(showsDetail = primarySelectedId > 0)
                 innerPane?.let { pane ->
                     if (secondarySelectedId > 0) pane.closePane() else pane.openPane()
                 }
             }
             1 -> {
-                outerPane.openPane()
+                showOuterPane(showsDetail = false)
                 innerPane?.openPane()
             }
             2 -> {
-                outerPane.closePane()
+                showOuterPane(showsDetail = true)
                 innerPane?.openPane()
             }
             3 -> {
-                outerPane.closePane()
+                showOuterPane(showsDetail = true)
                 innerPane?.closePane()
             }
             else -> error("unknown navigation split column visibility: $visibility")
