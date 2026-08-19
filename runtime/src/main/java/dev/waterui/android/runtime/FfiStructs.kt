@@ -859,12 +859,22 @@ data class ListStruct(
  * - deletablePtr: Computed<Boolean> pointer controlling item delete ability
  * - selectedPtr: Computed<Boolean> pointer marking the row as the current selection
  */
+/**
+ * A list row, plus the section break it may open.
+ *
+ * `hasSection` distinguishes "this row starts a new section" from "this row
+ * continues the previous one"; a section with neither header nor footer is a
+ * pure divider, so both text pointers are then `0`. The two pointers are
+ * reactive styled-text signals, not resolved strings: a section title
+ * localizes and can be driven by app state.
+ */
 data class ListItemStruct(
     val contentPtr: Long,
     val deletablePtr: Long,
     val selectedPtr: Long,
-    val sectionLabel: String?,
-    val sectionFooter: String?
+    val hasSection: Boolean,
+    val sectionLabelPtr: Long,
+    val sectionFooterPtr: Long
 )
 
 // ========== App Struct ==========

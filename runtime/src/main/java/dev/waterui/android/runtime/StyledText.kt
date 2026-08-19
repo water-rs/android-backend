@@ -27,8 +27,50 @@ class WuiStyledStr internal constructor(
     fun bind(env: WuiEnvironment, onValue: (CharSequence) -> Unit): Closeable =
         ResolvedStyledTextBinding(chunks, env, env.requirePxPerSp(), onValue)
 
+    /** The characters alone, for chrome that supplies its own typography. */
+    val plainText: String
+        get() = chunks.joinToString(separator = "") { chunk -> chunk.text }
+
     override fun close() {
         chunks.forEach(StyledChunk::close)
+    }
+}
+
+/**
+ * Reactive text for chrome that owns its own typography.
+ *
+ * A list section header is styled by the list the way the platform styles its
+ * own section headers; only the characters come from the app. Resolving the
+ * signal down to its plain string is what keeps that platform style intact —
+ * [ReactiveStyledText] instead applies the app's own font and color spans,
+ * which would override the header style.
+ */
+internal class ReactivePlainText(
+    computedPtr: Long
+) : Closeable {
+    private val computed = WuiComputed.styledString(computedPtr)
+    private var value: CharSequence = ""
+    private var updateNative: (CharSequence) -> Unit = {}
+
+    init {
+        computed.observe { styled ->
+            value = styled.plainText
+            updateNative(value)
+        }
+    }
+
+    fun attach(update: (CharSequence) -> Unit) {
+        updateNative = update
+        update(value)
+    }
+
+    fun detach() {
+        updateNative = {}
+    }
+
+    override fun close() {
+        detach()
+        computed.close()
     }
 }
 

@@ -33,6 +33,7 @@ import dev.waterui.android.runtime.R
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.reactive.WatcherGuard
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ReactivePlainText
 import dev.waterui.android.runtime.NativeAnyViews
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.RenderRegistry
@@ -122,8 +123,9 @@ private class ListItemModel(
     contentPtr: Long,
     deletablePtr: Long,
     selectedPtr: Long,
-    val sectionLabel: String?,
-    val sectionFooter: String?,
+    hasSection: Boolean,
+    sectionLabelPtr: Long,
+    sectionFooterPtr: Long,
     private val context: Context,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
@@ -133,6 +135,17 @@ private class ListItemModel(
     private var contentDisposed = false
     private val deletable = WuiComputed.bool(deletablePtr)
     private val selected = WuiComputed.bool(selectedPtr)
+
+    /** Whether this row opens a section, even one that draws no chrome. */
+    val opensSection = hasSection
+
+    /**
+     * The section's header and footer as live text. They stay attached to this
+     * model for its lifetime; the holder that draws a given piece of chrome
+     * subscribes to it while bound and lets go on recycle.
+     */
+    val sectionLabel = sectionLabelPtr.takeIf { it != 0L }?.let(::ReactivePlainText)
+    val sectionFooter = sectionFooterPtr.takeIf { it != 0L }?.let(::ReactivePlainText)
     var isDeletable = false
         private set
     var isSelected = false
@@ -165,6 +178,8 @@ private class ListItemModel(
         onSelectedChanged = null
         deletable.close()
         selected.close()
+        sectionLabel?.close()
+        sectionFooter?.close()
         val view = contentView
         if (view == null) {
             NativeBindings.waterui_drop_any_view(contentPtr)
@@ -190,6 +205,12 @@ private class ListItemHolder(
 ) : RecyclerView.ViewHolder(card) {
     var model: ListItemModel? = null
     var ownsModel: Boolean = false
+
+    /// The section chrome this holder is currently subscribed to. A footer
+    /// belongs to the section a *different* row opened, so the two are tracked
+    /// here rather than derived from `model`.
+    var attachedHeader: ReactivePlainText? = null
+    var attachedFooter: ReactivePlainText? = null
 
     /// The card's unselected container, captured before selection repaints it.
     var defaultContainerColor: android.content.res.ColorStateList? = null
@@ -219,7 +240,7 @@ private class WuiListAdapter(
     private val sectionModels = linkedMapOf<Int, ListItemModel>()
     private val visibleFlatModels = mutableSetOf<ListItemModel>()
     private var itemIds = IntArray(0)
-    private var footerAfter = emptyMap<Int, String>()
+    private var footerAfter = emptyMap<Int, ReactivePlainText>()
     private var touchHelper: ItemTouchHelper? = null
     private var activeMove: ActiveMove? = null
 
@@ -237,8 +258,9 @@ private class WuiListAdapter(
             contentPtr = item.contentPtr,
             deletablePtr = item.deletablePtr,
             selectedPtr = item.selectedPtr,
-            sectionLabel = item.sectionLabel,
-            sectionFooter = item.sectionFooter,
+            hasSection = item.hasSection,
+            sectionLabelPtr = item.sectionLabelPtr,
+            sectionFooterPtr = item.sectionFooterPtr,
             context = context,
             env = env,
             registry = registry
@@ -406,8 +428,8 @@ private class WuiListAdapter(
         model.onSelectedChanged = { value -> applySelection(holder, value) }
         bindTheme(holder)
         bindEditing(holder, animate = false)
-        bindSectionText(holder.header, model.sectionLabel)
-        bindSectionText(holder.footer, footerAfter[position])
+        holder.attachedHeader = bindSectionText(holder.header, model.sectionLabel)
+        holder.attachedFooter = bindSectionText(holder.footer, footerAfter[position])
         holder.content.removeAllViews()
         holder.content.addView(
             model.takeContentView(),
@@ -665,12 +687,23 @@ private class WuiListAdapter(
         }
     }
 
-    private fun bindSectionText(view: TextView, value: String?) {
-        view.text = value.orEmpty()
-        view.visibility = if (value == null) View.GONE else View.VISIBLE
+    /** Subscribes `view` to `text`, returning what the caller must detach. */
+    private fun bindSectionText(view: TextView, text: ReactivePlainText?): ReactivePlainText? {
+        if (text == null) {
+            view.text = ""
+            view.visibility = View.GONE
+            return null
+        }
+        view.visibility = View.VISIBLE
+        text.attach { value -> view.text = value }
+        return text
     }
 
     private fun releaseHolderModel(holder: ListItemHolder) {
+        holder.attachedHeader?.detach()
+        holder.attachedHeader = null
+        holder.attachedFooter?.detach()
+        holder.attachedFooter = null
         val model = holder.model ?: return
         model.onSelectedChanged = null
         if (holder.ownsModel) {
@@ -733,15 +766,22 @@ private class WuiListAdapter(
         return removedIndex
     }
 
-    private fun computeFooters(): Map<Int, String> {
+    /**
+     * The footer each row is responsible for drawing.
+     *
+     * A section's footer closes on the last row before the next section opens,
+     * which is a different row from the one carrying the marker — so the
+     * mapping is resolved up front rather than rediscovered per bind.
+     */
+    private fun computeFooters(): Map<Int, ReactivePlainText> {
         if (!usesSections) return emptyMap()
-        val footers = mutableMapOf<Int, String>()
-        var activeFooter: String? = null
+        val footers = mutableMapOf<Int, ReactivePlainText>()
+        var activeFooter: ReactivePlainText? = null
         itemIds.forEachIndexed { index, id ->
             val item = checkNotNull(sectionModels[id]) {
                 "sectioned List row $id was not materialized"
             }
-            if (item.sectionLabel != null || item.sectionFooter != null) {
+            if (item.opensSection) {
                 if (index > 0 && activeFooter != null) footers[index - 1] = activeFooter
                 activeFooter = item.sectionFooter
             }
