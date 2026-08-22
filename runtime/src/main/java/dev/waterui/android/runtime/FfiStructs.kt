@@ -165,7 +165,15 @@ data class ButtonStruct(
     val accessibilityLabelPtr: Long
 )
 
-data class TextStruct(val contentPtr: Long, val paragraphAlignmentPtr: Long)
+/**
+ * `lineLimit` mirrors `TextConfig::line_limit`: `0` means no limit, and a
+ * limited text truncates its last visible line with an ellipsis.
+ */
+data class TextStruct(
+    val contentPtr: Long,
+    val paragraphAlignmentPtr: Long,
+    val lineLimit: Int,
+)
 
 data class PlainStruct(val text: String)
 

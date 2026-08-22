@@ -26,6 +26,12 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     val computed = WuiComputed.styledString(struct.contentPtr)
     val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr)
     val textView = TextView(context)
+    if (struct.lineLimit > 0) {
+        // TextConfig::line_limit: cap the laid-out lines and truncate the last
+        // visible one with an ellipsis, the SwiftUI/Material label baseline.
+        textView.maxLines = struct.lineLimit
+        textView.ellipsize = android.text.TextUtils.TruncateAt.END
+    }
     val foreground = ThemeBridge.foreground(env)
     foreground.observe { color ->
         textView.setTextColor(color.toColorInt())
