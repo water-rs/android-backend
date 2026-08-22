@@ -629,7 +629,7 @@ private class NavigationBarView(
             update(null)
             return
         }
-        update(textView.text)
+        update(textView.text.toPlainBarText())
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(
                 text: CharSequence?,
@@ -643,13 +643,23 @@ private class NavigationBarView(
                 start: Int,
                 before: Int,
                 count: Int
-            ) = update(text)
+            ) = update(text.toPlainBarText())
 
             override fun afterTextChanged(text: Editable?) = Unit
         }
         textView.addTextChangedListener(watcher)
         semanticTextWatchers += textView to watcher
     }
+
+    /// The characters of a semantic text, without its view-level styling.
+    ///
+    /// The mirrored `TextView` styles itself for the page body: its text is a
+    /// `Spanned` carrying absolute size and line-height spans for the body
+    /// font. `StaticLayout` honors those spans over its paint, so mirroring
+    /// them into the collapsing toolbar silently pins the large expanded
+    /// title to the body size — every expanded-title size API then appears
+    /// dead. The bar owns title typography; only the characters cross over.
+    private fun CharSequence?.toPlainBarText(): String? = this?.toString()
 
     /// The `TextView` at or below this view.
     ///
