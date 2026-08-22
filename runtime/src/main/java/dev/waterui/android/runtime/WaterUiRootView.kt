@@ -299,7 +299,9 @@ private data class MaterialThemePalette(
     val accentForeground: Int,
     val accentContainer: Int,
     val tertiary: Int,
-    val tertiaryContainer: Int
+    val tertiaryContainer: Int,
+    val selectionContainer: Int,
+    val selectionForeground: Int
 ) {
     operator fun get(slot: ColorSlot): Int = when (slot) {
         ColorSlot.Background -> background
@@ -313,6 +315,8 @@ private data class MaterialThemePalette(
         ColorSlot.AccentContainer -> accentContainer
         ColorSlot.Tertiary -> tertiary
         ColorSlot.TertiaryContainer -> tertiaryContainer
+        ColorSlot.SelectionContainer -> selectionContainer
+        ColorSlot.SelectionForeground -> selectionForeground
     }
 
     companion object {
@@ -354,6 +358,18 @@ private data class MaterialThemePalette(
                 context,
                 com.google.android.material.R.attr.colorTertiaryContainer,
                 "colorTertiaryContainer"
+            ),
+            // Material's selected-item pair: a tonal secondary container with
+            // its own on-container content color.
+            selectionContainer = resolve(
+                context,
+                com.google.android.material.R.attr.colorSecondaryContainer,
+                "colorSecondaryContainer"
+            ),
+            selectionForeground = resolve(
+                context,
+                com.google.android.material.R.attr.colorOnSecondaryContainer,
+                "colorOnSecondaryContainer"
             )
         )
 

@@ -233,7 +233,7 @@ private class WuiListAdapter(
 
     private val editing = WuiComputed.bool(editingPtr)
     private val mutedForeground = ThemeBridge.mutedForeground(env)
-    private val accent = ThemeBridge.accent(env)
+    private val selectionContainer = ThemeBridge.selectionContainer(env)
     private val motion = MaterialListMotion(context)
     private val source = NativeAnyViews(contentsPtr)
     private val sourceWatcher: WatcherGuard
@@ -283,7 +283,7 @@ private class WuiListAdapter(
             sectionTextColor = color.toColorInt()
             notifyItemRangeChanged(0, itemCount, THEME_PAYLOAD)
         }
-        accent.observe { color ->
+        selectionContainer.observe { color ->
             selectedContainerColor = color.toColorInt()
             notifyItemRangeChanged(0, itemCount, THEME_PAYLOAD)
         }
@@ -562,6 +562,7 @@ private class WuiListAdapter(
         footerAfter = emptyMap()
         editing.close()
         mutedForeground.close()
+        selectionContainer.close()
         if (onDeletePtr != 0L) NativeBindings.waterui_drop_index_action(onDeletePtr)
         if (onMovePtr != 0L) NativeBindings.waterui_drop_move_action(onMovePtr)
     }
@@ -577,18 +578,11 @@ private class WuiListAdapter(
 
     /// Paints a row's selection chrome.
     ///
-    /// `ListItem`'s selected rows arrive already re-themed to the on-accent
-    /// foreground, because that is what a selected row is on the platforms that
-    /// fill it with the accent color. Material's own checked-card tint is a pale
-    /// tonal container instead, and on-accent text on it is white on near-white
-    /// — legible nowhere. Filling the checked container with the accent color is
-    /// what makes the foreground the row was handed correct.
-    ///
-    /// The canonical M3 answer is the other one: a `secondaryContainer` fill
-    /// with `onSecondaryContainer` text. Reaching it needs the selected
-    /// foreground to become a theme slot the backend owns rather than a fixed
-    /// `AccentForeground` chosen above the backend, which is a change to the
-    /// theme's token set and every backend that installs it.
+    /// Selected rows arrive re-themed to the `SelectionForeground` slot, which
+    /// this backend installs from Material's `colorOnSecondaryContainer`. The
+    /// fill is that slot's partner, `SelectionContainer` — Material's
+    /// `colorSecondaryContainer` — so the row is the canonical M3 selected pair
+    /// rather than accent-on-accent.
     private fun applySelection(holder: ListItemHolder, selected: Boolean) {
         holder.card.isChecked = selected
         if (holder.defaultContainerColor == null) {

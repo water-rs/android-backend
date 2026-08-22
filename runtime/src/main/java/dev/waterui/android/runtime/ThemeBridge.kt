@@ -131,7 +131,9 @@ enum class ColorSlot(val value: Int) {
     AccentForeground(7),
     AccentContainer(8),
     Tertiary(9),
-    TertiaryContainer(10)
+    TertiaryContainer(10),
+    SelectionContainer(11),
+    SelectionForeground(12)
 }
 
 /**
@@ -255,6 +257,12 @@ object ThemeBridge {
 
     fun tertiaryContainer(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
         color(env, ColorSlot.TertiaryContainer)
+
+    fun selectionContainer(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
+        color(env, ColorSlot.SelectionContainer)
+
+    fun selectionForeground(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
+        color(env, ColorSlot.SelectionForeground)
 
     // Non-body slots are consumed on the Rust side through styled text and
     // arrive here already resolved; only the body slot needs a direct
