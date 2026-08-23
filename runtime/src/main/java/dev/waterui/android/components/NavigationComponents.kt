@@ -1671,6 +1671,14 @@ private class AdaptiveTabsView(
 
 }
 
+/// How many split destinations keep their rendered view tree.
+///
+/// Eight covers the back-and-forth people actually do; beyond that the least
+/// recently shown destination is torn down and rebuilt if it is wanted again,
+/// losing only that page's transient state. The GTK backend uses the same
+/// number for the same reason.
+private const val SPLIT_DESTINATION_CACHE_CAPACITY = 8
+
 private val tabsRenderer = WuiRenderer { context, node, env, registry ->
     val struct: TabsStruct = NativeBindings.waterui_force_as_tabs(node.rawPtr)
     val selection = WuiBinding.id(struct.selectionPtr)
@@ -1739,8 +1747,10 @@ private class SplitNavigationLayoutView(
     private val innerPane = contentPtr.takeIf { it != 0L }?.let { SlidingPaneLayout(context) }
     private val contentPane = FrameLayout(context)
     private val detailPane = FrameLayout(context)
-    private val contents = mutableMapOf<Int, NavigationScreen>()
-    private val details = mutableMapOf<Int, NavigationScreen>()
+    // `LinkedHashMap` in access order: the eldest entry is the least recently
+    // shown, which is the one `removeEldestEntry` drops.
+    private val contents = destinationCache()
+    private val details = destinationCache()
     private var activeContent: NavigationScreen? = null
     private var activeDetail: NavigationScreen? = null
     private var primarySelectedId = Int.MIN_VALUE
@@ -1990,6 +2000,39 @@ private class SplitNavigationLayoutView(
         secondarySelection?.close()
         columnVisibility.close()
     }
+
+    /// Builds a bounded, access-ordered cache of rendered destinations.
+    ///
+    /// Keeping a destination is what preserves its scroll position and
+    /// half-typed input when the user comes back to it, so the cache must hold
+    /// more than the current one. It must not hold *every* destination ever
+    /// visited: each is a rendered view tree, its bar spec and its navigation
+    /// state, retained for the life of the split. An eldest entry that is
+    /// evicted is torn down exactly the way `disposeNavigation` tears one down.
+    private fun destinationCache(): MutableMap<Int, NavigationScreen> =
+        object : LinkedHashMap<Int, NavigationScreen>(
+            SPLIT_DESTINATION_CACHE_CAPACITY,
+            0.75f,
+            true
+        ) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, NavigationScreen>): Boolean {
+                if (size <= SPLIT_DESTINATION_CACHE_CAPACITY) {
+                    return false
+                }
+                // Never evict what is on screen. Access order puts the current
+                // screen at the young end, so this only guards the degenerate
+                // case of a capacity so small the current one is also eldest.
+                val screen = eldest.value
+                if (screen === activeContent || screen === activeDetail) {
+                    return false
+                }
+                detachFromParent(screen.view)
+                screen.view.disposeWuiTree()
+                screen.barSpec.close()
+                screen.state.close()
+                return true
+            }
+        }
 
     private fun refreshPrimary(nextSelectedId: Int) {
         if (contentPtr == 0L) {
