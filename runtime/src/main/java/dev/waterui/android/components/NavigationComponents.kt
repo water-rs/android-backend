@@ -61,7 +61,6 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
-import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.TabStruct
 import dev.waterui.android.runtime.SplitNavigationContainerStruct
 import dev.waterui.android.runtime.TabsStruct
@@ -1411,36 +1410,31 @@ private fun tabLabelText(view: View): String = findTabLabelText(view)
 /// bar and looks it.
 private const val TAB_ICON_DP = 24
 
-/// Renders a GPU-drawn icon offscreen into a drawable.
-///
-/// An SVG icon pack draws through `GpuSurface`, and a `SurfaceView` composites
-/// in its own layer rather than in the view tree, so capturing it with `draw()`
-/// yields nothing. The GPU runtime renders it offscreen instead and hands back
-/// pixels — which also consumes the view handle, so this is the only thing that
-/// may touch it.
-private fun rasterizeGpuIcon(
-    context: Context,
-    rendererPtr: Long,
-    env: WuiEnvironment,
-    density: Float
-): Drawable? {
-    val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
-    val packed = WatcherJni.gpuSurfaceRenderOffscreen(rendererPtr, env.raw(), size, size)
-    if (packed.size < 3) {
-        return null
-    }
-    val width = packed[0]
-    val height = packed[1]
-    if (width <= 0 || height <= 0 || packed.size < 2 + width * height) {
-        return null
-    }
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    bitmap.setPixels(packed, 2, width, 0, 0, width, height)
-    return BitmapDrawable(context.resources, bitmap)
+/// The GPU surface inside this subtree, if the icon draws through one.
+private fun findGpuSurfaceView(view: View): GpuSurfaceView? = when (view) {
+    is GpuSurfaceView -> view
+    is ViewGroup -> (0 until view.childCount)
+        .firstNotNullOfOrNull { findGpuSurfaceView(view.getChildAt(it)) }
+    else -> null
 }
 
-/// Captures a CPU-drawn icon view at the Material icon size.
-private fun rasterizeViewIcon(view: View, density: Float): Drawable {
+/// Renders an inflated icon view into a drawable the menu item can hold.
+///
+/// A menu item takes a `Drawable`, not a view, so ordinary Android drawing is
+/// captured straight from the view at the Material icon size.
+///
+/// An icon that draws through a `GpuSurface` cannot be captured that way: the
+/// surface composites in its own layer rather than in the view tree, so
+/// `draw()` sees nothing where it sits. Rendering it offscreen is the answer,
+/// and `GpuSurfaceView.intoOffscreenImage` does exactly that — but a tab icon's
+/// surface is never attached to a window, so the GPU runtime it would render
+/// through has not been brought up, and asking it to render now faults. Until
+/// that path exists, such an icon yields no image rather than a blank one, and
+/// the tab shows its label alone.
+private fun rasterizeTabIcon(view: View, density: Float): Drawable? {
+    if (findGpuSurfaceView(view) != null) {
+        return null
+    }
     val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
     val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
     view.measure(spec, spec)
@@ -1472,14 +1466,8 @@ private fun tabIconDrawable(
         return null
     }
     val density = context.resources.displayMetrics.density
-    // Both paths consume the view handle, so the kind has to be decided before
-    // either of them touches it.
-    if (NativeBindings.waterui_view_id(tab.iconPtr) == WatcherJni.gpuSurfaceId()) {
-        val rendererPtr = WatcherJni.forceAsGpuSurface(tab.iconPtr).rendererPtr
-        return rasterizeGpuIcon(context, rendererPtr, env, density)
-    }
     val view = inflateAnyView(context, tab.iconPtr, env, registry)
-    val drawable = rasterizeViewIcon(view, density)
+    val drawable = rasterizeTabIcon(view, density)
     view.disposeWuiTree()
     return drawable
 }

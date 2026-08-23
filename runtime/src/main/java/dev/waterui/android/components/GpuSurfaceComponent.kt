@@ -47,7 +47,7 @@ private val gpuSurfaceRenderer = WuiRenderer { context, node, env, _ ->
 
 @Keep
 @SuppressLint("ViewConstructor")
-private class GpuSurfaceView(
+internal class GpuSurfaceView(
     context: Context,
     rendererPtr: Long,
     envPtr: Long,
@@ -129,6 +129,22 @@ private class GpuSurfaceView(
             }
         }
     )
+
+    /// Renders this surface's content offscreen, ending it.
+    ///
+    /// A `SurfaceView` composites in its own layer rather than in the view
+    /// tree, so chrome that wants an image — a tab bar item's `Drawable` —
+    /// cannot capture one from the tree. Rendering through the GPU runtime is
+    /// the only way to get those pixels, and it consumes the renderer, so this
+    /// belongs to a view built to become an image and never to be shown.
+    fun intoOffscreenImage(size: Int): IntArray {
+        if (statePtr == 0L) {
+            return IntArray(0)
+        }
+        val packed = dev.waterui.android.ffi.WatcherJni.gpuSurfaceIntoOffscreenImage(statePtr, size, size)
+        statePtr = 0L
+        return packed
+    }
 
     init {
         statePtr = NativeBindings.waterui_gpu_surface_create(
