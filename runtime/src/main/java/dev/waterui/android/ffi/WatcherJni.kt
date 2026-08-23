@@ -448,6 +448,13 @@ object WatcherJni {
         pictureInPictureHostId: Long,
         wuiEnvPtr: Long
     ): Long
+    /// Renders a GPU surface offscreen; returns `[width, height, argb…]`, empty on failure.
+    @JvmStatic external fun gpuSurfaceRenderOffscreen(
+        rendererPtr: Long,
+        wuiEnvPtr: Long,
+        width: Int,
+        height: Int
+    ): IntArray
     @JvmStatic external fun gpuSurfaceMeasure(
         statePtr: Long,
         width: Float,

@@ -61,6 +61,7 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
+import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.runtime.TabStruct
 import dev.waterui.android.runtime.SplitNavigationContainerStruct
 import dev.waterui.android.runtime.TabsStruct
@@ -1410,23 +1411,36 @@ private fun tabLabelText(view: View): String = findTabLabelText(view)
 /// bar and looks it.
 private const val TAB_ICON_DP = 24
 
-/// Renders a tab's icon view into a drawable the menu item can hold.
+/// Renders a GPU-drawn icon offscreen into a drawable.
 ///
-/// A menu item takes a `Drawable`, not a view, so an icon that WaterUI draws
-/// itself has to become pixels. Views that draw with the CPU — a text glyph
-/// from a webfont icon pack, a shape — are measured at the Material icon size
-/// and drawn into a bitmap here.
-///
-/// A GPU-backed icon (an SVG pack renders through `GpuSurface`) cannot be
-/// captured this way: a `SurfaceView` composites in its own layer rather than
-/// in the view tree, so `draw()` sees nothing and the bitmap comes back empty.
-/// Those need an offscreen render through the GPU surface itself — the FFI has
-/// no entry point for that yet, so this returns null rather than a blank icon,
-/// and the tab shows its label alone.
-private fun rasterizeTabIcon(view: View, density: Float): Drawable? {
-    if (containsSurfaceView(view)) {
+/// An SVG icon pack draws through `GpuSurface`, and a `SurfaceView` composites
+/// in its own layer rather than in the view tree, so capturing it with `draw()`
+/// yields nothing. The GPU runtime renders it offscreen instead and hands back
+/// pixels — which also consumes the view handle, so this is the only thing that
+/// may touch it.
+private fun rasterizeGpuIcon(
+    context: Context,
+    rendererPtr: Long,
+    env: WuiEnvironment,
+    density: Float
+): Drawable? {
+    val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
+    val packed = WatcherJni.gpuSurfaceRenderOffscreen(rendererPtr, env.raw(), size, size)
+    if (packed.size < 3) {
         return null
     }
+    val width = packed[0]
+    val height = packed[1]
+    if (width <= 0 || height <= 0 || packed.size < 2 + width * height) {
+        return null
+    }
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    bitmap.setPixels(packed, 2, width, 0, 0, width, height)
+    return BitmapDrawable(context.resources, bitmap)
+}
+
+/// Captures a CPU-drawn icon view at the Material icon size.
+private fun rasterizeViewIcon(view: View, density: Float): Drawable {
     val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
     val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
     view.measure(spec, spec)
@@ -1434,13 +1448,6 @@ private fun rasterizeTabIcon(view: View, density: Float): Drawable? {
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     view.draw(Canvas(bitmap))
     return BitmapDrawable(view.resources, bitmap)
-}
-
-/// Whether anything in this subtree draws through a surface of its own.
-private fun containsSurfaceView(view: View): Boolean = when (view) {
-    is SurfaceView -> true
-    is ViewGroup -> (0 until view.childCount).any { containsSurfaceView(view.getChildAt(it)) }
-    else -> false
 }
 
 /// The tab's icon, or null when it has none.
@@ -1464,8 +1471,15 @@ private fun tabIconDrawable(
     if (tab.iconPtr == 0L) {
         return null
     }
+    val density = context.resources.displayMetrics.density
+    // Both paths consume the view handle, so the kind has to be decided before
+    // either of them touches it.
+    if (NativeBindings.waterui_view_id(tab.iconPtr) == WatcherJni.gpuSurfaceId()) {
+        val rendererPtr = WatcherJni.forceAsGpuSurface(tab.iconPtr).rendererPtr
+        return rasterizeGpuIcon(context, rendererPtr, env, density)
+    }
     val view = inflateAnyView(context, tab.iconPtr, env, registry)
-    val drawable = rasterizeTabIcon(view, context.resources.displayMetrics.density)
+    val drawable = rasterizeViewIcon(view, density)
     view.disposeWuiTree()
     return drawable
 }
