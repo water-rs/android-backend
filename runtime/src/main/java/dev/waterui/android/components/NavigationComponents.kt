@@ -2,7 +2,11 @@ package dev.waterui.android.components
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -56,6 +60,7 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
+import dev.waterui.android.runtime.TabStruct
 import dev.waterui.android.runtime.SplitNavigationContainerStruct
 import dev.waterui.android.runtime.TabsStruct
 import dev.waterui.android.runtime.ThemeBridge
@@ -1400,9 +1405,60 @@ private fun findTabLabelText(view: View): String? {
 private fun tabLabelText(view: View): String = findTabLabelText(view)
     ?: error("native Android tabs require a semantic text label")
 
+/// Material's navigation bar draws a 24dp icon; anything else is scaled by the
+/// bar and looks it.
+private const val TAB_ICON_DP = 24
+
+/// Renders a tab's icon view into a drawable the menu item can hold.
+///
+/// A menu item takes a `Drawable`, not a view, so an icon that WaterUI draws
+/// itself has to become pixels. It is measured and laid out at the Material
+/// icon size and drawn into a bitmap once, at install time — the same thing
+/// Apple's `installIconViews()` does, and for the same reason: a bar item is
+/// not a place a live view tree can live. A `SurfaceView` cannot be captured
+/// this way (it composites in its own layer, below the window), which is why
+/// the GPU-backed icon packs render offscreen rather than into the tree.
+private fun rasterizeTabIcon(view: View, density: Float): Drawable {
+    val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
+    val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
+    view.measure(spec, spec)
+    view.layout(0, 0, size, size)
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    view.draw(Canvas(bitmap))
+    return BitmapDrawable(view.resources, bitmap)
+}
+
+/// The tab's icon, or null when it has none.
+///
+/// A `TabIcon::System` names a symbol from the platform's own catalog. Android
+/// has no such catalog (principle 7: an asymmetric primitive is documented, not
+/// faked), so naming one here is a mistake in the app rather than something to
+/// approximate with a bundled font — it fails loudly and says what to use
+/// instead. An icon that WaterUI draws itself works on every platform.
+private fun tabIconDrawable(
+    context: Context,
+    tab: TabStruct,
+    env: WuiEnvironment,
+    registry: RenderRegistry
+): Drawable? {
+    check(tab.systemIconPtr == 0L) {
+        "a system icon names a symbol from the platform's own catalog, and Android has none: " +
+            "use an icon pack (waterui-icons-lucide, waterui-icons-material-icon, " +
+            "waterui-icons-fontawesome7), which draws the same icon on every platform"
+    }
+    if (tab.iconPtr == 0L) {
+        return null
+    }
+    val view = inflateAnyView(context, tab.iconPtr, env, registry)
+    val drawable = rasterizeTabIcon(view, context.resources.displayMetrics.density)
+    view.disposeWuiTree()
+    return drawable
+}
+
 private class AndroidTabEntry(
     val id: Int,
     val title: String,
+    val icon: Drawable?,
     val screen: NavigationScreen,
     val badge: WuiComputed<Int>?,
     val enabled: WuiComputed<Boolean>
@@ -1447,8 +1503,8 @@ private class AdaptiveTabsView(
                 )
             )
             entry.screen.view.visibility = GONE
-            bottomBar.menu.add(0, entry.id, bottomBar.menu.size, entry.title)
-            rail.menu.add(0, entry.id, rail.menu.size, entry.title)
+            bottomBar.menu.add(0, entry.id, bottomBar.menu.size, entry.title).icon = entry.icon
+            rail.menu.add(0, entry.id, rail.menu.size, entry.title).icon = entry.icon
             entry.enabled.observe { enabled ->
                 entry.isEnabled = enabled
                 bottomBar.menu.findItem(entry.id).isEnabled = enabled
@@ -1597,6 +1653,7 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
         AndroidTabEntry(
             id = tab.id.toInt(),
             title = title,
+            icon = tabIconDrawable(context, tab, env, registry),
             screen = screen,
             badge = tab.badgePtr.takeIf { it != 0L }?.let { badgePtr ->
                 WuiComputed.int(badgePtr)
