@@ -247,12 +247,14 @@ class WebViewWrapper(
 
                 val targetUrl = request.url.toString()
                 if (!redirectsEnabled && request.isRedirect) {
-                    emitRedirect(
-                        requireNotNull(webView.url) {
-                            "WebView reported a redirect without a current document"
-                        },
-                        targetUrl
-                    )
+                    // The URL this navigation started from, not `webView.url`:
+                    // that is null until a document commits, so a server
+                    // redirect on the very first load crashed the application.
+                    // With nothing announced yet there is no earlier URL to
+                    // name, and the target stands in for it — the same answer
+                    // the macOS bridge gives (`macos.rs`,
+                    // didReceiveServerRedirectForProvisionalNavigation).
+                    emitRedirect(announcedNavigationUrl ?: targetUrl, targetUrl)
                     return true
                 }
 
