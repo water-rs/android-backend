@@ -1849,27 +1849,32 @@ private class SplitNavigationLayoutView(
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+        // Swiping the detail away is a deselection, and the pane reports that as
+        // *closed* — the sliding child is the detail, so closed means the list
+        // is back on screen (the same reversal `showOuterPane` spells out).
+        // Hanging this on `onPanelOpened` cleared the selection the instant a
+        // tap brought the detail up, which put the list straight back.
         outerPane.addPanelSlideListener(object : SlidingPaneLayout.PanelSlideListener {
             override fun onPanelSlide(panel: View, slideOffset: Float) = Unit
 
-            override fun onPanelOpened(panel: View) {
+            override fun onPanelOpened(panel: View) = Unit
+
+            override fun onPanelClosed(panel: View) {
                 if (outerPane.isSlideable && primarySelectedId != 0 && visibility == 0) {
                     primarySelection.set(0)
                 }
             }
-
-            override fun onPanelClosed(panel: View) = Unit
         })
         innerPane?.addPanelSlideListener(object : SlidingPaneLayout.PanelSlideListener {
             override fun onPanelSlide(panel: View, slideOffset: Float) = Unit
 
-            override fun onPanelOpened(panel: View) {
+            override fun onPanelOpened(panel: View) = Unit
+
+            override fun onPanelClosed(panel: View) {
                 if (innerPane.isSlideable && secondarySelectedId != 0 && visibility == 0) {
                     checkNotNull(secondarySelection).set(0)
                 }
             }
-
-            override fun onPanelClosed(panel: View) = Unit
         })
         primarySelection.observe(::refreshPrimary)
         secondarySelection?.observe(::refreshSecondary)
