@@ -1924,15 +1924,20 @@ private class SplitNavigationLayoutView(
     /// pane was asked for stays true; a caller that opened or closed the pane
     /// behind this record would leave it stale, and the next re-apply would skip
     /// the change it was supposed to make.
+    ///
+    /// `openPane` slides the sliding view — the second child, the detail — to
+    /// offset zero, where it covers the list; `closePane` slides it away and
+    /// reveals the list. The names read backwards for a list/detail split, which
+    /// is why they are only spelled out here.
     private fun showOuterPane(showsDetail: Boolean) {
         if (appliedPaneShowsDetail == showsDetail) {
             return
         }
         appliedPaneShowsDetail = showsDetail
         if (showsDetail) {
-            outerPane.closePane()
-        } else {
             outerPane.openPane()
+        } else {
+            outerPane.closePane()
         }
     }
 
@@ -2037,7 +2042,10 @@ private class SplitNavigationLayoutView(
 
         if (nextSelectedId == 0) {
             showPlaceholder()
-            innerPane.openPane()
+            // Nothing is selected, so the list is what should be on screen:
+            // slide the detail away (see showOuterPane for why the names read
+            // backwards here).
+            innerPane.closePane()
             updateBackState()
             return
         }
@@ -2046,7 +2054,7 @@ private class SplitNavigationLayoutView(
         activeDetail = screen
         attachScreen(detailPane, screen)
         if (visibility == 0) {
-            innerPane.closePane()
+            innerPane.openPane()
         }
         screen.state.appeared()
         updateBackState()
