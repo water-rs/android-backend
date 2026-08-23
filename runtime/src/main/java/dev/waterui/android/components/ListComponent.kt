@@ -56,6 +56,39 @@ private val listItemTypeId: WuiTypeId by lazy { NativeBindings.waterui_list_item
 private const val THEME_PAYLOAD = "waterui.list.theme"
 private const val EDITING_PAYLOAD = "waterui.list.editing"
 
+private const val VIEW_TYPE_ROW = 0
+private const val VIEW_TYPE_HEADER = 1
+private const val VIEW_TYPE_FOOTER = 2
+
+/**
+ * One line of the list.
+ *
+ * Section chrome is a line of its own, never part of a row: a header
+ * introduces the cards that follow it, so it has to sit outside them — the
+ * same split the Apple backend makes with supplementary views and the
+ * self-drawn renderer makes by keeping the chrome out of the row's slot.
+ *
+ * The stable id tags the owning row so a header, its rows, and the footer that
+ * closes the section all move and diff together.
+ */
+private sealed class ListEntry(val rowId: Int, tag: Long) {
+    val stableId: Long = (rowId.toLong() shl 2) or tag
+}
+
+private class RowEntry(rowId: Int) : ListEntry(rowId, 0L)
+
+/** The header of the section row [rowId] opens. */
+private class HeaderEntry(rowId: Int, val text: ReactivePlainText) : ListEntry(rowId, 1L)
+
+/**
+ * The footer of the section row [rowId] opened.
+ *
+ * It is keyed by the row that *opened* the section rather than the last row of
+ * it, so the footer keeps its identity while rows are inserted or removed
+ * inside the section.
+ */
+private class FooterEntry(rowId: Int, val text: ReactivePlainText) : ListEntry(rowId, 2L)
+
 class ListRecyclerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -196,9 +229,7 @@ private class ListItemModel(
 
 private class ListItemHolder(
     val card: MaterialCardView,
-    val header: TextView,
     val content: FrameLayout,
-    val footer: TextView,
     val actions: LinearLayout,
     val deleteButton: MaterialButton,
     val moveButton: MaterialButton
@@ -206,14 +237,14 @@ private class ListItemHolder(
     var model: ListItemModel? = null
     var ownsModel: Boolean = false
 
-    /// The section chrome this holder is currently subscribed to. A footer
-    /// belongs to the section a *different* row opened, so the two are tracked
-    /// here rather than derived from `model`.
-    var attachedHeader: ReactivePlainText? = null
-    var attachedFooter: ReactivePlainText? = null
-
     /// The card's unselected container, captured before selection repaints it.
     var defaultContainerColor: android.content.res.ColorStateList? = null
+}
+
+/// A standalone section header or footer, drawn between card groups.
+private class ListChromeHolder(val label: TextView) : RecyclerView.ViewHolder(label) {
+    /// The chrome text this holder is subscribed to while bound.
+    var attached: ReactivePlainText? = null
 }
 
 private class WuiListAdapter(
@@ -225,10 +256,10 @@ private class WuiListAdapter(
     private val onMovePtr: Long,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
-) : RecyclerView.Adapter<ListItemHolder>(), Closeable, PopupTextProvider {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>(), Closeable, PopupTextProvider {
     private data class ActiveMove(
         val itemId: Int,
-        val originalPosition: Int
+        val originalRow: Int
     )
 
     private val editing = WuiComputed.bool(editingPtr)
@@ -240,9 +271,19 @@ private class WuiListAdapter(
     private val sectionModels = linkedMapOf<Int, ListItemModel>()
     private val visibleFlatModels = mutableSetOf<ListItemModel>()
     private var itemIds = IntArray(0)
-    private var footerAfter = emptyMap<Int, ReactivePlainText>()
+
+    /// Every line the list draws: the rows plus the section chrome between
+    /// them, in display order.
+    private var entries = emptyList<ListEntry>()
+
+    /// Adapter position of each row, indexed by its position in [itemIds].
+    /// Strictly increasing, so a position maps back to a row by binary search.
+    private var rowPositions = IntArray(0)
     private var touchHelper: ItemTouchHelper? = null
     private var activeMove: ActiveMove? = null
+
+    /// The inset the cards carry, which the section chrome aligns its text to.
+    private val cardHorizontalMargin = 12f.dp(context).toInt()
 
     private fun materialize(position: Int): ListItemModel {
         val viewPtr = source.viewAt(position)
@@ -289,8 +330,51 @@ private class WuiListAdapter(
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ListItemHolder {
-        val horizontalMargin = 12f.dp(context).toInt()
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
+        when (viewType) {
+            VIEW_TYPE_ROW -> createRowHolder()
+            VIEW_TYPE_HEADER -> ListChromeHolder(
+                createChromeLabel(
+                    textAppearance = MaterialR.style.TextAppearance_Material3_TitleSmall,
+                    topPadding = 16f,
+                    bottomPadding = 8f
+                )
+            )
+            VIEW_TYPE_FOOTER -> ListChromeHolder(
+                createChromeLabel(
+                    textAppearance = MaterialR.style.TextAppearance_Material3_BodySmall,
+                    topPadding = 8f,
+                    bottomPadding = 16f
+                )
+            )
+            else -> error("WaterUI List has no view type $viewType")
+        }
+
+    /**
+     * A standalone section label.
+     *
+     * Its horizontal padding is the cards' own inset, so the chrome reads as
+     * the title of the group below it rather than as a stray indented line.
+     */
+    private fun createChromeLabel(
+        textAppearance: Int,
+        topPadding: Float,
+        bottomPadding: Float
+    ): TextView = TextView(context).apply {
+        setTextAppearance(textAppearance)
+        layoutParams = RecyclerView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        setPadding(
+            cardHorizontalMargin,
+            topPadding.dp(context).toInt(),
+            cardHorizontalMargin,
+            bottomPadding.dp(context).toInt()
+        )
+    }
+
+    private fun createRowHolder(): ListItemHolder {
         val verticalMargin = 4f.dp(context).toInt()
         val card = MaterialCardView(
             context,
@@ -301,7 +385,12 @@ private class WuiListAdapter(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin)
+                setMargins(
+                    cardHorizontalMargin,
+                    verticalMargin,
+                    cardHorizontalMargin,
+                    verticalMargin
+                )
             }
             // A selected row shows Material's checked-card container tint, not
             // a check icon: selection chrome, not a checkbox.
@@ -314,15 +403,6 @@ private class WuiListAdapter(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
-        }
-        val column = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                weight = 1f
-            }
         }
         val deleteButton = materialIconButton(
             iconResource = R.drawable.wui_delete,
@@ -348,38 +428,19 @@ private class WuiListAdapter(
             addView(deleteButton)
             addView(moveButton)
         }
-        val header = TextView(context).apply {
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
-            setPadding(
-                16f.dp(context).toInt(),
-                12f.dp(context).toInt(),
-                16f.dp(context).toInt(),
-                4f.dp(context).toInt()
-            )
-        }
         val content = FrameLayout(context).apply {
             minimumHeight = 48f.dp(context).toInt()
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+            ).apply {
+                weight = 1f
+            }
         }
-        val footer = TextView(context).apply {
-            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
-            setPadding(
-                16f.dp(context).toInt(),
-                4f.dp(context).toInt(),
-                16f.dp(context).toInt(),
-                12f.dp(context).toInt()
-            )
-        }
-        column.addView(header)
-        column.addView(content)
-        column.addView(footer)
-        row.addView(column)
+        row.addView(content)
         row.addView(actions)
         card.addView(row)
-        return ListItemHolder(card, header, content, footer, actions, deleteButton, moveButton)
+        return ListItemHolder(card, content, actions, deleteButton, moveButton)
     }
 
     private fun materialIconButton(
@@ -412,15 +473,37 @@ private class WuiListAdapter(
         layoutParams = LinearLayout.LayoutParams(minWidth, minHeight)
     }
 
-    override fun onBindViewHolder(holder: ListItemHolder, position: Int) {
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val entry = entries[position]) {
+            is RowEntry -> bindRow(asRowHolder(holder), entry, position)
+            is HeaderEntry -> bindChrome(asChromeHolder(holder), entry.text)
+            is FooterEntry -> bindChrome(asChromeHolder(holder), entry.text)
+        }
+    }
+
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.isEmpty()) {
+            onBindViewHolder(holder, position)
+            return
+        }
+        if (payloads.contains(THEME_PAYLOAD)) bindTheme(holder)
+        if (payloads.contains(EDITING_PAYLOAD) && holder is ListItemHolder) {
+            bindEditing(holder, animate = true)
+        }
+    }
+
+    private fun bindRow(holder: ListItemHolder, entry: RowEntry, position: Int) {
         releaseHolderModel(holder)
-        val id = itemIds[position]
         val model = if (usesSections) {
-            checkNotNull(sectionModels[id]) {
-                "sectioned List row $id was not materialized"
+            checkNotNull(sectionModels[entry.rowId]) {
+                "sectioned List row ${entry.rowId} was not materialized"
             }
         } else {
-            materialize(position).also(visibleFlatModels::add)
+            materialize(rowAt(position)).also(visibleFlatModels::add)
         }
         holder.model = model
         holder.ownsModel = !usesSections
@@ -428,8 +511,6 @@ private class WuiListAdapter(
         model.onSelectedChanged = { value -> applySelection(holder, value) }
         bindTheme(holder)
         bindEditing(holder, animate = false)
-        holder.attachedHeader = bindSectionText(holder.header, model.sectionLabel)
-        holder.attachedFooter = bindSectionText(holder.footer, footerAfter[position])
         holder.content.removeAllViews()
         holder.content.addView(
             model.takeContentView(),
@@ -440,35 +521,82 @@ private class WuiListAdapter(
         )
     }
 
-    override fun onBindViewHolder(
-        holder: ListItemHolder,
-        position: Int,
-        payloads: MutableList<Any>
-    ) {
-        if (payloads.isEmpty()) {
-            onBindViewHolder(holder, position)
-        } else {
-            if (payloads.contains(THEME_PAYLOAD)) bindTheme(holder)
-            if (payloads.contains(EDITING_PAYLOAD)) bindEditing(holder, animate = true)
-        }
+    private fun bindChrome(holder: ListChromeHolder, text: ReactivePlainText) {
+        holder.attached?.detach()
+        holder.attached = text
+        text.attach { value -> holder.label.text = value }
+        bindTheme(holder)
     }
 
-    override fun onViewRecycled(holder: ListItemHolder) {
-        holder.content.removeAllViews()
-        releaseHolderModel(holder)
+    private fun asRowHolder(holder: RecyclerView.ViewHolder): ListItemHolder =
+        holder as? ListItemHolder ?: error("WaterUI List row needs a ListItemHolder, got $holder")
+
+    private fun asChromeHolder(holder: RecyclerView.ViewHolder): ListChromeHolder =
+        holder as? ListChromeHolder
+            ?: error("WaterUI List section chrome needs a ListChromeHolder, got $holder")
+
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        when (holder) {
+            is ListItemHolder -> {
+                holder.content.removeAllViews()
+                releaseHolderModel(holder)
+            }
+            is ListChromeHolder -> {
+                holder.attached?.detach()
+                holder.attached = null
+            }
+            else -> error("WaterUI List recycled an unknown holder $holder")
+        }
         super.onViewRecycled(holder)
     }
 
-    override fun getItemCount(): Int = itemIds.size
+    override fun getItemCount(): Int = entries.size
 
-    override fun getItemId(position: Int): Long = itemIds[position].toLong()
+    override fun getItemId(position: Int): Long = entries[position].stableId
+
+    override fun getItemViewType(position: Int): Int = when (entries[position]) {
+        is RowEntry -> VIEW_TYPE_ROW
+        is HeaderEntry -> VIEW_TYPE_HEADER
+        is FooterEntry -> VIEW_TYPE_FOOTER
+    }
+
+    /** How many rows — section chrome does not count — end at `position`. */
+    private fun rowsThrough(position: Int): Int {
+        val found = rowPositions.binarySearch(position)
+        return if (found >= 0) found + 1 else -found - 1
+    }
+
+    /** The row index a row position addresses, rejecting section chrome. */
+    private fun rowAt(position: Int): Int {
+        val row = rowPositions.binarySearch(position)
+        check(row >= 0) { "List position $position is section chrome, not a row" }
+        return row
+    }
 
     override fun getPopupText(view: View, position: Int): CharSequence =
-        "${position + 1} / $itemCount"
+        "${rowsThrough(position)} / ${itemIds.size}"
+
+    /**
+     * The position to scroll to in order to bring row [row] into view.
+     *
+     * A row that opens a section is introduced by its header, so the header is
+     * what has to come to rest at the top — landing on the row alone would push
+     * its own title off screen.
+     */
+    fun scrollPositionForRow(row: Int): Int {
+        check(row in itemIds.indices) {
+            "List scroll target $row exceeds collection length ${itemIds.size}"
+        }
+        val position = rowPositions[row]
+        return if (position > 0 && entries[position - 1] is HeaderEntry) position - 1 else position
+    }
+
+    val rowCount: Int get() = itemIds.size
 
     fun movementFlags(holder: RecyclerView.ViewHolder): Int {
+        // Section chrome is not a row: it neither drags nor swipes away.
         val item = (holder as? ListItemHolder)?.model
-            ?: error("List movement flags require a bound ListItemHolder")
+            ?: return ItemTouchHelper.Callback.makeMovementFlags(0, 0)
         val drag = if (isEditing && onMovePtr != 0L) {
             ItemTouchHelper.UP or ItemTouchHelper.DOWN
         } else {
@@ -488,15 +616,20 @@ private class WuiListAdapter(
     }
 
     fun beginMove(holder: RecyclerView.ViewHolder) {
-        check(activeMove == null) { "List already has an active move interaction" }
         val position = holder.bindingAdapterPosition
-        check(position in itemIds.indices) {
+        check(position in entries.indices) {
             "List move started from invalid adapter position $position"
         }
-        activeMove = ActiveMove(itemIds[position], position)
+        beginMoveAt(rowAt(position))
     }
 
+    /** Reorders the rows behind the two adapter positions a drag connects. */
     fun previewMove(from: Int, to: Int): Boolean {
+        if (from == to) return false
+        return previewMoveRows(rowAt(from), rowAt(to))
+    }
+
+    private fun previewMoveRows(from: Int, to: Int): Boolean {
         if (onMovePtr == 0L || from == to) return false
         check(activeMove != null) { "List move preview requires an active interaction" }
         val reordered = itemIds.copyOf()
@@ -508,24 +641,23 @@ private class WuiListAdapter(
         }
         reordered[to] = moved
         itemIds = reordered
-        footerAfter = computeFooters()
-        notifyItemMoved(from, to)
+        applyEntries()
         return true
     }
 
     fun commitMove() {
         val movement = activeMove ?: return
         activeMove = null
-        val finalPosition = itemIds.indexOf(movement.itemId)
-        check(finalPosition >= 0) {
+        val finalRow = itemIds.indexOf(movement.itemId)
+        check(finalRow >= 0) {
             "List item ${movement.itemId} disappeared during an active move"
         }
-        if (movement.originalPosition == finalPosition) return
+        if (movement.originalRow == finalRow) return
         NativeBindings.waterui_call_move_action(
             onMovePtr,
             env.raw(),
-            movement.originalPosition,
-            finalPosition
+            movement.originalRow,
+            finalRow
         )
     }
 
@@ -533,21 +665,22 @@ private class WuiListAdapter(
         check(from in itemIds.indices) { "List move source $from is out of bounds" }
         check(to in itemIds.indices) { "List move destination $to is out of bounds" }
         beginMoveAt(from)
-        val moved = previewMove(from, to)
+        val moved = previewMoveRows(from, to)
         check(moved) { "List move from $from to $to was rejected" }
         commitMove()
     }
 
-    private fun beginMoveAt(position: Int) {
+    private fun beginMoveAt(row: Int) {
         check(activeMove == null) { "List already has an active move interaction" }
-        activeMove = ActiveMove(itemIds[position], position)
+        activeMove = ActiveMove(itemIds[row], row)
     }
 
     fun delete(position: Int) {
-        val id = itemIds[position]
-        NativeBindings.waterui_call_index_action(onDeletePtr, env.raw(), position)
-        val currentPosition = itemIds.indexOf(id)
-        if (currentPosition >= 0) notifyItemChanged(currentPosition)
+        val row = rowAt(position)
+        val id = itemIds[row]
+        NativeBindings.waterui_call_index_action(onDeletePtr, env.raw(), row)
+        val currentRow = itemIds.indexOf(id)
+        if (currentRow >= 0) notifyItemChanged(rowPositions[currentRow])
     }
 
     override fun close() {
@@ -559,7 +692,8 @@ private class WuiListAdapter(
         visibleFlatModels.toList().forEach(ListItemModel::close)
         visibleFlatModels.clear()
         itemIds = IntArray(0)
-        footerAfter = emptyMap()
+        entries = emptyList()
+        rowPositions = IntArray(0)
         editing.close()
         mutedForeground.close()
         selectionContainer.close()
@@ -567,13 +701,15 @@ private class WuiListAdapter(
         if (onMovePtr != 0L) NativeBindings.waterui_drop_move_action(onMovePtr)
     }
 
-    private fun bindTheme(holder: ListItemHolder) {
-        // Card container/stroke stay on the M3 outlined-card style defaults;
-        // repainting them with Surface/Border flattened the elevation tint
-        // and darkened the outline versus a Compose Card.
-        holder.header.setTextColor(sectionTextColor)
-        holder.footer.setTextColor(sectionTextColor)
-        holder.model?.let { applySelection(holder, it.isSelected) }
+    private fun bindTheme(holder: RecyclerView.ViewHolder) {
+        when (holder) {
+            // Card container/stroke stay on the M3 outlined-card style defaults;
+            // repainting them with Surface/Border flattened the elevation tint
+            // and darkened the outline versus a Compose Card.
+            is ListItemHolder -> holder.model?.let { applySelection(holder, it.isSelected) }
+            is ListChromeHolder -> holder.label.setTextColor(sectionTextColor)
+            else -> error("WaterUI List cannot theme an unknown holder $holder")
+        }
     }
 
     /// Paints a row's selection chrome.
@@ -606,7 +742,7 @@ private class WuiListAdapter(
             if (deletable) {
                 View.OnClickListener {
                     val position = holder.bindingAdapterPosition
-                    check(position in itemIds.indices) {
+                    check(position in entries.indices) {
                         "List delete requested from invalid adapter position $position"
                     }
                     delete(position)
@@ -632,10 +768,8 @@ private class WuiListAdapter(
         holder.moveButton.setOnClickListener(
             if (movable) {
                 View.OnClickListener {
-                    val from = holder.bindingAdapterPosition
-                    if (from in 0 until itemIds.lastIndex) {
-                        moveOnce(from, from + 1)
-                    }
+                    val from = rowAt(holder.bindingAdapterPosition)
+                    if (from < itemIds.lastIndex) moveOnce(from, from + 1)
                 }
             } else {
                 null
@@ -681,23 +815,7 @@ private class WuiListAdapter(
         }
     }
 
-    /** Subscribes `view` to `text`, returning what the caller must detach. */
-    private fun bindSectionText(view: TextView, text: ReactivePlainText?): ReactivePlainText? {
-        if (text == null) {
-            view.text = ""
-            view.visibility = View.GONE
-            return null
-        }
-        view.visibility = View.VISIBLE
-        text.attach { value -> view.text = value }
-        return text
-    }
-
     private fun releaseHolderModel(holder: ListItemHolder) {
-        holder.attachedHeader?.detach()
-        holder.attachedHeader = null
-        holder.attachedFooter?.detach()
-        holder.attachedFooter = null
         val model = holder.model ?: return
         model.onSelectedChanged = null
         if (holder.ownsModel) {
@@ -724,7 +842,28 @@ private class WuiListAdapter(
             previousModels.values.forEach(ListItemModel::close)
         }
         itemIds = next
-        footerAfter = computeFooters()
+        applyEntries()
+    }
+
+    /**
+     * Rebuilds the displayed lines from the current row order and tells the
+     * RecyclerView what changed.
+     */
+    private fun applyEntries() {
+        val previous = entries
+        val next = computeEntries()
+        entries = next
+        rowPositions = IntArray(itemIds.size)
+        var row = 0
+        next.forEachIndexed { index, entry ->
+            if (entry is RowEntry) {
+                rowPositions[row] = index
+                row += 1
+            }
+        }
+        check(row == itemIds.size) {
+            "List built $row row lines for ${itemIds.size} rows"
+        }
         if (previous.isEmpty()) {
             notifyItemRangeInserted(0, next.size)
             return
@@ -738,50 +877,55 @@ private class WuiListAdapter(
             override fun getOldListSize(): Int = previous.size
             override fun getNewListSize(): Int = next.size
             override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-                previous[oldItemPosition] == next[newItemPosition]
+                previous[oldItemPosition].stableId == next[newItemPosition].stableId
             override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean =
-                previous[oldItemPosition] == next[newItemPosition]
+                previous[oldItemPosition].stableId == next[newItemPosition].stableId
         })
         diff.dispatchUpdatesTo(this)
     }
 
-    private fun singleRemovalIndex(previous: IntArray, next: IntArray): Int? {
+    private fun singleRemovalIndex(previous: List<ListEntry>, next: List<ListEntry>): Int? {
         if (previous.size != next.size + 1) return null
         var removedIndex = 0
         while (
             removedIndex < next.size &&
-            previous[removedIndex] == next[removedIndex]
+            previous[removedIndex].stableId == next[removedIndex].stableId
         ) {
             removedIndex += 1
         }
         for (index in removedIndex until next.size) {
-            if (previous[index + 1] != next[index]) return null
+            if (previous[index + 1].stableId != next[index].stableId) return null
         }
         return removedIndex
     }
 
     /**
-     * The footer each row is responsible for drawing.
+     * The lines the list draws, derived from the section markers the rows carry.
      *
-     * A section's footer closes on the last row before the next section opens,
-     * which is a different row from the one carrying the marker — so the
-     * mapping is resolved up front rather than rediscovered per bind.
+     * A marker opens a section on the row that carries it, so that row's header
+     * precedes it. The footer closes the section on the line *after* its last
+     * row — which is the line before the next marker — so it is emitted when
+     * the following section opens, or once the rows run out.
      */
-    private fun computeFooters(): Map<Int, ReactivePlainText> {
-        if (!usesSections) return emptyMap()
-        val footers = mutableMapOf<Int, ReactivePlainText>()
-        var activeFooter: ReactivePlainText? = null
-        itemIds.forEachIndexed { index, id ->
+    private fun computeEntries(): List<ListEntry> {
+        if (!usesSections) return itemIds.map(::RowEntry)
+        val lines = ArrayList<ListEntry>(itemIds.size)
+        var openId = 0
+        var openFooter: ReactivePlainText? = null
+        itemIds.forEach { id ->
             val item = checkNotNull(sectionModels[id]) {
                 "sectioned List row $id was not materialized"
             }
             if (item.opensSection) {
-                if (index > 0 && activeFooter != null) footers[index - 1] = activeFooter
-                activeFooter = item.sectionFooter
+                openFooter?.let { lines.add(FooterEntry(openId, it)) }
+                item.sectionLabel?.let { lines.add(HeaderEntry(id, it)) }
+                openId = id
+                openFooter = item.sectionFooter
             }
+            lines.add(RowEntry(id))
         }
-        if (itemIds.isNotEmpty() && activeFooter != null) footers[itemIds.lastIndex] = activeFooter
-        return footers
+        openFooter?.let { lines.add(FooterEntry(openId, it)) }
+        return lines
     }
 }
 
@@ -820,6 +964,14 @@ private class ListTouchCallback(
         recyclerView: RecyclerView,
         viewHolder: RecyclerView.ViewHolder
     ): Int = adapter.movementFlags(viewHolder)
+
+    /// Section chrome is not a drop target: a row only ever trades places with
+    /// another row.
+    override fun canDropOver(
+        recyclerView: RecyclerView,
+        current: RecyclerView.ViewHolder,
+        target: RecyclerView.ViewHolder
+    ): Boolean = target is ListItemHolder
 
     override fun onMove(
         recyclerView: RecyclerView,
@@ -1065,10 +1217,10 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
         targetIndex.observe { target = it }
         generation.observe { request ->
             if (request == 0) return@observe
-            check(target in 0 until adapter.itemCount) {
-                "List scroll target $target exceeds collection length ${adapter.itemCount}"
+            check(target in 0 until adapter.rowCount) {
+                "List scroll target $target exceeds collection length ${adapter.rowCount}"
             }
-            recyclerView.animateToPosition(target, motion)
+            recyclerView.animateToPosition(adapter.scrollPositionForRow(target), motion)
         }
         recyclerView.disposeWith(targetIndex)
         recyclerView.disposeWith(generation)
