@@ -11,6 +11,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.Gravity
+import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.view.LayoutInflater
@@ -1412,13 +1413,20 @@ private const val TAB_ICON_DP = 24
 /// Renders a tab's icon view into a drawable the menu item can hold.
 ///
 /// A menu item takes a `Drawable`, not a view, so an icon that WaterUI draws
-/// itself has to become pixels. It is measured and laid out at the Material
-/// icon size and drawn into a bitmap once, at install time — the same thing
-/// Apple's `installIconViews()` does, and for the same reason: a bar item is
-/// not a place a live view tree can live. A `SurfaceView` cannot be captured
-/// this way (it composites in its own layer, below the window), which is why
-/// the GPU-backed icon packs render offscreen rather than into the tree.
-private fun rasterizeTabIcon(view: View, density: Float): Drawable {
+/// itself has to become pixels. Views that draw with the CPU — a text glyph
+/// from a webfont icon pack, a shape — are measured at the Material icon size
+/// and drawn into a bitmap here.
+///
+/// A GPU-backed icon (an SVG pack renders through `GpuSurface`) cannot be
+/// captured this way: a `SurfaceView` composites in its own layer rather than
+/// in the view tree, so `draw()` sees nothing and the bitmap comes back empty.
+/// Those need an offscreen render through the GPU surface itself — the FFI has
+/// no entry point for that yet, so this returns null rather than a blank icon,
+/// and the tab shows its label alone.
+private fun rasterizeTabIcon(view: View, density: Float): Drawable? {
+    if (containsSurfaceView(view)) {
+        return null
+    }
     val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
     val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
     view.measure(spec, spec)
@@ -1426,6 +1434,13 @@ private fun rasterizeTabIcon(view: View, density: Float): Drawable {
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     view.draw(Canvas(bitmap))
     return BitmapDrawable(view.resources, bitmap)
+}
+
+/// Whether anything in this subtree draws through a surface of its own.
+private fun containsSurfaceView(view: View): Boolean = when (view) {
+    is SurfaceView -> true
+    is ViewGroup -> (0 until view.childCount).any { containsSurfaceView(view.getChildAt(it)) }
+    else -> false
 }
 
 /// The tab's icon, or null when it has none.
