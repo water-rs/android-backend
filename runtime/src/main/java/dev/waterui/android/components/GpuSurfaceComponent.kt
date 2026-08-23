@@ -60,6 +60,9 @@ internal class GpuSurfaceView(
     private val choreographer = Choreographer.getInstance()
     private var statePtr = 0L
     private var surfaceAttached = false
+    /// Set once this surface has been rendered into an image, which ends its
+    /// renderer; it draws nothing afterwards.
+    private var renderedOffscreen = false
     private var rendererReady = false
     private var setupPending = false
     private var layoutRequestedWhileSetup = false
@@ -138,12 +141,14 @@ internal class GpuSurfaceView(
     /// the only way to get those pixels, and it consumes the renderer, so this
     /// belongs to a view built to become an image and never to be shown.
     fun intoOffscreenImage(size: Int): IntArray {
-        if (statePtr == 0L) {
+        if (statePtr == 0L || renderedOffscreen) {
             return IntArray(0)
         }
-        val packed = dev.waterui.android.ffi.WatcherJni.gpuSurfaceIntoOffscreenImage(statePtr, size, size)
-        statePtr = 0L
-        return packed
+        // The render consumes the renderer, not the state: the state box is
+        // still ours to drop, so the pointer stays and a flag stops a second
+        // render from asking a surface that has nothing left to draw.
+        renderedOffscreen = true
+        return dev.waterui.android.ffi.WatcherJni.gpuSurfaceIntoOffscreenImage(statePtr, size, size)
     }
 
     init {

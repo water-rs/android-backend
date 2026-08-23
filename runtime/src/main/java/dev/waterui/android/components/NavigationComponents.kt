@@ -1425,23 +1425,40 @@ private fun findGpuSurfaceView(view: View): GpuSurfaceView? = when (view) {
 ///
 /// An icon that draws through a `GpuSurface` cannot be captured that way: the
 /// surface composites in its own layer rather than in the view tree, so
-/// `draw()` sees nothing where it sits. Rendering it offscreen is the answer,
-/// and `GpuSurfaceView.intoOffscreenImage` does exactly that — but a tab icon's
-/// surface is never attached to a window, so the GPU runtime it would render
-/// through has not been brought up, and asking it to render now faults. Until
-/// that path exists, such an icon yields no image rather than a blank one, and
-/// the tab shows its label alone.
+/// `draw()` sees nothing where it sits. It goes through the GPU runtime
+/// instead, which renders into an offscreen target and needs no window — every
+/// icon pack WaterUI ships draws this way, so without it a tab bar shows bare
+/// labels.
 private fun rasterizeTabIcon(view: View, density: Float): Drawable? {
-    if (findGpuSurfaceView(view) != null) {
-        return null
-    }
     val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
+    findGpuSurfaceView(view)?.let { surface ->
+        return surface.intoOffscreenImage(size).toIconDrawable(view.resources)
+    }
     val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
     view.measure(spec, spec)
     view.layout(0, 0, size, size)
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     view.draw(Canvas(bitmap))
     return BitmapDrawable(view.resources, bitmap)
+}
+
+/// Unpacks `[width, height, argb…]` from an offscreen render into a drawable.
+///
+/// The bar tints what it is handed with its own `itemIconTint`, which is the
+/// canonical Android behaviour and is what carries selected/unselected state,
+/// so the glyph's alpha is what matters here and its colours are not preserved.
+private fun IntArray.toIconDrawable(resources: android.content.res.Resources): Drawable? {
+    if (size < 2) {
+        return null
+    }
+    val width = this[0]
+    val height = this[1]
+    if (width <= 0 || height <= 0 || size < 2 + width * height) {
+        return null
+    }
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    bitmap.setPixels(this, 2, width, 0, 0, width, height)
+    return BitmapDrawable(resources, bitmap)
 }
 
 /// The tab's icon, or null when it has none.
