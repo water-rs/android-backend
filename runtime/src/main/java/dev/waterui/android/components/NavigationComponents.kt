@@ -2173,9 +2173,14 @@ private val splitNavigationContainerRenderer = WuiRenderer { context, node, env,
 
     val sidebar = inflateAnyView(context, struct.sidebarPtr, env, registry)
     val placeholder = inflateAnyView(context, struct.placeholderPtr, env, registry)
-    val primarySelection = WuiBinding.id(struct.primarySelectionPtr)
+    // `Int`, not `id`: the split's selection crosses as `WuiBinding<i32>` with 0
+    // standing for "nothing selected" (`optional_id_binding` in the FFI maps it
+    // to `Option<Id>`). Reading it through the `Id` accessors punned the binding
+    // to `WuiBinding<Id>`, and clearing the selection then tried to build an
+    // `Id` out of 0 — which is a `NonZeroI32` — and killed the process.
+    val primarySelection = WuiBinding.int(struct.primarySelectionPtr)
     val secondarySelection = struct.secondarySelectionPtr.takeIf { it != 0L }?.let { ptr ->
-        WuiBinding.id(ptr)
+        WuiBinding.int(ptr)
     }
     val columnVisibility = WuiComputed.int(struct.columnVisibilityPtr)
 
