@@ -523,6 +523,10 @@ data class MetadataAccessibilityStateStruct(
 
 data class MetadataClipShapeStruct(
     val contentPtr: Long,
+    /// What the shape is, rather than what its unit-space commands trace. A
+    /// corner radius is a fraction of the shorter side, which the commands
+    /// cannot express: they stretch it with the clipped rect's aspect ratio.
+    val kind: ShapeKindStruct,
     val commands: Array<PathCommandStruct>
 )
 
