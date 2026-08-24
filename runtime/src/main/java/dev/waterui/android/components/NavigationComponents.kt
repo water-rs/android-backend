@@ -22,6 +22,7 @@ import androidx.annotation.Keep
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.graphics.Insets
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.isEmpty
 import androidx.core.view.isNotEmpty
 import androidx.core.view.size
@@ -49,8 +50,9 @@ import com.google.android.material.search.SearchView
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.navigation.NavigationBarView as MaterialNavigationBarView
 import com.google.android.material.navigationrail.NavigationRailView
-import com.google.android.material.transition.MaterialFadeThrough
+import com.google.android.material.transition.Hold
 import com.google.android.material.transition.MaterialContainerTransform
+import com.google.android.material.transition.MaterialFadeThrough
 import com.google.android.material.transition.MaterialSharedAxis
 import com.google.android.material.R as MaterialR
 import dev.waterui.android.reactive.WuiBinding
@@ -190,6 +192,44 @@ private data class PendingNavigationTransaction(
     val inserted: Array<NavigationViewStruct>
 )
 
+private data class NavigationMatchedPair(
+    val id: Int,
+    val name: String,
+    val source: View,
+    val destination: View
+)
+
+private fun View.requireZoomTransitionBounds(id: Int, role: String) {
+    check(isAttachedToWindow && isLaidOut && width > 0 && height > 0) {
+        "zoom navigation $role $id must be attached and laid out with positive bounds"
+    }
+}
+
+private fun navigationMatchedPair(
+    sourceId: Int,
+    outgoing: View,
+    incoming: View
+): NavigationMatchedPair {
+    require(sourceId != 0) {
+        "zoom navigation transition requires a non-zero source id"
+    }
+    val name = navigationTransitionName(sourceId)
+    val source = checkNotNull(outgoing.findViewWithTag<View>(sourceId)) {
+        "zoom navigation source $sourceId is missing from the outgoing destination"
+    }
+    val destination = checkNotNull(incoming.findViewWithTag<View>(sourceId)) {
+        "zoom navigation destination $sourceId is missing from the incoming destination"
+    }
+    check(source.transitionName == name) {
+        "zoom navigation source $sourceId has an invalid transition name"
+    }
+    check(destination.transitionName == name) {
+        "zoom navigation destination $sourceId has an invalid transition name"
+    }
+    source.requireZoomTransitionBounds(sourceId, "source")
+    return NavigationMatchedPair(sourceId, name, source, destination)
+}
+
 internal class NavigationDestinationFragment : Fragment() {
     private var destinationView: View? = null
     private var host: FrameLayout? = null
@@ -203,6 +243,31 @@ internal class NavigationDestinationFragment : Fragment() {
     }
 
     fun isBound(): Boolean = destinationView != null
+
+    /// Keeps ordinary Fragment motion separate from shared-element motion.
+    fun useEnterTransition(transition: Transition?) {
+        sharedElementEnterTransition = null
+        enterTransition = transition
+    }
+
+    /// Installs the Fragment shared-element contract before its transaction.
+    ///
+    /// A newly added destination has no bounds until its first pre-draw. The
+    /// postponed transition resumes on that concrete readiness signal so the
+    /// container transform cannot capture an empty end state.
+    fun useSharedElementEnterTransition(
+        transition: MaterialContainerTransform,
+        destination: View,
+        sourceId: Int
+    ) {
+        enterTransition = null
+        sharedElementEnterTransition = transition
+        postponeEnterTransition()
+        destination.doOnPreDraw {
+            destination.requireZoomTransitionBounds(sourceId, "destination")
+            startPostponedEnterTransition()
+        }
+    }
 
     fun restorationId(): String = requireNotNull(
         requireArguments().getString(NAVIGATION_RESTORATION_ID_KEY)
@@ -969,8 +1034,8 @@ private class AndroidNavigationStackView(
         }
         activeTransactionId = id
 
-        val oldTop = entries.last().contentView
-        markDisappeared(entries.last())
+        val oldTop = entries.last()
+        markDisappeared(oldTop)
         val removedEntries = entries.subList(retainedPrefix + 1, entries.size).toList()
         entries.subList(retainedPrefix + 1, entries.size).clear()
         val insertedEntries = inserted.mapIndexed { index, navView ->
@@ -985,7 +1050,7 @@ private class AndroidNavigationStackView(
         }
 
         distributeSafeArea()
-        val newTop = entries.last().contentView
+        val newTop = entries.last()
         updateChrome()
         applyFragmentTransaction(
             id = id,
@@ -1248,8 +1313,8 @@ private class AndroidNavigationStackView(
         id: Long,
         removedEntries: List<NavigationEntry>,
         insertedEntries: List<NavigationEntry>,
-        oldTop: View,
-        newTop: View
+        oldTop: NavigationEntry,
+        newTop: NavigationEntry
     ) {
         val manager = fragmentManager
         if (manager == null) {
@@ -1265,46 +1330,39 @@ private class AndroidNavigationStackView(
         // leaving; either way the moving destination's own declaration wins
         // over the stack's default.
         val moving = if (isPush) insertedEntries.lastOrNull() else removedEntries.lastOrNull()
-        var kind = stackTransition
-        var sourceId = stackTransitionSourceId
-        if (moving != null && moving.transitionKind != TRANSITION_INHERIT) {
-            kind = moving.transitionKind
-            sourceId = moving.transitionSourceId
-        }
-        val matchedSource = if (kind == TRANSITION_ZOOM) {
-            require(sourceId != 0) {
-                "zoom navigation transition requires a non-zero source id"
-            }
-            val name = navigationTransitionName(sourceId)
-            val source = checkNotNull(oldTop.findViewWithTag<View>(sourceId)) {
-                "zoom navigation source $sourceId is missing from the outgoing destination"
-            }
-            val destination = checkNotNull(newTop.findViewWithTag<View>(sourceId)) {
-                "zoom navigation source $sourceId is missing from the incoming destination"
-            }
-            check(destination.transitionName == name) {
-                "zoom navigation destination $sourceId has an invalid transition name"
-            }
-            source.transitionName = name
-            source
+        val declared = moving?.takeIf { it.transitionKind != TRANSITION_INHERIT }
+        val kind = declared?.transitionKind ?: stackTransition
+        val sourceId = declared?.transitionSourceId ?: stackTransitionSourceId
+        val matchedPair = if (kind == TRANSITION_ZOOM) {
+            navigationMatchedPair(sourceId, oldTop.contentView, newTop.contentView)
         } else {
             null
         }
-        val enterEffect = if (matchedSource == null) {
-            navigationTransition(isPush, kind)
+
+        val enterEffect: Transition?
+        val exitEffect: Transition?
+        if (matchedPair == null) {
+            enterEffect = navigationTransition(isPush, kind)
+            exitEffect = navigationTransition(isPush, kind)
+            newTop.fragment.useEnterTransition(enterEffect)
         } else {
-            MaterialContainerTransform().apply {
-                drawingViewId = contentContainer.id
+            val transform = MaterialContainerTransform().apply {
                 transitionDirection = if (isPush) {
                     MaterialContainerTransform.TRANSITION_DIRECTION_ENTER
                 } else {
                     MaterialContainerTransform.TRANSITION_DIRECTION_RETURN
                 }
             }
+            enterEffect = transform
+            // Keep the outgoing page in the scene behind the shared container.
+            exitEffect = Hold()
+            newTop.fragment.useSharedElementEnterTransition(
+                transform,
+                matchedPair.destination,
+                matchedPair.id
+            )
         }
-        val exitEffect = if (matchedSource == null) navigationTransition(isPush, kind) else null
-        entries.last().fragment.enterTransition = enterEffect
-        removedEntries.lastOrNull()?.fragment?.exitTransition = exitEffect
+        oldTop.fragment.exitTransition = exitEffect
 
         var finished = false
         val settle = settle@{ completed: Boolean ->
@@ -1332,8 +1390,8 @@ private class AndroidNavigationStackView(
         })
 
         manager.beginTransaction().setReorderingAllowed(true).apply {
-            matchedSource?.let { source ->
-                addSharedElement(source, navigationTransitionName(sourceId))
+            matchedPair?.let { pair ->
+                addSharedElement(pair.source, pair.name)
             }
             removedEntries.forEach { entry ->
                 if (entry.fragment.isAdded) {
@@ -1355,8 +1413,8 @@ private class AndroidNavigationStackView(
             }
         }.commit()
 
-        oldTop.alpha = 1f
-        newTop.alpha = 1f
+        oldTop.contentView.alpha = 1f
+        newTop.contentView.alpha = 1f
     }
 
     private fun navigationTransition(isPush: Boolean, kind: Int): Transition? = when (kind) {
