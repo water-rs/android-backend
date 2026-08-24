@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Space
 import androidx.core.view.isEmpty
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.WuiPrimaryContentProviding
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
 import dev.waterui.android.runtime.SizeStruct
@@ -31,7 +32,13 @@ class RustLayoutViewGroup(
     context: Context,
     private val layoutPtr: Long,
     private var descriptors: List<ChildDescriptor> = emptyList()
-) : ViewGroup(context) {
+) : ViewGroup(context), WuiPrimaryContentProviding {
+    /// A stack answers window-root questions with its base layer: the window
+    /// composes overlay layers above the content, and a layer stacked above the
+    /// content never changes how the window insets it.
+    override val wuiPrimaryContent: View?
+        get() = if (childCount == 0) null else getChildAt(0)
+
     private val layoutWatcher = NativeBindings.waterui_layout_watch_invalidation(layoutPtr, this)
 
     init {

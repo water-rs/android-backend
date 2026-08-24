@@ -18,6 +18,7 @@ import android.widget.TextView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import androidx.core.view.ViewCompat
+import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -38,6 +39,11 @@ class WaterUiRootView @JvmOverloads constructor(
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
     private var materialTheme: MaterialThemeSignals? = null
     private var rootThemeController: RootThemeController? = null
+    private var safeAreaSignal: ReactiveEdgeInsetsSignal? = null
+    /// The last safe area the window dispatched. The content is built long
+    /// after the first dispatch arrives, so it is replayed once there is
+    /// something to hand it to.
+    private var pendingSafeArea = Insets.NONE
     private var lifecycle: Lifecycle? = null
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -53,12 +59,8 @@ class WaterUiRootView @JvmOverloads constructor(
         requireNotNull(context.findWaterUiContext()) {
             "WaterUiRootView is missing its WaterUiContext"
         }.setRootEnvironmentConsumer(::captureRootEnvironment)
-        ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
-            val safeArea = windowInsets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or
-                    WindowInsetsCompat.Type.displayCutout()
-            )
-            view.setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+        ViewCompat.setOnApplyWindowInsetsListener(this) { _, windowInsets ->
+            applySafeArea(windowInsets.waterUiSafeArea())
             windowInsets
         }
         ViewCompat.requestApplyInsets(this)
@@ -137,6 +139,8 @@ class WaterUiRootView @JvmOverloads constructor(
         disposeAndRemoveAllViews()
         rootThemeController?.close()
         rootThemeController = null
+        safeAreaSignal?.close()
+        safeAreaSignal = null
         backgroundTheme?.close()
         backgroundTheme = null
         materialTheme?.close()
@@ -153,6 +157,12 @@ class WaterUiRootView @JvmOverloads constructor(
         val initEnv = runtimeOwner.createWaterUiEnvironment()
         pendingEnvironment = initEnv
         installSystemLocale(initEnv, context.resources.configuration)
+        safeAreaSignal = ReactiveEdgeInsetsSignal(
+            pendingSafeArea,
+            context.resources.displayMetrics.density
+        ).also { signal ->
+            NativeBindings.waterui_env_install_safe_area(initEnv.raw(), signal.takeComputed())
+        }
         materialTheme = MaterialThemeSignals.install(
             env = initEnv,
             palette = MaterialThemePalette.from(context),
@@ -201,6 +211,7 @@ class WaterUiRootView @JvmOverloads constructor(
         check(rootThemeController != null) {
             "WaterUI root content did not produce a renderable native view"
         }
+        applySafeArea(pendingSafeArea)
         installInspectGesture(renderEnv)
     }
 
@@ -233,6 +244,41 @@ class WaterUiRootView @JvmOverloads constructor(
         setOnTouchListener { _, event ->
             detector.onTouchEvent(event)
             false
+        }
+    }
+
+    /// Decides where the window's safe area is spent, and publishes what is
+    /// left for the layers WaterUI lays out itself.
+    ///
+    /// Content that owns chrome takes the whole window: padding the root is
+    /// what kept a tab bar's background from reaching under the gesture bar,
+    /// because everything WaterUI drew lived inside the padding and the strip
+    /// the system reserves showed the window background instead of the bar. The
+    /// bar takes that edge itself — see [WuiSafeAreaManaging] — and the
+    /// published insets let the window's own overlay layers, which are siblings
+    /// of the content rather than children of any chrome, do the same.
+    ///
+    /// Ordinary content has nothing to reach the edges with, so the root insets
+    /// it exactly as before and publishes nothing: the overlays are inside that
+    /// padding already, and insetting them again would double it.
+    private fun applySafeArea(safeArea: Insets) {
+        pendingSafeArea = safeArea
+        val child = getChildAt(0)
+        if (child == null) {
+            safeAreaSignal?.setValue(Insets.NONE)
+            return
+        }
+        when (val primary = resolvePrimaryContent(child)) {
+            is WuiSafeAreaManaging -> {
+                setPadding(0, 0, 0, 0)
+                safeAreaSignal?.setValue(safeArea)
+                primary.applySafeArea(safeArea)
+            }
+
+            else -> {
+                setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
+                safeAreaSignal?.setValue(Insets.NONE)
+            }
         }
     }
 

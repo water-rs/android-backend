@@ -23,9 +23,13 @@ import androidx.activity.OnBackPressedCallback
 import androidx.annotation.Keep
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.graphics.Insets
 import androidx.core.view.isEmpty
 import androidx.core.view.isNotEmpty
 import androidx.core.view.size
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import androidx.transition.Transition
@@ -65,6 +69,8 @@ import dev.waterui.android.runtime.TabStruct
 import dev.waterui.android.runtime.SplitNavigationContainerStruct
 import dev.waterui.android.runtime.TabsStruct
 import dev.waterui.android.runtime.ThemeBridge
+import dev.waterui.android.runtime.applyRemainingInsets
+import dev.waterui.android.runtime.WuiSafeAreaManaging
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiStyledStr
@@ -753,7 +759,7 @@ private class AndroidNavigationStackView(
     private val stackTransitionSourceId: Int,
     private val childEnv: WuiEnvironment,
     private val registry: RenderRegistry
-) : LinearLayout(context) {
+) : LinearLayout(context), WuiSafeAreaManaging {
     private val barView = NavigationBarView(context, childEnv)
     private val contentContainer = FragmentContainerView(context).apply {
         id = View.generateViewId()
@@ -770,6 +776,11 @@ private class AndroidNavigationStackView(
     private var backCallbackInstalled = false
     private var activeTransactionId: Long? = null
     private var activeTransition: Transition? = null
+    private var safeArea = Insets.NONE
+    private var appliedBarVisible: Boolean? = null
+    /// Set while a fragment sync is waiting for the host to start again, and
+    /// true when the sync that was deferred was the initial one.
+    private var pendingSyncIsInitial: Boolean? = null
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackStarted(backEvent: BackEventCompat) {
             if (entries.size <= 1) {
@@ -856,6 +867,37 @@ private class AndroidNavigationStackView(
         updateBackEnabled()
     }
 
+    /// The app bar takes the top edge, so its background reaches under the
+    /// status bar; the destination content gets the other three. With no bar on
+    /// screen there is nothing to reach up there, and the content takes all four.
+    override fun applySafeArea(insets: Insets) {
+        safeArea = insets
+        distributeSafeArea()
+    }
+
+    private fun distributeSafeArea() {
+        val insets = safeArea
+        val barVisible = barView.visibility == VISIBLE
+        val remaining = if (barVisible) {
+            barView.setPadding(insets.left, insets.top, insets.right, 0)
+            Insets.of(insets.left, 0, insets.right, insets.bottom)
+        } else {
+            barView.setPadding(0, 0, 0, 0)
+            insets
+        }
+        entries.forEach { entry -> applyRemainingInsets(entry.contentView, remaining) }
+        appliedBarVisible = barVisible
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // The bar hides and reappears reactively, which moves the top inset
+        // between it and the content.
+        if (appliedBarVisible != (barView.visibility == VISIBLE)) {
+            distributeSafeArea()
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
     fun installRoot(
         rootView: View,
         rootBar: NavigationBarSpec?,
@@ -872,6 +914,7 @@ private class AndroidNavigationStackView(
             NavigationDestinationFragment.create(navigationRestorationId(0), rootView)
         )
         rootInstalled = true
+        distributeSafeArea()
         rootView.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -941,6 +984,7 @@ private class AndroidNavigationStackView(
             }
         }
 
+        distributeSafeArea()
         val newTop = entries.last().contentView
         updateChrome()
         applyFragmentTransaction(
@@ -962,16 +1006,21 @@ private class AndroidNavigationStackView(
             entry.contentView.animate().cancel()
         }
         fragmentManager?.let { manager ->
-            check(!manager.isStateSaved) {
-                "WaterUI navigation was disposed after FragmentManager saved its state"
-            }
-            manager.beginTransaction().apply {
-                entries.forEach { entry ->
-                    if (entry.fragment.isAdded) {
-                        remove(entry.fragment)
+            // Destroy always follows `onSaveInstanceState`, so arriving here
+            // with a saved state is the ordinary case — a rotation, or the
+            // system reclaiming the activity — and not a broken one. The
+            // manager goes away with the activity or is restored into the next,
+            // and a transaction against a saved state is neither possible nor
+            // needed. Asserting otherwise crashed the app on every relaunch.
+            if (!manager.isStateSaved) {
+                manager.beginTransaction().apply {
+                    entries.forEach { entry ->
+                        if (entry.fragment.isAdded) {
+                            remove(entry.fragment)
+                        }
                     }
-                }
-            }.commitNow()
+                }.commitNow()
+            }
         }
         entries.forEach {
             it.barSpec?.close()
@@ -1107,6 +1156,35 @@ private class AndroidNavigationStackView(
             .start()
     }
 
+    /// Re-runs [syncFragments] the next time the host starts.
+    ///
+    /// A saved state is a pause, not a failure: what the stack should show is
+    /// held in `entries` either way, and the transaction that shows it can wait
+    /// for a manager that will accept it.
+    private fun deferSyncUntilStarted(initial: Boolean) {
+        if (pendingSyncIsInitial != null) {
+            pendingSyncIsInitial = pendingSyncIsInitial == true || initial
+            return
+        }
+        pendingSyncIsInitial = initial
+        val lifecycle = checkNotNull(findViewTreeLifecycleOwner()) {
+            "WaterUI navigation requires a ViewTreeLifecycleOwner"
+        }.lifecycle
+        lifecycle.addObserver(object : LifecycleEventObserver {
+            override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+                if (event != Lifecycle.Event.ON_START && event != Lifecycle.Event.ON_DESTROY) {
+                    return
+                }
+                lifecycle.removeObserver(this)
+                val deferred = pendingSyncIsInitial ?: return
+                pendingSyncIsInitial = null
+                if (event == Lifecycle.Event.ON_START && fragmentManager != null) {
+                    syncFragments(initial = deferred)
+                }
+            }
+        })
+    }
+
     private fun disposeEntries(disposed: List<NavigationEntry>) {
         disposed.forEach { entry ->
             detachFromParent(entry.contentView)
@@ -1132,8 +1210,15 @@ private class AndroidNavigationStackView(
 
     private fun syncFragments(initial: Boolean) {
         val manager = fragmentManager ?: return
-        check(!manager.isStateSaved) {
-            "WaterUI navigation cannot synchronize after FragmentManager saved its state"
+        if (manager.isStateSaved) {
+            // The tree is attached from a posted callback — the GPU runtime is
+            // created before the first view is inflated — so it can land after
+            // the activity has saved its state, on a device slow enough to make
+            // that a whole frame's difference. The manager refuses transactions
+            // until it starts again; the stack is described entirely by
+            // `entries`, so replaying it then loses nothing.
+            deferSyncUntilStarted(initial)
+            return
         }
         val transaction = manager.beginTransaction().setReorderingAllowed(true)
         manager.fragments.filterIsInstance<NavigationDestinationFragment>()
@@ -1540,7 +1625,7 @@ private class AdaptiveTabsView(
     private val entries: List<AndroidTabEntry>,
     private val selection: WuiBinding<Int>,
     private val style: Int
-) : ViewGroup(context) {
+) : ViewGroup(context), WuiSafeAreaManaging {
     private val content = FrameLayout(context)
     // Material 3's navigation bar labels every destination; the auto mode this
     // defaults to is the Material 2 behaviour of dropping every label but the
@@ -1554,6 +1639,8 @@ private class AdaptiveTabsView(
     private var selectedIndex = -1
     private var usesRail = false
     private var synchronizing = false
+    private var safeArea = Insets.NONE
+    private var appliedRail: Boolean? = null
 
     init {
         require(entries.isNotEmpty()) { "native Android tabs require at least one tab" }
@@ -1662,6 +1749,29 @@ private class AdaptiveTabsView(
         }
         rail.visibility = if (usesRail) VISIBLE else GONE
         bottomBar.visibility = if (usesRail) GONE else VISIBLE
+        if (appliedRail != usesRail) {
+            distributeSafeArea()
+        }
+    }
+
+    /// The bar takes the edge it sits against, so its background reaches under
+    /// the system bar there; the tab's own content gets the other three.
+    override fun applySafeArea(insets: Insets) {
+        safeArea = insets
+        distributeSafeArea()
+    }
+
+    private fun distributeSafeArea() {
+        val insets = safeArea
+        val remaining = if (usesRail) {
+            rail.setPadding(insets.left, insets.top, 0, insets.bottom)
+            Insets.of(0, insets.top, insets.right, insets.bottom)
+        } else {
+            bottomBar.setPadding(insets.left, 0, insets.right, insets.bottom)
+            Insets.of(insets.left, insets.top, insets.right, 0)
+        }
+        entries.forEach { entry -> applyRemainingInsets(entry.screen.view, remaining) }
+        appliedRail = usesRail
     }
 
     /// Handles a tap on one of the two tab surfaces.

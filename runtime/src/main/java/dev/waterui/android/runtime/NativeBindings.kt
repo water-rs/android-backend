@@ -478,6 +478,25 @@ internal object NativeBindings {
         WatcherJni.reactiveColorSchemeStateSet(statePtr, scheme)
     fun waterui_drop_reactive_color_scheme_state(statePtr: Long) =
         WatcherJni.dropReactiveColorSchemeState(statePtr)
+    fun waterui_create_reactive_edge_insets_state(
+        top: Float,
+        bottom: Float,
+        leading: Float,
+        trailing: Float
+    ): Long = WatcherJni.createReactiveEdgeInsetsState(top, bottom, leading, trailing)
+    fun waterui_reactive_edge_insets_state_to_computed(statePtr: Long): Long =
+        WatcherJni.reactiveEdgeInsetsStateToComputed(statePtr)
+    fun waterui_reactive_edge_insets_state_set(
+        statePtr: Long,
+        top: Float,
+        bottom: Float,
+        leading: Float,
+        trailing: Float
+    ) = WatcherJni.reactiveEdgeInsetsStateSet(statePtr, top, bottom, leading, trailing)
+    fun waterui_drop_reactive_edge_insets_state(statePtr: Long) =
+        WatcherJni.dropReactiveEdgeInsetsState(statePtr)
+    fun waterui_env_install_safe_area(envPtr: Long, signalPtr: Long) =
+        WatcherJni.envInstallSafeArea(envPtr, signalPtr)
 }
 
 fun bootstrapWaterUiRuntime(activity: Activity): Long {
