@@ -1876,7 +1876,7 @@ private data class SplitNavigationSpec(
 private class SplitNavigationLayoutView(
     context: Context,
     spec: SplitNavigationSpec
-) : FrameLayout(context) {
+) : FrameLayout(context), WuiSafeAreaManaging {
     private val sidebarView = spec.sidebarView
     private val placeholderView = spec.placeholderView
     private val primarySelection = spec.primarySelection
@@ -1908,6 +1908,7 @@ private class SplitNavigationLayoutView(
     /// for the same one cannot schedule layouts forever.
     private var appliedPaneShowsDetail: Boolean? = null
     private var lastInnerSlideable: Boolean? = null
+    private var safeArea = Insets.NONE
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackStarted(backEvent: BackEventCompat) {
             val target = activePopTarget()
@@ -2328,6 +2329,25 @@ private class SplitNavigationLayoutView(
         }
     }
 
+    /// Every column reaches the window's edges on its own.
+    ///
+    /// The panes sit side by side in a wide window and slide over one another
+    /// in a narrow one, so each of them is against the top and the bottom and
+    /// each can be against a side. Handing all four to each column lets a column
+    /// that owns chrome — usually a navigation stack — place it against the
+    /// hardware, and pads the ones that do not.
+    override fun applySafeArea(insets: Insets) {
+        safeArea = insets
+        distributeSafeArea()
+    }
+
+    private fun distributeSafeArea() {
+        applyRemainingInsets(sidebarView, safeArea)
+        listOf(contentPane, detailPane).forEach { pane ->
+            pane.getChildAt(0)?.let { applyRemainingInsets(it, safeArea) }
+        }
+    }
+
     private fun attachScreen(parent: FrameLayout, screen: NavigationScreen) {
         detachFromParent(screen.view)
         parent.addView(
@@ -2337,6 +2357,7 @@ private class SplitNavigationLayoutView(
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+        distributeSafeArea()
     }
 
     private fun showPlaceholder() {
@@ -2349,6 +2370,7 @@ private class SplitNavigationLayoutView(
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
+        distributeSafeArea()
     }
 
     private fun applyVisibility() {
