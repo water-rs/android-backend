@@ -161,8 +161,21 @@ private data class NavigationEntry(
     val state: NavigationDestinationState?,
     val restorationId: String,
     val fragment: NavigationDestinationFragment,
+    /// What this destination declared, mirroring `WuiNavigationTransitionKind`.
+    /// `TRANSITION_INHERIT` means it declared nothing and the stack's stands.
+    val transitionKind: Int = TRANSITION_INHERIT,
+    /// The zoom source id this destination named, if it named one.
+    val transitionSourceId: Int = 0,
     var isActive: Boolean = false
 )
+
+/// Mirrors `WuiNavigationTransitionKind`.
+private const val TRANSITION_AUTOMATIC = 0
+private const val TRANSITION_FADE = 1
+private const val TRANSITION_ZOOM = 2
+private const val TRANSITION_NONE = 3
+private const val TRANSITION_CUSTOM = 4
+private const val TRANSITION_INHERIT = 5
 
 private data class PendingNavigationTransaction(
     val id: Long,
@@ -736,8 +749,8 @@ private class NavigationBarView(
 @android.annotation.SuppressLint("ViewConstructor")
 private class AndroidNavigationStackView(
     context: Context,
-    private val transition: Int,
-    private val transitionSourceId: Int,
+    private val stackTransition: Int,
+    private val stackTransitionSourceId: Int,
     private val childEnv: WuiEnvironment,
     private val registry: RenderRegistry
 ) : LinearLayout(context) {
@@ -1163,25 +1176,44 @@ private class AndroidNavigationStackView(
         }
 
         val isPush = insertedEntries.isNotEmpty()
-        val matchedSource = if (transition == 2) {
-            require(transitionSourceId != 0) {
+        // A push is animated by the destination arriving, a pop by the one
+        // leaving; either way the moving destination's own declaration wins
+        // over the stack's default.
+        val moving = if (isPush) insertedEntries.lastOrNull() else removedEntries.lastOrNull()
+        var kind = stackTransition
+        var sourceId = stackTransitionSourceId
+        if (moving != null && moving.transitionKind != TRANSITION_INHERIT) {
+            kind = moving.transitionKind
+            sourceId = moving.transitionSourceId
+        }
+        val matchedSource = if (kind == TRANSITION_ZOOM) {
+            require(sourceId != 0) {
                 "zoom navigation transition requires a non-zero source id"
             }
-            val source = oldTop.findViewWithTag<View>(transitionSourceId)
-                ?: error("zoom navigation source $transitionSourceId is not present in the active page")
-            val destination = newTop.findViewWithTag<View>(transitionSourceId)
-                ?: error("zoom navigation destination $transitionSourceId is not present in the next page")
-            val name = navigationTransitionName(transitionSourceId)
-            check(destination.transitionName == name) {
-                "zoom navigation destination $transitionSourceId has an invalid transition name"
+            val name = navigationTransitionName(sourceId)
+            val source = oldTop.findViewWithTag<View>(sourceId)
+            val destination = newTop.findViewWithTag<View>(sourceId)
+            if (source == null || destination == null) {
+                // A matched pair only exists when both pages show the element;
+                // an absent one is an ordinary arrangement, not a broken tree.
+                Log.w(
+                    "WaterUI",
+                    "zoom navigation source $sourceId is not on both pages; using the platform default transition"
+                )
+                kind = TRANSITION_AUTOMATIC
+                null
+            } else {
+                check(destination.transitionName == name) {
+                    "zoom navigation destination $sourceId has an invalid transition name"
+                }
+                source.transitionName = name
+                source
             }
-            source.transitionName = name
-            source
         } else {
             null
         }
         val enterEffect = if (matchedSource == null) {
-            navigationTransition(isPush)
+            navigationTransition(isPush, kind)
         } else {
             MaterialContainerTransform().apply {
                 drawingViewId = contentContainer.id
@@ -1192,7 +1224,7 @@ private class AndroidNavigationStackView(
                 }
             }
         }
-        val exitEffect = if (matchedSource == null) navigationTransition(isPush) else null
+        val exitEffect = if (matchedSource == null) navigationTransition(isPush, kind) else null
         entries.last().fragment.enterTransition = enterEffect
         removedEntries.lastOrNull()?.fragment?.exitTransition = exitEffect
 
@@ -1223,7 +1255,7 @@ private class AndroidNavigationStackView(
 
         manager.beginTransaction().setReorderingAllowed(true).apply {
             matchedSource?.let { source ->
-                addSharedElement(source, navigationTransitionName(transitionSourceId))
+                addSharedElement(source, navigationTransitionName(sourceId))
             }
             removedEntries.forEach { entry ->
                 if (entry.fragment.isAdded) {
@@ -1249,16 +1281,16 @@ private class AndroidNavigationStackView(
         newTop.alpha = 1f
     }
 
-    private fun navigationTransition(isPush: Boolean): Transition? = when (transition) {
-        0 -> MaterialSharedAxis(MaterialSharedAxis.X, isPush)
-        1 -> MaterialFadeThrough()
-        2 -> error("zoom navigation transitions must be configured as matched transitions")
-        3 -> null
-        4 -> {
+    private fun navigationTransition(isPush: Boolean, kind: Int): Transition? = when (kind) {
+        TRANSITION_AUTOMATIC -> MaterialSharedAxis(MaterialSharedAxis.X, isPush)
+        TRANSITION_FADE -> MaterialFadeThrough()
+        TRANSITION_ZOOM -> error("zoom navigation transitions must be configured as matched transitions")
+        TRANSITION_NONE -> null
+        TRANSITION_CUSTOM -> {
             Log.w("WaterUI", "Custom navigation transition is unavailable on Android; applying without animation")
             null
         }
-        else -> error("unknown navigation transition: $transition")
+        else -> error("unknown navigation transition: $kind")
     }
 }
 
@@ -1280,7 +1312,9 @@ private fun buildNavigationEntry(
         barSpec = buildBarSpec(context, navView.bar, env, registry),
         state = buildNavigationState(navView, env),
         restorationId = restorationId,
-        fragment = NavigationDestinationFragment.create(restorationId, contentView)
+        fragment = NavigationDestinationFragment.create(restorationId, contentView),
+        transitionKind = navView.transitionKind,
+        transitionSourceId = navView.transitionSourceId
     )
 }
 
@@ -1332,8 +1366,8 @@ private val navigationStackRenderer = WuiRenderer { context, node, env, registry
 
     val stackView = AndroidNavigationStackView(
         context = context,
-        transition = struct.transition,
-        transitionSourceId = struct.transitionSourceId,
+        stackTransition = struct.transition,
+        stackTransitionSourceId = struct.transitionSourceId,
         childEnv = childEnv,
         registry = registry
     )

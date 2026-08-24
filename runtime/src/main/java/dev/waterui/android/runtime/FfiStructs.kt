@@ -779,7 +779,15 @@ data class NavigationViewStruct(
     val popAttemptedPtr: Long,
     val appearPtr: Long,
     val disappearPtr: Long,
-    val popPtr: Long
+    val popPtr: Long,
+    /// How this destination asked to arrive, mirroring
+    /// `WuiNavigationTransitionKind`. `INHERIT` means it asked for nothing and
+    /// the stack's transition stands — which is the common case, because a
+    /// destination only declares one when it names a matched pair the stack
+    /// cannot name for every push.
+    val transitionKind: Int,
+    /// The zoom source id, meaningful only when `transitionKind` is zoom.
+    val transitionSourceId: Int
 )
 
 /**
