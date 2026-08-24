@@ -60,9 +60,6 @@ internal class GpuSurfaceView(
     private val choreographer = Choreographer.getInstance()
     private var statePtr = 0L
     private var surfaceAttached = false
-    /// Set once this surface has been rendered into an image, which ends its
-    /// renderer; it draws nothing afterwards.
-    private var renderedOffscreen = false
     private var rendererReady = false
     private var setupPending = false
     private var layoutRequestedWhileSetup = false
@@ -132,24 +129,6 @@ internal class GpuSurfaceView(
             }
         }
     )
-
-    /// Renders this surface's content offscreen, ending it.
-    ///
-    /// A `SurfaceView` composites in its own layer rather than in the view
-    /// tree, so chrome that wants an image — a tab bar item's `Drawable` —
-    /// cannot capture one from the tree. Rendering through the GPU runtime is
-    /// the only way to get those pixels, and it consumes the renderer, so this
-    /// belongs to a view built to become an image and never to be shown.
-    fun intoOffscreenImage(size: Int): IntArray {
-        if (statePtr == 0L || renderedOffscreen) {
-            return IntArray(0)
-        }
-        // The render consumes the renderer, not the state: the state box is
-        // still ours to drop, so the pointer stays and a flag stops a second
-        // render from asking a surface that has nothing left to draw.
-        renderedOffscreen = true
-        return dev.waterui.android.ffi.WatcherJni.gpuSurfaceIntoOffscreenImage(statePtr, size, size)
-    }
 
     init {
         statePtr = NativeBindings.waterui_gpu_surface_create(
@@ -327,6 +306,9 @@ internal class GpuSurfaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!isClickable) {
+            return false
+        }
         gestureDetector.onTouchEvent(event)
         scaleDetector.onTouchEvent(event)
 

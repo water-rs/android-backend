@@ -2,11 +2,8 @@ package dev.waterui.android.components
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
+import android.graphics.drawable.ColorDrawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -16,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.LayoutInflater
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.BackEventCompat
@@ -58,10 +56,12 @@ import com.google.android.material.R as MaterialR
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.BarStruct
+import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NavigationStackStruct
 import dev.waterui.android.runtime.NavigationViewStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.ReactiveColorSignal
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -1276,24 +1276,17 @@ private class AndroidNavigationStackView(
                 "zoom navigation transition requires a non-zero source id"
             }
             val name = navigationTransitionName(sourceId)
-            val source = oldTop.findViewWithTag<View>(sourceId)
-            val destination = newTop.findViewWithTag<View>(sourceId)
-            if (source == null || destination == null) {
-                // A matched pair only exists when both pages show the element;
-                // an absent one is an ordinary arrangement, not a broken tree.
-                Log.w(
-                    "WaterUI",
-                    "zoom navigation source $sourceId is not on both pages; using the platform default transition"
-                )
-                kind = TRANSITION_AUTOMATIC
-                null
-            } else {
-                check(destination.transitionName == name) {
-                    "zoom navigation destination $sourceId has an invalid transition name"
-                }
-                source.transitionName = name
-                source
+            val source = checkNotNull(oldTop.findViewWithTag<View>(sourceId)) {
+                "zoom navigation source $sourceId is missing from the outgoing destination"
             }
+            val destination = checkNotNull(newTop.findViewWithTag<View>(sourceId)) {
+                "zoom navigation source $sourceId is missing from the incoming destination"
+            }
+            check(destination.transitionName == name) {
+                "zoom navigation destination $sourceId has an invalid transition name"
+            }
+            source.transitionName = name
+            source
         } else {
             null
         }
@@ -1527,72 +1520,29 @@ private fun tabLabelText(view: View): String = findTabLabelText(view)
 
 /// Material's navigation bar draws a 24dp icon; anything else is scaled by the
 /// bar and looks it.
-private const val TAB_ICON_DP = 24
+private const val TAB_ICON_DP = 24f
 
-/// The GPU surface inside this subtree, if the icon draws through one.
-private fun findGpuSurfaceView(view: View): GpuSurfaceView? = when (view) {
-    is GpuSurfaceView -> view
-    is ViewGroup -> (0 until view.childCount)
-        .firstNotNullOfOrNull { findGpuSurfaceView(view.getChildAt(it)) }
-    else -> null
-}
+private data class AndroidTabIcon(
+    val view: View,
+    val foreground: ReactiveColorSignal
+)
 
-/// Renders an inflated icon view into a drawable the menu item can hold.
-///
-/// A menu item takes a `Drawable`, not a view, so ordinary Android drawing is
-/// captured straight from the view at the Material icon size.
-///
-/// An icon that draws through a `GpuSurface` cannot be captured that way: the
-/// surface composites in its own layer rather than in the view tree, so
-/// `draw()` sees nothing where it sits. It goes through the GPU runtime
-/// instead, which renders into an offscreen target and needs no window — every
-/// icon pack WaterUI ships draws this way, so without it a tab bar shows bare
-/// labels.
-private fun rasterizeTabIcon(view: View, density: Float): Drawable? {
-    val size = (TAB_ICON_DP * density).toInt().coerceAtLeast(1)
-    findGpuSurfaceView(view)?.let { surface ->
-        return surface.intoOffscreenImage(size).toIconDrawable(view.resources)
-    }
-    val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
-    view.measure(spec, spec)
-    view.layout(0, 0, size, size)
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    view.draw(Canvas(bitmap))
-    return BitmapDrawable(view.resources, bitmap)
-}
-
-/// Unpacks `[width, height, argb…]` from an offscreen render into a drawable.
-///
-/// The bar tints what it is handed with its own `itemIconTint`, which is the
-/// canonical Android behaviour and is what carries selected/unselected state,
-/// so the glyph's alpha is what matters here and its colours are not preserved.
-private fun IntArray.toIconDrawable(resources: android.content.res.Resources): Drawable? {
-    if (size < 2) {
-        return null
-    }
-    val width = this[0]
-    val height = this[1]
-    if (width <= 0 || height <= 0 || size < 2 + width * height) {
-        return null
-    }
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    bitmap.setPixels(this, 2, width, 0, 0, width, height)
-    return BitmapDrawable(resources, bitmap)
-}
-
-/// The tab's icon, or null when it has none.
+/// Inflates one tab icon as a live WaterUI view.
 ///
 /// A `TabIcon::System` names a symbol from the platform's own catalog. Android
 /// has no such catalog (principle 7: an asymmetric primitive is documented, not
 /// faked), so naming one here is a mistake in the app rather than something to
 /// approximate with a bundled font — it fails loudly and says what to use
-/// instead. An icon that WaterUI draws itself works on every platform.
-private fun tabIconDrawable(
+/// instead. A portable icon stays attached to the Material item as a real view,
+/// so a `GpuSurface` remains GPU-resident instead of being synchronously read
+/// back through JNI into a bitmap.
+private fun tabIconView(
     context: Context,
     tab: TabStruct,
     env: WuiEnvironment,
-    registry: RenderRegistry
-): Drawable? {
+    registry: RenderRegistry,
+    initialForeground: Int
+): AndroidTabIcon? {
     check(tab.systemIconPtr == 0L) {
         "a system icon names a symbol from the platform's own catalog, and Android has none: " +
             "use an icon pack (waterui-icons-lucide, waterui-icons-material-icon, " +
@@ -1601,22 +1551,59 @@ private fun tabIconDrawable(
     if (tab.iconPtr == 0L) {
         return null
     }
-    val density = context.resources.displayMetrics.density
-    val view = inflateAnyView(context, tab.iconPtr, env, registry)
-    val drawable = rasterizeTabIcon(view, density)
-    view.disposeWuiTree()
-    return drawable
+    val iconEnv = env.clone()
+    val foreground = ReactiveColorSignal(initialForeground)
+    ThemeBridge.installColor(iconEnv, ColorSlot.Foreground, foreground.takeComputed())
+    val view = inflateAnyView(context, tab.iconPtr, iconEnv, registry)
+    view.makeTabIconDecorative()
+    view.disposeWith {
+        foreground.close()
+        iconEnv.close()
+    }
+    return AndroidTabIcon(view, foreground)
+}
+
+/// A tab icon is visual chrome; the Material item owns input and accessibility.
+private fun View.makeTabIconDecorative() {
+    isClickable = false
+    isLongClickable = false
+    isFocusable = false
+    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    if (this is ViewGroup) {
+        for (index in 0 until childCount) {
+            getChildAt(index).makeTabIconDecorative()
+        }
+    }
+}
+
+/// Finds Material's single image slot without depending on a private resource id.
+private fun View.requireTabIconAnchor(): ImageView {
+    var anchor: ImageView? = null
+    fun visit(view: View) {
+        if (view is ImageView) {
+            check(anchor == null) { "Material navigation item has more than one image slot" }
+            anchor = view
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                visit(view.getChildAt(index))
+            }
+        }
+    }
+    visit(this)
+    return checkNotNull(anchor) { "Material navigation item has no image slot" }
 }
 
 private class AndroidTabEntry(
     val id: Int,
     val title: String,
-    val icon: Drawable?,
+    val tab: TabStruct,
     val screen: NavigationScreen,
     val badge: WuiComputed<Int>?,
     val enabled: WuiComputed<Boolean>
 ) {
     var isEnabled = true
+    var icon: AndroidTabIcon? = null
 }
 
 @SuppressLint("ViewConstructor")
@@ -1624,7 +1611,9 @@ private class AdaptiveTabsView(
     context: Context,
     private val entries: List<AndroidTabEntry>,
     private val selection: WuiBinding<Int>,
-    private val style: Int
+    private val style: Int,
+    env: WuiEnvironment,
+    registry: RenderRegistry
 ) : ViewGroup(context), WuiSafeAreaManaging {
     private val content = FrameLayout(context)
     // Material 3's navigation bar labels every destination; the auto mode this
@@ -1658,12 +1647,25 @@ private class AdaptiveTabsView(
                 )
             )
             entry.screen.view.visibility = GONE
-            bottomBar.menu.add(0, entry.id, bottomBar.menu.size, entry.title).icon = entry.icon
-            rail.menu.add(0, entry.id, rail.menu.size, entry.title).icon = entry.icon
+            val hasIcon = entry.tab.iconPtr != 0L || entry.tab.systemIconPtr != 0L
+            bottomBar.menu.add(0, entry.id, bottomBar.menu.size, entry.title).apply {
+                if (hasIcon) icon = ColorDrawable(Color.TRANSPARENT)
+            }
+            rail.menu.add(0, entry.id, rail.menu.size, entry.title).apply {
+                if (hasIcon) icon = ColorDrawable(Color.TRANSPARENT)
+            }
+            entry.icon = tabIconView(
+                context,
+                entry.tab,
+                env,
+                registry,
+                iconTint(bottomBar, selected = false, enabled = true)
+            )
             entry.enabled.observe { enabled ->
                 entry.isEnabled = enabled
                 bottomBar.menu.findItem(entry.id).isEnabled = enabled
                 rail.menu.findItem(entry.id).isEnabled = enabled
+                updateIconColor(entry)
             }
             entry.badge?.observe { count ->
                 bottomBar.getOrCreateBadge(entry.id).apply {
@@ -1676,6 +1678,7 @@ private class AdaptiveTabsView(
                 }
             }
         }
+        attachIcons(bottomBar)
 
         bottomBar.setOnItemSelectedListener { item -> onItemSelected(item.itemId) }
         rail.setOnItemSelectedListener { item -> onItemSelected(item.itemId) }
@@ -1750,8 +1753,68 @@ private class AdaptiveTabsView(
         rail.visibility = if (usesRail) VISIBLE else GONE
         bottomBar.visibility = if (usesRail) GONE else VISIBLE
         if (appliedRail != usesRail) {
+            attachIcons(if (usesRail) rail else bottomBar)
+            updateIconColors()
             distributeSafeArea()
         }
+    }
+
+    /// Reparents each live icon into the active Material icon container.
+    ///
+    /// The transparent menu drawable reserves Material's canonical icon slot;
+    /// the WaterUI view occupies that slot without ever becoming CPU pixels.
+    private fun attachIcons(bar: MaterialNavigationBarView) {
+        val iconSize = TAB_ICON_DP.dp(context).toInt()
+        entries.forEach { entry ->
+            val icon = entry.icon ?: return@forEach
+            val item = checkNotNull(bar.findViewById<View>(entry.id)) {
+                "Material navigation item ${entry.id} was not created"
+            }
+            val anchor = item.requireTabIconAnchor()
+            val innerContainer = checkNotNull(anchor.parent as? ViewGroup) {
+                "Material navigation item ${entry.id} image slot has no container"
+            }
+            val container = checkNotNull(innerContainer.parent as? FrameLayout) {
+                "Material navigation item ${entry.id} icon container is not a FrameLayout"
+            }
+            if (icon.view.parent !== container) {
+                (icon.view.parent as? ViewGroup)?.removeView(icon.view)
+                container.addView(
+                    icon.view,
+                    FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER)
+                )
+            }
+        }
+    }
+
+    private fun iconTint(
+        bar: MaterialNavigationBarView,
+        selected: Boolean,
+        enabled: Boolean
+    ): Int {
+        val tint = checkNotNull(bar.itemIconTintList) {
+            "Material navigation bar has no item icon tint"
+        }
+        val state = intArrayOf(
+            if (enabled) android.R.attr.state_enabled else -android.R.attr.state_enabled,
+            if (selected) android.R.attr.state_checked else -android.R.attr.state_checked
+        )
+        return tint.getColorForState(state, tint.defaultColor)
+    }
+
+    private fun updateIconColor(entry: AndroidTabEntry) {
+        val bar = if (usesRail) rail else bottomBar
+        entry.icon?.foreground?.setValue(
+            iconTint(
+                bar,
+                selected = entries.indexOf(entry) == selectedIndex,
+                enabled = entry.isEnabled
+            )
+        )
+    }
+
+    private fun updateIconColors() {
+        entries.forEach(::updateIconColor)
     }
 
     /// The bar takes the edge it sits against, so its background reaches under
@@ -1807,6 +1870,7 @@ private class AdaptiveTabsView(
         bottomBar.selectedItemId = id
         rail.selectedItemId = id
         synchronizing = false
+        updateIconColors()
         if (user) {
             selection.set(id)
         }
@@ -1839,7 +1903,7 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
         AndroidTabEntry(
             id = tab.id.toInt(),
             title = title,
-            icon = tabIconDrawable(context, tab, env, registry),
+            tab = tab,
             screen = screen,
             badge = tab.badgePtr.takeIf { it != 0L }?.let { badgePtr ->
                 WuiComputed.int(badgePtr)
@@ -1847,7 +1911,7 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
             enabled = WuiComputed.bool(tab.enabledPtr)
         )
     }
-    AdaptiveTabsView(context, entries, selection, struct.style).apply {
+    AdaptiveTabsView(context, entries, selection, struct.style, env, registry).apply {
         disposeWith {
             struct.tabs.forEach { tab ->
                 NativeBindings.waterui_drop_tab_content(tab.contentPtr)
