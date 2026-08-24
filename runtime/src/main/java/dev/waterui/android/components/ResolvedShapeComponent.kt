@@ -11,6 +11,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.toColorLong
+import kotlin.math.abs
 
 private val resolvedShapeTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_resolved_shape_id().toTypeId()
@@ -55,6 +56,12 @@ internal fun RegistryBuilder.registerWuiResolvedShape() {
     register({ resolvedShapeTypeId }, resolvedShapeRenderer)
 }
 
+/// A whole turn, in the degrees `Path` speaks.
+private const val FULL_TURN_DEGREES = 360f
+
+/// Radians reaching this crate as `f32` do not land on exactly 360°.
+private const val FULL_TURN_EPSILON = 0.01f
+
 internal fun buildNormalizedPath(
     commands: Array<PathCommandStruct>,
     width: Float,
@@ -94,11 +101,24 @@ private fun applyCommand(path: Path, cmd: PathCommandStruct, width: Float, heigh
                 (cmd.cx + cmd.rx) * width,
                 (cmd.cy + cmd.ry) * height
             )
-            path.addArc(
-                oval,
-                Math.toDegrees(cmd.start.toDouble()).toFloat(),
-                Math.toDegrees(cmd.sweep.toDouble()).toFloat()
-            )
+            val sweepDegrees = Math.toDegrees(cmd.sweep.toDouble()).toFloat()
+            if (abs(sweepDegrees) >= FULL_TURN_DEGREES - FULL_TURN_EPSILON) {
+                // A whole turn is its own closed contour, and `arcTo` treats a
+                // sweep mod 360 — which for exactly 360 is nothing at all.
+                path.addOval(oval, if (sweepDegrees < 0f) Path.Direction.CCW else Path.Direction.CW)
+            } else {
+                // `arcTo` with `forceMoveTo = false`, never `addArc`: an arc
+                // continues the subpath it was given, and every other backend
+                // joins it to the current point. `addArc` starts a new contour
+                // instead, which turns a rounded rectangle into four loose
+                // corners plus a quadrilateral strung between them.
+                path.arcTo(
+                    oval,
+                    Math.toDegrees(cmd.start.toDouble()).toFloat(),
+                    sweepDegrees,
+                    false
+                )
+            }
         }
 
         5 -> path.close()
