@@ -460,8 +460,9 @@ internal object NativeBindings {
     fun waterui_gpu_surface_render(
         statePtr: Long,
         width: Int,
-        height: Int
-    ): Boolean = WatcherJni.gpuSurfaceRender(statePtr, width, height)
+        height: Int,
+        scale: Float
+    ): Boolean = WatcherJni.gpuSurfaceRender(statePtr, width, height, scale)
     fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)
 
     // ========== Reactive State Creation (for theme) ==========

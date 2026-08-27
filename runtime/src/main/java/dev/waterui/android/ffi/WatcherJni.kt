@@ -497,6 +497,11 @@ object WatcherJni {
         panOffsetY: Float,
         doubleTap: Boolean
     )
-    @JvmStatic external fun gpuSurfaceRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun gpuSurfaceRender(
+        statePtr: Long,
+        width: Int,
+        height: Int,
+        scale: Float
+    ): Boolean
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 }

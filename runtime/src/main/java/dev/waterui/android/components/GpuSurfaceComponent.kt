@@ -410,10 +410,14 @@ internal class GpuSurfaceView(
 
     private fun renderFrame(): Boolean {
         val consumedDoubleTap = doubleTap
+        // The same display density `onMeasure` sizes this view with: the surface
+        // holds `density` physical pixels per logical unit, and a move to a
+        // display of another density is picked up on the next frame.
         val needsRedraw = NativeBindings.waterui_gpu_surface_render(
             statePtr = statePtr,
             width = surfaceWidth,
-            height = surfaceHeight
+            height = surfaceHeight,
+            scale = resources.displayMetrics.density
         )
         if (consumedDoubleTap) {
             doubleTap = false
