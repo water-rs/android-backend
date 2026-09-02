@@ -3,12 +3,15 @@ package dev.waterui.android.components
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Choreographer
 import android.view.GestureDetector
+import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.Surface
@@ -16,6 +19,10 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 import androidx.annotation.Keep
 import dev.waterui.android.runtime.GpuSurfaceStruct
 import dev.waterui.android.runtime.NativeBindings
@@ -89,6 +96,14 @@ internal class GpuSurfaceView(
     private var panOffsetX = 0f
     private var panOffsetY = 0f
     private var doubleTap = false
+    /**
+     * The event sink for a GPU view that draws its own interactive content.
+     *
+     * Null for the common case — a view that only draws — so no focus is
+     * claimed, no keystroke is intercepted, and the surrounding WaterUI widgets
+     * keep every event.
+     */
+    private var inputSink: GpuSurfaceInputSink? = null
     private val redrawRequest = Runnable {
         if (statePtr != 0L && refreshRendererReadiness()) {
             frameScheduler.requestFrame()
@@ -176,8 +191,56 @@ internal class GpuSurfaceView(
         } else {
             setZOrderOnTop(true)
         }
+        if (NativeBindings.waterui_gpu_surface_wants_input_events(statePtr)) {
+            inputSink = GpuSurfaceInputSink(statePtr)
+            isFocusable = true
+            isFocusableInTouchMode = true
+        }
         holder.addCallback(this)
         disposeWith(::disposeNativeState)
+    }
+
+    override fun onCheckIsTextEditor(): Boolean = inputSink != null
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        val sink = inputSink ?: return null
+        describeSurfaceEditor(outAttrs)
+        return GpuSurfaceInputConnection(this, sink)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val sink = inputSink ?: return super.onKeyDown(keyCode, event)
+        return sendSurfaceKey(sink, event, pressed = true) || super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        val sink = inputSink ?: return super.onKeyUp(keyCode, event)
+        return sendSurfaceKey(sink, event, pressed = false) || super.onKeyUp(keyCode, event)
+    }
+
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        inputSink?.send(kind = WuiSurfaceInputEventKind.Focus, focused = gainFocus)
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        val sink = inputSink
+        if (sink == null || event.actionMasked != MotionEvent.ACTION_SCROLL) {
+            return super.onGenericMotionEvent(event)
+        }
+        val density = resources.displayMetrics.density
+        // A wheel notch is a whole line and complete on its own; a trackpad or a
+        // precise wheel reports a fraction of one, which the view scales itself.
+        val fromWheel = event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)
+        return sink.send(
+            kind = WuiSurfaceInputEventKind.Scroll,
+            x = (event.x / density).toDouble(),
+            y = (event.y / density).toDouble(),
+            deltaX = event.getAxisValue(MotionEvent.AXIS_HSCROLL).toDouble(),
+            deltaY = event.getAxisValue(MotionEvent.AXIS_VSCROLL).toDouble(),
+            scrollUnit = WuiScrollUnit.Line,
+            finished = fromWheel
+        ) || super.onGenericMotionEvent(event)
     }
 
     override fun surfaceCreated(_holder: SurfaceHolder) {
@@ -340,6 +403,7 @@ internal class GpuSurfaceView(
             MotionEvent.ACTION_CANCEL -> releaseActiveInput()
         }
         gestureActive = hasHit || scaleDetector.isInProgress
+        forwardPointerEvent(event)
         pushInput()
         if (refreshRendererReadiness()) {
             frameScheduler.requestFrame()
@@ -434,6 +498,52 @@ internal class GpuSurfaceView(
         }
     }
 
+    /**
+     * Reports the touch as a pointer event to a GPU view that takes its own input.
+     *
+     * Positions are logical, surface-local points — the vocabulary's contract —
+     * while the pointer snapshot beside it stays in the physical pixels its own
+     * consumers already read.
+     */
+    private fun forwardPointerEvent(event: MotionEvent) {
+        val sink = inputSink ?: return
+        val density = resources.displayMetrics.density
+        val x = (event.x / density).toDouble()
+        val y = (event.y / density).toDouble()
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                requestFocus()
+                showSoftKeyboard()
+                sink.send(kind = WuiSurfaceInputEventKind.PointerMove, x = x, y = y)
+                sink.send(
+                    kind = WuiSurfaceInputEventKind.PointerButton,
+                    x = x,
+                    y = y,
+                    pressed = true
+                )
+            }
+            MotionEvent.ACTION_MOVE ->
+                sink.send(kind = WuiSurfaceInputEventKind.PointerMove, x = x, y = y)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                sink.send(
+                    kind = WuiSurfaceInputEventKind.PointerButton,
+                    x = x,
+                    y = y,
+                    pressed = false
+                )
+        }
+    }
+
+    /** Raises the software keyboard for a GPU view that composes its own text. */
+    private fun showSoftKeyboard() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowInsetsController?.show(WindowInsets.Type.ime())
+            return
+        }
+        val manager = context.getSystemService(InputMethodManager::class.java) ?: return
+        manager.showSoftInput(this, 0)
+    }
+
     private fun pushInput() {
         if (!surfaceAttached) {
             return
@@ -481,6 +591,8 @@ internal class GpuSurfaceView(
             NativeBindings.waterui_gpu_surface_detach(statePtr)
             surfaceAttached = false
         }
+        inputSink?.invalidate()
+        inputSink = null
         NativeBindings.waterui_gpu_surface_drop(statePtr)
         statePtr = 0L
         holder.removeCallback(this)
