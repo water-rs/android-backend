@@ -9,6 +9,7 @@ import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.drawPackedColor
 import dev.waterui.android.runtime.toColorLong
 
 private val resolvedColorTypeId: WuiTypeId by lazy {
@@ -42,7 +43,7 @@ private class ColorFillView(context: Context) : StretchVisualView(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(color)
+        canvas.drawPackedColor(color)
     }
 }
 

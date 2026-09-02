@@ -10,12 +10,12 @@ import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.annotation.Keep
 import androidx.annotation.RawRes
@@ -34,7 +34,8 @@ import dev.waterui.android.runtime.dp
 import org.json.JSONException
 import org.json.JSONObject
 
-private const val LOG_TAG = "WaterUIWebView"
+/** Shared with [WaterUiWebViewClient], which owns the definition. */
+private val LOG_TAG = WaterUiWebViewClient.LOG_TAG
 
 private val webViewTypeId: WuiTypeId by lazy { NativeBindings.waterui_web_view_id().toTypeId() }
 
@@ -224,6 +225,7 @@ class WebViewWrapper(
      */
     private var originRules: List<String> = emptyList()
     private var bridgeListenerInstalled = false
+    private var released = false
 
     init {
         cookieManager.setAcceptCookie(true)
@@ -236,7 +238,7 @@ class WebViewWrapper(
                 emitLoading(newProgress / 100f)
             }
         }
-        webView.webViewClient = object : WebViewClient() {
+        webView.webViewClient = object : WaterUiWebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView,
                 request: WebResourceRequest
@@ -326,6 +328,32 @@ class WebViewWrapper(
                     message = error.toString()
                 )
                 handler.cancel()
+            }
+
+            /**
+             * Reports the renderer's death as the page failure it is, then
+             * tears the wrapper down for it.
+             *
+             * [release] does everything the base client does and settles what
+             * the bridge still owes as well, so the pending native calls this
+             * renderer will never answer are failed instead of left suspended.
+             */
+            override fun onRenderProcessGone(
+                view: WebView,
+                detail: RenderProcessGoneDetail
+            ): Boolean {
+                Log.w(LOG_TAG, "web content process gone (crashed=${detail.didCrash()})")
+                finishNavigationAnnouncement()
+                emitEvent(
+                    eventType = EVENT_ERROR,
+                    message = if (detail.didCrash()) {
+                        "the web content process crashed"
+                    } else {
+                        "the system reclaimed the web content process"
+                    }
+                )
+                release()
+                return true
             }
         }
     }
@@ -549,6 +577,12 @@ class WebViewWrapper(
 
     @SuppressLint("RequiresFeature")
     fun release() {
+        // A dead render process tears this view down where it is reported, and
+        // the Rust handle that owns the view is dropped afterwards all the same.
+        if (released) {
+            return
+        }
+        released = true
         redirectPolicy?.close()
         redirectPolicy = null
         eventCallback = null
@@ -566,7 +600,7 @@ class WebViewWrapper(
         WebViewCompat.removeWebMessageListener(webView, ASYNC_RESULT_OBJECT)
         webView.stopLoading()
         webView.webChromeClient = null
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = WaterUiWebViewClient()
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
     }

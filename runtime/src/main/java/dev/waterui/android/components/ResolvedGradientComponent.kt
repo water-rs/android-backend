@@ -1,16 +1,16 @@
 package dev.waterui.android.components
 
-import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.RadialGradient
 import android.graphics.Shader
-import android.graphics.SweepGradient
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ResolvedGradientStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.packedLinearGradient
+import dev.waterui.android.runtime.packedRadialGradient
+import dev.waterui.android.runtime.packedSweepGradient
 import dev.waterui.android.runtime.toColorLong
 import kotlin.math.PI
 import kotlin.math.min
@@ -51,7 +51,7 @@ private fun buildShader(gradient: ResolvedGradientStruct, width: Float, height: 
     val positions = FloatArray(gradient.stops.size) { index -> gradient.stops[index].position }
 
     return when (gradient.gradientType) {
-        0 -> LinearGradient(
+        0 -> packedLinearGradient(
             gradient.startX * width,
             gradient.startY * height,
             gradient.endX * width,
@@ -72,7 +72,7 @@ private fun buildShader(gradient: ResolvedGradientStruct, width: Float, height: 
                 (startRadius + (endRadius - startRadius) * positions[i]) / endRadius
             }
 
-            RadialGradient(
+            packedRadialGradient(
                 cx,
                 cy,
                 endRadius,
@@ -102,7 +102,7 @@ private fun buildShader(gradient: ResolvedGradientStruct, width: Float, height: 
                 mappedColors[mappedSize - 1] = lastColor
                 mappedPositions[mappedSize - 1] = 1f
             }
-            val shader = SweepGradient(cx, cy, mappedColors, mappedPositions)
+            val shader = packedSweepGradient(cx, cy, mappedColors, mappedPositions)
             shader.setLocalMatrix(Matrix().apply {
                 preRotate(Math.toDegrees(gradient.startValue.toDouble()).toFloat(), cx, cy)
             })
