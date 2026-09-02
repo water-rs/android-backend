@@ -463,6 +463,48 @@ internal object NativeBindings {
         height: Int,
         scale: Float
     ): Boolean = WatcherJni.gpuSurfaceRender(statePtr, width, height, scale)
+    fun waterui_gpu_surface_wants_input_events(statePtr: Long): Boolean =
+        WatcherJni.gpuSurfaceWantsInputEvents(statePtr)
+    @Suppress("LongParameterList") // Direct JNI transfer avoids allocating an event envelope per keystroke.
+    fun waterui_gpu_surface_send_input_event(
+        statePtr: Long,
+        kind: Int,
+        focused: Boolean,
+        modifiers: Int,
+        x: Double,
+        y: Double,
+        pressed: Boolean,
+        button: Int,
+        deltaX: Double,
+        deltaY: Double,
+        scrollUnit: Int,
+        finished: Boolean,
+        key: String,
+        code: String,
+        text: String,
+        isRepeat: Boolean,
+        caret: Long
+    ): Boolean = WatcherJni.gpuSurfaceSendInputEvent(
+        statePtr,
+        kind,
+        focused,
+        modifiers,
+        x,
+        y,
+        pressed,
+        button,
+        deltaX,
+        deltaY,
+        scrollUnit,
+        finished,
+        key,
+        code,
+        text,
+        isRepeat,
+        caret
+    )
+    fun waterui_gpu_surface_ime_caret(statePtr: Long): FloatArray? =
+        WatcherJni.gpuSurfaceImeCaret(statePtr)
     fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)
 
     // ========== Reactive State Creation (for theme) ==========

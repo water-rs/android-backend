@@ -503,5 +503,27 @@ object WatcherJni {
         height: Int,
         scale: Float
     ): Boolean
+    @JvmStatic external fun gpuSurfaceWantsInputEvents(statePtr: Long): Boolean
+    @Suppress("LongParameterList") // Signature mirrors the flat native surface-input carrier.
+    @JvmStatic external fun gpuSurfaceSendInputEvent(
+        statePtr: Long,
+        kind: Int,
+        focused: Boolean,
+        modifiers: Int,
+        x: Double,
+        y: Double,
+        pressed: Boolean,
+        button: Int,
+        deltaX: Double,
+        deltaY: Double,
+        scrollUnit: Int,
+        finished: Boolean,
+        key: String,
+        code: String,
+        text: String,
+        isRepeat: Boolean,
+        caret: Long
+    ): Boolean
+    @JvmStatic external fun gpuSurfaceImeCaret(statePtr: Long): FloatArray?
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 }
