@@ -44,6 +44,9 @@ class WaterUiRootView @JvmOverloads constructor(
     /// after the first dispatch arrives, so it is replayed once there is
     /// something to hand it to.
     private var pendingSafeArea = Insets.NONE
+    /// Set only while an inspector endpoint is running, which is never in a
+    /// release build; see [installInspectGesture].
+    private var inspectGesture: GestureDetector? = null
     private var lifecycle: Lifecycle? = null
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -136,6 +139,8 @@ class WaterUiRootView @JvmOverloads constructor(
         closed = true
         lifecycle?.removeObserver(lifecycleObserver)
         lifecycle = null
+        // The gesture reaches for the environment this view is about to drop.
+        inspectGesture = null
         disposeAndRemoveAllViews()
         rootThemeController?.close()
         rootThemeController = null
@@ -229,7 +234,7 @@ class WaterUiRootView @JvmOverloads constructor(
         if (!InspectorJni.isAvailable(env.raw())) {
             return
         }
-        val detector = GestureDetector(
+        inspectGesture = GestureDetector(
             context,
             object : GestureDetector.SimpleOnGestureListener() {
                 override fun onLongPress(event: MotionEvent) {
@@ -239,12 +244,20 @@ class WaterUiRootView @JvmOverloads constructor(
                 }
             }
         )
-        // Observes only: the touch is passed on so the application still receives
-        // everything it would have.
-        setOnTouchListener { _, event ->
-            detector.onTouchEvent(event)
-            false
-        }
+    }
+
+    /**
+     * Feeds the inspect gesture, and never intercepts.
+     *
+     * The gesture observes only, so it watches the stream the window dispatches
+     * to the content rather than claiming it: nothing is consumed here and the
+     * application still receives everything it would have. An OnTouchListener
+     * would only have seen the touches no child wanted, and would have taken
+     * the single listener slot an application may want for itself.
+     */
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        inspectGesture?.onTouchEvent(event)
+        return super.onInterceptTouchEvent(event)
     }
 
     /// Decides where the window's safe area is spent, and publishes what is

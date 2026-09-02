@@ -37,7 +37,7 @@ class RustLayoutViewGroup(
     /// composes overlay layers above the content, and a layer stacked above the
     /// content never changes how the window insets it.
     override val wuiPrimaryContent: View?
-        get() = if (childCount == 0) null else getChildAt(0)
+        get() = if (isEmpty()) null else getChildAt(0)
 
     private val layoutWatcher = NativeBindings.waterui_layout_watch_invalidation(layoutPtr, this)
 

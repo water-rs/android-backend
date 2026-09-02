@@ -11,6 +11,7 @@ import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.setPackedColor
 import dev.waterui.android.runtime.toColorLong
 import kotlin.math.abs
 
@@ -29,7 +30,7 @@ private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
 
         init {
             fill.observe { color ->
-                paint.setColor(color.toColorLong())
+                paint.setPackedColor(color.toColorLong())
                 invalidate()
             }
             disposeWith(fill)

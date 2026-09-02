@@ -3,7 +3,6 @@ package dev.waterui.android.components
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -22,9 +21,11 @@ import androidx.annotation.Keep
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.graphics.Insets
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isEmpty
 import androidx.core.view.isNotEmpty
+import androidx.core.view.isVisible
 import androidx.core.view.size
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -781,7 +782,7 @@ private class NavigationBarView(
             return true
         }
         val group = this as? ViewGroup ?: return false
-        if (group.childCount == 0) {
+        if (group.isEmpty()) {
             return false
         }
         for (index in 0 until group.childCount) {
@@ -942,7 +943,7 @@ private class AndroidNavigationStackView(
 
     private fun distributeSafeArea() {
         val insets = safeArea
-        val barVisible = barView.visibility == VISIBLE
+        val barVisible = barView.isVisible
         val remaining = if (barVisible) {
             barView.setPadding(insets.left, insets.top, insets.right, 0)
             Insets.of(insets.left, 0, insets.right, insets.bottom)
@@ -957,7 +958,7 @@ private class AndroidNavigationStackView(
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // The bar hides and reappears reactively, which moves the top inset
         // between it and the content.
-        if (appliedBarVisible != (barView.visibility == VISIBLE)) {
+        if (appliedBarVisible != barView.isVisible) {
             distributeSafeArea()
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
@@ -1707,10 +1708,10 @@ private class AdaptiveTabsView(
             entry.screen.view.visibility = GONE
             val hasIcon = entry.tab.iconPtr != 0L || entry.tab.systemIconPtr != 0L
             bottomBar.menu.add(0, entry.id, bottomBar.menu.size, entry.title).apply {
-                if (hasIcon) icon = ColorDrawable(Color.TRANSPARENT)
+                if (hasIcon) icon = Color.TRANSPARENT.toDrawable()
             }
             rail.menu.add(0, entry.id, rail.menu.size, entry.title).apply {
-                if (hasIcon) icon = ColorDrawable(Color.TRANSPARENT)
+                if (hasIcon) icon = Color.TRANSPARENT.toDrawable()
             }
             entry.icon = tabIconView(
                 context,

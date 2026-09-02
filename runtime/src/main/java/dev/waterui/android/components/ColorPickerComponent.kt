@@ -22,6 +22,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
+import dev.waterui.android.runtime.drawPackedColor
 import dev.waterui.android.runtime.inflateAnyView
 import java.util.Locale
 import kotlin.math.pow
@@ -215,7 +216,7 @@ private class HdrColorPreviewView(context: android.content.Context) : View(conte
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(color)
+        canvas.drawPackedColor(color)
     }
 }
 
