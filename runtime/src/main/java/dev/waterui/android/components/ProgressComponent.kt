@@ -64,6 +64,9 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     }
     val progressBar = indicator as? BaseProgressIndicator<*>
     container.addView(indicator)
+    // The reading the indicator currently shows, which is what its accessibility
+    // node reports. A loading indicator never reports one.
+    var reading = Double.POSITIVE_INFINITY
 
     val valueLabel = inflateAnyView(context, struct.valueLabelPtr, env, registry).also {
         it.visibility = View.GONE
@@ -71,6 +74,7 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     }
 
     computed.observe { value ->
+        reading = value
         if (progressBar == null) {
             // A loading indicator never reports a reading, so it never shows a
             // value label — but the value still has to be well formed.
@@ -91,6 +95,14 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
             valueLabel.visibility = View.VISIBLE
         }
     }
+
+    installProgressAccessibility(
+        target = indicator,
+        label = { accessibilityTextOf(label) },
+        value = { reading }
+    )
+    label.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    valueLabel.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
 
     container.disposeWith(computed)
     val indicatorSignals = if (struct.fourColor) {

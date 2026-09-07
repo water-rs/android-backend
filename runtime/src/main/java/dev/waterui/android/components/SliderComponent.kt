@@ -3,7 +3,6 @@ package dev.waterui.android.components
 import android.content.res.ColorStateList
 import android.view.Gravity
 import android.widget.LinearLayout
-import com.google.android.material.slider.Slider
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
@@ -34,7 +33,7 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     container.addView(labelView)
 
-    val slider = Slider(context).apply {
+    val slider = SeekBarSlider(context).apply {
         valueFrom = rangeStart
         valueTo = rangeEnd
         stepSize = 0f
@@ -99,6 +98,15 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
         content = labelView,
         labelPtr = struct.accessibilityLabelPtr,
         env = env
+    )
+    installSliderAccessibility(
+        target = slider,
+        range = SliderAccessibilityRange(
+            start = struct.rangeStart,
+            end = struct.rangeEnd,
+            read = { slider.value.toDouble() },
+            write = { value -> binding.set(value) }
+        )
     )
 
     container.disposeWith(binding)

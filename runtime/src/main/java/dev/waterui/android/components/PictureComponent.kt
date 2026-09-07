@@ -1,8 +1,10 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
-import android.widget.ImageView
+import androidx.appcompat.widget.AppCompatImageView
+import androidx.core.graphics.createBitmap
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.BitmapStruct
 import dev.waterui.android.runtime.NativeBindings
@@ -25,7 +27,11 @@ private val pictureRenderer = WuiRenderer { context, node, _, _ ->
  * pixels of the bitmap already on screen, never the view, and nothing here draws
  * per frame.
  */
-private class PictureView(context: Context, picture: PictureStruct) : ImageView(context) {
+// The picture this view shows is a native handle it takes ownership of, so it
+// has no meaningful context-only constructor and is never inflated from XML.
+@SuppressLint("ViewConstructor")
+private class PictureView(context: Context, picture: PictureStruct) :
+    AppCompatImageView(context) {
     private val widthPx = picture.width.dp(context).roundToInt().coerceAtLeast(1)
     private val heightPx = picture.height.dp(context).roundToInt().coerceAtLeast(1)
 
@@ -45,7 +51,7 @@ private class PictureView(context: Context, picture: PictureStruct) : ImageView(
 
     private fun show(bitmap: BitmapStruct) {
         val target = image?.takeIf { it.width == bitmap.width && it.height == bitmap.height }
-            ?: Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888).also {
+            ?: createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888).also {
                 image = it
                 setImageBitmap(it)
             }
