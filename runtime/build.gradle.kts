@@ -30,6 +30,14 @@ android {
         abortOnError = true
         warningsAsErrors = true
     }
+
+    testOptions {
+        unitTests {
+            // Robolectric needs the merged resources of this library and its
+            // dependencies to inflate real Material views in a JVM test.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 kotlin {
@@ -72,6 +80,7 @@ dependencies {
     implementation("com.google.android.material:material:1.14.0")
     implementation("me.zhanghai.android.fastscroll:library:1.3.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16.1")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }

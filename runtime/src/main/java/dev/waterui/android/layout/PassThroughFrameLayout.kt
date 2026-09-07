@@ -39,18 +39,23 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
      */
     var consumesTouches: Boolean = false
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        // iOS-like hit-testing: first check if there's an interactive view at this point
-        val hasInteractiveTarget = consumesTouches || findInteractiveViewAt(ev.x, ev.y) != null
+    /**
+     * Decides pass-through once, when a gesture starts, and keeps the rest of it
+     * going to the same place. See [GestureRouter] for why that matters.
+     */
+    private val gestures = GestureRouter(
+        capture = { event ->
+            val interactive =
+                consumesTouches || findInteractiveViewAt(event.x, event.y) != null
+            // Only claim the gesture if something under here actually took it.
+            if (interactive && dispatchToChildren(event)) this else null
+        },
+        deliver = { _, event -> dispatchToChildren(event) },
+    )
 
-        if (!hasInteractiveTarget) {
-            // No interactive view found - let touch pass through to views behind us
-            return false
-        }
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean = gestures.dispatch(ev)
 
-        // There's an interactive target, dispatch normally
-        return super.dispatchTouchEvent(ev)
-    }
+    private fun dispatchToChildren(ev: MotionEvent): Boolean = super.dispatchTouchEvent(ev)
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         return false
