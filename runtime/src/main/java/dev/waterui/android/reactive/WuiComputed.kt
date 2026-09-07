@@ -2,6 +2,7 @@ package dev.waterui.android.reactive
 
 import android.os.Looper
 import dev.waterui.android.ffi.WatcherJni
+import dev.waterui.android.runtime.BitmapStruct
 import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.NativePointer
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -177,6 +178,16 @@ class WuiComputed<T>(
                 watcherFactory = WatcherJni::createResolvedColorWatcher,
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedColor(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedResolvedColor(p) }
+            )
+
+        fun bitmapFromComputed(ptr: Long): WuiComputed<BitmapStruct> =
+            WuiComputed(
+                computedPtr = ptr,
+                reader = { p -> WatcherJni.readComputedBitmap(p) },
+                watcherFactory = WatcherJni::createBitmapWatcher,
+                watcherRegistrar = { p, watcher -> WatcherJni.watchComputedBitmap(p, watcher) },
+                dropper = { p -> WatcherJni.dropComputedBitmap(p) },
+                valueReleaser = { bitmap -> WatcherJni.dropBitmap(bitmap.handlePtr) }
             )
 
         fun fontFromComputed(ptr: Long): WuiComputed<ResolvedFontStruct> =

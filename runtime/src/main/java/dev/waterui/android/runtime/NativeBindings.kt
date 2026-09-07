@@ -380,6 +380,14 @@ internal object NativeBindings {
 
     fun waterui_gpu_surface_id(): TypeIdStruct = WatcherJni.gpuSurfaceId()
     fun waterui_force_as_gpu_surface(viewPtr: Long): GpuSurfaceStruct = WatcherJni.forceAsGpuSurface(viewPtr)
+
+    // ========== Picture ==========
+
+    fun waterui_picture_id(): TypeIdStruct = WatcherJni.pictureId()
+    fun waterui_force_as_picture(viewPtr: Long): PictureStruct = WatcherJni.forceAsPicture(viewPtr)
+    /** The picture rasterised at [scale] pixels per dp, as a bitmap computed pointer. */
+    fun waterui_picture_bitmap(picturePtr: Long, scale: Float): Long = WatcherJni.pictureBitmap(picturePtr, scale)
+    fun waterui_drop_picture(picturePtr: Long) = WatcherJni.dropPicture(picturePtr)
     fun waterui_android_video_surface_host_id(): TypeIdStruct =
         WatcherJni.androidVideoSurfaceHostId()
     fun waterui_force_as_android_video_surface_host(
