@@ -5,8 +5,6 @@ import android.view.MotionEvent
 import android.view.PointerIcon
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
-import androidx.core.view.ViewCompat
-import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
@@ -104,26 +102,6 @@ private fun semanticAccessibilityTarget(view: View): View {
         target = target.getChildAt(0)
     }
     return target
-}
-
-private fun installAccessibilityMutation(
-    target: View,
-    mutation: (AccessibilityNodeInfoCompat) -> Unit,
-) {
-    val previous = ViewCompat.getAccessibilityDelegate(target)
-    ViewCompat.setAccessibilityDelegate(target, object : AccessibilityDelegateCompat() {
-                override fun onInitializeAccessibilityNodeInfo(
-                    host: View,
-                    info: AccessibilityNodeInfoCompat,
-                ) {
-                    if (previous == null) {
-                        super.onInitializeAccessibilityNodeInfo(host, info)
-                    } else {
-                        previous.onInitializeAccessibilityNodeInfo(host, info)
-                    }
-                    mutation(info)
-                }
-            })
 }
 
 private fun accessibilityRoleClassName(role: Int): String = when (role) {

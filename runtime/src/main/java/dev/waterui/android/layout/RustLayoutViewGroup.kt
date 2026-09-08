@@ -104,6 +104,7 @@ class RustLayoutViewGroup(
     override fun onViewRemoved(child: View) {
         super.onViewRemoved(child)
         cachedSubviews = emptyArray()
+        gestures.forget(child)
     }
 
     /**
@@ -220,42 +221,46 @@ class RustLayoutViewGroup(
     /**
      * WaterUI iOS-like hit-testing for ZStack behavior.
      *
-     * Performs hit-testing to find the deepest interactive view at a touch point,
-     * checking children from top to bottom (last to first in child order).
-     * If no interactive view is found in any child, the touch passes through.
+     * Picks the topmost child holding an interactive view at the touch point,
+     * checking children from top to bottom (last to first in child order). If no
+     * child has one, the touch passes through. That question is asked once, when
+     * the gesture starts; see [GestureRouter] for why the rest of the gesture
+     * must keep going to the same child.
      */
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        // iOS-like hit-testing: find the child containing an interactive view
-        for (i in childCount - 1 downTo 0) {
-            val child = getChildAt(i)
-            if (child.visibility != View.VISIBLE) continue
+    private val gestures = GestureRouter(
+        capture = { event ->
+            var chosen: View? = null
+            for (i in childCount - 1 downTo 0) {
+                val child = getChildAt(i)
+                if (child.visibility != View.VISIBLE) continue
+                if (!isPointInView(child, event.x, event.y)) continue
 
-            // Check if point is within child bounds
-            if (!isPointInView(child, ev.x, ev.y)) {
-                continue
+                // Transform to child coordinates
+                val childX = event.x - child.left
+                val childY = event.y - child.top
+                if (PassThroughFrameLayout.findInteractiveViewIn(child, childX, childY) == null) {
+                    // No interactive view in this child, try the next (pass-through)
+                    continue
+                }
+                if (dispatchToChild(child, event)) {
+                    chosen = child
+                    break
+                }
             }
+            chosen
+        },
+        deliver = ::dispatchToChild,
+    )
 
-            // Transform to child coordinates
-            val childX = ev.x - child.left
-            val childY = ev.y - child.top
-
-            // Check if this child has an interactive view at this point
-            val interactiveView = PassThroughFrameLayout.findInteractiveViewIn(child, childX, childY)
-
-            if (interactiveView != null) {
-                // This child has an interactive target - dispatch to it
-                val childEvent = MotionEvent.obtain(ev)
-                childEvent.offsetLocation(-child.left.toFloat(), -child.top.toFloat())
-                val handled = child.dispatchTouchEvent(childEvent)
-                childEvent.recycle()
-
-                if (handled) return true
-            }
-            // No interactive view in this child, continue to next child (pass-through)
-        }
-
-        return false
+    private fun dispatchToChild(child: View, event: MotionEvent): Boolean {
+        val childEvent = MotionEvent.obtain(event)
+        childEvent.offsetLocation(-child.left.toFloat(), -child.top.toFloat())
+        val handled = child.dispatchTouchEvent(childEvent)
+        childEvent.recycle()
+        return handled
     }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean = gestures.dispatch(ev)
 
     private fun isPointInView(view: View, x: Float, y: Float): Boolean {
         return x >= view.left && x < view.right && y >= view.top && y < view.bottom

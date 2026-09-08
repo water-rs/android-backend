@@ -172,6 +172,7 @@ object WatcherJni {
     @JvmStatic external fun readComputedI32(computedPtr: Long): Int
     @JvmStatic external fun readComputedResolvedColor(computedPtr: Long): ResolvedColorStruct
     @JvmStatic external fun readComputedResolvedFont(computedPtr: Long): ResolvedFontStruct
+    @JvmStatic external fun readComputedBitmap(computedPtr: Long): BitmapStruct
     @JvmStatic external fun readComputedStyledStr(computedPtr: Long): StyledStrStruct
     @JvmStatic external fun readComputedHorizontalAlignment(computedPtr: Long): Int
     @JvmStatic external fun readComputedDateVec(computedPtr: Long): Array<DateStruct>
@@ -182,6 +183,8 @@ object WatcherJni {
     @JvmStatic external fun dropComputedBool(computedPtr: Long)
     @JvmStatic external fun dropComputedI32(computedPtr: Long)
     @JvmStatic external fun dropComputedResolvedColor(computedPtr: Long)
+    @JvmStatic external fun dropComputedBitmap(computedPtr: Long)
+    @JvmStatic external fun dropBitmap(handlePtr: Long)
     @JvmStatic external fun dropComputedResolvedFont(computedPtr: Long)
     @JvmStatic external fun dropComputedStyledStr(computedPtr: Long)
     @JvmStatic external fun dropComputedHorizontalAlignment(computedPtr: Long)
@@ -210,6 +213,7 @@ object WatcherJni {
     @JvmStatic external fun createStyledStrWatcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
     @JvmStatic external fun createResolvedColorWatcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
     @JvmStatic external fun createResolvedFontWatcher(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
+    @JvmStatic external fun createBitmapWatcher(callback: WatcherCallback<BitmapStruct>): WatcherStruct
     @JvmStatic external fun createColorWatcher(callback: WatcherCallback<Long>): WatcherStruct
     @JvmStatic external fun createDateTimeWatcher(callback: WatcherCallback<DateTimeStruct>): WatcherStruct
     @JvmStatic external fun createDateVecWatcher(callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
@@ -236,6 +240,7 @@ object WatcherJni {
     @JvmStatic external fun watchComputedStyledStr(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedColor(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedResolvedFont(computedPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchComputedBitmap(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedHorizontalAlignment(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedDateVec(computedPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchComputedColorScheme(computedPtr: Long, watcher: WatcherStruct): Long
@@ -447,6 +452,13 @@ object WatcherJni {
 
     @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
+
+    // ========== Picture Functions ==========
+
+    @JvmStatic external fun pictureId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun forceAsPicture(viewPtr: Long): dev.waterui.android.runtime.PictureStruct
+    @JvmStatic external fun pictureBitmap(picturePtr: Long, scale: Float): Long
+    @JvmStatic external fun dropPicture(picturePtr: Long)
     @JvmStatic external fun androidVideoSurfaceHostId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsAndroidVideoSurfaceHost(
         viewPtr: Long

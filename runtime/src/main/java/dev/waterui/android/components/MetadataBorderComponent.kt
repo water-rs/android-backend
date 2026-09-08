@@ -25,7 +25,7 @@ private val metadataBorderTypeId: WuiTypeId by lazy {
 private class BorderLayout(
     context: Context,
     width: Float,
-    private val cornerRadius: Float,
+    cornerRadius: Float,
     private val edges: Int
 ) : PassThroughFrameLayout(context) {
     private val borderWidth = width.dp(context)

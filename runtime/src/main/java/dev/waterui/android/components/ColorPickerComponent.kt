@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorSpace
+import android.graphics.Paint
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -21,8 +22,8 @@ import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.setPackedColor
 import dev.waterui.android.runtime.dp
-import dev.waterui.android.runtime.drawPackedColor
 import dev.waterui.android.runtime.inflateAnyView
 import java.util.Locale
 import kotlin.math.pow
@@ -206,17 +207,21 @@ private fun updatePreview(view: HdrColorPreviewView, color: EditableColor) {
     view.setColor(color.toColorLong())
 }
 
+/** The swatch fills its own bounds; see `ColorFillView` for why not `drawColor`. */
 private class HdrColorPreviewView(context: android.content.Context) : View(context) {
-    private var color: Long = Color.pack(Color.TRANSPARENT)
+    private val paint = Paint().apply {
+        style = Paint.Style.FILL
+        setPackedColor(Color.pack(Color.TRANSPARENT))
+    }
 
     fun setColor(color: Long) {
-        this.color = color
+        paint.setPackedColor(color)
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawPackedColor(color)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
     }
 }
 

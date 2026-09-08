@@ -302,7 +302,7 @@ internal class GpuSurfaceInputConnection(
     private var composing = ""
 
     override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        val value = text?.toString() ?: ""
+        val value = text?.toString().orEmpty()
         val wasComposing = composing.isNotEmpty()
         composing = ""
         sink.send(
@@ -317,7 +317,7 @@ internal class GpuSurfaceInputConnection(
     }
 
     override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
-        val value = text?.toString() ?: ""
+        val value = text?.toString().orEmpty()
         val wasComposing = composing.isNotEmpty()
         if (value.isEmpty()) {
             composing = ""

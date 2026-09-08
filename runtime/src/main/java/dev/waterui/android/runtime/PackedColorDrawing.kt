@@ -1,6 +1,5 @@
 package dev.waterui.android.runtime
 
-import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -16,8 +15,8 @@ import androidx.core.graphics.toColorInt
  * WaterUI resolves every color into extended-range linear sRGB, so a color may
  * carry components outside `[0, 1]` when the display has HDR headroom — see
  * [toColorLong]. The drawing overloads that preserve that information,
- * `Canvas#drawColor(long)`, `Paint#setColor(long)` and the `long[]` gradient
- * constructors, all arrived in API 29, while this module supports API 26.
+ * `Paint#setColor(long)` and the `long[]` gradient constructors, all arrived in
+ * API 29, while this module supports API 26.
  *
  * The `long` and `int` overloads are not interchangeable, which is why these
  * helpers branch on the platform version instead of simply calling the older
@@ -28,15 +27,12 @@ import androidx.core.graphics.toColorInt
  * sRGB gamut are unchanged by that conversion; HDR headroom is exactly the part
  * the older pipeline cannot represent.
  */
-fun Canvas.drawPackedColor(packed: Long) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        drawColor(packed)
-    } else {
-        drawColor(packed.toColorInt())
-    }
-}
-
-/** Paints with a packed color; see [drawPackedColor] for the API-29 split. */
+/**
+ * Paints with a packed color.
+ *
+ * `Paint#setColor(long)` arrived in API 29; below it the color is converted
+ * with [toColorInt] (see the module doc for what that loses).
+ */
 fun Paint.setPackedColor(packed: Long) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         setColor(packed)
@@ -45,7 +41,7 @@ fun Paint.setPackedColor(packed: Long) {
     }
 }
 
-/** [LinearGradient] over packed colors; see [drawPackedColor]. */
+/** [LinearGradient] over packed colors; see [setPackedColor]. */
 fun packedLinearGradient(
     startX: Float,
     startY: Float,
@@ -62,7 +58,7 @@ fun packedLinearGradient(
     }
 }
 
-/** [RadialGradient] over packed colors; see [drawPackedColor]. */
+/** [RadialGradient] over packed colors; see [setPackedColor]. */
 fun packedRadialGradient(
     centerX: Float,
     centerY: Float,
@@ -78,7 +74,7 @@ fun packedRadialGradient(
     }
 }
 
-/** [SweepGradient] over packed colors; see [drawPackedColor]. */
+/** [SweepGradient] over packed colors; see [setPackedColor]. */
 fun packedSweepGradient(
     centerX: Float,
     centerY: Float,

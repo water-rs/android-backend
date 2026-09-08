@@ -4,7 +4,7 @@ import android.content.Context
 import android.view.View
 import dev.waterui.android.runtime.dp
 
-internal abstract class StretchVisualView(context: Context) : View(context) {
+internal open class StretchVisualView(context: Context) : View(context) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val intrinsicSize = INTRINSIC_SIZE_DP.dp(context).toInt()
         setMeasuredDimension(

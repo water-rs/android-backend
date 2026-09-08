@@ -608,6 +608,26 @@ data class GpuSurfaceStruct(
     val pictureInPictureHostId: Long
 )
 
+/**
+ * A `Picture` view: the handle the view keeps until `dropPicture`, and its size in dp.
+ */
+data class PictureStruct(
+    val picturePtr: Long,
+    val width: Float,
+    val height: Float
+)
+
+/**
+ * Premultiplied RGBA8 pixels of a rasterised picture, viewed through a direct buffer over the
+ * Rust allocation that `handlePtr` owns; `dropBitmap` releases it once the pixels are copied.
+ */
+data class BitmapStruct(
+    val width: Int,
+    val height: Int,
+    val pixels: java.nio.ByteBuffer,
+    val handlePtr: Long
+)
+
 data class AndroidVideoSurfaceHostStruct(
     val contentPtr: Long,
     val bridgePtr: Long

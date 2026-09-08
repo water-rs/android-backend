@@ -1106,24 +1106,6 @@ typedef enum WuiTabStyle {
 } WuiTabStyle;
 
 /**
- * Pointer buttons supported by CEF windowless rendering.
- */
-typedef enum WuiCefPointerButton {
-  /**
-   * Primary pointer button.
-   */
-  WuiCefPointerButton_Primary,
-  /**
-   * Middle pointer button.
-   */
-  WuiCefPointerButton_Middle,
-  /**
-   * Secondary pointer button.
-   */
-  WuiCefPointerButton_Secondary,
-} WuiCefPointerButton;
-
-/**
  * Editing operations forwarded to Chromium's focused frame.
  */
 typedef enum WuiCefEditCommand {
@@ -1560,6 +1542,14 @@ typedef struct Computed_ResolvedFont Computed_ResolvedFont;
  * This type represents a computation that can be evaluated to produce a result of type `T`.
  * The computation is stored as a boxed trait object, allowing for dynamic dispatch.
  */
+typedef struct Computed_RgbaBitmap Computed_RgbaBitmap;
+
+/**
+ * A wrapper around a boxed implementation of the `ComputedImpl` trait.
+ *
+ * This type represents a computation that can be evaluated to produce a result of type `T`.
+ * The computation is stored as a boxed trait object, allowing for dynamic dispatch.
+ */
 typedef struct Computed_Size Computed_Size;
 
 /**
@@ -1776,6 +1766,11 @@ typedef struct WuiMoveAction WuiMoveAction;
 typedef struct WuiOnEventHandler WuiOnEventHandler;
 
 /**
+ * Opaque handle owning a `Picture`.
+ */
+typedef struct WuiPictureHandle WuiPictureHandle;
+
+/**
  *Opaque FFI handle owning a `SharedAction<()>`.
  */
 typedef struct WuiSharedAction WuiSharedAction;
@@ -1937,6 +1932,14 @@ typedef struct WuiWatcher_ResolvedColor WuiWatcher_ResolvedColor;
  * that can be registered with a [`WuiComputed`] or [`WuiBinding`].
  */
 typedef struct WuiWatcher_ResolvedFont WuiWatcher_ResolvedFont;
+
+/**
+ * FFI-owned wrapper around a native watcher callback.
+ *
+ * Bridges a C function pointer pair (`call`/`drop`) into a Rust [`Watcher`]
+ * that can be registered with a [`WuiComputed`] or [`WuiBinding`].
+ */
+typedef struct WuiWatcher_RgbaBitmap WuiWatcher_RgbaBitmap;
 
 /**
  * FFI-owned wrapper around a native watcher callback.
@@ -6386,40 +6389,6 @@ typedef struct WuiCefSurface {
 } WuiCefSurface;
 
 /**
- * Modifier snapshot for CEF pointer and keyboard input.
- */
-typedef struct WuiCefInputModifiers {
-  /**
-   * Shift key.
-   */
-  bool shift;
-  /**
-   * Control key.
-   */
-  bool control;
-  /**
-   * Alt or Option key.
-   */
-  bool alt;
-  /**
-   * Command key.
-   */
-  bool command;
-  /**
-   * Primary pointer button.
-   */
-  bool primary_button;
-  /**
-   * Middle pointer button.
-   */
-  bool middle_button;
-  /**
-   * Secondary pointer button.
-   */
-  bool secondary_button;
-} WuiCefInputModifiers;
-
-/**
  * One parsed `waterui.invoke(...)` request.
  */
 typedef struct WuiBridgeRequest {
@@ -6925,6 +6894,60 @@ typedef struct WuiSurfaceInputEvent {
    */
   int64_t caret;
 } WuiSurfaceInputEvent;
+
+/**
+ * FFI representation of a `Picture` view: the handle plus its size in points.
+ */
+typedef struct WuiPicture {
+  /**
+   * Owned handle; release it with `waterui_drop_picture`.
+   */
+  struct WuiPictureHandle *picture;
+  /**
+   * Width in points.
+   */
+  float width;
+  /**
+   * Height in points.
+   */
+  float height;
+} WuiPicture;
+
+/**
+ * Premultiplied RGBA8 pixels, `width * height * 4` bytes, owned by the
+ * receiver until `waterui_drop_bitmap`.
+ */
+typedef struct WuiBitmap {
+  /**
+   * Width in pixels.
+   */
+  uint32_t width;
+  /**
+   * Height in pixels.
+   */
+  uint32_t height;
+  /**
+   * The pixel bytes.
+   */
+  uint8_t *data;
+  /**
+   * Number of pixel bytes.
+   */
+  uintptr_t len;
+  /**
+   * Allocation size behind `data`; `waterui_drop_bitmap` needs it back.
+   */
+  uintptr_t capacity;
+} WuiBitmap;
+
+/**
+ * FFI-owned wrapper around a [`waterui::Computed`] signal.
+ *
+ * Opaque to native code; accessed only through the `waterui_read_computed_*`,
+ * `waterui_watch_computed_*`, and `waterui_drop_computed_*` functions generated
+ * by the `ffi_computed!` macro.
+ */
+typedef struct Computed_RgbaBitmap WuiComputed_RgbaBitmap;
 
 /**
  * FFI representation of output size.
@@ -10414,41 +10437,6 @@ struct WuiTypeId waterui_chromium_id(void);
 struct WuiCefSurface waterui_force_as_cef_webview(struct WuiAnyView *view);
 
 /**
- * Updates focus for a CEF surface.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_set_focus(const struct WuiCefSurfaceState *state, bool focused);
-
-/**
- * Requests one compositor frame for a visible CEF surface.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_request_frame(const struct WuiCefSurfaceState *state);
-
-/**
- * Updates the logical browser viewport and device scale.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- *
- * # Panics
- *
- * Panics when `scale` is not a positive, finite device-pixel ratio that `f32`
- * can represent, and when `width` or `height` is zero.
- */
-void waterui_cef_surface_set_viewport(const struct WuiCefSurfaceState *state,
-                                      uint32_t width,
-                                      uint32_t height,
-                                      double scale);
-
-/**
  * Navigates the CEF surface backward.
  *
  * # Safety
@@ -10465,111 +10453,6 @@ void waterui_cef_surface_go_back(const struct WuiCefSurfaceState *state);
  * `state` must be a live state returned by a CEF force-as function.
  */
 void waterui_cef_surface_go_forward(const struct WuiCefSurfaceState *state);
-
-/**
- * Sends pointer movement in surface-local logical coordinates.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_pointer_move(const struct WuiCefSurfaceState *state,
-                                      double x,
-                                      double y,
-                                      struct WuiCefInputModifiers modifiers);
-
-/**
- * Sends one pointer button transition.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_pointer_button(const struct WuiCefSurfaceState *state,
-                                        bool pressed,
-                                        enum WuiCefPointerButton button,
-                                        double x,
-                                        double y,
-                                        struct WuiCefInputModifiers modifiers);
-
-/**
- * Sends a CEF wheel event.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_scroll(const struct WuiCefSurfaceState *state,
-                                double x,
-                                double y,
-                                double delta_x,
-                                double delta_y,
-                                struct WuiCefInputModifiers modifiers);
-
-/**
- * Sends one native key transition.
- *
- * `character` is a Unicode scalar value, or zero when the key has no text.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- *
- * # Panics
- *
- * Panics when `character` is non-zero but not a Unicode scalar value.
- */
-void waterui_cef_surface_key(const struct WuiCefSurfaceState *state,
-                             bool pressed,
-                             uint32_t native_keycode,
-                             uint32_t keyval,
-                             uint32_t character,
-                             struct WuiCefInputModifiers modifiers);
-
-/**
- * Commits text to the focused Chromium editor.
- *
- * # Safety
- *
- * `state` and `text` must be valid owning FFI values.
- */
-void waterui_cef_surface_commit_text(const struct WuiCefSurfaceState *state,
-                                     struct WuiStr text,
-                                     uint32_t replacement_start,
-                                     uint32_t replacement_end);
-
-/**
- * Updates active IME composition text and its UTF-16 selection.
- *
- * # Safety
- *
- * `state` and `text` must be valid owning FFI values.
- */
-void waterui_cef_surface_set_composition(const struct WuiCefSurfaceState *state,
-                                         struct WuiStr text,
-                                         uint32_t selection_start,
-                                         uint32_t selection_end,
-                                         uint32_t replacement_start,
-                                         uint32_t replacement_end);
-
-/**
- * Finishes active IME composition.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_finish_composition(const struct WuiCefSurfaceState *state,
-                                            bool keep_selection);
-
-/**
- * Cancels active IME composition.
- *
- * # Safety
- *
- * `state` must be a live state returned by a CEF force-as function.
- */
-void waterui_cef_surface_cancel_composition(const struct WuiCefSurfaceState *state);
 
 /**
  * Executes an editing command in Chromium's focused frame.
@@ -11464,6 +11347,89 @@ bool waterui_gpu_surface_send_input_event(struct WuiGpuSurfaceState *state,
  * and `out` must point to writable storage for one [`WuiRect`].
  */
 bool waterui_gpu_surface_ime_caret(const struct WuiGpuSurfaceState *state, struct WuiRect *out);
+
+/**
+ * # Safety
+ *
+ * `view` must be a valid, owning `WuiAnyView` handle whose erased value is a
+ * `Native<_>` of the expected view type; it is consumed by this call and must
+ * not be used afterwards.
+ */
+struct WuiPicture waterui_force_as_picture(struct WuiAnyView *view);
+
+/**
+ * Returns the stable `TypeId` identifying this view type across the FFI.
+ */
+struct WuiTypeId waterui_picture_id(void);
+
+/**
+ * Releases a bitmap handed out by a bitmap computed.
+ *
+ * # Safety
+ *
+ * `bitmap` must come from this library and must not be used afterwards.
+ */
+void waterui_drop_bitmap(struct WuiBitmap bitmap);
+
+/**
+ * Reads the current value from a computed
+ * # Safety
+ * The computed pointer must be valid and point to a properly initialized computed object.
+ */
+struct WuiBitmap waterui_read_computed_bitmap(const WuiComputed_RgbaBitmap *computed);
+
+/**
+ * Watches for changes in a computed
+ * # Safety
+ * The computed pointer must be valid and point to a properly initialized computed object.
+ * The watcher pointer will be consumed and freed when the returned guard is dropped.
+ */
+struct WuiWatcherGuard *waterui_watch_computed_bitmap(const WuiComputed_RgbaBitmap *computed,
+                                                      struct WuiWatcher_RgbaBitmap *watcher);
+
+/**
+ * Drops a computed
+ * # Safety
+ * The caller must ensure that `computed` is a valid pointer.
+ */
+void waterui_drop_computed_bitmap(WuiComputed_RgbaBitmap *computed);
+
+/**
+ * Creates a watcher from native callbacks.
+ *
+ * # Safety
+ *
+ * All function pointers must be valid and `data` must remain valid
+ * until `drop` is called exactly once.
+ */
+struct WuiWatcher_RgbaBitmap *waterui_new_watcher_bitmap(void *data,
+                                                         void (*call)(void*,
+                                                                      struct WuiBitmap,
+                                                                      struct WuiWatcherMetadata*),
+                                                         void (*drop)(void*));
+
+/**
+ * The picture rasterised at `scale` pixels per point, as a signal.
+ *
+ * It re-rasterises whenever the drawing changes. Drop it with
+ * `waterui_drop_computed_bitmap`, and ask again when the display scale
+ * changes.
+ *
+ * # Safety
+ *
+ * `picture` must be a live handle from `waterui_force_as_picture`.
+ */
+WuiComputed_RgbaBitmap *waterui_picture_bitmap(const struct WuiPictureHandle *picture, float scale);
+
+/**
+ * Releases a picture handle.
+ *
+ * # Safety
+ *
+ * `picture` must come from `waterui_force_as_picture` and must not be used
+ * afterwards.
+ */
+void waterui_drop_picture(struct WuiPictureHandle *picture);
 
 /**
  * # Safety

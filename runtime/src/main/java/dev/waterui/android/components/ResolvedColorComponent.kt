@@ -2,6 +2,7 @@ package dev.waterui.android.components
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Paint
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -9,7 +10,7 @@ import dev.waterui.android.runtime.ResolvedColorStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.drawPackedColor
+import dev.waterui.android.runtime.setPackedColor
 import dev.waterui.android.runtime.toColorLong
 
 private val resolvedColorTypeId: WuiTypeId by lazy {
@@ -33,17 +34,28 @@ private val resolvedColorRenderer = WuiRenderer { context, node, _, _ ->
     ColorFillView(context).apply { setResolvedColor(resolved) }
 }
 
+/**
+ * Fills its own bounds with the resolved color.
+ *
+ * The fill is a rect, never `Canvas.drawColor`: that call floods the canvas's
+ * current clip, and WaterUI's containers do not clip their children, so a
+ * divider painted that way covers the whole scroll viewport and hides every
+ * sibling drawn before it.
+ */
 private class ColorFillView(context: Context) : StretchVisualView(context) {
-    private var color: Long = android.graphics.Color.pack(android.graphics.Color.TRANSPARENT)
+    private val paint = Paint().apply {
+        style = Paint.Style.FILL
+        setPackedColor(android.graphics.Color.pack(android.graphics.Color.TRANSPARENT))
+    }
 
     fun setResolvedColor(color: ResolvedColorStruct) {
-        this.color = color.toColorLong()
+        paint.setPackedColor(color.toColorLong())
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawPackedColor(color)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
     }
 }
 
