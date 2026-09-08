@@ -4,6 +4,7 @@ import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import androidx.core.view.doOnLayout
+import dev.waterui.android.layout.ViewportClipLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -27,7 +28,7 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
     // Android only measures and places children.
     var verticalHost: ScrollView? = null
     var horizontalHost: HorizontalScrollView? = null
-    val root: View = when (struct.axis) {
+    val viewport: View = when (struct.axis) {
         AXIS_HORIZONTAL -> HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = true
             addView(content)
@@ -46,6 +47,10 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
         }
         else -> error("unknown scroll axis: ${struct.axis}")
     }
+
+    // The surrounding WaterUI containers let their children draw outside their
+    // own bounds, which a viewport cannot afford; it brings its own clip.
+    val root: View = ViewportClipLayout(context, viewport)
 
     val controlled = struct.scrollGenerationPtr != 0L
     check(
