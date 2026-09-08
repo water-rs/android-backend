@@ -537,5 +537,7 @@ object WatcherJni {
         caret: Long
     ): Boolean
     @JvmStatic external fun gpuSurfaceImeCaret(statePtr: Long): FloatArray?
+
+    @JvmStatic external fun gpuSurfaceAccessibilityLabel(statePtr: Long): String
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 }

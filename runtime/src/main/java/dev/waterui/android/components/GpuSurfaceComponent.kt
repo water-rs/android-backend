@@ -106,9 +106,18 @@ internal class GpuSurfaceView(
     private var inputSink: GpuSurfaceInputSink? = null
     private val redrawRequest = Runnable {
         if (statePtr != 0L && refreshRendererReadiness()) {
+            // The content invalidated, which is the one moment its description
+            // can have changed; the next frame republishes it.
+            needsAccessibilityLabelRefresh = true
             frameScheduler.requestFrame()
         }
     }
+
+    /**
+     * Whether the content has changed since its description was last asked for.
+     * Starts true so the first drawn frame publishes one.
+     */
+    private var needsAccessibilityLabelRefresh = true
 
     private val scaleDetector = ScaleGestureDetector(
         context,
@@ -488,8 +497,46 @@ internal class GpuSurfaceView(
             pushInput()
         }
         updateFrameRateDeclaration(continuous = needsRedraw)
+        publishContentAccessibilityLabel()
         finishSurfaceRedraw()
         return needsRedraw
+    }
+
+    /**
+     * Describes this surface with whatever its content says it draws.
+     *
+     * A `SurfaceView` is an opaque rectangle to TalkBack: a formula, chart or
+     * diagram rendered into it is announced as an unlabelled element unless the
+     * content states its own meaning, and only the content can — nothing outside
+     * it can read the pixels back.
+     *
+     * Asked after a frame rather than once at construction, because the answer
+     * is empty until asynchronous renderer setup finishes — and only when the
+     * content actually invalidated, because deriving the description can be real
+     * work (a formula runs its source through speech rules) and a display that
+     * drives an animation must not pay it on every frame.
+     *
+     * An application's own label wins without this having to know: WaterUI
+     * applies it to a wrapper around this view and marks this one
+     * `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS`, so what is set here is
+     * never what a reader hears when the application named the view itself.
+     */
+    private fun publishContentAccessibilityLabel() {
+        if (!needsAccessibilityLabelRefresh || statePtr == 0L) {
+            return
+        }
+        needsAccessibilityLabelRefresh = false
+        val label = NativeBindings.waterui_gpu_surface_accessibility_label(statePtr)
+        val description = label.takeIf { it.isNotEmpty() }
+        if (contentDescription == description) {
+            return
+        }
+        contentDescription = description
+        importantForAccessibility = if (description == null) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
     }
 
     private fun finishSurfaceRedraw() {

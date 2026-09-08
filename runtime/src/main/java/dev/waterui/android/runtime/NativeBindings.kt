@@ -513,6 +513,15 @@ internal object NativeBindings {
     )
     fun waterui_gpu_surface_ime_caret(statePtr: Long): FloatArray? =
         WatcherJni.gpuSurfaceImeCaret(statePtr)
+
+    /**
+     * What the GPU view says about itself, for a screen reader.
+     *
+     * Empty until asynchronous renderer setup finishes, and for every view whose
+     * pixels a reader needs told nothing about.
+     */
+    fun waterui_gpu_surface_accessibility_label(statePtr: Long): String =
+        WatcherJni.gpuSurfaceAccessibilityLabel(statePtr)
     fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)
 
     // ========== Reactive State Creation (for theme) ==========
