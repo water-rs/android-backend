@@ -54,6 +54,30 @@ detekt {
     basePath = rootProject.layout.projectDirectory
 }
 
+// The variant-specific detekt tasks analyse with type resolution, which is what
+// finds the rules the source-only `detekt` task cannot see. Their Kotlin front
+// end does not compile Java, so the module's own compiled Java classes have to
+// reach them as a classpath entry — `WaterUiWebViewClient` is deliberately Java
+// (see its doc comment), and without this every Kotlin file that touches it
+// analyses with an unresolved reference, which detekt reports as a compiler
+// error and which silently degrades the accuracy of every rule in those files.
+androidComponents.onVariants { variant ->
+    val variantName = variant.name.replaceFirstChar(Char::uppercase)
+    tasks.matching { it.name == "detekt$variantName" }.configureEach {
+        (this as dev.detekt.gradle.Detekt)
+            .classpath
+            .from(
+                // Everything the Kotlin compiler itself resolved against, plus
+                // the module's own compiled Java, which it did not need because
+                // it was handed the Java sources directly.
+                tasks.named("compile${variantName}Kotlin")
+                    .map { it.property("libraries") as FileCollection },
+                tasks.named<JavaCompile>("compile${variantName}JavaWithJavac")
+                    .flatMap(JavaCompile::getDestinationDirectory)
+            )
+    }
+}
+
 tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
     jvmTarget = "21"
     reports {

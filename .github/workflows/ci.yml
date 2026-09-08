@@ -31,7 +31,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Static analysis and unit tests
-        run: ./gradlew --no-daemon :runtime:detekt :runtime:lintDebug :runtime:testDebugUnitTest
+        run: ./gradlew --no-daemon :runtime:detekt :runtime:detektDebug :runtime:lintDebug :runtime:testDebugUnitTest
 
   android-build:
     name: android-build

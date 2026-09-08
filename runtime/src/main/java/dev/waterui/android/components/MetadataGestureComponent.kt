@@ -181,7 +181,7 @@ private class LongPressGestureTouchHandler(
 
 private class ScaleGestureTouchHandler(
     context: Context,
-    private val onRecognized: () -> Unit
+    onRecognized: () -> Unit
 ) : GestureTouchHandler {
     private val detector = ScaleGestureDetector(
         context,

@@ -631,7 +631,7 @@ private class WuiListAdapter(
 
     private fun previewMoveRows(from: Int, to: Int): Boolean {
         if (onMovePtr == 0L || from == to) return false
-        check(activeMove != null) { "List move preview requires an active interaction" }
+        checkNotNull(activeMove) { "List move preview requires an active interaction" }
         val reordered = itemIds.copyOf()
         val moved = reordered[from]
         if (from < to) {

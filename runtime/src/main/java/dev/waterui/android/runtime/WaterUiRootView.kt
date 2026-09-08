@@ -213,7 +213,7 @@ class WaterUiRootView @JvmOverloads constructor(
             child,
             LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         )
-        check(rootThemeController != null) {
+        checkNotNull(rootThemeController) {
             "WaterUI root content did not produce a renderable native view"
         }
         applySafeArea(pendingSafeArea)

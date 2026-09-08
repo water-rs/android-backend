@@ -13,7 +13,7 @@ internal class NativeViewCollection<T : Closeable>(
 ) : Closeable {
     private val source = NativeAnyViews(handle)
     private val watcher: WatcherGuard
-    private var valuesById = linkedMapOf<Int, T>()
+    private val valuesById = linkedMapOf<Int, T>()
     private var ordered = emptyList<NativeViewItem<T>>()
     private var observer: (List<NativeViewItem<T>>) -> Unit = {}
 
@@ -42,17 +42,19 @@ internal class NativeViewCollection<T : Closeable>(
         }
 
         val seen = HashSet<Int>(ids.size)
-        val previous = valuesById
-        val next = LinkedHashMap<Int, T>(ids.size)
+        val retained = LinkedHashMap<Int, T>(ids.size)
         val nextOrdered = ArrayList<NativeViewItem<T>>(ids.size)
+        // Taking each surviving view out of the collection as it is reused
+        // leaves exactly the dropped ones behind to close.
         ids.forEachIndexed { index, id ->
             check(seen.add(id)) { "native view collection contains duplicate id $id" }
-            val value = previous.remove(id) ?: consumeView(index)
-            next[id] = value
+            val value = valuesById.remove(id) ?: consumeView(index)
+            retained[id] = value
             nextOrdered += NativeViewItem(id, value)
         }
-        previous.values.forEach(Closeable::close)
-        valuesById = next
+        valuesById.values.forEach(Closeable::close)
+        valuesById.clear()
+        valuesById.putAll(retained)
         ordered = nextOrdered
         observer(ordered)
     }

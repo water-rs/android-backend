@@ -39,9 +39,7 @@ internal class WuiTextInputFocusTarget(
         val observerId = nextObserverId
         nextObserverId += 1
         observers[observerId] = onChange
-        return Closeable {
-            observers.remove(observerId)
-        }
+        return Closeable { observers -= observerId }
     }
 
     override fun onFocusChange(view: View, hasFocus: Boolean) {

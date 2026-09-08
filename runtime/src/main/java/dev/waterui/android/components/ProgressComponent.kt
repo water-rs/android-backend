@@ -125,7 +125,13 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
                 when (indicator) {
                     is BaseProgressIndicator<*> ->
                         indicator.setResolvedIndicatorColors(indicatorColors)
-                    is LoadingIndicator -> indicator.setIndicatorColor(*indicatorColors)
+                    // `LoadingIndicator.setIndicatorColor` is a Java vararg, so
+                    // an array reaches it only through a spread, and a spread
+                    // copies. The array holds one int per indicator colour and
+                    // is spread once, when the last colour signal resolves.
+                    is LoadingIndicator ->
+                        @Suppress("SpreadOperator")
+                        indicator.setIndicatorColor(*indicatorColors)
                     else -> error("unknown indicator view: $indicator")
                 }
             }
