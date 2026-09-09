@@ -37,6 +37,13 @@ private class PictureView(context: Context, picture: PictureStruct) :
 
     init {
         scaleType = ScaleType.FIT_CENTER
+        // The name the drawing offers. An application's own label lands on the
+        // wrapper above this view and hides its descendants, so it wins without
+        // this view knowing.
+        picture.label.takeIf { it.isNotEmpty() }?.let { label ->
+            contentDescription = label
+            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
         val density = context.resources.displayMetrics.density
         val bitmaps = WuiComputed.bitmapFromComputed(
             NativeBindings.waterui_picture_bitmap(picture.picturePtr, density)

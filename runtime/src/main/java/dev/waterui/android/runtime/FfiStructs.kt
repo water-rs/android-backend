@@ -614,7 +614,9 @@ data class GpuSurfaceStruct(
 data class PictureStruct(
     val picturePtr: Long,
     val width: Float,
-    val height: Float
+    val height: Float,
+    /** The name the drawing offers a screen reader; empty when it offers none. */
+    val label: String
 )
 
 /**
