@@ -32,9 +32,6 @@ jobs:
           path: waterui
           submodules: recursive
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
-
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -92,9 +89,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           build-root-directory: waterui/backends/android
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
