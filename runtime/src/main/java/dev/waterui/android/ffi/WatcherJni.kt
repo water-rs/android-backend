@@ -323,7 +323,7 @@ object WatcherJni {
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
-    @JvmStatic external fun appliedFilterId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataAppliedFilterId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewEffectId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedColorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
@@ -540,4 +540,75 @@ object WatcherJni {
 
     @JvmStatic external fun gpuSurfaceAccessibilityLabel(statePtr: Long): String
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
+
+    // ========== View-capture Functions (AppliedFilter / ViewEffect) ==========
+    //
+    // Every entry point below takes a state handle owned by Rust and must be
+    // called from the owner view's own thread, one at a time — the same contract
+    // the `gpuSurface*` family follows. The one exception is
+    // [gpuCaptureFenceOnComplete]'s `completion`, which Rust runs on its GPU
+    // completion thread.
+
+    @JvmStatic external fun forceAsMetadataAppliedFilter(
+        viewPtr: Long
+    ): dev.waterui.android.runtime.AppliedFilterStruct
+    @JvmStatic external fun appliedFilterCreate(
+        owner: android.view.View,
+        filterPtr: Long,
+        wuiEnvPtr: Long
+    ): Long
+    @JvmStatic external fun appliedFilterAttach(
+        statePtr: Long,
+        surface: android.view.Surface,
+        inputWidth: Int,
+        inputHeight: Int,
+        prefersHdr: Boolean
+    )
+    @JvmStatic external fun appliedFilterDetach(statePtr: Long)
+    @JvmStatic external fun appliedFilterSetup(statePtr: Long)
+    @JvmStatic external fun appliedFilterIsReady(statePtr: Long): Boolean
+    @JvmStatic external fun appliedFilterResolveOutputSize(
+        statePtr: Long,
+        inputWidth: Int,
+        inputHeight: Int
+    ): IntArray
+    @JvmStatic external fun appliedFilterPrepareCapture(statePtr: Long, width: Int, height: Int)
+    @JvmStatic external fun appliedFilterCaptureFormat(statePtr: Long): Int
+    @JvmStatic external fun appliedFilterSetCaptureHardwareBuffer(
+        statePtr: Long,
+        hardwareBuffer: android.hardware.HardwareBuffer
+    ): Long
+    @JvmStatic external fun appliedFilterRender(statePtr: Long, width: Int, height: Int): Boolean
+    @JvmStatic external fun appliedFilterDrop(statePtr: Long)
+
+    @JvmStatic external fun forceAsViewEffect(
+        viewPtr: Long
+    ): dev.waterui.android.runtime.ViewEffectStruct
+    @Suppress("LongParameterList") // The output-size enum crosses the ABI flattened.
+    @JvmStatic external fun viewEffectCreate(
+        owner: android.view.View,
+        effectPtr: Long,
+        outputSizeKind: Int,
+        outputWidth: Int,
+        outputHeight: Int,
+        outputScale: Float,
+        wuiEnvPtr: Long
+    ): Long
+    @JvmStatic external fun viewEffectAttach(
+        statePtr: Long,
+        surface: android.view.Surface,
+        inputWidth: Int,
+        inputHeight: Int,
+        prefersHdr: Boolean
+    )
+    @JvmStatic external fun viewEffectDetach(statePtr: Long)
+    @JvmStatic external fun viewEffectIsReady(statePtr: Long): Boolean
+    @JvmStatic external fun viewEffectSetInputHardwareBuffer(
+        statePtr: Long,
+        hardwareBuffer: android.hardware.HardwareBuffer
+    ): Long
+    @JvmStatic external fun viewEffectRender(statePtr: Long): Boolean
+    @JvmStatic external fun viewEffectDrop(statePtr: Long)
+
+    @JvmStatic external fun gpuCaptureFenceOnComplete(fencePtr: Long, completion: Runnable)
 }

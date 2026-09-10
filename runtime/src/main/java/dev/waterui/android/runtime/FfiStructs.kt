@@ -609,6 +609,38 @@ data class GpuSurfaceStruct(
 )
 
 /**
+ * `AppliedFilter` metadata: the subtree to capture and the semantic filter over it.
+ */
+data class AppliedFilterStruct(
+    /** The child subtree whose rendered pixels the filter reads. */
+    val contentPtr: Long,
+    /** The semantic filter, consumed once by `appliedFilterCreate`. */
+    val filterPtr: Long
+)
+
+/**
+ * A `ViewEffect` view: the subtree to capture, the effect over it, and the size
+ * of the effect's output.
+ *
+ * The output size is a Rust enum with per-variant payloads, so it crosses
+ * flattened: [outputSizeKind] selects which of the remaining fields carry
+ * meaning — `0` matches the input and reads none of them, `1` is a fixed pixel
+ * size and reads [outputWidth] and [outputHeight], `2` is a scale factor and
+ * reads [outputScale]. All four are handed straight back to `viewEffectCreate`,
+ * which rebuilds the enum from them.
+ */
+data class ViewEffectStruct(
+    /** The child subtree whose rendered pixels the effect reads. */
+    val contentPtr: Long,
+    /** The semantic effect renderer, consumed once by `viewEffectCreate`. */
+    val effectPtr: Long,
+    val outputSizeKind: Int,
+    val outputWidth: Int,
+    val outputHeight: Int,
+    val outputScale: Float
+)
+
+/**
  * A `Picture` view: the handle the view keeps until `dropPicture`, and its size in dp.
  */
 data class PictureStruct(

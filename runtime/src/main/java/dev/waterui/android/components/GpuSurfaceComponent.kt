@@ -28,12 +28,12 @@ import dev.waterui.android.runtime.GpuSurfaceStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.SurfaceDynamicRange
-import dev.waterui.android.runtime.TAG_DYNAMIC_RANGE
 import dev.waterui.android.runtime.TAG_LAYOUT_PRIORITY
 import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.inheritedSurfaceDynamicRange
 import kotlin.math.roundToInt
 
 private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_surface_id().toTypeId() }
@@ -745,7 +745,7 @@ internal class GpuSurfaceView(
         if (hasHdrPreference) {
             prefersHdr
         } else {
-            inheritedDynamicRange() == SurfaceDynamicRange.HIGH
+            inheritedSurfaceDynamicRange() == SurfaceDynamicRange.HIGH
         }
 
     private fun frozenRendererHdrPreference(): Boolean = rendererPrefersHdr
@@ -776,18 +776,6 @@ internal class GpuSurfaceView(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             setDesiredHdrHeadroom(if (frozenRendererHdrPreference()) 0f else 1f)
         }
-    }
-
-    private fun inheritedDynamicRange(): SurfaceDynamicRange? {
-        var view: View? = this
-        while (view != null) {
-            val range = view.getTag(TAG_DYNAMIC_RANGE) as? SurfaceDynamicRange
-            if (range != null) {
-                return range
-            }
-            view = view.parent as? View
-        }
-        return null
     }
 }
 

@@ -99,7 +99,8 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiWithEnv()
         registerWuiGpuSurface()
         registerWuiAndroidVideoSurfaceHost()
-        registerUnsupportedGraphics()
+        registerWuiAppliedFilter()
+        registerWuiViewEffect()
         registerWuiWebView()
 
         // Navigation components

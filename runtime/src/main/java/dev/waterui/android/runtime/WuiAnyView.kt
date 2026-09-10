@@ -17,6 +17,25 @@ enum class SurfaceDynamicRange {
 }
 
 /**
+ * The dynamic range an enclosing scope asks this view's surface to present in.
+ *
+ * A GPU surface's format is chosen from it, so it is read by walking up to the
+ * nearest ancestor carrying a dynamic-range scope; `null` means no ancestor
+ * declares one and the surface presents in standard range.
+ */
+fun View.inheritedSurfaceDynamicRange(): SurfaceDynamicRange? {
+    var view: View? = this
+    while (view != null) {
+        val range = view.getTag(TAG_DYNAMIC_RANGE) as? SurfaceDynamicRange
+        if (range != null) {
+            return range
+        }
+        view = view.parent as? View
+    }
+    return null
+}
+
+/**
  * Entry point that inflates an opaque `AnyView` from the Rust view tree into a
  * concrete Android [android.view.View].
  *
