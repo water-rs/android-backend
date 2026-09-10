@@ -100,6 +100,24 @@ internal class ViewEffectView(
     override fun setCaptureBuffer(buffer: HardwareBuffer): Long =
         NativeBindings.waterui_view_effect_set_input_hardware_buffer(statePtr, buffer)
 
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    override fun compositeNestedSurface(
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    ) = NativeBindings.waterui_view_effect_composite_gpu_surface(
+        statePtr = statePtr,
+        surfaceStatePtr = surfaceStatePtr,
+        x = x,
+        y = y,
+        width = width,
+        height = height,
+        scale = scale
+    )
+
     override fun renderCapturedFrame(): Boolean {
         if (!isNativeReady()) {
             // The buffer just handed over started the effect's setup; its redraw

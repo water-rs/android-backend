@@ -335,7 +335,10 @@ internal class HardwareViewCapture(
 internal abstract class CapturedSubtreeView(
     context: Context,
     private val logTag: String
-) : PassThroughFrameLayout(context), SurfaceHolder.Callback2, Choreographer.FrameCallback {
+) : PassThroughFrameLayout(context),
+    SurfaceHolder.Callback2,
+    Choreographer.FrameCallback,
+    NestedSurfaceHost {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val choreographer = Choreographer.getInstance()
     private val outputView = SurfaceView(context)
@@ -355,6 +358,16 @@ internal abstract class CapturedSubtreeView(
         renderFrame = ::renderFrame
     )
     private val redrawRequest = Runnable { onNativeRedraw() }
+
+    /**
+     * The GPU surfaces inside the captured subtree whose layers this host holds.
+     *
+     * Rebuilt from the tree on every captured frame, so a surface that appears
+     * or leaves is picked up without anything having to announce it.
+     */
+    private val suppressedSurfaces = mutableSetOf<GpuSurfaceView>()
+    private val hostLocation = IntArray(2)
+    private val surfaceLocation = IntArray(2)
 
     /** Whether the native state refuses to capture until its setup has finished. */
     protected abstract val requiresReadyBeforeCapture: Boolean
@@ -387,6 +400,26 @@ internal abstract class CapturedSubtreeView(
      * @return the capture fence, which the caller consumes exactly once.
      */
     protected abstract fun setCaptureBuffer(buffer: HardwareBuffer): Long
+
+    /**
+     * Draws one GPU surface nested in the captured subtree into the capture.
+     *
+     * @param surfaceStatePtr the nested surface's own native state.
+     * @param x left edge inside the captured content, in pixels.
+     * @param y top edge inside the captured content, in pixels.
+     * @param width the surface's width in pixels.
+     * @param height the surface's height in pixels.
+     * @param scale pixels per logical unit, which the surface renders at.
+     */
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    protected abstract fun compositeNestedSurface(
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    )
 
     /**
      * Presents the frame whose buffer was just handed over.
@@ -472,6 +505,99 @@ internal abstract class CapturedSubtreeView(
         check(mainHandler.post(redrawRequest)) {
             "Android main looper rejected a view-capture redraw request"
         }
+    }
+
+    /**
+     * Asks for another captured frame on behalf of a surface this host suppresses.
+     */
+    override fun requestCaptureFrame() {
+        if (disposed) {
+            return
+        }
+        requestFrame()
+    }
+
+    /**
+     * Draws every GPU surface inside the captured subtree into the capture.
+     *
+     * HWUI records a `SurfaceView` as a cleared hole, so the buffer that just
+     * arrived has nothing where a nested `GpuSurface` belongs. Worse, the
+     * surface's own layer is positioned from the render node the capture drew,
+     * so it keeps presenting over the window at a position taken from the
+     * capture's coordinates rather than the window's. Both are answered the
+     * same way: the layer is hidden and the surface renders one frame straight
+     * into the capture, at the rectangle it occupies inside the captured
+     * content.
+     */
+    private fun compositeNestedSurfaces() {
+        val nested = collectNestedSurfaces(capturedContent)
+        for (surface in suppressedSurfaces.toList()) {
+            if (surface !in nested) {
+                surface.releaseLayerFor(this)
+                suppressedSurfaces.remove(surface)
+            }
+        }
+        if (nested.isEmpty()) {
+            return
+        }
+        capturedContent.getLocationInWindow(hostLocation)
+        val scale = resources.displayMetrics.density
+        for (surface in nested) {
+            if (!surface.isReadyForCapture()) {
+                // Nothing has been drawn into its swapchain yet, so it is
+                // showing nothing either; the frame that makes it ready wakes
+                // this host through its own redraw callback.
+                continue
+            }
+            surface.suppressLayerFor(this)
+            suppressedSurfaces.add(surface)
+            surface.getLocationInWindow(surfaceLocation)
+            compositeNestedSurface(
+                surfaceStatePtr = surface.nativeStatePtr,
+                x = surfaceLocation[0] - hostLocation[0],
+                y = surfaceLocation[1] - hostLocation[1],
+                width = surface.width,
+                height = surface.height,
+                scale = scale
+            )
+        }
+    }
+
+    /**
+     * Returns every GPU surface under [view] that belongs to its picture, in the
+     * order the subtree draws them.
+     *
+     * A surface this host already suppresses is `INVISIBLE` by its own doing and
+     * still belongs; one the application hid does not, and neither does anything
+     * under a container that is not being drawn.
+     */
+    private fun collectNestedSurfaces(view: View): List<GpuSurfaceView> {
+        val found = mutableListOf<GpuSurfaceView>()
+        collectNestedSurfacesInto(view, found)
+        return found
+    }
+
+    private fun collectNestedSurfacesInto(view: View, found: MutableList<GpuSurfaceView>) {
+        if (view is GpuSurfaceView) {
+            if (view.participatesInCapture) {
+                found.add(view)
+            }
+            return
+        }
+        if (view.visibility != VISIBLE || view !is ViewGroup) {
+            return
+        }
+        for (index in 0 until view.childCount) {
+            collectNestedSurfacesInto(view.getChildAt(index), found)
+        }
+    }
+
+    /** Returns every nested surface's presentation to its own layer. */
+    private fun releaseNestedSurfaces() {
+        for (surface in suppressedSurfaces) {
+            surface.releaseLayerFor(this)
+        }
+        suppressedSurfaces.clear()
     }
 
     /**
@@ -661,6 +787,7 @@ internal abstract class CapturedSubtreeView(
             "$logTag captured a frame with no hardware buffer behind it"
         }
         val fence = buffer.use { setCaptureBuffer(it) }
+        compositeNestedSurfaces()
         val needsAnotherFrame = renderCapturedFrame()
         NativeBindings.waterui_gpu_capture_fence_on_complete(fence) {
             // Rust's GPU completion thread: the buffer is finished with, so the
@@ -686,6 +813,7 @@ internal abstract class CapturedSubtreeView(
 
     private fun disposePresentation() {
         disposed = true
+        releaseNestedSurfaces()
         mainHandler.removeCallbacks(redrawRequest)
         frameScheduler.dispose()
         // Detaching first waits for the GPU and releases every imported buffer,

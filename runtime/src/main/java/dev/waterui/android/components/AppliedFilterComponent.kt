@@ -115,6 +115,24 @@ internal class AppliedFilterView(
     override fun setCaptureBuffer(buffer: HardwareBuffer): Long =
         NativeBindings.waterui_applied_filter_set_capture_hardware_buffer(statePtr, buffer)
 
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    override fun compositeNestedSurface(
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    ) = NativeBindings.waterui_applied_filter_composite_gpu_surface(
+        statePtr = statePtr,
+        surfaceStatePtr = surfaceStatePtr,
+        x = x,
+        y = y,
+        width = width,
+        height = height,
+        scale = scale
+    )
+
     override fun renderCapturedFrame(): Boolean {
         val needsAnotherFrame = NativeBindings.waterui_applied_filter_render(
             statePtr = statePtr,

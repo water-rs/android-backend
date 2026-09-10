@@ -578,6 +578,16 @@ object WatcherJni {
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    @JvmStatic external fun appliedFilterCompositeGpuSurface(
+        statePtr: Long,
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    )
     @JvmStatic external fun appliedFilterRender(statePtr: Long, width: Int, height: Int): Boolean
     @JvmStatic external fun appliedFilterDrop(statePtr: Long)
 
@@ -607,6 +617,16 @@ object WatcherJni {
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    @JvmStatic external fun viewEffectCompositeGpuSurface(
+        statePtr: Long,
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    )
     @JvmStatic external fun viewEffectRender(statePtr: Long): Boolean
     @JvmStatic external fun viewEffectDrop(statePtr: Long)
 

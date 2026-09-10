@@ -594,6 +594,28 @@ internal object NativeBindings {
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long = WatcherJni.appliedFilterSetCaptureHardwareBuffer(statePtr, hardwareBuffer)
+    /**
+     * Draws the GPU surface at [surfaceStatePtr] into the capture, at the
+     * rectangle it occupies inside the captured content in pixels.
+     */
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    fun waterui_applied_filter_composite_gpu_surface(
+        statePtr: Long,
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    ) = WatcherJni.appliedFilterCompositeGpuSurface(
+        statePtr,
+        surfaceStatePtr,
+        x,
+        y,
+        width,
+        height,
+        scale
+    )
     fun waterui_applied_filter_render(statePtr: Long, width: Int, height: Int): Boolean =
         WatcherJni.appliedFilterRender(statePtr, width, height)
     fun waterui_applied_filter_drop(statePtr: Long) = WatcherJni.appliedFilterDrop(statePtr)
@@ -633,6 +655,28 @@ internal object NativeBindings {
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long = WatcherJni.viewEffectSetInputHardwareBuffer(statePtr, hardwareBuffer)
+    /**
+     * Draws the GPU surface at [surfaceStatePtr] into the effect's input, at the
+     * rectangle it occupies inside the captured content in pixels.
+     */
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    fun waterui_view_effect_composite_gpu_surface(
+        statePtr: Long,
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    ) = WatcherJni.viewEffectCompositeGpuSurface(
+        statePtr,
+        surfaceStatePtr,
+        x,
+        y,
+        width,
+        height,
+        scale
+    )
     fun waterui_view_effect_render(statePtr: Long): Boolean =
         WatcherJni.viewEffectRender(statePtr)
     fun waterui_view_effect_drop(statePtr: Long) = WatcherJni.viewEffectDrop(statePtr)
