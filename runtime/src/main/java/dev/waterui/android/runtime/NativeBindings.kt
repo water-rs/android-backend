@@ -52,7 +52,7 @@ internal object NativeBindings {
     fun waterui_dynamic_id(): TypeIdStruct = WatcherJni.dynamicId()
     fun waterui_scroll_view_id(): TypeIdStruct = WatcherJni.scrollViewId()
     fun waterui_spacer_id(): TypeIdStruct = WatcherJni.spacerId()
-    fun waterui_applied_filter_id(): TypeIdStruct = WatcherJni.appliedFilterId()
+    fun waterui_metadata_applied_filter_id(): TypeIdStruct = WatcherJni.metadataAppliedFilterId()
     fun waterui_view_effect_id(): TypeIdStruct = WatcherJni.viewEffectId()
     fun waterui_resolved_color_id(): TypeIdStruct = WatcherJni.resolvedColorId()
     fun waterui_color_id(): TypeIdStruct = WatcherJni.colorId()
@@ -557,6 +557,136 @@ internal object NativeBindings {
         WatcherJni.dropReactiveEdgeInsetsState(statePtr)
     fun waterui_env_install_safe_area(envPtr: Long, signalPtr: Long) =
         WatcherJni.envInstallSafeArea(envPtr, signalPtr)
+
+    // ========== View capture (AppliedFilter / ViewEffect) ==========
+
+    fun waterui_force_as_metadata_applied_filter(viewPtr: Long): AppliedFilterStruct =
+        WatcherJni.forceAsMetadataAppliedFilter(viewPtr)
+    fun waterui_applied_filter_create(
+        owner: android.view.View,
+        filterPtr: Long,
+        wuiEnvPtr: Long
+    ): Long = WatcherJni.appliedFilterCreate(owner, filterPtr, wuiEnvPtr)
+    fun waterui_applied_filter_attach(
+        statePtr: Long,
+        surface: android.view.Surface,
+        inputWidth: Int,
+        inputHeight: Int,
+        prefersHdr: Boolean
+    ) = WatcherJni.appliedFilterAttach(statePtr, surface, inputWidth, inputHeight, prefersHdr)
+    fun waterui_applied_filter_detach(statePtr: Long) = WatcherJni.appliedFilterDetach(statePtr)
+    fun waterui_applied_filter_setup(statePtr: Long) = WatcherJni.appliedFilterSetup(statePtr)
+    fun waterui_applied_filter_is_ready(statePtr: Long): Boolean =
+        WatcherJni.appliedFilterIsReady(statePtr)
+    /** The filter's output size in pixels for the given input size, as `[width, height]`. */
+    fun waterui_applied_filter_resolve_output_size(
+        statePtr: Long,
+        inputWidth: Int,
+        inputHeight: Int
+    ): IntArray = WatcherJni.appliedFilterResolveOutputSize(statePtr, inputWidth, inputHeight)
+    fun waterui_applied_filter_prepare_capture(statePtr: Long, width: Int, height: Int) =
+        WatcherJni.appliedFilterPrepareCapture(statePtr, width, height)
+    /** `0` is `PixelFormat.RGBA_8888`, `1` is `PixelFormat.RGBA_FP16`. */
+    fun waterui_applied_filter_capture_format(statePtr: Long): Int =
+        WatcherJni.appliedFilterCaptureFormat(statePtr)
+    /** Records the copy out of [hardwareBuffer] and returns the fence that ends it. */
+    fun waterui_applied_filter_set_capture_hardware_buffer(
+        statePtr: Long,
+        hardwareBuffer: android.hardware.HardwareBuffer
+    ): Long = WatcherJni.appliedFilterSetCaptureHardwareBuffer(statePtr, hardwareBuffer)
+    /**
+     * Draws the GPU surface at [surfaceStatePtr] into the capture, at the
+     * rectangle it occupies inside the captured content in pixels.
+     */
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    fun waterui_applied_filter_composite_gpu_surface(
+        statePtr: Long,
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    ) = WatcherJni.appliedFilterCompositeGpuSurface(
+        statePtr,
+        surfaceStatePtr,
+        x,
+        y,
+        width,
+        height,
+        scale
+    )
+    fun waterui_applied_filter_render(statePtr: Long, width: Int, height: Int): Boolean =
+        WatcherJni.appliedFilterRender(statePtr, width, height)
+    fun waterui_applied_filter_drop(statePtr: Long) = WatcherJni.appliedFilterDrop(statePtr)
+
+    fun waterui_force_as_view_effect(viewPtr: Long): ViewEffectStruct =
+        WatcherJni.forceAsViewEffect(viewPtr)
+    @Suppress("LongParameterList") // The output-size enum crosses the ABI flattened.
+    fun waterui_view_effect_create(
+        owner: android.view.View,
+        effectPtr: Long,
+        outputSizeKind: Int,
+        outputWidth: Int,
+        outputHeight: Int,
+        outputScale: Float,
+        wuiEnvPtr: Long
+    ): Long = WatcherJni.viewEffectCreate(
+        owner,
+        effectPtr,
+        outputSizeKind,
+        outputWidth,
+        outputHeight,
+        outputScale,
+        wuiEnvPtr
+    )
+    fun waterui_view_effect_attach(
+        statePtr: Long,
+        surface: android.view.Surface,
+        inputWidth: Int,
+        inputHeight: Int,
+        prefersHdr: Boolean
+    ) = WatcherJni.viewEffectAttach(statePtr, surface, inputWidth, inputHeight, prefersHdr)
+    fun waterui_view_effect_detach(statePtr: Long) = WatcherJni.viewEffectDetach(statePtr)
+    fun waterui_view_effect_is_ready(statePtr: Long): Boolean =
+        WatcherJni.viewEffectIsReady(statePtr)
+    /** Records the copy out of [hardwareBuffer] and returns the fence that ends it. */
+    fun waterui_view_effect_set_input_hardware_buffer(
+        statePtr: Long,
+        hardwareBuffer: android.hardware.HardwareBuffer
+    ): Long = WatcherJni.viewEffectSetInputHardwareBuffer(statePtr, hardwareBuffer)
+    /**
+     * Draws the GPU surface at [surfaceStatePtr] into the effect's input, at the
+     * rectangle it occupies inside the captured content in pixels.
+     */
+    @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    fun waterui_view_effect_composite_gpu_surface(
+        statePtr: Long,
+        surfaceStatePtr: Long,
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        scale: Float
+    ) = WatcherJni.viewEffectCompositeGpuSurface(
+        statePtr,
+        surfaceStatePtr,
+        x,
+        y,
+        width,
+        height,
+        scale
+    )
+    fun waterui_view_effect_render(statePtr: Long): Boolean =
+        WatcherJni.viewEffectRender(statePtr)
+    fun waterui_view_effect_drop(statePtr: Long) = WatcherJni.viewEffectDrop(statePtr)
+
+    /**
+     * Consumes [fencePtr] and runs [completion] once the GPU has finished reading
+     * the captured buffer, on WaterUI's completion thread rather than the main one.
+     */
+    fun waterui_gpu_capture_fence_on_complete(fencePtr: Long, completion: Runnable) =
+        WatcherJni.gpuCaptureFenceOnComplete(fencePtr, completion)
 }
 
 fun bootstrapWaterUiRuntime(activity: Activity): Long {

@@ -24,16 +24,17 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.Keep
+import androidx.core.view.isVisible
 import dev.waterui.android.runtime.GpuSurfaceStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.SurfaceDynamicRange
-import dev.waterui.android.runtime.TAG_DYNAMIC_RANGE
 import dev.waterui.android.runtime.TAG_LAYOUT_PRIORITY
 import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.inheritedSurfaceDynamicRange
 import kotlin.math.roundToInt
 
 private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_surface_id().toTypeId() }
@@ -52,6 +53,23 @@ private val gpuSurfaceRenderer = WuiRenderer { context, node, env, _ ->
     )
 }
 
+/**
+ * A capture that presents a nested GPU surface's picture in place of its layer.
+ *
+ * Declared as its own contract so [GpuSurfaceView], which exists on every
+ * supported Android version, can hold and wake its hosts without naming the
+ * capture views, which exist only from [VIEW_CAPTURE_MINIMUM_SDK] up.
+ */
+internal interface NestedSurfaceHost {
+    /**
+     * Asks for another captured frame on behalf of a surface it suppresses.
+     *
+     * A suppressed surface presents nothing of its own, so when its renderer
+     * goes dirty the frame it needs is the host's next capture.
+     */
+    fun requestCaptureFrame()
+}
+
 @Keep
 @SuppressLint("ViewConstructor")
 internal class GpuSurfaceView(
@@ -68,6 +86,15 @@ internal class GpuSurfaceView(
     private var statePtr = 0L
     private var surfaceAttached = false
     private var rendererReady = false
+
+    /**
+     * Whether attaching has settled the format the renderer draws in.
+     *
+     * It survives the surface being destroyed, which is what lets a surface
+     * whose layer a capture has taken over keep rendering frames for that
+     * capture without a swapchain of its own.
+     */
+    private var rendererFormatEstablished = false
     private var setupPending = false
     private var layoutRequestedWhileSetup = false
     private val surfaceRedrawCompletions = ArrayDeque<Runnable>()
@@ -104,8 +131,31 @@ internal class GpuSurfaceView(
      * keep every event.
      */
     private var inputSink: GpuSurfaceInputSink? = null
+
+    /**
+     * The capture hosts presenting this surface's picture in place of its layer.
+     *
+     * A GPU surface inside a filtered or effected subtree is drawn into that
+     * subtree's capture instead of presenting on its own layer: HWUI records a
+     * `SurfaceView` as a cleared hole, so the surface would be missing from the
+     * filtered picture and its layer would keep showing through beside it — at
+     * whatever position the capture's own renderer last reported for it, which
+     * is not a position in the window at all. A set rather than a flag because
+     * nested captures each hold and release this surface independently.
+     */
+    private val captureHosts = mutableSetOf<NestedSurfaceHost>()
+
     private val redrawRequest = Runnable {
-        if (statePtr != 0L && refreshRendererReadiness()) {
+        if (statePtr == 0L) {
+            return@Runnable
+        }
+        if (captureHosts.isNotEmpty()) {
+            // A suppressed surface presents nothing of its own, so the frame its
+            // renderer is asking for is the enclosing capture's next one.
+            captureHosts.forEach(NestedSurfaceHost::requestCaptureFrame)
+            return@Runnable
+        }
+        if (refreshRendererReadiness()) {
             // The content invalidated, which is the one moment its description
             // can have changed; the next frame republishes it.
             needsAccessibilityLabelRefresh = true
@@ -342,6 +392,7 @@ internal class GpuSurfaceView(
             prefersHdr = frozenRendererHdrPreference()
         )
         surfaceAttached = true
+        rendererFormatEstablished = true
         setupPending = !refreshRendererReadiness()
     }
 
@@ -482,6 +533,17 @@ internal class GpuSurfaceView(
     }
 
     private fun renderFrame(): Boolean {
+        if (captureHosts.isNotEmpty()) {
+            // This surface's picture belongs to an enclosing capture, which
+            // renders it into a texture of its own. Presenting here as well
+            // would draw the same frame twice and advance the renderer's clock
+            // twice, so the request is handed to the hosts and the render
+            // happens where the picture is actually wanted.
+            captureHosts.forEach(NestedSurfaceHost::requestCaptureFrame)
+            publishContentAccessibilityLabel()
+            finishSurfaceRedraw()
+            return false
+        }
         val consumedDoubleTap = doubleTap
         // The same display density `onMeasure` sizes this view with: the surface
         // holds `density` physical pixels per logical unit, and a move to a
@@ -645,6 +707,70 @@ internal class GpuSurfaceView(
         holder.removeCallback(this)
     }
 
+    /**
+     * The native state a capture host renders this surface's frames through.
+     */
+    internal val nativeStatePtr: Long get() = statePtr
+
+    /**
+     * Whether this surface takes part in what its subtree presents.
+     *
+     * A suppressed surface is `INVISIBLE` on purpose and still belongs to the
+     * picture; one the application itself hid does not.
+     */
+    internal val participatesInCapture: Boolean
+        get() = isVisible || captureHosts.isNotEmpty()
+
+    /**
+     * Whether this surface can render a frame for an enclosing capture.
+     *
+     * It needs a native state, the format its renderer settled on when it was
+     * first attached, and a finished asynchronous setup. It does not need a
+     * swapchain: a captured surface draws into the capture's texture, not its
+     * own layer.
+     */
+    internal fun isReadyForCapture(): Boolean =
+        statePtr != 0L && rendererFormatEstablished && refreshRendererReadiness()
+
+    /**
+     * Hands this surface's presentation over to [host].
+     *
+     * The view keeps its place in the layout and its native renderer keeps
+     * every resource it holds, but it stops being a presented layer.
+     * `SurfaceView` positions its layer from whichever render-node tree drew it
+     * last, and a capture draws this subtree through a `HardwareRenderer` of
+     * its own, in the captured buffer's coordinates — so a layer left alive is
+     * pushed to wherever this surface happens to sit inside that buffer, which
+     * is not a position in the window at all. Hiding the layer through a
+     * `SurfaceControl` transaction does not hold, because `SurfaceView` shows
+     * it again from every position update the capture's renderer reports; the
+     * view's own visibility is the one answer it derives all of that from.
+     *
+     * The picture is not lost: it reaches the screen through the capture, drawn
+     * into the filter's texture by `compositeNestedSurface`.
+     */
+    internal fun suppressLayerFor(host: NestedSurfaceHost) {
+        if (!captureHosts.add(host) || captureHosts.size > 1) {
+            return
+        }
+        Log.d(GPU_SURFACE_LOG_TAG, "presentation taken over by a capture")
+        visibility = INVISIBLE
+    }
+
+    /**
+     * Returns this surface's presentation to its own layer.
+     *
+     * The last host to let go is the one that reveals it again, and the
+     * swapchain the visibility change rebuilds starts the frame loop itself.
+     */
+    internal fun releaseLayerFor(host: NestedSurfaceHost) {
+        if (!captureHosts.remove(host) || captureHosts.isNotEmpty()) {
+            return
+        }
+        Log.d(GPU_SURFACE_LOG_TAG, "presentation returned by a capture")
+        visibility = VISIBLE
+    }
+
     private fun refreshRendererReadiness(): Boolean {
         if (!rendererReady && NativeBindings.waterui_gpu_surface_is_ready(statePtr)) {
             rendererReady = true
@@ -745,7 +871,7 @@ internal class GpuSurfaceView(
         if (hasHdrPreference) {
             prefersHdr
         } else {
-            inheritedDynamicRange() == SurfaceDynamicRange.HIGH
+            inheritedSurfaceDynamicRange() == SurfaceDynamicRange.HIGH
         }
 
     private fun frozenRendererHdrPreference(): Boolean = rendererPrefersHdr
@@ -776,18 +902,6 @@ internal class GpuSurfaceView(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             setDesiredHdrHeadroom(if (frozenRendererHdrPreference()) 0f else 1f)
         }
-    }
-
-    private fun inheritedDynamicRange(): SurfaceDynamicRange? {
-        var view: View? = this
-        while (view != null) {
-            val range = view.getTag(TAG_DYNAMIC_RANGE) as? SurfaceDynamicRange
-            if (range != null) {
-                return range
-            }
-            view = view.parent as? View
-        }
-        return null
     }
 }
 
