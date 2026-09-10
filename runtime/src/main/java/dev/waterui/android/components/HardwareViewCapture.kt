@@ -2,7 +2,6 @@ package dev.waterui.android.components
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.res.Resources
 import android.graphics.Canvas
 import android.graphics.HardwareRenderer
 import android.graphics.PixelFormat
@@ -217,14 +216,14 @@ internal class HardwareViewCapture(
      * window, and without one every elevation shadow inside it silently
      * disappears from the capture. The position and the alphas are the ones the
      * framework itself resolves for this device and theme, read back through the
-     * same resources the window's own renderer is configured from, and
+     * same theme attributes the window's own renderer is configured from, and
      * translated into the captured subtree's coordinates.
      */
     private fun configureLightSource(content: View) {
-        val resources = content.resources
-        val lightY = frameworkDimension(resources, "config_lightY")
-        val lightZ = frameworkDimension(resources, "config_lightZ")
-        val lightRadius = frameworkDimension(resources, "config_lightRadius")
+        val context = content.context
+        val lightY = themeDimension(context, "lightY")
+        val lightZ = themeDimension(context, "lightZ")
+        val lightRadius = themeDimension(context, "lightRadius")
         val location = IntArray(2)
         content.getLocationOnScreen(location)
         val windowManager = content.context.getSystemService(WindowManager::class.java)
@@ -268,15 +267,30 @@ internal class HardwareViewCapture(
         fun ImageReader.holds(width: Int, height: Int, format: Int): Boolean =
             this.width == width && this.height == height && imageFormat == format
 
-        /** The framework dimension named [name], which every Android build defines. */
+        /**
+         * The dimension the platform theme attribute `android:[name]` resolves to.
+         *
+         * `lightY`, `lightZ` and `lightRadius` are the private `Lighting` attributes
+         * every platform theme sets from `light_y`, `light_z` and `light_radius`;
+         * the window's own renderer reads the same three, so the capture's light
+         * lands where the window's does.
+         */
         @SuppressLint("DiscouragedApi")
-        fun frameworkDimension(resources: Resources, name: String): Float {
-            val identifier = resources.getIdentifier(name, "dimen", "android")
-            check(identifier != 0) {
-                "The Android framework resource dimen/$name, which places shadow " +
+        fun themeDimension(context: Context, name: String): Float {
+            val attribute = context.resources.getIdentifier(name, "attr", "android")
+            check(attribute != 0) {
+                "The Android platform attribute android:$name, which places shadow " +
                     "light, is missing from this device's resources"
             }
-            return resources.getDimension(identifier)
+            val value = TypedValue()
+            check(
+                context.theme.resolveAttribute(attribute, value, true) &&
+                    value.type == TypedValue.TYPE_DIMENSION
+            ) {
+                "The application theme resolves no dimension for android:$name, which " +
+                    "every Android theme inherits from the platform"
+            }
+            return value.getDimension(context.resources.displayMetrics)
         }
 
         /** The theme's ambient and spot shadow alphas, in that order. */
