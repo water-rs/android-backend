@@ -29,6 +29,12 @@ android {
         targetSdk = 37
         abortOnError = true
         warningsAsErrors = true
+        // Asks Maven Central, at lint time, whether anything newer exists. It
+        // therefore turns red the moment any dependency publishes a release,
+        // with nothing in this repository having changed — a gate a pull
+        // request cannot pass or fail on its own merits. Dependency freshness
+        // belongs to whoever bumps versions, not to the per-change gate.
+        disable += "NewerVersionAvailable"
     }
 
     testOptions {
@@ -104,7 +110,7 @@ dependencies {
     implementation("com.google.android.material:material:1.14.0")
     implementation("me.zhanghai.android.fastscroll:library:1.3.0")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.16.1")
+    testImplementation("org.robolectric:robolectric:4.17")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }
