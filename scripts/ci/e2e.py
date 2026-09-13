@@ -81,7 +81,10 @@ ALL_RUST_TARGETS = tuple(dict.fromkeys(RUST_TARGET_FOR_ARCH.values()))
 def is_nonblank(png: bytes) -> bool:
     from PIL import Image, ImageStat
 
-    image = Image.open(BytesIO(png)).convert("L").resize(DOWNSCALE)
+    try:
+        image = Image.open(BytesIO(png)).convert("L").resize(DOWNSCALE)
+    except Exception:
+        return False
     return ImageStat.Stat(image).stddev[0] >= BLANK_STDDEV
 
 
@@ -141,10 +144,24 @@ def adb_out(serial: str, *args: str) -> bytes:
     return subprocess.run(["adb", "-s", serial, *args], check=True, capture_output=True).stdout
 
 
+def device_alive(serial: str) -> bool:
+    result = subprocess.run(
+        ["adb", "-s", serial, "get-state"], capture_output=True, text=True
+    )
+    return result.returncode == 0 and result.stdout.strip() == "device"
+
+
 def capture_screen(serial: str) -> bytes:
     # exec-out keeps the PNG binary-safe; `adb shell screencap` runs through a
-    # pty that can corrupt bytes on some devices.
-    return adb_out(serial, "exec-out", "screencap", "-p")
+    # pty that can corrupt bytes on some devices. A failed capture is empty
+    # bytes so callers keep polling — unless the device itself is gone, which
+    # no amount of polling fixes.
+    try:
+        return adb_out(serial, "exec-out", "screencap", "-p")
+    except subprocess.CalledProcessError:
+        if not device_alive(serial):
+            sys.exit(f"Emulator {serial} is no longer reachable; the shard cannot continue.")
+        return b""
 
 
 def enter_demo_mode(serial: str) -> None:
@@ -156,23 +173,24 @@ def enter_demo_mode(serial: str) -> None:
 
 
 def _process_group_cpu_seconds(pgid: int) -> float:
-    """Cumulative user+system CPU of every process in the group, from /proc."""
+    """Cumulative CPU time of every process in the group, via ps — portable
+    across the Linux CI runners and local macOS runs (/proc is Linux-only)."""
+    out = subprocess.run(
+        ["ps", "-o", "time=", "-g", str(pgid)], capture_output=True, text=True
+    ).stdout
     total = 0.0
-    clk = os.sysconf("SC_CLK_TCK")
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdigit():
+    for line in out.splitlines():
+        # ps prints [[DD-]HH:]MM:SS[.cc]
+        head, sep, tail = line.strip().partition("-")
+        if not head:
             continue
-        try:
-            stat = (entry / "stat").read_text()
-        except OSError:
-            continue
-        # comm is parenthesized and may contain spaces; the fields after the
-        # final ')' start at state(3), so pgrp(5) is index 2 and utime(14) /
-        # stime(15) are indices 11 and 12.
-        fields = stat.rpartition(")")[2].split()
-        if int(fields[2]) != pgid:
-            continue
-        total += (int(fields[11]) + int(fields[12])) / clk
+        timestr, days = (tail, int(head)) if sep else (head, 0)
+        parts = timestr.split(":")
+        seconds = float(parts[-1]) + int(parts[-2]) * 60
+        if len(parts) == 3:
+            seconds += int(parts[0]) * 3600
+        seconds += days * 86400
+        total += seconds
     return total
 
 
@@ -343,7 +361,7 @@ def _run_started_example(
         detail = "settled" if settled else (
             f"no settled frame within {cfg['settle_s']:g}s; compared the final frame"
         )
-        if frame is None:
+        if not frame:
             detail += "; no framebuffer capture at all"
             status = "FAIL"
         else:
@@ -364,11 +382,15 @@ def _run_started_example(
             actual.write_bytes(frame)
             detail = "non-blank content on screen"
 
+    if status == "FAIL" and proc.poll() is not None:
+        detail += f"; water run exited with status {proc.returncode} during capture — see log"
+
     if golden_mode == "record" and cfg["mode"] == "verify" and status != "FAIL":
         (candidates_dir / f"{example}.png").write_bytes(actual.read_bytes())
 
     if status == "FAIL":
         print(f"::error::Example {example}: {detail}")
+        print("\n".join(log_file.read_text(errors="replace").splitlines()[-50:]))
     else:
         print(f"Example {example}: {detail}")
     results.append((example, status, detail))
@@ -409,10 +431,10 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
     backend_dir = repo_root / "backends" / "android"
     examples_root = repo_root / "examples"
 
-    log_dir = Path(args.log_dir or backend_dir / ".ci-logs")
+    log_dir = Path(args.log_dir or backend_dir / "ci-logs")
     manifest_path = Path(args.manifest or backend_dir / "e2e" / "manifest.json")
     goldens_dir = Path(args.goldens_dir or backend_dir / "e2e" / "goldens")
-    artifacts_dir = Path(args.artifacts_dir or backend_dir / ".ci-artifacts")
+    artifacts_dir = Path(args.artifacts_dir or backend_dir / "ci-artifacts")
     candidates_dir = artifacts_dir / "candidates"
     for directory in (log_dir, artifacts_dir, candidates_dir):
         directory.mkdir(parents=True, exist_ok=True)
