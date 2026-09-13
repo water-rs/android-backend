@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'backends/android/**'
-      - 'backends/android/release-please-config.json'
-      - 'backends/android/release-please-manifest.json'
   workflow_dispatch:
 
 permissions:
@@ -32,25 +28,22 @@ jobs:
         with:
           command: github-release
           token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: backends/android/release-please-config.json
-          manifest-file: backends/android/release-please-manifest.json
+          config-file: release-please-config.json
+          manifest-file: release-please-manifest.json
       - name: Set up Java
         if: ${{ steps.release.outputs.release_created == 'true' }}
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
       - name: Setup Gradle
         if: ${{ steps.release.outputs.release_created == 'true' }}
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          build-root-directory: backends/android
+        uses: gradle/actions/setup-gradle@v4
       - name: Build Android backend
         if: ${{ steps.release.outputs.release_created == 'true' }}
-        working-directory: backends/android
         run: ./gradlew build
       - name: Upload AAR to GitHub Release
         if: ${{ steps.release.outputs.release_created == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ steps.release.outputs.tag_name }} backends/android/build/libs/*.aar --clobber
+        run: gh release upload ${{ steps.release.outputs.tag_name }} runtime/build/outputs/aar/*-release.aar --clobber
