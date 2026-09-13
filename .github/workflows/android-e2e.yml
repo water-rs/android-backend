@@ -62,7 +62,7 @@ jobs:
       # (libva through waterkit-codec, fonts, EGL, …); the script reuses the
       # package list the waterui checkout maintains rather than drifting a copy.
       - name: Install Linux native dependencies
-        run: bash waterui/backends/android/scripts/ci/install_linux_deps.sh waterui
+        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
 
       - name: Build water CLI
         run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
@@ -198,10 +198,9 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # The runner executes each `script:` line through a fresh
-          # `/usr/bin/sh -c`: exports and cd do not carry between lines, so the
-          # whole invocation is a single line and the script detects the
-          # emulator serial itself.
-          script: bash "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/run_examples_shard.sh" --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}"
+          # `/usr/bin/sh -c`, so the whole invocation stays a single line; the
+          # Python driver detects the emulator serial itself.
+          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}"
 
       - name: Upload shard logs
         if: always()
