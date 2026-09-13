@@ -114,12 +114,20 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # `water run` assembles each example's app with compileSdk 37; install
-      # that platform and the newest build-tools explicitly instead of relying
-      # on whatever the runner image happens to carry.
+      # `water run` assembles each example's app at the module's compileSdk;
+      # install that platform and the newest build-tools explicitly instead of
+      # relying on whatever the runner image happens to carry. Since API 37 the
+      # platform package carries a minor suffix (platforms;android-37.0), so
+      # resolve the newest package matching the declared major level.
       - name: Install SDK platform for compileSdk
         run: |
-          sdkmanager --install "platforms;android-37"
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
+          if [ -z "$platform_pkg" ]; then
+            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
+            exit 1
+          fi
+          sdkmanager --install "$platform_pkg"
           latest_bt="$(sdkmanager --list | awk -F'|' '/build-tools;[0-9]/{gsub(/ /,"",$1); print $1}' | sort -V | tail -1)"
           sdkmanager --install "$latest_bt"
 
