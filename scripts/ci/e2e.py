@@ -36,7 +36,11 @@ DOWNSCALE = (64, 64)
 # `water run` prints this once the app is up; it is the only startup signal
 # the CLI emits that is reliably post-launch rather than post-build.
 STARTUP_SIGNAL = "Application started"
-STARTUP_TIMEOUT_S = 480
+# A cold Rust build of a dependency-heavy example can legitimately run for
+# tens of minutes, so the wait is bounded by log activity, not a wall clock:
+# a log that stops growing for this long means the build is wedged.
+STARTUP_STALL_S = 300
+STARTUP_CAP_S = 2400
 
 # Freeze the status bar so screenshots compare run to run: demo mode pins
 # the clock, fixes wifi/battery, and hides notification icons. Entered once
@@ -151,17 +155,30 @@ def enter_demo_mode(serial: str) -> None:
 
 
 def wait_for_start(proc: subprocess.Popen, log_file: Path) -> bool:
-    deadline = time.monotonic() + STARTUP_TIMEOUT_S
-    while time.monotonic() < deadline:
+    cap = time.monotonic() + STARTUP_CAP_S
+    last_size = -1
+    last_growth = time.monotonic()
+    while True:
         if proc.poll() is not None:
             print("run process exited before the startup signal.", file=sys.stderr)
             return False
-        if log_file.exists() and STARTUP_SIGNAL in log_file.read_text(errors="replace"):
-            return True
+        if log_file.exists():
+            if STARTUP_SIGNAL in log_file.read_text(errors="replace"):
+                return True
+            size = log_file.stat().st_size
+            if size != last_size:
+                last_size = size
+                last_growth = time.monotonic()
+            elif time.monotonic() - last_growth > STARTUP_STALL_S:
+                print(
+                    f"run log stalled for {STARTUP_STALL_S}s without the startup signal.",
+                    file=sys.stderr,
+                )
+                return False
+        if time.monotonic() > cap:
+            print(f"startup wait hit the {STARTUP_CAP_S}s cap.", file=sys.stderr)
+            return False
         time.sleep(1)
-    print(f"Timed out waiting for the startup signal after {STARTUP_TIMEOUT_S}s.",
-          file=sys.stderr)
-    return False
 
 
 def wait_for_settle(serial: str, timeout_s: float, poll_s: float) -> tuple[bool, bytes | None]:
