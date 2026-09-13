@@ -365,9 +365,11 @@ fun ResolvedFontStruct.toTypeface(italic: Boolean = false): Typeface {
         8 -> 900
         else -> error("unknown font weight: $weight")
     }
+    // A named family is exact; the design picks between the platform's own
+    // faces in its absence.
     val base = family?.let { familyName ->
         Typeface.create(familyName, Typeface.NORMAL)
-    } ?: Typeface.DEFAULT
+    } ?: if (isMonospaced) Typeface.MONOSPACE else Typeface.DEFAULT
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         Typeface.create(base, weightValue, italic)
     } else {

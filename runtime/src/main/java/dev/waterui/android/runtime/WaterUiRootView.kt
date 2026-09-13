@@ -513,7 +513,8 @@ private data class MaterialTypographyPalette(
             return ResolvedFontStruct(
                 size = textView.textSize / context.pxPerSp(),
                 weight = typeface.toWaterUiFontWeight(),
-                family = null
+                family = null,
+                design = ResolvedFontStruct.FONT_DESIGN_DEFAULT
             )
         }
     }
