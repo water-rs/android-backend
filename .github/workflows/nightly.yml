@@ -35,6 +35,12 @@ concurrency:
   group: nightly
   cancel-in-progress: false
 
+env:
+  AVD_API_LEVEL: "35"
+  AVD_ARCH: x86_64
+  AVD_TARGET: google_apis
+  AVD_PROFILE: pixel_6
+
 jobs:
   e2e:
     name: Example E2E
@@ -43,11 +49,143 @@ jobs:
       waterui-ref: dev
       golden_mode: ${{ inputs.golden_mode || 'enforce' }}
 
+  # The androidTest suite: a real device run of the runtime against the app
+  # crate's .so — the JNI boundary, view inflation, and the gesture → binding →
+  # watcher reactive loop that Robolectric can never reach. The gesture
+  # example doubles as the test fixture.
+  instrumentation:
+    name: Runtime instrumentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout waterui (dev)
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: dev
+          path: waterui
+          submodules: recursive
+
+      - name: Overlay android-backend
+        uses: actions/checkout@v4
+        with:
+          path: waterui/backends/android
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: waterui/backends/android
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-e2e
+          workspaces: |
+            waterui
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # The generated app and this module both compile against compileSdk 37,
+      # and the instrumentation build packages the staged .so through the NDK
+      # toolchain — derive the pinned NDK from the module rather than
+      # duplicating the version here.
+      - name: Install SDK platform, build-tools, and the pinned NDK
+        run: |
+          sdkmanager --install "platforms;android-37"
+          latest_bt="$(sdkmanager --list | awk -F'|' '/build-tools;[0-9]/{gsub(/ /,"",$1); print $1}' | sort -V | tail -1)"
+          sdkmanager --install "$latest_bt"
+          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          sdkmanager --install "ndk;${ndk_version}"
+
+      - name: Install the Android Rust target
+        run: rustup target add x86_64-linux-android
+
+      - name: Build water CLI
+        run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
+
+      - name: Build the gesture fixture's native library
+        run: waterui/target/debug/water package --platform android --backend android --arch x86-64 --path waterui/examples/gesture
+
+      # Playground examples keep their generated backend under the CLI's
+      # build cache, so locate the staged ABI directory rather than assuming a
+      # path inside the example checkout.
+      - name: Stage the native library into the test APK
+        run: |
+          abi_dir="$(find "$HOME/.water/build_cache" -type d -path '*managed_backends/android/app/src/main/jniLibs/x86_64' -print -quit)"
+          if [ -z "$abi_dir" ]; then
+            echo "::error::water package produced no x86_64 jniLibs directory"
+            exit 1
+          fi
+          dest="waterui/backends/android/runtime/src/androidTest/jniLibs/x86_64"
+          mkdir -p "$dest"
+          cp "$abi_dir"/*.so "$dest/"
+          ls -la "$dest"
+
+      - name: Cache AVD
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.AVD_API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Create emulator snapshot for cache
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.AVD_API_LEVEL }}
+          arch: ${{ env.AVD_ARCH }}
+          target: ${{ env.AVD_TARGET }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: echo "AVD cache primed."
+
+      - name: Run connected Android tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.AVD_API_LEVEL }}
+          arch: ${{ env.AVD_ARCH }}
+          target: ${{ env.AVD_TARGET }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: false
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            cd waterui/backends/android
+            ./gradlew --no-daemon :runtime:connectedDebugAndroidTest
+
+      - name: Upload instrumentation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-instrumentation-reports
+          path: |
+            waterui/backends/android/runtime/build/reports/androidTests/
+            waterui/backends/android/runtime/build/outputs/androidTest-results/
+          if-no-files-found: ignore
+
   # One issue per broken nightly, updated in place while it stays red, so a
   # failure that nobody was watching is on the board by morning.
   report:
     name: Report failure
-    needs: e2e
+    needs: [e2e, instrumentation]
     if: failure()
     runs-on: ubuntu-latest
     timeout-minutes: 5

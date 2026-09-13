@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The instrumentation APK is a real WaterUI host: it links the app crate's
+     libwaterui_app.so (staged under jniLibs/ by CI) and its Application owns
+     the single process-scoped environment waterui_init() may create. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:name="dev.waterui.android.runtime.WaterUiTestApplication"
+        android:label="WaterUI Runtime Tests">
+        <activity
+            android:name="dev.waterui.android.runtime.WaterUiTestActivity"
+            android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
+    </application>
+</manifest>
