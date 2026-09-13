@@ -24,14 +24,14 @@ class ReactiveRoundTripTest {
             Waiters.until(description = "WaterUiRootView to inflate its first child") {
                 activity.rootView.childCount > 0
             }
-            onView(withText("Tap count: 0")).check(matches(isDisplayed()))
+            onView(withText(Waiters.textIs("Tap count: 0"))).check(matches(isDisplayed()))
 
             onView(withText("Tap Me!")).perform(click())
 
             Waiters.until(description = "the tap to reach the counter binding") {
                 Waiters.findTextView(activity.rootView, "Tap count: 1") != null
             }
-            onView(withText("Tap count: 1")).check(matches(isDisplayed()))
+            onView(withText(Waiters.textIs("Tap count: 1"))).check(matches(isDisplayed()))
         }
     }
 }
