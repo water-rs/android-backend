@@ -112,7 +112,7 @@ jobs:
           sdkmanager --install "ndk;${ndk_version}"
 
       - name: Install the Android Rust target
-        run: rustup target add x86_64-linux-android
+        run: rustup target add "$(python3 waterui/backends/android/scripts/ci/e2e.py rust-target "${{ env.AVD_ARCH }}")"
 
       # Building the workspace's CLI for the Linux host links native libraries
       # (libva through waterkit-codec, fonts, EGL, …); the script reuses the

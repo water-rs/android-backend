@@ -27,8 +27,6 @@ import time
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageStat
-
 # A settled screen of real content shows a stddev far above this; a flat
 # fill — the failure mode "the app opened but rendered nothing" produces —
 # sits near zero.
@@ -62,7 +60,18 @@ DEMO_MODE_COMMANDS = (
 # ---------- image predicates ----------
 
 
+# Emulator arch → Rust target triple, the mapping `rustup target add` needs.
+RUST_TARGET_FOR_ARCH = {
+    "x86_64": "x86_64-linux-android",
+    "x86": "i686-linux-android",
+    "arm64-v8a": "aarch64-linux-android",
+    "armeabi-v7a": "armv7-linux-androideabi",
+}
+
+
 def is_nonblank(png: bytes) -> bool:
+    from PIL import Image, ImageStat
+
     image = Image.open(BytesIO(png)).convert("L").resize(DOWNSCALE)
     return ImageStat.Stat(image).stddev[0] >= BLANK_STDDEV
 
@@ -70,6 +79,8 @@ def is_nonblank(png: bytes) -> bool:
 def compare_images(
     golden_path: Path, actual_path: Path, tolerance: int, max_fraction: float, diff_out: Path
 ) -> int:
+    from PIL import Image, ImageChops
+
     golden = Image.open(golden_path).convert("RGB")
     actual = Image.open(actual_path).convert("RGB")
     if golden.size != actual.size:
@@ -431,6 +442,8 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
 
 
 def cmd_nonblank(path: str) -> int:
+    from PIL import Image, ImageStat
+
     data = Path(path).read_bytes()
     image = Image.open(BytesIO(data)).convert("L").resize(DOWNSCALE)
     stddev = ImageStat.Stat(image).stddev[0]
@@ -475,6 +488,12 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("max_fraction", type=float)
     compare.add_argument("diff_out")
     compare.set_defaults(func=cmd_compare)
+
+    rt = sub.add_parser(
+        "rust-target", help="print the Rust target triple for an emulator arch"
+    )
+    rt.add_argument("arch", choices=sorted(RUST_TARGET_FOR_ARCH))
+    rt.set_defaults(func=lambda a: print(RUST_TARGET_FOR_ARCH[a.arch]) or 0)
 
     return parser
 
