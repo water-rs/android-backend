@@ -80,6 +80,39 @@ jobs:
           path: /tmp/water-cli/water
           if-no-files-found: error
 
+      # The Compose MD3 reference host renders registered twins on the same
+      # emulator for pixel parity — build it once here, shards consume the APK.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK platform for reference app
+        run: |
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/e2e/reference/app/build.gradle.kts)"
+          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
+          if [ -z "$platform_pkg" ]; then
+            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
+            exit 1
+          fi
+          sdkmanager --install "$platform_pkg"
+
+      - name: Build Compose reference APK
+        run: |
+          cd waterui/backends/android/e2e/reference
+          ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Upload reference APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: md3-reference-apk
+          path: waterui/backends/android/e2e/reference/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
   examples-shard:
     name: examples-shard-${{ matrix.shard-index }}
     runs-on: ubuntu-latest
@@ -197,6 +230,12 @@ jobs:
           chmod +x /tmp/water-cli/water
           echo "/tmp/water-cli" >> "$GITHUB_PATH"
 
+      - name: Download reference APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: md3-reference-apk
+          path: /tmp/md3-reference
+
       - name: Run sharded Android example E2E
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -211,7 +250,7 @@ jobs:
           # The runner executes each `script:` line through a fresh
           # `/usr/bin/sh -c`, so the whole invocation stays a single line; the
           # Python driver detects the emulator serial itself.
-          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}"
+          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}" --reference-apk /tmp/md3-reference/app-debug.apk
 
       - name: Upload shard logs
         if: always()
