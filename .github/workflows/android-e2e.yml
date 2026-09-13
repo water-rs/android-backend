@@ -112,8 +112,6 @@ jobs:
 
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
-        with:
-          build-root-directory: waterui/backends/android
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
@@ -199,9 +197,11 @@ jobs:
           emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # The runner executes `script:` through /usr/bin/sh (dash), not bash:
+          # keep this block POSIX and leave `set -euo pipefail` to the script
+          # it invokes.
           script: |
-            set -euo pipefail
-            ANDROID_SERIAL="$(adb devices | awk '/^emulator-[0-9]+\s+device$/ {print $1; exit}')"
+            ANDROID_SERIAL="$(adb devices | awk '/^emulator-[0-9]+[ \t]+device$/ {print $1; exit}')"
             if [ -z "$ANDROID_SERIAL" ]; then
               echo "::error::No Android emulator device detected."
               exit 1
