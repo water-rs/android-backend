@@ -232,16 +232,17 @@ def wait_for_start(proc: subprocess.Popen, log_file: Path) -> bool:
 
 
 def wait_for_settle(serial: str, timeout_s: float, poll_s: float) -> tuple[bool, bytes | None]:
-    """Poll the framebuffer until two consecutive captures are byte-identical —
-    the real "the app finished drawing" signal — or the timeout expires.
-    Returns (settled, last frame); the last frame is returned either way so the
-    caller can compare or inspect it."""
+    """Poll the framebuffer until two consecutive captures are byte-identical
+    AND non-blank — the "the app finished drawing something" signal. Apps that
+    show an empty background before content arrives settle too early without
+    the non-blank requirement; apps that never draw fail the timeout with a
+    blank screen. Returns (settled, last frame) either way."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
     cur: bytes | None = None
     while time.monotonic() < deadline:
         cur = capture_screen(serial)
-        if cur and cur == prev:
+        if cur and cur == prev and is_nonblank(cur):
             return True, cur
         prev = cur
         time.sleep(poll_s)
