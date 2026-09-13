@@ -79,8 +79,6 @@ jobs:
 
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
-        with:
-          build-root-directory: waterui/backends/android
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
