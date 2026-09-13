@@ -180,9 +180,9 @@ jobs:
           emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: |
-            cd waterui/backends/android
-            ./gradlew --no-daemon :runtime:connectedDebugAndroidTest
+          # Each `script:` line runs through a fresh `/usr/bin/sh -c`, so this
+          # stays a single line — a `cd` on its own line would be forgotten.
+          script: cd waterui/backends/android && ./gradlew --no-daemon :runtime:connectedDebugAndroidTest
 
       - name: Upload instrumentation reports
         if: always()

@@ -104,9 +104,16 @@ if [[ "$GOLDEN_MODE" != "enforce" && "$GOLDEN_MODE" != "record" ]]; then
   exit 1
 fi
 
+# android-emulator-runner executes each `script:` line through a fresh
+# `sh -c`, so an exported ANDROID_SERIAL would not reach us; detect the one
+# attached emulator ourselves when the caller did not pin a device.
 if [[ -z "${ANDROID_SERIAL:-}" ]]; then
-  echo "ANDROID_SERIAL must be set to an emulator/device id." >&2
-  exit 1
+  ANDROID_SERIAL="$(adb devices | awk '/^emulator-[0-9]+[ \t]+device$/ {print $1; exit}')"
+  if [[ -z "$ANDROID_SERIAL" ]]; then
+    echo "No Android emulator/device detected and ANDROID_SERIAL is unset." >&2
+    exit 1
+  fi
+  export ANDROID_SERIAL
 fi
 
 BACKEND_DIR="${REPO_ROOT}/backends/android"
