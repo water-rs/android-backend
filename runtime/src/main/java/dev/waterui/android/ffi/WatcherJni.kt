@@ -77,9 +77,10 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataCursor(viewPtr: Long): MetadataCursorStruct
     @JvmStatic external fun forceAsIgnorableMetadataAccessibilityIdentifier(viewPtr: Long): MetadataAccessibilityIdentifierStruct
     @JvmStatic external fun forceAsIgnorableMetadataAccessibilityLabel(viewPtr: Long): MetadataAccessibilityLabelStruct
-    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityRole(viewPtr: Long): MetadataAccessibilityValueStruct
-    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityHidden(viewPtr: Long): MetadataAccessibilityValueStruct
-    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityChildren(viewPtr: Long): MetadataAccessibilityValueStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityValue(viewPtr: Long): MetadataAccessibilityValueStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityRole(viewPtr: Long): MetadataAccessibilityIntStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityHidden(viewPtr: Long): MetadataAccessibilityIntStruct
+    @JvmStatic external fun forceAsIgnorableMetadataAccessibilityChildren(viewPtr: Long): MetadataAccessibilityIntStruct
     @JvmStatic external fun forceAsIgnorableMetadataAccessibilityState(viewPtr: Long): MetadataAccessibilityStateStruct
     @JvmStatic external fun forceAsIgnorableMetadataAccessibilityStateSignal(viewPtr: Long): MetadataAccessibilityStateStruct
     @JvmStatic external fun forceAsMetadataClipShape(viewPtr: Long): MetadataClipShapeStruct
@@ -354,6 +355,7 @@ object WatcherJni {
     @JvmStatic external fun metadataCursorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataAccessibilityIdentifierId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataAccessibilityLabelId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun ignorableMetadataAccessibilityValueId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataAccessibilityRoleId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataAccessibilityHiddenId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun ignorableMetadataAccessibilityChildrenId(): dev.waterui.android.runtime.TypeIdStruct
@@ -539,6 +541,7 @@ object WatcherJni {
     @JvmStatic external fun gpuSurfaceImeCaret(statePtr: Long): FloatArray?
 
     @JvmStatic external fun gpuSurfaceAccessibilityLabel(statePtr: Long): String
+    @JvmStatic external fun gpuSurfaceAccessibilityValue(statePtr: Long): String
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 
     // ========== View-capture Functions (AppliedFilter / ViewEffect) ==========

@@ -44,6 +44,13 @@ private class PictureView(context: Context, picture: PictureStruct) :
             contentDescription = label
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
         }
+        // The semantic content the drawing offers, spoken after its name.
+        picture.value.takeIf { it.isNotEmpty() }?.let { value ->
+            installAccessibilityMutation(this) { info ->
+                info.stateDescription = value
+            }
+            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
         val density = context.resources.displayMetrics.density
         val bitmaps = WuiComputed.bitmapFromComputed(
             NativeBindings.waterui_picture_bitmap(picture.picturePtr, density)

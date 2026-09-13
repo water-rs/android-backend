@@ -20,6 +20,7 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -164,10 +165,17 @@ internal class GpuSurfaceView(
     }
 
     /**
-     * Whether the content has changed since its description was last asked for.
-     * Starts true so the first drawn frame publishes one.
+     * Whether the content has changed since its semantics were last asked for.
+     * Starts true so the first drawn frame publishes them.
      */
     private var needsAccessibilityLabelRefresh = true
+
+    /**
+     * The semantic value the content last offered, published onto this view's
+     * accessibility node as its state description — the channel a screen reader
+     * speaks after the content description.
+     */
+    private var publishedAccessibilityValue: CharSequence? = null
 
     private val scaleDetector = ScaleGestureDetector(
         context,
@@ -254,6 +262,12 @@ internal class GpuSurfaceView(
             inputSink = GpuSurfaceInputSink(statePtr)
             isFocusable = true
             isFocusableInTouchMode = true
+        }
+        // The state description is a node property, not a view one: the content
+        // value reaches the node through this delegate, reading whatever the
+        // last frame published.
+        installAccessibilityMutation(this) { info ->
+            info.stateDescription = publishedAccessibilityValue
         }
         holder.addCallback(this)
         disposeWith(::disposeNativeState)
@@ -540,7 +554,7 @@ internal class GpuSurfaceView(
             // twice, so the request is handed to the hosts and the render
             // happens where the picture is actually wanted.
             captureHosts.forEach(NestedSurfaceHost::requestCaptureFrame)
-            publishContentAccessibilityLabel()
+            publishContentAccessibility()
             finishSurfaceRedraw()
             return false
         }
@@ -559,7 +573,7 @@ internal class GpuSurfaceView(
             pushInput()
         }
         updateFrameRateDeclaration(continuous = needsRedraw)
-        publishContentAccessibilityLabel()
+        publishContentAccessibility()
         finishSurfaceRedraw()
         return needsRedraw
     }
@@ -574,7 +588,7 @@ internal class GpuSurfaceView(
      *
      * Asked after a frame rather than once at construction, because the answer
      * is empty until asynchronous renderer setup finishes — and only when the
-     * content actually invalidated, because deriving the description can be real
+     * content actually invalidated, because deriving the semantics can be real
      * work (a formula runs its source through speech rules) and a display that
      * drives an animation must not pay it on every frame.
      *
@@ -583,21 +597,32 @@ internal class GpuSurfaceView(
      * `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS`, so what is set here is
      * never what a reader hears when the application named the view itself.
      */
-    private fun publishContentAccessibilityLabel() {
+    private fun publishContentAccessibility() {
         if (!needsAccessibilityLabelRefresh || statePtr == 0L) {
             return
         }
         needsAccessibilityLabelRefresh = false
-        val label = NativeBindings.waterui_gpu_surface_accessibility_label(statePtr)
-        val description = label.takeIf { it.isNotEmpty() }
-        if (contentDescription == description) {
-            return
+        val description =
+            NativeBindings.waterui_gpu_surface_accessibility_label(statePtr)
+                .takeIf { it.isNotEmpty() }
+        if (contentDescription != description) {
+            contentDescription = description
         }
-        contentDescription = description
-        importantForAccessibility = if (description == null) {
-            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-        } else {
-            View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        if (description != null) {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
+        val value =
+            NativeBindings.waterui_gpu_surface_accessibility_value(statePtr)
+                .takeIf { it.isNotEmpty() }
+        if (publishedAccessibilityValue != value) {
+            publishedAccessibilityValue = value
+            if (value != null) {
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            }
+            sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+        }
+        if (description == null && value == null) {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         }
     }
 
