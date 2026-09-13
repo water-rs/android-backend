@@ -32,6 +32,14 @@ from pathlib import Path
 # sits near zero.
 BLANK_STDDEV = 4.0
 DOWNSCALE = (64, 64)
+# Frames must hold identical+non-blank this long to count as settled — outlives
+# transient system overlays like the fading scrollbar.
+MIN_STABLE_S = 2.0
+# System-rendered chrome excluded from golden comparison: the status bar icons
+# depend on whether the demo-mode broadcast landed, and the gesture bar is not
+# app content. Fractions of height, so any display size works.
+CROP_TOP = 0.04
+CROP_BOTTOM = 0.02
 
 # `water run` prints this once the app is up; it is the only startup signal
 # the CLI emits that is reliably post-launch rather than post-build.
@@ -101,6 +109,10 @@ def compare_images(
             file=sys.stderr,
         )
         return 2
+    w, h = golden.size
+    box = (0, int(h * CROP_TOP), w, h - int(h * CROP_BOTTOM))
+    golden = golden.crop(box)
+    actual = actual.crop(box)
 
     diff = ImageChops.difference(golden, actual)
     masks = [band.point(lambda v: 255 if v > tolerance else 0) for band in diff.split()]
@@ -232,18 +244,24 @@ def wait_for_start(proc: subprocess.Popen, log_file: Path) -> bool:
 
 
 def wait_for_settle(serial: str, timeout_s: float, poll_s: float) -> tuple[bool, bytes | None]:
-    """Poll the framebuffer until two consecutive captures are byte-identical
-    AND non-blank — the "the app finished drawing something" signal. Apps that
-    show an empty background before content arrives settle too early without
-    the non-blank requirement; apps that never draw fail the timeout with a
-    blank screen. Returns (settled, last frame) either way."""
+    """Poll the framebuffer until captures stay byte-identical AND non-blank
+    for MIN_STABLE_S — the "the app finished drawing something" signal.
+    Single identical pairs are not enough: an app can hold an empty background
+    before content arrives, or hold a transient overlay (a scrollbar mid-fade)
+    static for one poll interval. Returns (settled, last frame) either way."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
     cur: bytes | None = None
+    stable_since: float | None = None
     while time.monotonic() < deadline:
         cur = capture_screen(serial)
         if cur and cur == prev and is_nonblank(cur):
-            return True, cur
+            if stable_since is None:
+                stable_since = time.monotonic()
+            if time.monotonic() - stable_since >= MIN_STABLE_S:
+                return True, cur
+        else:
+            stable_since = None
         prev = cur
         time.sleep(poll_s)
     return False, cur
