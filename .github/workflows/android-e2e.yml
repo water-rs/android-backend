@@ -128,7 +128,7 @@ jobs:
             exit 1
           fi
           sdkmanager --install "$platform_pkg"
-          latest_bt="$(sdkmanager --list | awk -F'|' '/build-tools;[0-9]/{gsub(/ /,"",$1); print $1}' | sort -V | tail -1)"
+          latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
           sdkmanager --install "$latest_bt"
 
       - name: Install Pillow for screenshot checks
