@@ -146,6 +146,12 @@ jobs:
       - name: Install the Android Rust targets
         run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
 
+      # Examples pull workspace crates whose host-side build scripts link
+      # native libraries (libva through waterkit-codec, fonts, EGL, …) — the
+      # same dependency set the CLI build needs.
+      - name: Install Linux native dependencies
+        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+
       - name: Install Pillow for screenshot checks
         run: python3 -m pip install pillow==11.3.0
 
