@@ -15,6 +15,7 @@ import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.annotation.Keep
@@ -31,6 +32,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
+import java.io.ByteArrayInputStream
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -120,8 +122,30 @@ class WebViewFactory(private val context: Context) {
         }
     }
 
-    fun create(): WebViewWrapper = WebViewWrapper(context)
+    /**
+     * Creates a web view, optionally armed with the `WuiAssetServer` pointer
+     * Rust boxed for it — the server behind the view's `https://waterui.localhost`
+     * asset origin, or `0` when the view serves no bundled content.
+     *
+     * Ownership moves with the pointer: the wrapper frees it through
+     * `nativeFreeAssetServer` when the view is released.
+     */
+    fun create(assetServerPtr: Long): WebViewWrapper = WebViewWrapper(context, assetServerPtr)
 }
+
+/**
+ * One answer the native asset server gave `shouldInterceptRequest`.
+ *
+ * `headers` is the `WuiAssetResponse` wire form: `"Name: value"` lines joined
+ * by `\n`. Constructed from JNI; the field order must match the
+ * `nativeAssetRespond` signature.
+ */
+@Keep
+class AssetResponse(
+    val status: Int,
+    val headers: String,
+    val body: ByteArray
+)
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -182,7 +206,8 @@ class NativeWebViewEventCallback(
 @Keep
 @SuppressLint("SetJavaScriptEnabled")
 class WebViewWrapper(
-    context: Context
+    context: Context,
+    private var assetServerPtr: Long
 ) {
     private val cookieManager = CookieManager.getInstance()
     private val webView = WebView(context)
@@ -239,6 +264,38 @@ class WebViewWrapper(
             }
         }
         webView.webViewClient = object : WaterUiWebViewClient() {
+            /**
+             * Answers `https://waterui.localhost` from the Rust asset server.
+             *
+             * Android's `WebView` can only produce a secure context on `https`,
+             * `http://localhost` or `file://`, so the asset origin is spelled on
+             * the reserved `.localhost` name — RFC 6761 keeps it from ever
+             * resolving off-box, so a request that slipped past interception
+             * fails rather than reaching a network.
+             *
+             * This runs on a `WebView` worker thread, which is exactly why the
+             * call goes straight to the `Send + Sync` server rather than
+             * hopping through the main thread; method enforcement and traversal
+             * refusal happen in the shared `assets::dispatch` on the Rust side.
+             * The path and query are passed over still encoded — decoding is
+             * the server's contract.
+             */
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                val url = request.url
+                if (assetServerPtr == 0L || url.scheme != "https" || url.host != ASSET_HOST) {
+                    return null
+                }
+                return nativeAssetRespond(
+                    assetServerPtr,
+                    request.method,
+                    url.encodedPath ?: "/",
+                    url.encodedQuery
+                ).toWebResourceResponse()
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView,
                 request: WebResourceRequest
@@ -603,6 +660,12 @@ class WebViewWrapper(
         webView.webViewClient = WaterUiWebViewClient()
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
+        // Only after `destroy`: the server answers the worker threads
+        // `shouldInterceptRequest` runs on, and those stop with the view.
+        if (assetServerPtr != 0L) {
+            nativeFreeAssetServer(assetServerPtr)
+            assetServerPtr = 0L
+        }
     }
 
     // =========================================================================
@@ -962,6 +1025,23 @@ class WebViewWrapper(
 
     private external fun nativeBridgeScript(): String
 
+    /**
+     * Routes one intercepted asset request through the shared dispatcher.
+     *
+     * `path` arrives as the engine reports it — leading `/`, still
+     * percent-encoded; `query` without `?`. GET/HEAD enforcement and traversal
+     * refusal happen inside `assets::dispatch` before the server is consulted.
+     */
+    private external fun nativeAssetRespond(
+        serverPtr: Long,
+        method: String,
+        path: String,
+        query: String?
+    ): AssetResponse
+
+    /** Releases the `WuiAssetServer` this wrapper owns. Zero frees nothing. */
+    private external fun nativeFreeAssetServer(serverPtr: Long)
+
     companion object {
         private const val BRIDGE_OBJECT = "__wateruiBridge"
         private const val ASYNC_RESULT_OBJECT = "__wateruiAsyncResult"
@@ -1001,8 +1081,61 @@ class WebViewWrapper(
 
         private const val SCRIPT_INJECTION_TIME_DOCUMENT_START = 0
         private const val SCRIPT_INJECTION_TIME_DOCUMENT_END = 1
+
+        /** The reserved host the asset origin serves — `https://waterui.localhost`. */
+        private const val ASSET_HOST = "waterui.localhost"
     }
 }
+
+/** Turns the native answer into the response `WebView` consumes. */
+private fun AssetResponse.toWebResourceResponse(): WebResourceResponse {
+    val headers = headers.lineSequence()
+        .mapNotNull { line ->
+            val colon = line.indexOf(':')
+            if (colon <= 0) null else line.substring(0, colon).trim() to
+                line.substring(colon + 1).trim()
+        }
+        .toMap()
+
+    // `WebResourceResponse` carries the media type beside the header map, so
+    // Content-Type is lifted out rather than reported twice. What remains —
+    // `text/html`, `application/wasm`, a charset parameter — splits the way
+    // HTTP spells it.
+    val contentType = headers[CONTENT_TYPE_HEADER].orEmpty()
+    val mimeType = contentType.substringBefore(';').trim().ifEmpty { DEFAULT_MIME_TYPE }
+    val encoding = contentType.substringAfter(';', "")
+        .substringAfter("charset=", "")
+        .trim()
+        .ifEmpty { DEFAULT_ENCODING }
+
+    return WebResourceResponse(
+        mimeType,
+        encoding,
+        status,
+        reasonPhrase(status),
+        headers - CONTENT_TYPE_HEADER,
+        ByteArrayInputStream(body)
+    )
+}
+
+/** The `reasonPhrase` Android reports beside `statusCode`. */
+private fun reasonPhrase(status: Int): String = when (status) {
+    200 -> "OK"
+    204 -> "No Content"
+    301 -> "Moved Permanently"
+    302 -> "Found"
+    304 -> "Not Modified"
+    400 -> "Bad Request"
+    403 -> "Forbidden"
+    404 -> "Not Found"
+    405 -> "Method Not Allowed"
+    500 -> "Internal Server Error"
+    else -> "Status $status"
+}
+
+private const val CONTENT_TYPE_HEADER = "Content-Type"
+private const val DEFAULT_MIME_TYPE = "application/octet-stream"
+private const val DEFAULT_ENCODING = "utf-8"
 
 private fun Context.readRawText(@RawRes resource: Int): String =
     resources.openRawResource(resource).bufferedReader().use { it.readText() }
