@@ -37,9 +37,10 @@ DOWNSCALE = (64, 64)
 # the CLI emits that is reliably post-launch rather than post-build.
 STARTUP_SIGNAL = "Application started"
 # A cold Rust build of a dependency-heavy example can legitimately run for
-# tens of minutes, so the wait is bounded by log activity, not a wall clock:
-# a log that stops growing for this long means the build is wedged.
-STARTUP_STALL_S = 300
+# tens of minutes while emitting nothing — a single fat crate's compile
+# produces no log lines at all — so "stalled" is judged by CPU, not output:
+# the run's whole process group going idle means it is genuinely wedged.
+STARTUP_IDLE_S = 300
 STARTUP_CAP_S = 2400
 
 # Freeze the status bar so screenshots compare run to run: demo mode pins
@@ -154,31 +155,51 @@ def enter_demo_mode(serial: str) -> None:
 # ---------- readiness waits ----------
 
 
+def _process_group_cpu_seconds(pgid: int) -> float:
+    """Cumulative user+system CPU of every process in the group, from /proc."""
+    total = 0.0
+    clk = os.sysconf("SC_CLK_TCK")
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text()
+        except OSError:
+            continue
+        # comm is parenthesized and may contain spaces; the fields after the
+        # final ')' start at state(3), so pgrp(5) is index 2 and utime(14) /
+        # stime(15) are indices 11 and 12.
+        fields = stat.rpartition(")")[2].split()
+        if int(fields[2]) != pgid:
+            continue
+        total += (int(fields[11]) + int(fields[12])) / clk
+    return total
+
+
 def wait_for_start(proc: subprocess.Popen, log_file: Path) -> bool:
     cap = time.monotonic() + STARTUP_CAP_S
-    last_size = -1
-    last_growth = time.monotonic()
+    last_cpu = -1.0
+    last_active = time.monotonic()
     while True:
         if proc.poll() is not None:
             print("run process exited before the startup signal.", file=sys.stderr)
             return False
-        if log_file.exists():
-            if STARTUP_SIGNAL in log_file.read_text(errors="replace"):
-                return True
-            size = log_file.stat().st_size
-            if size != last_size:
-                last_size = size
-                last_growth = time.monotonic()
-            elif time.monotonic() - last_growth > STARTUP_STALL_S:
-                print(
-                    f"run log stalled for {STARTUP_STALL_S}s without the startup signal.",
-                    file=sys.stderr,
-                )
-                return False
+        if log_file.exists() and STARTUP_SIGNAL in log_file.read_text(errors="replace"):
+            return True
+        cpu = _process_group_cpu_seconds(proc.pid)
+        if cpu != last_cpu:
+            last_cpu = cpu
+            last_active = time.monotonic()
+        elif time.monotonic() - last_active > STARTUP_IDLE_S:
+            print(
+                f"run went idle for {STARTUP_IDLE_S}s without the startup signal.",
+                file=sys.stderr,
+            )
+            return False
         if time.monotonic() > cap:
             print(f"startup wait hit the {STARTUP_CAP_S}s cap.", file=sys.stderr)
             return False
-        time.sleep(1)
+        time.sleep(5)
 
 
 def wait_for_settle(serial: str, timeout_s: float, poll_s: float) -> tuple[bool, bytes | None]:
