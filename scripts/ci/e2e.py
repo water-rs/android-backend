@@ -144,6 +144,10 @@ def adb_out(serial: str, *args: str) -> bytes:
     return subprocess.run(["adb", "-s", serial, *args], check=True, capture_output=True).stdout
 
 
+class EmulatorLostError(Exception):
+    """The emulator/device vanished mid-shard; no example can proceed."""
+
+
 def device_alive(serial: str) -> bool:
     result = subprocess.run(
         ["adb", "-s", serial, "get-state"], capture_output=True, text=True
@@ -160,13 +164,20 @@ def capture_screen(serial: str) -> bytes:
         return adb_out(serial, "exec-out", "screencap", "-p")
     except subprocess.CalledProcessError:
         if not device_alive(serial):
-            sys.exit(f"Emulator {serial} is no longer reachable; the shard cannot continue.")
+            raise EmulatorLostError(serial)
         return b""
 
 
 def enter_demo_mode(serial: str) -> None:
-    for args in DEMO_MODE_COMMANDS:
-        adb(serial, *args)
+    try:
+        for args in DEMO_MODE_COMMANDS:
+            adb(serial, *args)
+    except subprocess.CalledProcessError:
+        if not device_alive(serial):
+            raise EmulatorLostError(serial)
+        # Demo mode only stabilizes the status bar in screenshots; a rejected
+        # command on a live device is not worth failing the shard over.
+        print(f"::warning::demo mode not fully enabled on {serial}")
 
 
 # ---------- readiness waits ----------
@@ -473,31 +484,44 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
     print(f"Assigned examples: {' '.join(assigned)}")
 
     manifest = load_manifest(manifest_path)
-    enter_demo_mode(serial)
 
     results: list[tuple[str, str, str]] = []
-    failures = [
-        example
-        for example in assigned
-        if not run_example(
-            example,
-            example_config(manifest, example),
-            serial,
-            repo_root,
-            examples_root / example,
-            log_dir / f"{example}.log",
-            args.golden_mode,
-            goldens_dir,
-            artifacts_dir,
-            candidates_dir,
-            results,
-        )
-    ]
+    failures: list[str] = []
+    try:
+        enter_demo_mode(serial)
+        for example in assigned:
+            try:
+                ok = run_example(
+                    example,
+                    example_config(manifest, example),
+                    serial,
+                    repo_root,
+                    examples_root / example,
+                    log_dir / f"{example}.log",
+                    args.golden_mode,
+                    goldens_dir,
+                    artifacts_dir,
+                    candidates_dir,
+                    results,
+                )
+            except EmulatorLostError:
+                results.append((example, "FAIL", f"emulator {serial} lost mid-run"))
+                failures.append(example)
+                raise
+            if not ok:
+                failures.append(example)
+    except EmulatorLostError:
+        # Nothing downstream of a dead emulator can run; account for every
+        # un-attempted example so the results table tells the whole story.
+        for example in assigned:
+            if all(name != example for name, _, _ in results):
+                results.append((example, "SKIP", f"emulator {serial} lost"))
+        print(f"Emulator {serial} is no longer reachable.", file=sys.stderr)
 
-    print(f"---- shard {args.shard_index}/{args.shard_total} results ----")
+    print(f"---- shard {args.shard_index}/{args.shard_total} results ----", flush=True)
     width = max(len(name) for name, _, _ in results)
     for name, status, detail in results:
-        print(f"{name:<{width}}  {status:<5}  {detail}")
+        print(f"{name:<{width}}  {status:<5}  {detail}", flush=True)
 
     if failures:
         print(f"Failed examples: {' '.join(failures)}", file=sys.stderr)
