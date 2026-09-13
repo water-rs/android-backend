@@ -12,8 +12,8 @@ local.properties
 *.keystore
 .DS_Store
 /runtime/build
-.ci-logs/
-.ci-artifacts/
+ci-logs/
+ci-artifacts/
 # Staged by CI for the instrumentation tests; the app crate's .so is built
 # from a WaterUI checkout and must never be committed.
 /runtime/src/androidTest/jniLibs/
