@@ -1,0 +1,63 @@
+name: Nightly
+
+# The on-device suite, once a day against `dev` and on demand — the same
+# contract the waterui repo's `nightly.yml` keeps: heavyweight coverage that
+# no pull request should pay for runs here instead, and a red run opens one
+# tracking issue rather than failing silently. `ci.yml` stays the fast gate.
+#
+# `golden_mode: record` on a manual dispatch captures every verify-mode
+# example's settled frame into the `android-e2e-artifacts-shard-*` artifacts
+# under `candidates/` — the bootstrap path for introducing or updating a
+# golden image (download, move to `e2e/goldens/`, commit).
+
+on:
+  # Off-peak UTC, staggered against the waterui nightly (03:17) and bench
+  # (05:41) schedules so the emulator fleet does not compete for the org's
+  # job cap.
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      golden_mode:
+        description: "enforce compares against e2e/goldens; record captures candidates instead"
+        type: choice
+        options:
+          - enforce
+          - record
+        default: enforce
+
+permissions:
+  contents: read
+  # The failure report below opens or updates an issue.
+  issues: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: Example E2E
+    uses: ./.github/workflows/android-e2e.yml
+    with:
+      waterui-ref: dev
+      golden_mode: ${{ inputs.golden_mode || 'enforce' }}
+
+  # One issue per broken nightly, updated in place while it stays red, so a
+  # failure that nobody was watching is on the board by morning.
+  report:
+    name: Report failure
+    needs: e2e
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          filename: .github/NIGHTLY_FAILURE.md
+          update_existing: true
+          search_existing: open

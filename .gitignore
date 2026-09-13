@@ -12,3 +12,5 @@ local.properties
 *.keystore
 .DS_Store
 /runtime/build
+.ci-logs/
+.ci-artifacts/

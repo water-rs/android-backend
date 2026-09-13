@@ -1,14 +1,27 @@
-name: Android Main E2E
+name: Android Example E2E
 
 on:
   workflow_call:
-  workflow_dispatch:
+    inputs:
+      # The superproject ref that provides the `water` CLI and the examples:
+      # `main` for the release gate (main-pr-e2e.yml), `dev` for the nightly.
+      waterui-ref:
+        required: true
+        type: string
+      # `enforce` fails an example on a missing or mismatching golden;
+      # `record` captures each verify-mode frame into the shard's
+      # golden-candidates artifact instead — the bootstrap path for a new
+      # or intentionally changed golden.
+      golden_mode:
+        required: false
+        type: string
+        default: enforce
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-main-e2e-${{ github.ref }}
+  group: android-e2e-${{ inputs.waterui-ref }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -24,21 +37,18 @@ jobs:
     name: Prepare water CLI
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout waterui (main)
+      - name: Checkout waterui (${{ inputs.waterui-ref }})
         uses: actions/checkout@v4
         with:
           repository: water-rs/waterui
-          ref: main
+          ref: ${{ inputs.waterui-ref }}
           path: waterui
           submodules: recursive
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: android-main-e2e-cli
+          shared-key: android-e2e-cli
           workspaces: |
             waterui
 
@@ -69,15 +79,15 @@ jobs:
         shard-index: [0, 1, 2, 3, 4, 5, 6, 7]
 
     steps:
-      - name: Checkout waterui (main)
+      - name: Checkout waterui (${{ inputs.waterui-ref }})
         uses: actions/checkout@v4
         with:
           repository: water-rs/waterui
-          ref: main
+          ref: ${{ inputs.waterui-ref }}
           path: waterui
           submodules: recursive
 
-      - name: Overlay android-backend from PR
+      - name: Overlay android-backend
         uses: actions/checkout@v4
         with:
           path: waterui/backends/android
@@ -93,19 +103,28 @@ jobs:
         with:
           build-root-directory: waterui/backends/android
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
-
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: android-main-e2e
+          shared-key: android-e2e
           workspaces: |
             waterui
             waterui/backends/android
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      # `water run` assembles each example's app with compileSdk 37; install
+      # that platform and the newest build-tools explicitly instead of relying
+      # on whatever the runner image happens to carry.
+      - name: Install SDK platform for compileSdk
+        run: |
+          sdkmanager --install "platforms;android-37"
+          latest_bt="$(sdkmanager --list | awk -F'|' '/build-tools;[0-9]/{gsub(/ /,"",$1); print $1}' | sort -V | tail -1)"
+          sdkmanager --install "$latest_bt"
+
+      - name: Install Pillow for screenshot checks
+        run: python3 -m pip install pillow==11.3.0
 
       - name: Cache AVD
         id: avd-cache
@@ -171,7 +190,8 @@ jobs:
             bash "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/run_examples_shard.sh" \
               --repo-root "$GITHUB_WORKSPACE/waterui" \
               --shard-index "${{ matrix.shard-index }}" \
-              --shard-total "${{ env.SHARD_TOTAL }}"
+              --shard-total "${{ env.SHARD_TOTAL }}" \
+              --golden-mode "${{ inputs.golden_mode }}"
 
       - name: Upload shard logs
         if: always()
@@ -179,4 +199,12 @@ jobs:
         with:
           name: android-e2e-logs-shard-${{ matrix.shard-index }}
           path: waterui/backends/android/.ci-logs
+          if-no-files-found: ignore
+
+      - name: Upload shard screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-e2e-artifacts-shard-${{ matrix.shard-index }}
+          path: waterui/backends/android/.ci-artifacts
           if-no-files-found: ignore
