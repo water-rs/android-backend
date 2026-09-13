@@ -197,21 +197,11 @@ jobs:
           emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          # The runner executes `script:` through /usr/bin/sh (dash), not bash:
-          # keep this block POSIX and leave `set -euo pipefail` to the script
-          # it invokes.
-          script: |
-            ANDROID_SERIAL="$(adb devices | awk '/^emulator-[0-9]+[ \t]+device$/ {print $1; exit}')"
-            if [ -z "$ANDROID_SERIAL" ]; then
-              echo "::error::No Android emulator device detected."
-              exit 1
-            fi
-            export ANDROID_SERIAL
-            bash "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/run_examples_shard.sh" \
-              --repo-root "$GITHUB_WORKSPACE/waterui" \
-              --shard-index "${{ matrix.shard-index }}" \
-              --shard-total "${{ env.SHARD_TOTAL }}" \
-              --golden-mode "${{ inputs.golden_mode }}"
+          # The runner executes each `script:` line through a fresh
+          # `/usr/bin/sh -c`: exports and cd do not carry between lines, so the
+          # whole invocation is a single line and the script detects the
+          # emulator serial itself.
+          script: bash "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/run_examples_shard.sh" --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}"
 
       - name: Upload shard logs
         if: always()
