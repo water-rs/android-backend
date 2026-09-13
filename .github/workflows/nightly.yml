@@ -98,8 +98,17 @@ jobs:
       # duplicating the version here.
       - name: Install SDK platform, build-tools, and the pinned NDK
         run: |
-          sdkmanager --install "platforms;android-37"
-          latest_bt="$(sdkmanager --list | awk -F'|' '/build-tools;[0-9]/{gsub(/ /,"",$1); print $1}' | sort -V | tail -1)"
+          # compileSdk is the source of truth; since API 37 the platform
+          # package carries a minor suffix (platforms;android-37.0), so resolve
+          # the newest package matching the declared major level.
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
+          if [ -z "$platform_pkg" ]; then
+            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
+            exit 1
+          fi
+          sdkmanager --install "$platform_pkg"
+          latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
           sdkmanager --install "$latest_bt"
           ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
           sdkmanager --install "ndk;${ndk_version}"
