@@ -49,10 +49,33 @@ internal class WuiTextInputFocusTarget(
     }
 }
 
+/**
+ * The slice of a `Binding<bool>` the focus controller drives, so tests can
+ * stand in for the native binding without loading JNI.
+ */
+internal interface FocusStateBinding : Closeable {
+    fun observe(onChange: (Boolean) -> Unit)
+
+    fun set(focused: Boolean)
+}
+
+private class WuiFocusStateBinding(
+    private val binding: WuiBinding<Boolean>
+) : FocusStateBinding {
+    override fun observe(onChange: (Boolean) -> Unit) = binding.observe(onChange)
+
+    override fun set(focused: Boolean) = binding.set(focused)
+
+    override fun close() = binding.close()
+}
+
+internal fun WuiBinding<Boolean>.asFocusStateBinding(): FocusStateBinding =
+    WuiFocusStateBinding(this)
+
 internal class WuiFocusedBindingController(
     private val container: View,
     private val focusTarget: WuiFocusTarget,
-    private val binding: WuiBinding<Boolean>
+    private val binding: FocusStateBinding
 ) : Closeable {
     private var requestedFocus = false
     private val nativeFocusObserver = focusTarget.observePlatformFocusChanges { hasFocus ->
