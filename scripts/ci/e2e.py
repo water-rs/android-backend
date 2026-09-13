@@ -377,13 +377,19 @@ def _run_started_example(
     candidates_dir: Path,
     results: list,
 ) -> bool:
+    actual = artifacts_dir / f"{example}.actual.png"
+
     if not wait_for_start(proc, log_file):
+        # Whatever is on screen right now — a crash dialog, the installer
+        # error, a black flash — is exactly the diagnostic this artifact is for.
+        frame = capture_screen(serial)
+        if frame:
+            actual.write_bytes(frame)
         print(f"::error::Example {example} failed to start.")
         print("\n".join(log_file.read_text(errors="replace").splitlines()[-200:]))
         results.append((example, "FAIL", "failed to start"))
         return False
 
-    actual = artifacts_dir / f"{example}.actual.png"
     status = "PASS"
 
     if cfg["mode"] == "verify":
@@ -408,6 +414,9 @@ def _run_started_example(
         if frame is None:
             status = "FAIL"
             detail = f"screen stayed blank for {cfg['settle_s']:g}s after startup"
+            last = capture_screen(serial)
+            if last:
+                actual.write_bytes(last)
         else:
             actual.write_bytes(frame)
             detail = "non-blank content on screen"
