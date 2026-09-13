@@ -1,0 +1,34 @@
+{
+  "$schema-comment": "Per-example policy for the example E2E shard script. mode=verify waits for a settled frame and compares it to e2e/goldens/<example>.png; mode=smoke only requires the app to start and show non-blank content; mode=skip does not run the example at all.",
+  "defaults": {
+    "settle_timeout_seconds": 25,
+    "poll_interval_ms": 400,
+    "pixel_tolerance": 8,
+    "max_diff_fraction": 0.005
+  },
+  "examples": {
+    "chromium": {
+      "mode": "skip",
+      "reason": "CEF has no Android realization; the example cannot function on an emulator"
+    },
+    "webview-cef": {
+      "mode": "skip",
+      "reason": "CEF has no Android realization; the example cannot function on an emulator"
+    },
+    "animation": { "mode": "smoke", "reason": "continuous animation never reaches a settled frame" },
+    "audio_visualizer": { "mode": "smoke", "reason": "continuous animation driven by audio input" },
+    "chart": { "mode": "smoke", "reason": "GPU-rendered surface; software-renderer antialiasing is not golden-stable" },
+    "flame": { "mode": "smoke", "reason": "continuous GPU animation" },
+    "gallery": { "mode": "smoke", "reason": "loads remote images over the network" },
+    "image": { "mode": "smoke", "reason": "remote images arrive asynchronously over the network" },
+    "map": { "mode": "smoke", "reason": "vector tiles stream over the network onto a GPU surface" },
+    "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
+    "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
+    "reminders": { "mode": "smoke", "reason": "may raise a runtime permission prompt over the content" },
+    "starfield": { "mode": "smoke", "reason": "continuous GPU animation" },
+    "stress": { "mode": "smoke", "reason": "stress drivers mutate state on timers" },
+    "video_player": { "mode": "smoke", "reason": "video playback never reaches a settled frame" },
+    "waterkit_camera_filters": { "mode": "smoke", "reason": "camera preview stream never reaches a settled frame" },
+    "webview": { "mode": "smoke", "reason": "remote page loads asynchronously over the network" }
+  }
+}
