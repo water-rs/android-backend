@@ -26,7 +26,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    twinFor(example) ?: Text("No twin registered for example '$example'")
+                    val twin = twinFor(example)
+                    if (twin != null) twin() else Text("No twin registered for example '$example'")
                 }
             }
         }
