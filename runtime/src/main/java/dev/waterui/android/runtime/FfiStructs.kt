@@ -768,8 +768,22 @@ data class ResolvedShapeStruct(
 data class ResolvedFontStruct(
     val size: Float,
     val weight: Int,
-    val family: String?
-)
+    val family: String?,
+    /** Ordinal of `WuiFontDesign`: which platform face to use when [family] is null. */
+    val design: Int
+) {
+    val isMonospaced: Boolean
+        get() = when (design) {
+            FONT_DESIGN_DEFAULT -> false
+            FONT_DESIGN_MONOSPACED -> true
+            else -> error("unknown font design: $design")
+        }
+
+    companion object {
+        const val FONT_DESIGN_DEFAULT = 0
+        const val FONT_DESIGN_MONOSPACED = 1
+    }
+}
 
 // ========== Type ID Struct ==========
 
