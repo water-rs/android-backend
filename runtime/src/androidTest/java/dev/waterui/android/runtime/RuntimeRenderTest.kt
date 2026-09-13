@@ -26,7 +26,7 @@ class RuntimeRenderTest {
 
             onView(withText("WaterUI Gesture Examples")).check(matches(isDisplayed()))
             onView(withText("Tap Gesture")).check(matches(isDisplayed()))
-            onView(withText("Tap count: 0")).check(matches(isDisplayed()))
+            onView(withText(Waiters.textIs("Tap count: 0"))).check(matches(isDisplayed()))
         }
     }
 }
