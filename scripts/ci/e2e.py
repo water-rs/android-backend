@@ -41,6 +41,14 @@ MIN_STABLE_S = 2.0
 CROP_TOP = 0.04
 CROP_BOTTOM = 0.02
 
+# Compose MD3 parity: the reference app renders the registered twin for an
+# example, the driver pixel-compares it against the WaterUI capture. Twins are
+# listed in e2e/parity-budgets.json; per-example entries override the default
+# allowed diff fraction (mirrors the Apple parity harness).
+REFERENCE_PACKAGE = "dev.waterui.android.reference"
+REFERENCE_ACTIVITY = f"{REFERENCE_PACKAGE}/.MainActivity"
+PARITY_DEFAULT = 0.02
+
 # `water run` prints this once the app is up; it is the only startup signal
 # the CLI emits that is reliably post-launch rather than post-build.
 STARTUP_SIGNAL = "Application started"
@@ -282,6 +290,55 @@ def wait_for_content(serial: str, timeout_s: float, poll_s: float) -> bytes | No
     return None
 
 
+def capture_twin(serial: str, example: str, timeout_s: float, poll_s: float) -> bytes | None:
+    """Launch the Compose MD3 reference host for `example` and return its
+    settled screenshot. The reference activity is force-stopped afterwards so
+    the next launch starts cold."""
+    adb(serial, "shell", "am", "start", "-W", "-n", REFERENCE_ACTIVITY,
+        "--es", "E2EExample", example)
+    try:
+        _, frame = wait_for_settle(serial, timeout_s, poll_s)
+        return frame
+    finally:
+        subprocess.run(
+            ["adb", "-s", serial, "shell", "am", "force-stop", REFERENCE_PACKAGE],
+            capture_output=True,
+        )
+
+
+def verify_parity(
+    example: str,
+    actual: Path,
+    serial: str,
+    cfg: dict,
+    budget: float,
+    artifacts_dir: Path,
+) -> bool:
+    """Render the registered Compose twin and pixel-compare it against the
+    WaterUI capture. Returns False when the twin cannot render or the diff
+    exceeds the example's parity budget."""
+    twin_png = artifacts_dir / f"{example}.twin.png"
+    frame = capture_twin(serial, example, cfg["settle_s"], cfg["poll_s"])
+    if not frame:
+        print(f"parity: twin for {example} produced no frame", file=sys.stderr)
+        return False
+    twin_png.write_bytes(frame)
+    result = compare_images(
+        twin_png, actual, cfg["tolerance"], budget,
+        artifacts_dir / f"{example}.parity.diff.png",
+    )
+    if result == 2:
+        return False
+    if result != 0:
+        print(
+            f"parity: {example} diverges from its Compose twin beyond budget "
+            f"{budget:.4%} — see {example}.parity.diff.png",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def stop_run(proc: subprocess.Popen) -> None:
     """Ctrl-C semantics for the whole `water run` tree: it was spawned in its
     own process group, so the signal reaches the gradle/adb children too."""
@@ -339,6 +396,7 @@ def run_example(
     artifacts_dir: Path,
     candidates_dir: Path,
     results: list,
+    parity_budget: float | None,
 ) -> bool:
     if cfg["mode"] == "skip":
         print(f"Skipping {example}: {cfg['reason'] or 'no reason given'}")
@@ -359,6 +417,7 @@ def run_example(
             return _run_started_example(
                 example, cfg, proc, log_file, serial,
                 golden_mode, goldens_dir, artifacts_dir, candidates_dir, results,
+                parity_budget,
             )
         finally:
             stop_run(proc)
@@ -376,6 +435,7 @@ def _run_started_example(
     artifacts_dir: Path,
     candidates_dir: Path,
     results: list,
+    parity_budget: float | None,
 ) -> bool:
     actual = artifacts_dir / f"{example}.actual.png"
 
@@ -409,6 +469,12 @@ def _run_started_example(
                 example, actual, cfg, golden_mode, goldens_dir, artifacts_dir
             ):
                 status = "FAIL"
+            elif parity_budget is not None and golden_mode != "record":
+                if not verify_parity(
+                    example, actual, serial, cfg, parity_budget, artifacts_dir
+                ):
+                    status = "FAIL"
+                    detail += "; diverges from Compose twin"
     else:  # smoke
         frame = wait_for_content(serial, cfg["settle_s"], cfg["poll_s"])
         if frame is None:
@@ -513,6 +579,23 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
 
     manifest = load_manifest(manifest_path)
 
+    # Compose MD3 parity: twins registered in parity-budgets.json get a
+    # pixel-compare against the reference host after the golden check. Only
+    # active when the workflow built and passed --reference-apk.
+    parity_budgets: dict[str, float] = {}
+    if args.reference_apk:
+        budgets_path = backend_dir / "e2e" / "parity-budgets.json"
+        if budgets_path.is_file():
+            budgets = json.loads(budgets_path.read_text())
+            parity_budgets = {
+                name: float(budgets.get("examples", {}).get(name, budgets.get("default", PARITY_DEFAULT)))
+                for name in budgets.get("examples", {})
+            }
+        if parity_budgets:
+            adb(serial, "install", "-r", args.reference_apk)
+        else:
+            print("::warning::--reference-apk given but no twins are registered in parity-budgets.json")
+
     results: list[tuple[str, str, str]] = []
     failures: list[str] = []
     try:
@@ -531,6 +614,7 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
                     artifacts_dir,
                     candidates_dir,
                     results,
+                    parity_budgets.get(example),
                 )
             except EmulatorLostError:
                 results.append((example, "FAIL", f"emulator {serial} lost mid-run"))
@@ -599,6 +683,8 @@ def build_parser() -> argparse.ArgumentParser:
     shard.add_argument("--manifest")
     shard.add_argument("--goldens-dir")
     shard.add_argument("--artifacts-dir")
+    shard.add_argument("--reference-apk",
+                       help="Compose MD3 reference APK; enables twin parity checks")
     shard.set_defaults(func=cmd_run_shard)
 
     nonblank = sub.add_parser("nonblank", help="reject a flat-color screenshot")
