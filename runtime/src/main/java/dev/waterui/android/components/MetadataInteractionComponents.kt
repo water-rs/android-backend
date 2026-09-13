@@ -24,6 +24,7 @@ private val metadataAccessibilityIdentifierTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_ignorable_metadata_accessibility_identifier_id().toTypeId()
 }
 private val metadataAccessibilityLabelTypeId by lazy { NativeBindings.waterui_ignorable_metadata_accessibility_label_id().toTypeId() }
+private val metadataAccessibilityValueTypeId by lazy { NativeBindings.waterui_ignorable_metadata_accessibility_value_id().toTypeId() }
 private val metadataAccessibilityRoleTypeId by lazy { NativeBindings.waterui_ignorable_metadata_accessibility_role_id().toTypeId() }
 private val metadataAccessibilityHiddenTypeId by lazy { NativeBindings.waterui_ignorable_metadata_accessibility_hidden_id().toTypeId() }
 private val metadataAccessibilityChildrenTypeId by lazy { NativeBindings.waterui_ignorable_metadata_accessibility_children_id().toTypeId() }
@@ -127,6 +128,32 @@ private val metadataAccessibilityLabelRenderer = WuiRenderer { context, node, en
             target.disposeWith(
                 bindSemanticAccessibilityLabel(metadata.labelPtr, env) { label ->
                     target.contentDescription = label
+                    target.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+                },
+            )
+        }
+}
+
+private val metadataAccessibilityValueRenderer = WuiRenderer { context, node, env, registry ->
+    val metadata = NativeBindings.waterui_force_as_ignorable_metadata_accessibility_value(node.rawPtr)
+    AccessibilityMetadataLayout(context)
+        .attachMetadataContent(context, metadata.contentPtr, env, registry)
+        .apply {
+            val target = semanticAccessibilityTarget(this)
+            // `AccessibilityNodeInfo.stateDescription` is the channel TalkBack
+            // speaks after the content description; node `text` is shadowed by
+            // a description when both are set. A value alone still exposes the
+            // element.
+            var value: CharSequence? = null
+            installAccessibilityMutation(target) { info ->
+                info.stateDescription = value
+            }
+            target.disposeWith(
+                bindSemanticAccessibilityLabel(metadata.valuePtr, env) { resolved ->
+                    value = resolved
+                    if (resolved.isNotEmpty()) {
+                        target.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                    }
                     target.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
                 },
             )
@@ -250,6 +277,7 @@ internal fun RegistryBuilder.registerWuiInteractionMetadata() {
         metadataAccessibilityIdentifierRenderer,
     )
     registerMetadata({ metadataAccessibilityLabelTypeId }, metadataAccessibilityLabelRenderer)
+    registerMetadata({ metadataAccessibilityValueTypeId }, metadataAccessibilityValueRenderer)
     registerMetadata({ metadataAccessibilityRoleTypeId }, metadataAccessibilityRoleRenderer)
     registerMetadata({ metadataAccessibilityHiddenTypeId }, metadataAccessibilityHiddenRenderer)
     registerMetadata({ metadataAccessibilityChildrenTypeId }, metadataAccessibilityChildrenRenderer)

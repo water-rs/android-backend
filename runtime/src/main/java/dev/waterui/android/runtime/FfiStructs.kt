@@ -499,7 +499,8 @@ data class MetadataCursorStruct(val contentPtr: Long, val stylePtr: Long)
 
 data class MetadataAccessibilityIdentifierStruct(val contentPtr: Long, val identifier: String)
 data class MetadataAccessibilityLabelStruct(val contentPtr: Long, val labelPtr: Long)
-data class MetadataAccessibilityValueStruct(val contentPtr: Long, val value: Int)
+data class MetadataAccessibilityValueStruct(val contentPtr: Long, val valuePtr: Long)
+data class MetadataAccessibilityIntStruct(val contentPtr: Long, val value: Int)
 
 /**
  * A navigation link's marker.
@@ -648,7 +649,9 @@ data class PictureStruct(
     val width: Float,
     val height: Float,
     /** The name the drawing offers a screen reader; empty when it offers none. */
-    val label: String
+    val label: String,
+    /** The semantic content the drawing offers; empty when it offers none. */
+    val value: String
 )
 
 /**

@@ -235,6 +235,8 @@ internal object NativeBindings {
         WatcherJni.forceAsIgnorableMetadataAccessibilityIdentifier(viewPtr)
     fun waterui_force_as_ignorable_metadata_accessibility_label(viewPtr: Long) =
         WatcherJni.forceAsIgnorableMetadataAccessibilityLabel(viewPtr)
+    fun waterui_force_as_ignorable_metadata_accessibility_value(viewPtr: Long) =
+        WatcherJni.forceAsIgnorableMetadataAccessibilityValue(viewPtr)
     fun waterui_force_as_ignorable_metadata_accessibility_role(viewPtr: Long) =
         WatcherJni.forceAsIgnorableMetadataAccessibilityRole(viewPtr)
     fun waterui_force_as_ignorable_metadata_accessibility_hidden(viewPtr: Long) =
@@ -333,6 +335,8 @@ internal object NativeBindings {
         WatcherJni.ignorableMetadataAccessibilityIdentifierId()
     fun waterui_ignorable_metadata_accessibility_label_id() =
         WatcherJni.ignorableMetadataAccessibilityLabelId()
+    fun waterui_ignorable_metadata_accessibility_value_id() =
+        WatcherJni.ignorableMetadataAccessibilityValueId()
     fun waterui_ignorable_metadata_accessibility_role_id() =
         WatcherJni.ignorableMetadataAccessibilityRoleId()
     fun waterui_ignorable_metadata_accessibility_hidden_id() =
@@ -522,6 +526,8 @@ internal object NativeBindings {
      */
     fun waterui_gpu_surface_accessibility_label(statePtr: Long): String =
         WatcherJni.gpuSurfaceAccessibilityLabel(statePtr)
+    fun waterui_gpu_surface_accessibility_value(statePtr: Long): String =
+        WatcherJni.gpuSurfaceAccessibilityValue(statePtr)
     fun waterui_gpu_surface_drop(statePtr: Long) = WatcherJni.gpuSurfaceDrop(statePtr)
 
     // ========== Reactive State Creation (for theme) ==========
