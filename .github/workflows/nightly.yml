@@ -118,7 +118,7 @@ jobs:
       # (libva through waterkit-codec, fonts, EGL, …); the script reuses the
       # package list the waterui checkout maintains rather than drifting a copy.
       - name: Install Linux native dependencies
-        run: bash waterui/backends/android/scripts/ci/install_linux_deps.sh waterui
+        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
 
       - name: Build water CLI
         run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
