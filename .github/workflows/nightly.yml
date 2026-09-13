@@ -111,8 +111,8 @@ jobs:
           ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
           sdkmanager --install "ndk;${ndk_version}"
 
-      - name: Install the Android Rust target
-        run: rustup target add "$(python3 waterui/backends/android/scripts/ci/e2e.py rust-target "${{ env.AVD_ARCH }}")"
+      - name: Install the Android Rust targets
+        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
 
       # Building the workspace's CLI for the Linux host links native libraries
       # (libva through waterkit-codec, fonts, EGL, …); the script reuses the

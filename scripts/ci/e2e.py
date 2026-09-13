@@ -68,6 +68,10 @@ RUST_TARGET_FOR_ARCH = {
     "armeabi-v7a": "armv7-linux-androideabi",
 }
 
+# `water run` gates on the toolchain check for every ABI it could target, not
+# just the selected device's, so a runner needs all four triples installed.
+ALL_RUST_TARGETS = tuple(dict.fromkeys(RUST_TARGET_FOR_ARCH.values()))
+
 
 def is_nonblank(png: bytes) -> bool:
     from PIL import Image, ImageStat
@@ -461,6 +465,14 @@ def cmd_compare(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_rust_target(args: argparse.Namespace) -> int:
+    if args.arch == "all":
+        print(" ".join(ALL_RUST_TARGETS))
+    else:
+        print(RUST_TARGET_FOR_ARCH[args.arch])
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -490,10 +502,11 @@ def build_parser() -> argparse.ArgumentParser:
     compare.set_defaults(func=cmd_compare)
 
     rt = sub.add_parser(
-        "rust-target", help="print the Rust target triple for an emulator arch"
+        "rust-target",
+        help="print the Rust target triples for an emulator arch, or 'all'",
     )
-    rt.add_argument("arch", choices=sorted(RUST_TARGET_FOR_ARCH))
-    rt.set_defaults(func=lambda a: print(RUST_TARGET_FOR_ARCH[a.arch]) or 0)
+    rt.add_argument("arch", choices=[*sorted(RUST_TARGET_FOR_ARCH), "all"])
+    rt.set_defaults(func=cmd_rust_target)
 
     return parser
 
