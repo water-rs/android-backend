@@ -141,10 +141,10 @@ jobs:
           latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
           sdkmanager --install "$latest_bt"
 
-      # `water run` cross-compiles each example for the emulator's arch; the
-      # runner image's stable Rust does not ship the Android target.
-      - name: Install the Android Rust target
-        run: rustup target add "$(python3 waterui/backends/android/scripts/ci/e2e.py rust-target "${{ env.AVD_ARCH }}")"
+      # `water run` gates on the toolchain check for every ABI it could
+      # target, not just the emulator's, so install all four triples.
+      - name: Install the Android Rust targets
+        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
 
       - name: Install Pillow for screenshot checks
         run: python3 -m pip install pillow==11.3.0
