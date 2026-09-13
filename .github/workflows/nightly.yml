@@ -116,6 +116,13 @@ jobs:
       - name: Install the Android Rust target
         run: rustup target add x86_64-linux-android
 
+      # Building the workspace's CLI for the Linux host links native libraries
+      # (libva through waterkit-codec, fonts, EGL, …); the waterui checkout
+      # carries its own canonical dep list, so reuse it rather than drifting
+      # a copy here.
+      - name: Install Linux native dependencies
+        uses: ./waterui/.github/actions/setup-linux-deps
+
       - name: Build water CLI
         run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
 
