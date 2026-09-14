@@ -41,7 +41,6 @@ class WaterUiRootView @JvmOverloads constructor(
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
     private var materialTheme: MaterialThemeSignals? = null
     private var rootThemeController: RootThemeController? = null
-    private var safeAreaSignal: ReactiveEdgeInsetsSignal? = null
     /// The last safe area the window dispatched. The content is built long
     /// after the first dispatch arrives, so it is replayed once there is
     /// something to hand it to.
@@ -146,8 +145,6 @@ class WaterUiRootView @JvmOverloads constructor(
         disposeAndRemoveAllViews()
         rootThemeController?.close()
         rootThemeController = null
-        safeAreaSignal?.close()
-        safeAreaSignal = null
         backgroundTheme?.close()
         backgroundTheme = null
         materialTheme?.close()
@@ -164,9 +161,6 @@ class WaterUiRootView @JvmOverloads constructor(
         val initEnv = runtimeOwner.createWaterUiEnvironment()
         pendingEnvironment = initEnv
         installSystemLocale(initEnv, context.resources.configuration)
-        safeAreaSignal = ReactiveEdgeInsetsSignal().also { signal ->
-            NativeBindings.waterui_env_install_safe_area(initEnv.raw(), signal.takeComputed())
-        }
         materialTheme = MaterialThemeSignals.install(
             env = initEnv,
             palette = MaterialThemePalette.from(context),
@@ -266,9 +260,8 @@ class WaterUiRootView @JvmOverloads constructor(
     /// The content takes the whole window and lays itself out against the
     /// insets: the window's overlay stack and every stack below it place their
     /// children inside the safe area and extend the scroll surfaces and chrome
-    /// containers that touch its edges (see [WuiSafeAreaManaging]). The
-    /// insets are applied natively, so the safe-area signal the environment
-    /// carries stays at zero ([ReactiveEdgeInsetsSignal]).
+    /// containers that touch its edges (see [WuiSafeAreaManaging]), so the
+    /// insets are applied natively and no layer pads itself again.
     private fun applySafeArea(safeArea: Insets) {
         pendingSafeArea = safeArea
         setPadding(0, 0, 0, 0)

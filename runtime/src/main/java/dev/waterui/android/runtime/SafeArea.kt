@@ -5,7 +5,6 @@ import android.view.ViewGroup
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import java.io.Closeable
 
 /**
  * A view that places WaterUI content against the window's edges itself.
@@ -71,36 +70,6 @@ fun applyRemainingInsets(content: View, insets: Insets) {
 
 /** Whether [view] places its content against the safe area itself. */
 fun handlesSafeArea(view: View): Boolean = resolvePrimaryContent(view) is WuiSafeAreaManaging
-
-/**
- * The safe-area signal this backend installs in the environment.
- *
- * It stays at zero: the root lays its content out against the window's
- * insets, and every stack below it insets its own content and extends the
- * scroll surfaces and chrome that touch its edges (see [WuiSafeAreaManaging]),
- * so the insets are applied natively and the layers WaterUI lays out itself —
- * a window's snackbar and overlay hosts — must not pad themselves again. The
- * face stays because the contract is shared with every native backend.
- */
-class ReactiveEdgeInsetsSignal : Closeable {
-    private var statePtr = NativeBindings.waterui_create_reactive_edge_insets_state(0f, 0f, 0f, 0f)
-    private var computedTaken = false
-
-    fun takeComputed(): Long {
-        check(!computedTaken) { "reactive safe-area computed signal was already consumed" }
-        computedTaken = true
-        return NativeBindings.waterui_reactive_edge_insets_state_to_computed(requireState())
-    }
-
-    override fun close() {
-        NativeBindings.waterui_drop_reactive_edge_insets_state(requireState())
-        statePtr = 0L
-    }
-
-    private fun requireState(): Long = statePtr.also {
-        check(it != 0L) { "reactive safe-area state is closed" }
-    }
-}
 
 /** The bars and cutouts a WaterUI window keeps its content clear of. */
 internal fun WindowInsetsCompat.waterUiSafeArea(): Insets = getInsets(
