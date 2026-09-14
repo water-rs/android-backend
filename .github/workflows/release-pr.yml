@@ -4,10 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'backends/android/**'
-      - 'backends/android/release-please-config.json'
-      - 'backends/android/release-please-manifest.json'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,5 +28,5 @@ jobs:
         with:
           command: release-pr
           token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: backends/android/release-please-config.json
-          manifest-file: backends/android/release-please-manifest.json
+          config-file: release-please-config.json
+          manifest-file: release-please-manifest.json

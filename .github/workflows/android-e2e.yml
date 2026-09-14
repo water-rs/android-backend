@@ -1,0 +1,272 @@
+name: Android Example E2E
+
+on:
+  workflow_call:
+    inputs:
+      # The superproject ref that provides the `water` CLI and the examples:
+      # `main` for the release gate (main-pr-e2e.yml), `dev` for the nightly.
+      waterui-ref:
+        required: true
+        type: string
+      # `enforce` fails an example on a missing or mismatching golden;
+      # `record` captures each verify-mode frame into the shard's
+      # golden-candidates artifact instead — the bootstrap path for a new
+      # or intentionally changed golden.
+      golden_mode:
+        required: false
+        type: string
+        default: enforce
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-e2e-${{ inputs.waterui-ref }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SHARD_TOTAL: "8"
+  AVD_API_LEVEL: "35"
+  AVD_ARCH: x86_64
+  AVD_TARGET: google_apis
+  AVD_PROFILE: pixel_6
+
+jobs:
+  prepare-cli:
+    name: Prepare water CLI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout waterui (${{ inputs.waterui-ref }})
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: ${{ inputs.waterui-ref }}
+          path: waterui
+          submodules: recursive
+
+      # The backend overlay carries the CI scripts this job runs.
+      - name: Overlay android-backend
+        uses: actions/checkout@v4
+        with:
+          path: waterui/backends/android
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-e2e-cli
+          workspaces: |
+            waterui
+
+      # Building the workspace's CLI for the Linux host links native libraries
+      # (libva through waterkit-codec, fonts, EGL, …); the script reuses the
+      # package list the waterui checkout maintains rather than drifting a copy.
+      - name: Install Linux native dependencies
+        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+
+      - name: Build water CLI
+        run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
+
+      - name: Package water CLI artifact
+        run: |
+          mkdir -p /tmp/water-cli
+          cp waterui/target/debug/water /tmp/water-cli/water
+          chmod +x /tmp/water-cli/water
+
+      - name: Upload water CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: water-cli-linux
+          path: /tmp/water-cli/water
+          if-no-files-found: error
+
+      # The Compose MD3 reference host renders registered twins on the same
+      # emulator for pixel parity — build it once here, shards consume the APK.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install SDK platform for reference app
+        run: |
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/e2e/reference/app/build.gradle.kts)"
+          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
+          if [ -z "$platform_pkg" ]; then
+            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
+            exit 1
+          fi
+          sdkmanager --install "$platform_pkg"
+
+      - name: Build Compose reference APK
+        run: |
+          cd waterui/backends/android/e2e/reference
+          ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Upload reference APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: md3-reference-apk
+          path: waterui/backends/android/e2e/reference/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  examples-shard:
+    name: examples-shard-${{ matrix.shard-index }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    needs: prepare-cli
+    strategy:
+      fail-fast: false
+      matrix:
+        shard-index: [0, 1, 2, 3, 4, 5, 6, 7]
+
+    steps:
+      - name: Checkout waterui (${{ inputs.waterui-ref }})
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: ${{ inputs.waterui-ref }}
+          path: waterui
+          submodules: recursive
+
+      - name: Overlay android-backend
+        uses: actions/checkout@v4
+        with:
+          path: waterui/backends/android
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-e2e
+          workspaces: |
+            waterui
+            waterui/backends/android
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # `water run` assembles each example's app at the module's compileSdk;
+      # install that platform and the newest build-tools explicitly instead of
+      # relying on whatever the runner image happens to carry. Since API 37 the
+      # platform package carries a minor suffix (platforms;android-37.0), so
+      # resolve the newest package matching the declared major level.
+      - name: Install SDK platform for compileSdk
+        run: |
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
+          if [ -z "$platform_pkg" ]; then
+            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
+            exit 1
+          fi
+          sdkmanager --install "$platform_pkg"
+          latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
+          sdkmanager --install "$latest_bt"
+
+      # `water run` gates on the toolchain check for every ABI it could
+      # target, not just the emulator's, so install all four triples.
+      - name: Install the Android Rust targets
+        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
+
+      # Examples pull workspace crates whose host-side build scripts link
+      # native libraries (libva through waterkit-codec, fonts, EGL, …) — the
+      # same dependency set the CLI build needs.
+      - name: Install Linux native dependencies
+        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+
+      - name: Install Pillow for screenshot checks
+        run: python3 -m pip install pillow==11.3.0
+
+      - name: Cache AVD
+        id: avd-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.AVD_API_LEVEL }}-${{ env.AVD_TARGET }}-${{ env.AVD_ARCH }}-${{ env.AVD_PROFILE }}
+
+      # GitHub's Linux runners expose /dev/kvm only to root until a udev rule
+      # opens it; without this the emulator silently runs with -accel off
+      # (ProbeKVM: This user doesn't have permissions to use KVM) and boots in
+      # minutes instead of seconds.
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Create emulator snapshot for cache
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.AVD_API_LEVEL }}
+          arch: ${{ env.AVD_ARCH }}
+          target: ${{ env.AVD_TARGET }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: true
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: echo "AVD cache primed."
+
+      - name: Download water CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: water-cli-linux
+          path: /tmp/water-cli
+
+      - name: Add water CLI to PATH
+        run: |
+          chmod +x /tmp/water-cli/water
+          echo "/tmp/water-cli" >> "$GITHUB_PATH"
+
+      - name: Download reference APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: md3-reference-apk
+          path: /tmp/md3-reference
+
+      - name: Run sharded Android example E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.AVD_API_LEVEL }}
+          arch: ${{ env.AVD_ARCH }}
+          target: ${{ env.AVD_TARGET }}
+          profile: ${{ env.AVD_PROFILE }}
+          force-avd-creation: false
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # The runner executes each `script:` line through a fresh
+          # `/usr/bin/sh -c`, so the whole invocation stays a single line; the
+          # Python driver detects the emulator serial itself.
+          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}" --reference-apk /tmp/md3-reference/app-debug.apk
+
+      - name: Upload shard logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-e2e-logs-shard-${{ matrix.shard-index }}
+          path: waterui/backends/android/ci-logs
+          if-no-files-found: ignore
+
+      - name: Upload shard screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-e2e-artifacts-shard-${{ matrix.shard-index }}
+          path: waterui/backends/android/ci-artifacts
+          if-no-files-found: ignore
