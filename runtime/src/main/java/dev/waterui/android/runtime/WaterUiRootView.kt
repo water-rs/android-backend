@@ -477,23 +477,23 @@ private data class MaterialTypographyPalette(
             ),
             headline = resolve(
                 context,
-                com.google.android.material.R.attr.textAppearanceTitleLarge,
-                "textAppearanceTitleLarge"
-            ),
-            subheadline = resolve(
-                context,
                 com.google.android.material.R.attr.textAppearanceTitleMedium,
                 "textAppearanceTitleMedium"
             ),
-            caption = resolve(
+            subheadline = resolve(
                 context,
-                com.google.android.material.R.attr.textAppearanceBodySmall,
-                "textAppearanceBodySmall"
+                com.google.android.material.R.attr.textAppearanceTitleSmall,
+                "textAppearanceTitleSmall"
             ),
-            footnote = resolve(
+            caption = resolve(
                 context,
                 com.google.android.material.R.attr.textAppearanceLabelSmall,
                 "textAppearanceLabelSmall"
+            ),
+            footnote = resolve(
+                context,
+                com.google.android.material.R.attr.textAppearanceBodySmall,
+                "textAppearanceBodySmall"
             )
         )
 
