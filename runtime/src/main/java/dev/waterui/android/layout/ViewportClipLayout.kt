@@ -28,7 +28,7 @@ import android.view.ViewGroup
  * the sizes the child reports.
  */
 @SuppressLint("ViewConstructor")
-class ViewportClipLayout(context: Context, content: View) : ViewGroup(context) {
+open class ViewportClipLayout(context: Context, content: View) : ViewGroup(context) {
     init {
         clipChildren = true
         clipToPadding = true

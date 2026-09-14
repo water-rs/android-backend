@@ -17,6 +17,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -40,6 +41,7 @@ import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
+import dev.waterui.android.runtime.WuiSafeAreaManaging
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWuiTree
 import dev.waterui.android.runtime.disposeWith
@@ -93,7 +95,15 @@ class ListRecyclerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
-) : RecyclerView(context, attrs, defStyleAttr) {
+) : RecyclerView(context, attrs, defStyleAttr), WuiSafeAreaManaging {
+    override fun applySafeArea(insets: Insets) {
+        // The list surface owns the window edges: rows may draw under the bars
+        // once they scroll there, while the padding keeps resting content
+        // clear — RecyclerView's clipToPadding=false is UIKit's contentInset.
+        clipToPadding = false
+        setPadding(insets.left, insets.top, insets.right, insets.bottom)
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(
             viewportMeasureSpec(widthMeasureSpec),
