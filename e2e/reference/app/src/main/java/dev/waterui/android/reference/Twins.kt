@@ -1,25 +1,18 @@
 package dev.waterui.android.reference
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 // Twin registry and shared translation helpers.
 //
@@ -38,12 +31,16 @@ import androidx.compose.ui.unit.sp
 //   spacer()                       -> Spacer(weight) — bare spacer expands
 //
 // Text styles map SwiftUI's semantic slots onto the nearest MD3 typography
-// role (documented per call site; divergences from the backend's own mapping
-// are findings, not things to paper over):
+// role (divergences from the backend's own mapping are findings, not things
+// to paper over):
 //
-//   .title()                       -> headlineMedium   (SwiftUI 28pt ≈ 28sp)
-//   .headline()                    -> titleMedium      (semibold ≈ medium 16sp)
-//   plain text / body              -> bodyLarge        (SwiftUI 17pt ≈ 16sp)
+//   .title()       -> headlineMedium  (SwiftUI 28pt ≈ 28sp)
+//   .headline()    -> titleMedium     (semibold ≈ medium 16sp)
+//   .subheadline() -> titleSmall      (SwiftUI 15pt ≈ 14sp medium)
+//   body           -> bodyLarge       (SwiftUI 17pt ≈ 16sp)
+//   .footnote()    -> bodySmall       (SwiftUI 13pt ≈ 12sp)
+//   .caption()     -> labelSmall      (SwiftUI 12pt ≈ 11sp)
+//   .bold()        -> FontWeight.Bold
 //
 //   Srgb::from_hex("#RRGGBB")      -> Color(0xFFRRGGBB)
 //   .with_opacity(x)               -> copy(alpha = x)
@@ -51,131 +48,80 @@ import androidx.compose.ui.unit.sp
 /** The twin for `example`, or null when none is registered. */
 fun twinFor(example: String): (@Composable () -> Unit)? =
     when (example) {
+        "form" -> ({ FormTwin() })
         "gesture" -> ({ GestureTwin() })
+        "hover" -> ({ HoverTwin() })
+        "list" -> ({ ListTwin() })
+        "typography-rtl" -> ({ TypographyRtlTwin() })
         else -> null
     }
 
-private val TapColor = Color(0xFF2196F3)
-private val DoubleTapColor = Color(0xFF4CAF50)
-private val LongPressColor = Color(0xFFFF9800)
-private val DragColor = Color(0xFF9C27B0)
-private val ChainedColor = Color(0xFFF44336)
-private val OnTapColor = Color(0xFF00BCD4)
-
-private const val WATERUI_SPACING = 10
-private const val WATERUI_PADDING = 14
+const val WATERUI_SPACING = 10
+const val WATERUI_PADDING = 14
 
 /** `vstack` — WaterUI's bare stack spacing, centered like the backend lays out. */
 @Composable
-private fun VStack(content: @Composable () -> Unit) {
+fun VStack(
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    content: @Composable () -> Unit,
+) {
     Column(
         verticalArrangement = Arrangement.spacedBy(WATERUI_SPACING.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = horizontalAlignment,
+        modifier = modifier.fillMaxWidth(),
     ) { content() }
 }
 
-/** `text("Tap Me!").padding().background(color.with_opacity(0.3))` */
+/** `hstack` — WaterUI's bare stack spacing, vertically centered. */
 @Composable
-private fun GestureBox(
-    label: String,
-    color: Color,
+fun HStack(
     modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
 ) {
-    Box(
-        modifier = modifier.background(color.copy(alpha = 0.3f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontSize = 16.sp,
-            modifier = Modifier.padding(WATERUI_PADDING.dp),
-        )
-    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(WATERUI_SPACING.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier,
+    ) { content() }
 }
 
 @Composable
-private fun GestureSection(
-    title: String,
-    caption: String,
-    counter: String,
-    box: @Composable () -> Unit,
-) {
-    VStack {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(caption, style = MaterialTheme.typography.bodyLarge)
-        Text(counter, style = MaterialTheme.typography.bodyLarge)
-        box()
-    }
+fun TitleText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Text(text, style = MaterialTheme.typography.headlineMedium, modifier = modifier, color = color)
 }
 
 @Composable
-fun GestureTwin() {
-    Column(
-        modifier = Modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        VStack {
-            Text(
-                "WaterUI Gesture Examples",
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Text(
-                "Demonstrating gesture recognition and handling",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            HorizontalDivider()
+fun HeadlineText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Text(text, style = MaterialTheme.typography.titleMedium, modifier = modifier, color = color)
+}
 
-            GestureSection(
-                title = "Tap Gesture",
-                caption = "Tap the box below to increment the counter",
-                counter = "Tap count: 0",
-            ) { GestureBox("Tap Me!", TapColor) }
-            HorizontalDivider()
+@Composable
+fun SubheadlineText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Text(text, style = MaterialTheme.typography.titleSmall, modifier = modifier, color = color)
+}
 
-            GestureSection(
-                title = "Double Tap Gesture",
-                caption = "Double-tap the box to increment",
-                counter = "Double tap count: 0",
-            ) { GestureBox("Double Tap Me!", DoubleTapColor) }
-            HorizontalDivider()
+@Composable
+fun BodyText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Text(text, style = MaterialTheme.typography.bodyLarge, modifier = modifier, color = color)
+}
 
-            GestureSection(
-                title = "Long Press Gesture",
-                caption = "Press and hold for 500ms",
-                counter = "Long press count: 0",
-            ) { GestureBox("Long Press Me!", LongPressColor) }
-            HorizontalDivider()
+@Composable
+fun FootnoteText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Text(text, style = MaterialTheme.typography.bodySmall, modifier = modifier, color = color)
+}
 
-            GestureSection(
-                title = "Drag Gesture",
-                caption = "Drag within the box (min 5pt)",
-                counter = "Drag events: 0",
-            ) {
-                GestureBox(
-                    "Drag Here",
-                    DragColor,
-                    Modifier.width(200.dp).height(100.dp),
-                )
-            }
-            HorizontalDivider()
+@Composable
+fun CaptionText(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    Text(text, style = MaterialTheme.typography.labelSmall, modifier = modifier, color = color)
+}
 
-            GestureSection(
-                title = "Chained Gesture",
-                caption = "Tap first, then long press to complete",
-                counter = "Waiting for tap...",
-            ) { GestureBox("Tap then Long Press", ChainedColor) }
-            HorizontalDivider()
-
-            GestureSection(
-                title = "on_tap Shorthand",
-                caption = "Convenient method for simple tap handlers",
-                counter = "This uses the same counter as Section 1",
-            ) { GestureBox("Simple Tap", OnTapColor) }
-        }
-    }
+@Composable
+fun BoldText(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier,
+    )
 }

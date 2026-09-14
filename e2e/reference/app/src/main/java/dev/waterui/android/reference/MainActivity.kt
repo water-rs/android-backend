@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,7 +26,7 @@ class MainActivity : ComponentActivity() {
         val example = intent.getStringExtra(EXTRA_EXAMPLE).orEmpty()
         setContent {
             MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                     val twin = twinFor(example)
                     if (twin != null) twin() else Text("No twin registered for example '$example'")
                 }

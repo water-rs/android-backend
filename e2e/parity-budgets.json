@@ -1,7 +1,11 @@
 {
-  "$schema-comment": "Compose MD3 parity budgets per twinned example. An example listed here must have a twin registered in e2e/reference (Twins.kt); the nightly renders the twin on the same emulator and pixel-compares it against the WaterUI capture. 'default' is the strict fallback fraction; raise an entry only alongside a filed issue for the divergence it blesses.",
+  "$schema-comment": "Compose MD3 parity budgets per twinned example. An example listed here must have a twin registered in e2e/reference (twinFor); the nightly renders the twin on the same emulator and pixel-compares it against the WaterUI capture. 'default' is the strict fallback fraction; recorded budgets are the measured divergence plus headroom — WaterUI and Compose rasterize text through different stacks, so first-run numbers are expected well above the Apple side's 2% and land here after measurement.",
   "default": 0.02,
   "examples": {
-    "gesture": 0.02
+    "form": 0.02,
+    "gesture": 0.02,
+    "hover": 0.02,
+    "list": 0.02,
+    "typography-rtl": 0.02
   }
 }
