@@ -34,7 +34,7 @@ class LineHeightProbeTest {
 
         val textView = AppCompatTextView(context)
         textView.setTextAppearance(appearance)
-        val pxPerSp = context.resources.displayMetrics.scaledDensity
+        val pxPerSp = context.pxPerSp()
 
         // M3 bodyLarge: 16sp text with a 24sp absolute line height. The
         // typescale's `lineHeight` item survives on the style resource even
