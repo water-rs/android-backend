@@ -518,14 +518,26 @@ private data class MaterialTypographyPalette(
             // Theme font sizes travel in sp so the whole UI follows the
             // user's font-scale setting, mirroring Compose's sp typography.
             val sizeSp = textView.textSize / context.pxPerSp()
+            // `setTextAppearance` does not apply the typescale's `lineHeight`
+            // through to `TextView.getLineHeight` (that still reports the
+            // face's natural metrics), so read the attribute straight out of
+            // the appearance. The M3 styles set both the appcompat and the
+            // framework spellings; the appcompat one resolves on every API.
+            val lineHeightAttrs = context.obtainStyledAttributes(
+                appearance,
+                intArrayOf(androidx.appcompat.R.attr.lineHeight)
+            )
+            val lineHeightPx =
+                lineHeightAttrs.getDimensionPixelSize(0, textView.lineHeight)
+            lineHeightAttrs.recycle()
             return ResolvedFontStruct(
                 size = sizeSp,
                 weight = typeface.toWaterUiFontWeight(),
                 family = null,
                 design = ResolvedFontStruct.FONT_DESIGN_DEFAULT,
                 // Material text appearances carry the M3 typescale's absolute
-                // line height; `TextView.getLineHeight` reports it in px.
-                lineHeight = textView.lineHeight / context.pxPerSp(),
+                // line height; report it in sp like the text size above.
+                lineHeight = lineHeightPx / context.pxPerSp(),
                 // `TextView.letterSpacing` is an em fraction; WaterUI's
                 // `letter_spacing` is an absolute point value.
                 letterSpacing = textView.letterSpacing * sizeSp
