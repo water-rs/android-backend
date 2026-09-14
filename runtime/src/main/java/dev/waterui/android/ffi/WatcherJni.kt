@@ -274,15 +274,6 @@ object WatcherJni {
     @JvmStatic external fun reactiveColorSchemeStateToComputed(statePtr: Long): Long
     @JvmStatic external fun reactiveColorSchemeStateSet(statePtr: Long, scheme: Int)
     @JvmStatic external fun dropReactiveColorSchemeState(statePtr: Long)
-    @JvmStatic external fun createReactiveEdgeInsetsState(
-        top: Float,
-        bottom: Float,
-        leading: Float,
-        trailing: Float
-    ): Long
-    @JvmStatic external fun reactiveEdgeInsetsStateToComputed(statePtr: Long): Long
-    @JvmStatic external fun dropReactiveEdgeInsetsState(statePtr: Long)
-    @JvmStatic external fun envInstallSafeArea(envPtr: Long, signalPtr: Long)
     @JvmStatic external fun createReactiveFontState(
         size: Float,
         weight: Int,
