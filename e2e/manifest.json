@@ -1,5 +1,5 @@
 {
-  "$schema-comment": "Per-example policy for the example E2E shard script. mode=verify waits for a settled frame and compares it to e2e/goldens/<example>.png; mode=smoke only requires the app to start and show non-blank content; mode=skip does not run the example at all.",
+  "$schema-comment": "Per-example policy for the example E2E shard script. mode=verify waits for a settled frame and compares it to e2e/goldens/<example>.png; mode=smoke only requires the app to start and show non-blank content; mode=skip does not run the example at all. env is forwarded to the app as `water run --env KEY=VALUE` pairs (delivered as waterui.env.* intent extras).",
   "defaults": {
     "settle_timeout_seconds": 25,
     "poll_interval_ms": 400,
@@ -22,12 +22,24 @@
     "gallery": { "mode": "smoke", "reason": "loads remote images over the network" },
     "gradient": { "mode": "smoke", "reason": "animated mesh gradient never reaches a settled frame" },
     "image": { "mode": "smoke", "reason": "remote images arrive asynchronously over the network" },
-    "map": { "mode": "smoke", "reason": "vector tiles stream over the network onto a GPU surface" },
+    "map": {
+      "mode": "smoke",
+      "reason": "vector tiles stream over the network onto a GPU surface",
+      "env": { "WATERUI_LOG": "debug", "RUST_BACKTRACE": "1" }
+    },
     "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
     "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
     "reminders": { "mode": "smoke", "reason": "may raise a runtime permission prompt over the content" },
     "starfield": { "mode": "smoke", "reason": "continuous GPU animation" },
-    "stress": { "mode": "smoke", "reason": "stress drivers mutate state on timers" },
+    "stress": {
+      "mode": "smoke",
+      "reason": "stress drivers mutate state on timers; counts scaled to emulator capacity (android-backend#86)",
+      "env": {
+        "WATERUI_STRESS_SYSTEM_COUNT": "18",
+        "WATERUI_STRESS_CUSTOM_COUNT": "14",
+        "WATERUI_STRESS_FILTER_COUNT": "12"
+      }
+    },
     "video_player": { "mode": "smoke", "reason": "video playback never reaches a settled frame" },
     "waterkit_camera_filters": { "mode": "smoke", "reason": "camera preview stream never reaches a settled frame" },
     "webview": { "mode": "smoke", "reason": "remote page loads asynchronously over the network" }
