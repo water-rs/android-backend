@@ -162,10 +162,7 @@ class WaterUiRootView @JvmOverloads constructor(
         val initEnv = runtimeOwner.createWaterUiEnvironment()
         pendingEnvironment = initEnv
         installSystemLocale(initEnv, context.resources.configuration)
-        safeAreaSignal = ReactiveEdgeInsetsSignal(
-            pendingSafeArea,
-            context.resources.displayMetrics.density
-        ).also { signal ->
+        safeAreaSignal = ReactiveEdgeInsetsSignal().also { signal ->
             NativeBindings.waterui_env_install_safe_area(initEnv.raw(), signal.takeComputed())
         }
         materialTheme = MaterialThemeSignals.install(
@@ -260,39 +257,19 @@ class WaterUiRootView @JvmOverloads constructor(
         return super.onInterceptTouchEvent(event)
     }
 
-    /// Decides where the window's safe area is spent, and publishes what is
-    /// left for the layers WaterUI lays out itself.
+    /// Hands the window's safe area to the content.
     ///
-    /// Content that owns chrome takes the whole window: padding the root is
-    /// what kept a tab bar's background from reaching under the gesture bar,
-    /// because everything WaterUI drew lived inside the padding and the strip
-    /// the system reserves showed the window background instead of the bar. The
-    /// bar takes that edge itself — see [WuiSafeAreaManaging] — and the
-    /// published insets let the window's own overlay layers, which are siblings
-    /// of the content rather than children of any chrome, do the same.
-    ///
-    /// Ordinary content has nothing to reach the edges with, so the root insets
-    /// it exactly as before and publishes nothing: the overlays are inside that
-    /// padding already, and insetting them again would double it.
+    /// The content takes the whole window and lays itself out against the
+    /// insets: the window's overlay stack and every stack below it place their
+    /// children inside the safe area and extend the scroll surfaces and chrome
+    /// containers that touch its edges (see [WuiSafeAreaManaging]). The
+    /// insets are applied natively, so the safe-area signal the environment
+    /// carries stays at zero ([ReactiveEdgeInsetsSignal]).
     private fun applySafeArea(safeArea: Insets) {
         pendingSafeArea = safeArea
-        val child = getChildAt(0)
-        if (child == null) {
-            safeAreaSignal?.setValue(Insets.NONE)
-            return
-        }
-        when (val primary = resolvePrimaryContent(child)) {
-            is WuiSafeAreaManaging -> {
-                setPadding(0, 0, 0, 0)
-                safeAreaSignal?.setValue(safeArea)
-                primary.applySafeArea(safeArea)
-            }
-
-            else -> {
-                setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
-                safeAreaSignal?.setValue(Insets.NONE)
-            }
-        }
+        setPadding(0, 0, 0, 0)
+        val child = getChildAt(0) ?: return
+        applyRemainingInsets(child, safeArea)
     }
 
     private fun captureRootEnvironment(env: WuiEnvironment) {

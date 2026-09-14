@@ -6,9 +6,12 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Space
+import androidx.core.graphics.Insets
 import androidx.core.view.isEmpty
 import dev.waterui.android.runtime.NativeBindings
-import dev.waterui.android.runtime.WuiPrimaryContentProviding
+import dev.waterui.android.runtime.WuiSafeAreaManaging
+import dev.waterui.android.runtime.applyRemainingInsets
+import dev.waterui.android.runtime.handlesSafeArea
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
 import dev.waterui.android.runtime.SizeStruct
@@ -33,12 +36,19 @@ class RustLayoutViewGroup(
     context: Context,
     private val layoutPtr: Long,
     private var descriptors: List<ChildDescriptor> = emptyList()
-) : ViewGroup(context), WuiPrimaryContentProviding {
-    /// A stack answers window-root questions with its base layer: the window
-    /// composes overlay layers above the content, and a layer stacked above the
-    /// content never changes how the window insets it.
-    override val wuiPrimaryContent: View?
-        get() = if (isEmpty()) null else getChildAt(0)
+) : ViewGroup(context), WuiSafeAreaManaging {
+    /// The insets no ancestor has consumed. The children are laid out inside
+    /// them; a child that handles the safe area itself and touches an edge of
+    /// that area is extended to the bounds on that edge and handed the inset
+    /// it now covers, so a scroll surface beside a backdrop reaches the chrome
+    /// and pads its own content while the backdrop stays inside.
+    private var safeArea = Insets.NONE
+
+    override fun applySafeArea(insets: Insets) {
+        if (safeArea == insets) return
+        safeArea = insets
+        requestLayout()
+    }
 
     private val layoutWatcher = NativeBindings.waterui_layout_watch_invalidation(layoutPtr, this)
 
@@ -179,11 +189,16 @@ class RustLayoutViewGroup(
             return
         }
 
-        // Convert pixel bounds to dp for Rust layout engine
-        scratchBounds.x = 0f
-        scratchBounds.y = 0f
-        scratchBounds.width = (right - left).toFloat().pxToDp()
-        scratchBounds.height = (bottom - top).toFloat().pxToDp()
+        // Convert pixel bounds to dp for Rust layout engine; the children are
+        // laid out inside the safe area.
+        val safeLeft = safeArea.left
+        val safeTop = safeArea.top
+        val safeRight = maxOf(safeLeft, right - left - safeArea.right)
+        val safeBottom = maxOf(safeTop, bottom - top - safeArea.bottom)
+        scratchBounds.x = safeLeft.toFloat().pxToDp()
+        scratchBounds.y = safeTop.toFloat().pxToDp()
+        scratchBounds.width = (safeRight - safeLeft).toFloat().pxToDp()
+        scratchBounds.height = (safeBottom - safeTop).toFloat().pxToDp()
 
         // Create SubViewStruct array for placement
         // Pass density so child measurements can convert between dp and pixels
@@ -215,10 +230,37 @@ class RustLayoutViewGroup(
             }
 
             // Convert dp positions to pixels
-            val childLeft = rect.x.dpToPx().roundToInt()
-            val childTop = rect.y.dpToPx().roundToInt()
-            val childRight = childLeft + allocatedWidth
-            val childBottom = childTop + allocatedHeight
+            var childLeft = rect.x.dpToPx().roundToInt()
+            var childTop = rect.y.dpToPx().roundToInt()
+            var childRight = childLeft + allocatedWidth
+            var childBottom = childTop + allocatedHeight
+            if (safeArea != Insets.NONE && handlesSafeArea(child)) {
+                // Extend to the bounds on every edge the child touches, and hand
+                // it the insets it now covers.
+                val extendLeft = childLeft == safeLeft
+                val extendTop = childTop == safeTop
+                val extendRight = childRight == safeRight
+                val extendBottom = childBottom == safeBottom
+                if (extendLeft) childLeft = 0
+                if (extendTop) childTop = 0
+                if (extendRight) childRight = right - left
+                if (extendBottom) childBottom = bottom - top
+                applyRemainingInsets(
+                    child,
+                    Insets.of(
+                        if (extendLeft) safeArea.left else 0,
+                        if (extendTop) safeArea.top else 0,
+                        if (extendRight) safeArea.right else 0,
+                        if (extendBottom) safeArea.bottom else 0
+                    )
+                )
+                if (childRight - childLeft != allocatedWidth || childBottom - childTop != allocatedHeight) {
+                    child.measure(
+                        View.MeasureSpec.makeMeasureSpec(childRight - childLeft, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(childBottom - childTop, View.MeasureSpec.EXACTLY)
+                    )
+                }
+            }
             child.layout(childLeft, childTop, childRight, childBottom)
         }
     }
