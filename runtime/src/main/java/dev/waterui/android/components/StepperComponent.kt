@@ -55,7 +55,9 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     if (struct.valueFormatterPtr != 0L) {
         val valueView = TextView(context)
         val bodyFont = ThemeBridge.bodyFont(env)
-        bodyFont.observe(valueView::applyResolvedFont)
+        // The formatter emits a styled string; its chunks carry their own
+        // line-height spans, so the view-level pin would clamp them.
+        bodyFont.observe { font -> valueView.applyResolvedFont(font, applyLineHeight = false) }
         bodyFont.attachTo(valueView)
         val value = ReactiveStyledText(struct.valueFormatterPtr, env)
         value.attach { styled -> valueView.text = styled }

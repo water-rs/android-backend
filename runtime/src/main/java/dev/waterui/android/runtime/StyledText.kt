@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Build
 import android.text.SpannableStringBuilder
@@ -8,6 +9,7 @@ import android.text.TextPaint
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
+import android.text.style.LineHeightSpan
 import android.text.style.MetricAffectingSpan
 import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
@@ -262,6 +264,14 @@ internal class ResolvedStyledTextStyle(
             end,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
+        if (font.lineHeight > 0f) {
+            builder.setSpan(
+                ExactLineHeightSpan((font.lineHeight * pxPerSp).roundToInt()),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
         resolvedForeground?.let { color ->
             builder.setSpan(
                 ForegroundColorSpan(color.toColorInt()),
@@ -290,6 +300,36 @@ internal class ResolvedStyledTextStyle(
         fontSignal.close()
         foregroundSignal?.close()
         backgroundSignal?.close()
+    }
+}
+
+/**
+ * Puts the spanned lines into the resolved font's absolute line box.
+ *
+ * The glyph run stays centred inside the box the way Compose's default
+ * `LineHeightStyle` centres it, and top/bottom are pinned to ascent/descent
+ * so `includeFontPadding=false` cannot trim the box back off the measured
+ * height.
+ */
+internal class ExactLineHeightSpan(
+    private val lineHeightPx: Int
+) : LineHeightSpan {
+    override fun chooseHeight(
+        text: CharSequence,
+        start: Int,
+        end: Int,
+        spanstartv: Int,
+        lineHeight: Int,
+        fm: Paint.FontMetricsInt
+    ) {
+        val natural = fm.descent - fm.ascent
+        if (natural <= 0) return
+        val extra = lineHeightPx - natural
+        val half = extra / 2
+        fm.ascent -= half
+        fm.descent += extra - half
+        fm.top = fm.ascent
+        fm.bottom = fm.descent
     }
 }
 
@@ -348,18 +388,26 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
     )
 }
 
-internal fun TextView.applyResolvedFont(font: ResolvedFontStruct) {
+internal fun TextView.applyResolvedFont(font: ResolvedFontStruct, applyLineHeight: Boolean = true) {
     setTextSize(TypedValue.COMPLEX_UNIT_SP, font.size)
     typeface = font.toTypeface()
     // Compose Material `Text` trims font padding; a plain `TextView` keeps it
     // and measures every line ~15% taller than the twin.
     includeFontPadding = false
-    if (font.lineHeight > 0f) {
-        // `setLineHeight` is API 28; the compat helper reproduces it below.
-        TextViewCompat.setLineHeight(
-            this,
-            (font.lineHeight * resources.displayMetrics.scaledDensity).roundToInt()
-        )
+    if (applyLineHeight && font.lineHeight > 0f) {
+        // `setLineHeight` alone cannot express the Compose line box: with font
+        // padding trimmed, `getDesiredHeight` subtracts the face's natural
+        // top/bottom padding again and a single line measures ~15% short.
+        // Pin the first/last baselines around the centred glyph run and pass
+        // the remainder as inter-line spacing so a single line measures
+        // exactly `lineHeight` and wrapped lines keep that pitch.
+        val lineHeightPx = (font.lineHeight * context.pxPerSp()).roundToInt()
+        val metrics = paint.fontMetricsInt
+        val extra = lineHeightPx - (metrics.descent - metrics.ascent)
+        val half = extra / 2
+        TextViewCompat.setFirstBaselineToTopHeight(this, -metrics.ascent + half)
+        TextViewCompat.setLastBaselineToBottomHeight(this, metrics.descent + extra - half)
+        setLineSpacing(extra.toFloat(), 1f)
     }
     // `letter_spacing` crosses the FFI as absolute points; the platform
     // setter wants an em fraction of the text size.

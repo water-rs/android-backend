@@ -38,7 +38,10 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     }
     foreground.attachTo(textView)
     val bodyFont = ThemeBridge.bodyFont(env)
-    bodyFont.observe(textView::applyResolvedFont)
+    // The content is a styled string whose chunks carry their own
+    // line-height spans; a view-level pin would clamp larger runs to the
+    // body line box.
+    bodyFont.observe { font -> textView.applyResolvedFont(font, applyLineHeight = false) }
     bodyFont.attachTo(textView)
     paragraphAlignment.observe { alignment ->
         when (alignment) {
