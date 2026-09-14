@@ -93,6 +93,17 @@ object WatcherJni {
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
     @JvmStatic external fun forceAsMenuItem(viewPtr: Long): MenuItemStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
+    @JvmStatic external fun forceAsMetadataDraggable(viewPtr: Long): MetadataDraggableStruct
+    @JvmStatic external fun forceAsMetadataDropDestination(viewPtr: Long): MetadataDropDestinationStruct
+
+    // ========== Drag and Drop ==========
+
+    @JvmStatic external fun draggableGetData(draggablePtr: Long): DragDataStruct
+    @JvmStatic external fun dropDraggable(draggablePtr: Long)
+    @JvmStatic external fun dropDestinationOnDrop(destinationPtr: Long, envPtr: Long, dataTag: Int, dataValue: String)
+    @JvmStatic external fun dropDestinationOnEnter(destinationPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropDestinationOnExit(destinationPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropDropDestination(destinationPtr: Long)
 
     // ========== Drop Functions ==========
 
@@ -376,6 +387,8 @@ object WatcherJni {
         viewPtr: Long
     ): dev.waterui.android.runtime.MetadataDynamicRangeStruct
     @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataDraggableId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataDropDestinationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuItemId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun webViewId(): dev.waterui.android.runtime.TypeIdStruct
