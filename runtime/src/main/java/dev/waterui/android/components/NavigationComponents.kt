@@ -1636,9 +1636,16 @@ private fun View.makeTabIconDecorative() {
 }
 
 /// Finds Material's single image slot without depending on a private resource id.
-private fun View.requireTabIconAnchor(): ImageView {
+///
+/// `attached` is the WaterUI icon view a previous `attachIcons` pass may have
+/// already reparented into this item — it must not be counted as Material's
+/// slot or the second pass trips the single-slot check (#114).
+private fun View.requireTabIconAnchor(attached: View?): ImageView {
     var anchor: ImageView? = null
     fun visit(view: View) {
+        if (view === attached) {
+            return
+        }
         if (view is ImageView) {
             check(anchor == null) { "Material navigation item has more than one image slot" }
             anchor = view
@@ -1829,7 +1836,7 @@ private class AdaptiveTabsView(
             val item = checkNotNull(bar.findViewById<View>(entry.id)) {
                 "Material navigation item ${entry.id} was not created"
             }
-            val anchor = item.requireTabIconAnchor()
+            val anchor = item.requireTabIconAnchor(icon.view)
             val innerContainer = checkNotNull(anchor.parent as? ViewGroup) {
                 "Material navigation item ${entry.id} image slot has no container"
             }
