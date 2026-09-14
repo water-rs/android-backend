@@ -26,6 +26,9 @@ object WatcherJni {
     @JvmStatic external fun gpuRuntimeCreate(callback: GpuRuntimeReadyCallback)
     @JvmStatic external fun envInstallGpuRuntime(envPtr: Long, runtimePtr: Long)
     @JvmStatic external fun dropGpuRuntime(runtimePtr: Long)
+
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
+    @JvmStatic external fun simulateGpuDeviceLoss(envPtr: Long)
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
