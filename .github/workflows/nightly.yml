@@ -36,6 +36,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
   AVD_API_LEVEL: "35"
   AVD_ARCH: x86_64
   AVD_TARGET: google_apis
