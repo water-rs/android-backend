@@ -20,6 +20,7 @@ Subcommands:
 import argparse
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -226,6 +227,30 @@ def crash_reason(proc: subprocess.Popen, log_file: Path) -> str | None:
         if marker in tail:
             return f"run log shows '{marker}'"
     return None
+
+
+def dump_meminfo(serial: str, example_path: Path, out_path: Path) -> None:
+    """Per-example `dumpsys meminfo` snapshot for the nightly artifact bundle.
+
+    The application id lives in the example's Water.toml rather than following
+    a naming rule (`dev.waterui.edge_list`, `com.waterui.example.drop_and_drop`),
+    so it is read out of the manifest instead of derived.
+    """
+    water_toml = example_path / "Water.toml"
+    try:
+        match = re.search(
+            r'^\s*bundle_identifier\s*=\s*"([^"]+)"', water_toml.read_text(),
+            re.MULTILINE,
+        )
+    except OSError:
+        return
+    if not match:
+        return
+    try:
+        data = adb_out(serial, "shell", "dumpsys", "meminfo", match.group(1))
+    except subprocess.CalledProcessError:
+        return
+    out_path.write_bytes(data)
 
 
 def dump_logcat(serial: str, out_path: Path) -> None:
@@ -479,7 +504,7 @@ def run_example(
             return _run_started_example(
                 example, cfg, proc, log_file, serial,
                 golden_mode, goldens_dir, artifacts_dir, candidates_dir, results,
-                parity_budget,
+                parity_budget, example_path,
             )
         finally:
             stop_run(proc)
@@ -498,6 +523,7 @@ def _run_started_example(
     candidates_dir: Path,
     results: list,
     parity_budget: float | None,
+    example_path: Path,
 ) -> bool:
     actual = artifacts_dir / f"{example}.actual.png"
     crashed = lambda: crash_reason(proc, log_file)
@@ -508,6 +534,7 @@ def _run_started_example(
         frame = capture_screen(serial)
         if frame:
             actual.write_bytes(frame)
+        dump_meminfo(serial, example_path, artifacts_dir / f"{example}.meminfo.txt")
         dump_logcat(serial, artifacts_dir / f"{example}.logcat.txt")
         print(f"::error::Example {example} failed to start.")
         print("\n".join(log_file.read_text(errors="replace").splitlines()[-200:]))
@@ -560,6 +587,9 @@ def _run_started_example(
         else:
             actual.write_bytes(frame)
             detail = "non-blank content on screen"
+
+    # Memory footprint rides every example, pass or fail.
+    dump_meminfo(serial, example_path, artifacts_dir / f"{example}.meminfo.txt")
 
     if status == "FAIL":
         dump_logcat(serial, artifacts_dir / f"{example}.logcat.txt")
