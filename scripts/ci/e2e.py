@@ -200,6 +200,45 @@ def enter_demo_mode(serial: str) -> None:
         print(f"::warning::demo mode not fully enabled on {serial}")
 
 
+# `water run` reports process death with this line; the VM's own markers ride
+# in the same stream when the runtime logs through it.
+CRASH_MARKERS = ("Application crashed", "FATAL EXCEPTION", "Fatal signal")
+# Logcat snapshot size kept per failed example — enough for the FATAL block
+# plus context, small enough to stay artifact-friendly.
+LOGCAT_TAIL_LINES = 4000
+
+
+def crash_reason(proc: subprocess.Popen, log_file: Path) -> str | None:
+    """Why the example can never settle: the run died, or its log shows the
+    app process crashed. Checked once per framebuffer poll so a dead app
+    fails fast instead of burning the whole settle window."""
+    code = proc.poll()
+    if code is not None:
+        return f"water run exited ({code})"
+    try:
+        with open(log_file, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 65536))
+            tail = handle.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    for marker in CRASH_MARKERS:
+        if marker in tail:
+            return f"run log shows '{marker}'"
+    return None
+
+
+def dump_logcat(serial: str, out_path: Path) -> None:
+    """Full-buffer logcat for a failed example — the FATAL block lives in the
+    crash buffer, which a pid-filtered dump can miss once the process is gone."""
+    try:
+        data = adb_out(serial, "logcat", "-d", "-b", "all", "-t", str(LOGCAT_TAIL_LINES))
+    except subprocess.CalledProcessError:
+        return
+    if data:
+        out_path.write_bytes(data)
+
+
 # ---------- readiness waits ----------
 
 
@@ -251,17 +290,26 @@ def wait_for_start(proc: subprocess.Popen, log_file: Path) -> bool:
         time.sleep(5)
 
 
-def wait_for_settle(serial: str, timeout_s: float, poll_s: float) -> tuple[bool, bytes | None]:
+def wait_for_settle(
+    serial: str,
+    timeout_s: float,
+    poll_s: float,
+    abort_check=None,
+) -> tuple[bool, bytes | None]:
     """Poll the framebuffer until captures stay byte-identical AND non-blank
     for MIN_STABLE_S — the "the app finished drawing something" signal.
     Single identical pairs are not enough: an app can hold an empty background
     before content arrives, or hold a transient overlay (a scrollbar mid-fade)
-    static for one poll interval. Returns (settled, last frame) either way."""
+    static for one poll interval. `abort_check` returning a reason string
+    stops the wait early — a crashed app can never settle. Returns
+    (settled, last frame) either way."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
     cur: bytes | None = None
     stable_since: float | None = None
     while time.monotonic() < deadline:
+        if abort_check is not None and abort_check() is not None:
+            return False, cur
         cur = capture_screen(serial)
         if cur and cur == prev and is_nonblank(cur):
             if stable_since is None:
@@ -275,14 +323,21 @@ def wait_for_settle(serial: str, timeout_s: float, poll_s: float) -> tuple[bool,
     return False, cur
 
 
-def wait_for_content(serial: str, timeout_s: float, poll_s: float) -> bytes | None:
+def wait_for_content(
+    serial: str,
+    timeout_s: float,
+    poll_s: float,
+    abort_check=None,
+) -> bytes | None:
     """A smoke-mode example animates forever by definition, so "non-blank
     content on screen" is the assertion. Poll captures until content appears;
     a frame that stays flat past the deadline is the failure this exists to
-    catch."""
+    catch. `abort_check` stops the wait early on app death."""
     deadline = time.monotonic() + timeout_s
     frame = b""
     while time.monotonic() < deadline:
+        if abort_check is not None and abort_check() is not None:
+            return None
         frame = capture_screen(serial)
         if frame and is_nonblank(frame):
             return frame
@@ -438,6 +493,7 @@ def _run_started_example(
     parity_budget: float | None,
 ) -> bool:
     actual = artifacts_dir / f"{example}.actual.png"
+    crashed = lambda: crash_reason(proc, log_file)
 
     if not wait_for_start(proc, log_file):
         # Whatever is on screen right now — a crash dialog, the installer
@@ -445,16 +501,22 @@ def _run_started_example(
         frame = capture_screen(serial)
         if frame:
             actual.write_bytes(frame)
+        dump_logcat(serial, artifacts_dir / f"{example}.logcat.txt")
         print(f"::error::Example {example} failed to start.")
         print("\n".join(log_file.read_text(errors="replace").splitlines()[-200:]))
         results.append((example, "FAIL", "failed to start"))
         return False
 
     status = "PASS"
+    abort = crashed()
 
     if cfg["mode"] == "verify":
-        settled, frame = wait_for_settle(serial, cfg["settle_s"], cfg["poll_s"])
+        settled, frame = wait_for_settle(
+            serial, cfg["settle_s"], cfg["poll_s"], abort_check=crashed
+        )
+        abort = abort or crashed()
         detail = "settled" if settled else (
+            f"{abort}, compared the final frame" if abort else
             f"no settled frame within {cfg['settle_s']:g}s; compared the final frame"
         )
         if not frame:
@@ -475,11 +537,16 @@ def _run_started_example(
                 ):
                     status = "FAIL"
                     detail += "; diverges from Compose twin"
+        if abort and status != "FAIL":
+            status = "FAIL"
     else:  # smoke
-        frame = wait_for_content(serial, cfg["settle_s"], cfg["poll_s"])
+        frame = wait_for_content(
+            serial, cfg["settle_s"], cfg["poll_s"], abort_check=crashed
+        )
+        abort = abort or crashed()
         if frame is None:
             status = "FAIL"
-            detail = f"screen stayed blank for {cfg['settle_s']:g}s after startup"
+            detail = abort or f"screen stayed blank for {cfg['settle_s']:g}s after startup"
             last = capture_screen(serial)
             if last:
                 actual.write_bytes(last)
@@ -487,8 +554,10 @@ def _run_started_example(
             actual.write_bytes(frame)
             detail = "non-blank content on screen"
 
-    if status == "FAIL" and proc.poll() is not None:
-        detail += f"; water run exited with status {proc.returncode} during capture — see log"
+    if status == "FAIL":
+        dump_logcat(serial, artifacts_dir / f"{example}.logcat.txt")
+        if proc.poll() is not None:
+            detail += f"; water run exited with status {proc.returncode} during capture — see log"
 
     if golden_mode == "record" and cfg["mode"] == "verify" and status != "FAIL":
         (candidates_dir / f"{example}.png").write_bytes(actual.read_bytes())
