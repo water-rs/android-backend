@@ -1126,6 +1126,20 @@ typedef enum WuiNavigationSplitStyle {
 } WuiNavigationSplitStyle;
 
 /**
+ *C ABI mirror of `TabRole`.
+ */
+typedef enum WuiTabRole {
+  /**
+   *Mirrors `TabRole::Regular`.
+   */
+  WuiTabRole_Regular,
+  /**
+   *Mirrors `TabRole::Search`.
+   */
+  WuiTabRole_Search,
+} WuiTabRole;
+
+/**
  * Native adaptive tab style.
  */
 typedef enum WuiTabStyle {
@@ -1142,6 +1156,28 @@ typedef enum WuiTabStyle {
    */
   WuiTabStyle_Sidebar = 2,
 } WuiTabStyle;
+
+/**
+ *C ABI mirror of `TabBarMinimizeBehavior`.
+ */
+typedef enum WuiTabBarMinimizeBehavior {
+  /**
+   *Mirrors `TabBarMinimizeBehavior::Automatic`.
+   */
+  WuiTabBarMinimizeBehavior_Automatic,
+  /**
+   *Mirrors `TabBarMinimizeBehavior::Never`.
+   */
+  WuiTabBarMinimizeBehavior_Never,
+  /**
+   *Mirrors `TabBarMinimizeBehavior::OnScrollDown`.
+   */
+  WuiTabBarMinimizeBehavior_OnScrollDown,
+  /**
+   *Mirrors `TabBarMinimizeBehavior::OnScrollUp`.
+   */
+  WuiTabBarMinimizeBehavior_OnScrollUp,
+} WuiTabBarMinimizeBehavior;
 
 /**
  * Editing operations forwarded to Chromium's focused frame.
@@ -6357,6 +6393,10 @@ typedef struct WuiTab {
    * A backend whose tab item takes an image has to rasterize this itself.
    */
   struct WuiAnyView *icon;
+  /**
+   * The part the tab plays in the container's chrome.
+   */
+  enum WuiTabRole role;
 } WuiTab;
 
 /**
@@ -6407,6 +6447,17 @@ typedef struct WuiTabs {
    * Native adaptive tab style.
    */
   enum WuiTabStyle style;
+  /**
+   * How the bar behaves while content scrolls.
+   */
+  enum WuiTabBarMinimizeBehavior minimize_behavior;
+  /**
+   * A view the platform floats above the tab bar, or null.
+   *
+   * An iOS primitive (`UITabBarController.bottomAccessory`); a backend
+   * without the slot does not show it.
+   */
+  struct WuiAnyView *bottom_accessory;
 } WuiTabs;
 
 /**
