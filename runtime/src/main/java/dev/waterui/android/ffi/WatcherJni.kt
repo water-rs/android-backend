@@ -288,9 +288,20 @@ object WatcherJni {
     )
     @JvmStatic external fun dropReactiveEdgeInsetsState(statePtr: Long)
     @JvmStatic external fun envInstallSafeArea(envPtr: Long, signalPtr: Long)
-    @JvmStatic external fun createReactiveFontState(size: Float, weight: Int): Long
+    @JvmStatic external fun createReactiveFontState(
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    ): Long
     @JvmStatic external fun reactiveFontStateToComputed(statePtr: Long): Long
-    @JvmStatic external fun reactiveFontStateSet(statePtr: Long, size: Float, weight: Int)
+    @JvmStatic external fun reactiveFontStateSet(
+        statePtr: Long,
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    )
     @JvmStatic external fun dropReactiveFontState(statePtr: Long)
 
     // ========== Theme Functions ==========

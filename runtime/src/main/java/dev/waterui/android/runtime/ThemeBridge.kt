@@ -88,7 +88,9 @@ class ReactiveFontSignal(initial: ResolvedFontStruct) : Closeable {
         }
         statePtr = NativeBindings.waterui_create_reactive_font_state(
             initial.size,
-            initial.weight
+            initial.weight,
+            initial.lineHeight,
+            initial.letterSpacing
         )
     }
 
@@ -102,7 +104,13 @@ class ReactiveFontSignal(initial: ResolvedFontStruct) : Closeable {
         check(font.family == null) {
             "Android platform theme font signals must use the system font family"
         }
-        NativeBindings.waterui_reactive_font_state_set(requireState(), font.size, font.weight)
+        NativeBindings.waterui_reactive_font_state_set(
+            requireState(),
+            font.size,
+            font.weight,
+            font.lineHeight,
+            font.letterSpacing
+        )
     }
 
     override fun close() {

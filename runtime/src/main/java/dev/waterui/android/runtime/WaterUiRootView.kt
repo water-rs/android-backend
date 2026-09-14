@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatTextView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import androidx.core.view.ViewCompat
@@ -503,18 +504,28 @@ private data class MaterialTypographyPalette(
             attributes.recycle()
             check(appearance != 0) { "WaterUI Material theme is missing $name" }
 
-            val textView = TextView(context)
+            // AppCompatTextView so the app-namespace `lineHeight` in M3 text
+            // appearances resolves on API <28 as well (the framework reads
+            // only `android:lineHeight` there).
+            val textView = AppCompatTextView(context)
             textView.setTextAppearance(appearance)
             val typeface = requireNotNull(textView.typeface) {
                 "WaterUI Material theme $name did not resolve a typeface"
             }
             // Theme font sizes travel in sp so the whole UI follows the
             // user's font-scale setting, mirroring Compose's sp typography.
+            val sizeSp = textView.textSize / context.pxPerSp()
             return ResolvedFontStruct(
-                size = textView.textSize / context.pxPerSp(),
+                size = sizeSp,
                 weight = typeface.toWaterUiFontWeight(),
                 family = null,
-                design = ResolvedFontStruct.FONT_DESIGN_DEFAULT
+                design = ResolvedFontStruct.FONT_DESIGN_DEFAULT,
+                // Material text appearances carry the M3 typescale's absolute
+                // line height; `TextView.getLineHeight` reports it in px.
+                lineHeight = textView.lineHeight / context.pxPerSp(),
+                // `TextView.letterSpacing` is an em fraction; WaterUI's
+                // `letter_spacing` is an absolute point value.
+                letterSpacing = textView.letterSpacing * sizeSp
             )
         }
     }
