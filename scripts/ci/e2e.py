@@ -229,28 +229,96 @@ def crash_reason(proc: subprocess.Popen, log_file: Path) -> str | None:
     return None
 
 
-def dump_meminfo(serial: str, example_path: Path, out_path: Path) -> None:
-    """Per-example `dumpsys meminfo` snapshot for the nightly artifact bundle.
-
-    The application id lives in the example's Water.toml rather than following
-    a naming rule (`dev.waterui.edge_list`, `com.waterui.example.drop_and_drop`),
-    so it is read out of the manifest instead of derived.
-    """
-    water_toml = example_path / "Water.toml"
+def bundle_id(example_path: Path) -> str | None:
+    """The application id lives in the example's Water.toml rather than
+    following a naming rule (`dev.waterui.edge_list`,
+    `com.waterui.example.drop_and_drop`), so it is read out of the manifest
+    instead of derived."""
     try:
         match = re.search(
-            r'^\s*bundle_identifier\s*=\s*"([^"]+)"', water_toml.read_text(),
+            r'^\s*bundle_identifier\s*=\s*"([^"]+)"',
+            (example_path / "Water.toml").read_text(),
             re.MULTILINE,
         )
     except OSError:
-        return
-    if not match:
-        return
+        return None
+    return match.group(1) if match else None
+
+
+def parse_meminfo(data: bytes) -> dict:
+    """Pull the headline numbers out of `dumpsys meminfo` so the nightly can
+    trend them instead of archiving raw text. Values are kilobytes."""
+    text = data.decode("utf-8", "replace")
+    metrics: dict = {}
+    match = re.search(
+        r"TOTAL PSS:\s*(\d+)\s+TOTAL RSS:\s*(\d+)\s+TOTAL SWAP PSS:\s*(\d+)",
+        text,
+    )
+    if match:
+        metrics["total_pss_kb"] = int(match.group(1))
+        metrics["total_rss_kb"] = int(match.group(2))
+        metrics["swap_pss_kb"] = int(match.group(3))
+    for key, label in (("java_heap_pss_kb", "Java Heap"),
+                       ("native_heap_pss_kb", "Native Heap")):
+        match = re.search(rf"^\s*{label}:\s*(\d+)", text, re.MULTILINE)
+        if match:
+            metrics[key] = int(match.group(1))
+    return metrics
+
+
+def dump_meminfo(serial: str, example_path: Path, out_path: Path) -> dict:
+    """Per-example `dumpsys meminfo` snapshot for the nightly artifact bundle.
+    Returns the parsed metrics (empty dict when unavailable)."""
+    package = bundle_id(example_path)
+    if not package:
+        return {}
     try:
-        data = adb_out(serial, "shell", "dumpsys", "meminfo", match.group(1))
+        data = adb_out(serial, "shell", "dumpsys", "meminfo", package)
     except subprocess.CalledProcessError:
-        return
+        return {}
     out_path.write_bytes(data)
+    return parse_meminfo(data)
+
+
+def displayed_time_ms(serial: str, example_path: Path) -> int | None:
+    """Time-to-initial-display from the ActivityTaskManager `Displayed` logcat
+    line — the canonical cold-start number Android itself reports. The buffer
+    may hold launches from earlier examples, so the last match wins."""
+    package = bundle_id(example_path)
+    if not package:
+        return None
+    try:
+        data = adb_out(
+            serial, "logcat", "-d", "-b", "main", "-s", "ActivityTaskManager"
+        ).decode("utf-8", "replace")
+    except subprocess.CalledProcessError:
+        return None
+    displayed = None
+    for match in re.finditer(rf"Displayed {re.escape(package)}[^\n]*", data):
+        seconds = re.search(r"\+(\d+)s(\d+)ms", match.group(0))
+        millis = re.search(r"\+(\d+)ms", match.group(0))
+        if seconds:
+            displayed = int(seconds.group(1)) * 1000 + int(seconds.group(2))
+        elif millis:
+            displayed = int(millis.group(1))
+    return displayed
+
+
+def write_metrics(
+    artifacts_dir: Path, example: str, cfg: dict, status: str, metrics: dict
+) -> None:
+    """One small JSON per example — the shard merges them into
+    `metrics-shard-N.json`, and the nightly's aggregation job merges the
+    shards into `nightly-metrics.json` for the run summary."""
+    payload = {
+        "example": example,
+        "mode": cfg["mode"],
+        "status": status,
+        **metrics,
+    }
+    (artifacts_dir / f"{example}.metrics.json").write_text(
+        json.dumps(payload, indent=2) + "\n"
+    )
 
 
 def dump_logcat(serial: str, out_path: Path) -> None:
@@ -320,32 +388,35 @@ def wait_for_settle(
     timeout_s: float,
     poll_s: float,
     abort_check=None,
-) -> tuple[bool, bytes | None]:
+) -> tuple[bool, bytes | None, float | None]:
     """Poll the framebuffer until captures stay byte-identical AND non-blank
     for MIN_STABLE_S — the "the app finished drawing something" signal.
     Single identical pairs are not enough: an app can hold an empty background
     before content arrives, or hold a transient overlay (a scrollbar mid-fade)
     static for one poll interval. `abort_check` returning a reason string
     stops the wait early — a crashed app can never settle. Returns
-    (settled, last frame) either way."""
+    (settled, last frame, monotonic timestamp of the first non-blank frame)."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
     cur: bytes | None = None
     stable_since: float | None = None
+    content_at: float | None = None
     while time.monotonic() < deadline:
         if abort_check is not None and abort_check() is not None:
-            return False, cur
+            return False, cur, content_at
         cur = capture_screen(serial)
+        if content_at is None and cur and is_nonblank(cur):
+            content_at = time.monotonic()
         if cur and cur == prev and is_nonblank(cur):
             if stable_since is None:
                 stable_since = time.monotonic()
             if time.monotonic() - stable_since >= MIN_STABLE_S:
-                return True, cur
+                return True, cur, content_at
         else:
             stable_since = None
         prev = cur
         time.sleep(poll_s)
-    return False, cur
+    return False, cur, content_at
 
 
 def wait_for_content(
@@ -353,21 +424,22 @@ def wait_for_content(
     timeout_s: float,
     poll_s: float,
     abort_check=None,
-) -> bytes | None:
+) -> tuple[bytes | None, float | None]:
     """A smoke-mode example animates forever by definition, so "non-blank
     content on screen" is the assertion. Poll captures until content appears;
     a frame that stays flat past the deadline is the failure this exists to
-    catch. `abort_check` stops the wait early on app death."""
+    catch. `abort_check` stops the wait early on app death. Returns
+    (frame, monotonic timestamp of the first non-blank capture)."""
     deadline = time.monotonic() + timeout_s
     frame = b""
     while time.monotonic() < deadline:
         if abort_check is not None and abort_check() is not None:
-            return None
+            return None, None
         frame = capture_screen(serial)
         if frame and is_nonblank(frame):
-            return frame
+            return frame, time.monotonic()
         time.sleep(poll_s)
-    return None
+    return None, None
 
 
 def capture_twin(serial: str, example: str, timeout_s: float, poll_s: float) -> bytes | None:
@@ -377,7 +449,7 @@ def capture_twin(serial: str, example: str, timeout_s: float, poll_s: float) -> 
     adb(serial, "shell", "am", "start", "-W", "-n", REFERENCE_ACTIVITY,
         "--es", "E2EExample", example)
     try:
-        _, frame = wait_for_settle(serial, timeout_s, poll_s)
+        _, frame, _ = wait_for_settle(serial, timeout_s, poll_s)
         return frame
     finally:
         subprocess.run(
@@ -534,20 +606,27 @@ def _run_started_example(
         frame = capture_screen(serial)
         if frame:
             actual.write_bytes(frame)
-        dump_meminfo(serial, example_path, artifacts_dir / f"{example}.meminfo.txt")
+        metrics = dump_meminfo(
+            serial, example_path, artifacts_dir / f"{example}.meminfo.txt"
+        )
         dump_logcat(serial, artifacts_dir / f"{example}.logcat.txt")
+        write_metrics(artifacts_dir, example, cfg, "FAIL", metrics)
         print(f"::error::Example {example} failed to start.")
         print("\n".join(log_file.read_text(errors="replace").splitlines()[-200:]))
         results.append((example, "FAIL", "failed to start"))
         return False
 
+    launch_t = time.monotonic()
     status = "PASS"
     abort = crashed()
+    settled_at_ms: int | None = None
 
     if cfg["mode"] == "verify":
-        settled, frame = wait_for_settle(
+        settled, frame, content_at = wait_for_settle(
             serial, cfg["settle_s"], cfg["poll_s"], abort_check=crashed
         )
+        if settled:
+            settled_at_ms = int((time.monotonic() - launch_t) * 1000)
         abort = abort or crashed()
         detail = "settled" if settled else (
             f"{abort}, compared the final frame" if abort else
@@ -574,7 +653,7 @@ def _run_started_example(
         if abort and status != "FAIL":
             status = "FAIL"
     else:  # smoke
-        frame = wait_for_content(
+        frame, content_at = wait_for_content(
             serial, cfg["settle_s"], cfg["poll_s"], abort_check=crashed
         )
         abort = abort or crashed()
@@ -588,8 +667,19 @@ def _run_started_example(
             actual.write_bytes(frame)
             detail = "non-blank content on screen"
 
-    # Memory footprint rides every example, pass or fail.
-    dump_meminfo(serial, example_path, artifacts_dir / f"{example}.meminfo.txt")
+    # Memory footprint rides every example, pass or fail — as raw dump for
+    # forensics and as parsed numbers for the nightly trend.
+    metrics = dump_meminfo(
+        serial, example_path, artifacts_dir / f"{example}.meminfo.txt"
+    )
+    displayed = displayed_time_ms(serial, example_path)
+    if displayed is not None:
+        metrics["displayed_ms"] = displayed
+    if content_at is not None:
+        metrics["launch_to_first_frame_ms"] = int((content_at - launch_t) * 1000)
+    if settled_at_ms is not None:
+        metrics["settle_ms"] = settled_at_ms
+    write_metrics(artifacts_dir, example, cfg, status, metrics)
 
     if status == "FAIL":
         dump_logcat(serial, artifacts_dir / f"{example}.logcat.txt")
@@ -740,6 +830,34 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
     width = max(len(name) for name, _, _ in results)
     for name, status, detail in results:
         print(f"{name:<{width}}  {status:<5}  {detail}", flush=True)
+
+    # Merge the per-example metric files this shard produced into one
+    # manifest — the nightly aggregation job collects these across shards.
+    shard_metrics = []
+    for name in assigned:
+        metrics_file = artifacts_dir / f"{name}.metrics.json"
+        if not metrics_file.is_file():
+            continue
+        try:
+            shard_metrics.append(json.loads(metrics_file.read_text()))
+        except (OSError, json.JSONDecodeError):
+            continue
+    if shard_metrics:
+        (artifacts_dir / f"metrics-shard-{args.shard_index}.json").write_text(
+            json.dumps(shard_metrics, indent=2) + "\n"
+        )
+        print(f"---- shard {args.shard_index} metrics ----", flush=True)
+        for entry in shard_metrics:
+            pss = entry.get("total_pss_kb")
+            pss_mb = f"{pss / 1024:.1f} MB" if pss else "-"
+            displayed = entry.get("displayed_ms")
+            first = entry.get("launch_to_first_frame_ms")
+            print(
+                f"{entry['example']:<{width}}  PSS {pss_mb:<9}  "
+                f"displayed {displayed or '-'} ms  "
+                f"first frame {first or '-'} ms",
+                flush=True,
+            )
 
     if failures:
         print(f"Failed examples: {' '.join(failures)}", file=sys.stderr)

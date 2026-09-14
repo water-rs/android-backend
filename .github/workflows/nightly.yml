@@ -204,6 +204,120 @@ jobs:
             waterui/backends/android/runtime/build/outputs/androidTest-results/
           if-no-files-found: ignore
 
+  # Release package size: the gesture example packaged with
+  # `water package --release` so the R8/LTO/strip numbers trend nightly
+  # instead of being measured once. Runs in parallel with the emulator
+  # shards — it never touches a device.
+  release-metrics:
+    name: Release package metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout waterui (dev)
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: dev
+          path: waterui
+          submodules: recursive
+
+      - name: Overlay android-backend
+        uses: actions/checkout@v4
+        with:
+          path: waterui/backends/android
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-e2e
+          workspaces: |
+            waterui
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK platform, build-tools, and the pinned NDK
+        run: |
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
+          if [ -z "$platform_pkg" ]; then
+            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
+            exit 1
+          fi
+          sdkmanager --install "$platform_pkg"
+          latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
+          sdkmanager --install "$latest_bt"
+          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          sdkmanager --install "ndk;${ndk_version}"
+
+      - name: Install the Android Rust targets
+        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
+
+      - name: Install Linux native dependencies
+        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+
+      - name: Build water CLI
+        run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
+
+      - name: Package the release APK and record its size
+        run: |
+          echo "/tmp/water-cli" >> "$GITHUB_PATH"
+          mkdir -p /tmp/water-cli
+          cp waterui/target/debug/water /tmp/water-cli/water
+          python3 waterui/backends/android/scripts/ci/release_metrics.py --repo-root waterui --example gesture --out release-metrics.json
+
+      - name: Upload release metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metrics
+          path: release-metrics.json
+          if-no-files-found: ignore
+
+  # Merge every shard's per-example metrics plus the release package record
+  # into nightly-metrics.json and a step summary — the numbers are the point
+  # of the run, so this renders even when examples fail.
+  metrics:
+    name: Metrics summary
+    needs: [e2e, release-metrics]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download shard + release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android-e2e-artifacts-shard-*
+          path: /tmp/nightly-artifacts
+          merge-multiple: false
+
+      - name: Download release metrics artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-metrics
+          path: /tmp/nightly-artifacts/release
+          continue-on-error: true
+
+      - name: Aggregate metrics
+        run: python3 scripts/ci/aggregate_metrics.py --artifacts-root /tmp/nightly-artifacts --out nightly-metrics.json
+
+      - name: Upload merged metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-metrics
+          path: nightly-metrics.json
+
   # One issue per broken nightly, updated in place while it stays red, so a
   # failure that nobody was watching is on the board by morning.
   report:
