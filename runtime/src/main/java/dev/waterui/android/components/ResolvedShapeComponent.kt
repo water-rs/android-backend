@@ -52,10 +52,11 @@ private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
 
         override fun onDraw(canvas: android.graphics.Canvas) {
             super.onDraw(canvas)
-            canvas.drawPath(
-                checkNotNull(path) { "resolved shape drew before receiving its size" },
-                paint
-            )
+            // A parent can draw us before the first layout pass sizes the
+            // view; build the path lazily from whatever size we have and skip
+            // the draw entirely at zero size.
+            if (path == null && width > 0 && height > 0) rebuildPath(width, height)
+            path?.let { canvas.drawPath(it, paint) }
         }
     }
 }
