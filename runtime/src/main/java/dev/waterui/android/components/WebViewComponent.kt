@@ -39,6 +39,22 @@ private val LOG_TAG = WaterUiWebViewClient.LOG_TAG
 
 private val webViewTypeId: WuiTypeId by lazy { NativeBindings.waterui_web_view_id().toTypeId() }
 
+/**
+ * The webview bridge exists only when the package links `waterui-ffi/webview`;
+ * without it the exports are absent and every `WatcherJni` webview entry point
+ * throws `UnsatisfiedLinkError`. Registry and environment-install paths must
+ * consult this probe first — the same contract `AndroidVideoSurfaceHost`
+ * follows for `video`.
+ */
+internal val webViewAvailable: Boolean by lazy {
+    try {
+        webViewTypeId
+        true
+    } catch (_: UnsatisfiedLinkError) {
+        false
+    }
+}
+
 private val webViewRenderer = WuiRenderer { context, node, _, _ ->
     val struct = NativeBindings.waterui_force_as_web_view(node.rawPtr)
     val handlePtr = NativeBindings.waterui_webview_native_handle(struct.webviewPtr)
@@ -1013,14 +1029,8 @@ private fun Context.readRawText(@RawRes resource: Int): String =
     resources.openRawResource(resource).bufferedReader().use { it.readText() }
 
 internal fun RegistryBuilder.registerWuiWebView() {
-    // The webview bridge exists only when the package links
-    // `waterui-ffi/webview`; without it the exports are absent and no such
-    // view can reach the registry, so registration is skipped — the same
-    // contract `registerWuiAndroidVideoSurfaceHost` follows for `video`.
-    val typeId = try {
-        webViewTypeId
-    } catch (_: UnsatisfiedLinkError) {
-        return
-    }
-    register({ typeId }, webViewRenderer)
+    // Without the ffi `webview` feature no such view can reach the registry,
+    // so registration is skipped entirely.
+    if (!webViewAvailable) return
+    register({ webViewTypeId }, webViewRenderer)
 }
