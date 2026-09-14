@@ -569,6 +569,27 @@ data class MetadataRetainStruct(
     val retainPtr: Long
 )
 
+/**
+ * Metadata<Draggable> struct for drag sources.
+ * draggablePtr is an opaque handle released via WatcherJni.dropDraggable.
+ */
+data class MetadataDraggableStruct(
+    val contentPtr: Long,
+    val draggablePtr: Long
+)
+
+/**
+ * Metadata<DropDestination> struct for drop targets.
+ * destinationPtr is an opaque handle released via WatcherJni.dropDropDestination.
+ */
+data class MetadataDropDestinationStruct(
+    val contentPtr: Long,
+    val destinationPtr: Long
+)
+
+/** Drag payload: tag 0 = plain text, 1 = URL. */
+data class DragDataStruct(val tag: Int, val value: String)
+
 // ========== Text Styling Structs ==========
 
 data class StyledStrStruct(val chunks: Array<StyledChunkStruct>) {
