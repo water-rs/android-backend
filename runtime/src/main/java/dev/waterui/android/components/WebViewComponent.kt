@@ -167,6 +167,7 @@ class NativeWebViewEventCallback(
         )
     }
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeOnEvent(
         nativePtr: Long,
         eventType: Int,
@@ -945,6 +946,7 @@ class WebViewWrapper(
         ?.trim()
         ?.takeIf(String::isNotEmpty)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeCompleteJsResult(
         callbackData: Long,
         callbackFn: Long,
@@ -952,14 +954,17 @@ class WebViewWrapper(
         result: String
     )
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeCompleteCookies(
         callbackData: Long,
         callbackFn: Long,
         result: String
     )
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeOnBridgeMessage(nativePtr: Long, envelope: String)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeBridgeScript(): String
 
     companion object {
@@ -1008,5 +1013,14 @@ private fun Context.readRawText(@RawRes resource: Int): String =
     resources.openRawResource(resource).bufferedReader().use { it.readText() }
 
 internal fun RegistryBuilder.registerWuiWebView() {
-    register({ webViewTypeId }, webViewRenderer)
+    // The webview bridge exists only when the package links
+    // `waterui-ffi/webview`; without it the exports are absent and no such
+    // view can reach the registry, so registration is skipped — the same
+    // contract `registerWuiAndroidVideoSurfaceHost` follows for `video`.
+    val typeId = try {
+        webViewTypeId
+    } catch (_: UnsatisfiedLinkError) {
+        return
+    }
+    register({ typeId }, webViewRenderer)
 }
