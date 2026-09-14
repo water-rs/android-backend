@@ -144,6 +144,13 @@ jobs:
           cp "$abi_dir"/*.so "$dest/"
           ls -la "$dest"
 
+      # Host-side guard for the waterui#834 failure mode: a Kotlin
+      # `external fun` whose `Java_*` export went missing detonates
+      # on-device as UnsatisfiedLinkError, so diff the staged .so's
+      # exports against the declarations before spending emulator time.
+      - name: Check JNI symbol coverage
+        run: python3 waterui/backends/android/scripts/ci/check_jni_symbols.py waterui/backends/android/runtime/src/androidTest/jniLibs/x86_64/libwaterui_app.so waterui/backends/android/runtime/src/main/java
+
       - name: Cache AVD
         id: avd-cache
         uses: actions/cache@v4
