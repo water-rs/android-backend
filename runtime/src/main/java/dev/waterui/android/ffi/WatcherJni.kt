@@ -474,15 +474,21 @@ object WatcherJni {
     @JvmStatic external fun forceAsPicture(viewPtr: Long): dev.waterui.android.runtime.PictureStruct
     @JvmStatic external fun pictureBitmap(picturePtr: Long, scale: Float): Long
     @JvmStatic external fun dropPicture(picturePtr: Long)
+    // jni-optional: exported only when the packaged app enables waterui-ffi's
+    // `video` feature; registerWuiAndroidVideoSurfaceHost tolerates the absence.
     @JvmStatic external fun androidVideoSurfaceHostId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional
     @JvmStatic external fun forceAsAndroidVideoSurfaceHost(
         viewPtr: Long
     ): dev.waterui.android.runtime.AndroidVideoSurfaceHostStruct
+    // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostAttach(
         bridgePtr: Long,
         host: android.view.View
     )
+    // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostDrop(bridgePtr: Long)
+    // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostSurfaceDestroyed(bridgePtr: Long)
     @JvmStatic external fun gpuSurfaceCreate(
         owner: android.view.View,
