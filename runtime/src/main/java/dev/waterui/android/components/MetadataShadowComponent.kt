@@ -1,6 +1,9 @@
 package dev.waterui.android.components
 
+import android.graphics.Outline
 import android.os.Build
+import android.view.View
+import android.view.ViewOutlineProvider
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -34,6 +37,17 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
 
     container.elevation = metadata.radius.dp(context)
+
+    // The elevation shadow follows the view outline; the default provider is
+    // the rectangular bounds, so without this a rounded caster throws a
+    // square-cornered shadow. `clipToOutline` stays off — the outline shapes
+    // the shadow only, children may still draw outside it.
+    val cornerRadius = metadata.cornerRadius.dp(context)
+    container.outlineProvider = object : ViewOutlineProvider() {
+        override fun getOutline(view: View, outline: Outline) {
+            outline.setRoundRect(0, 0, view.width, view.height, cornerRadius)
+        }
+    }
 
     WuiComputed.colorFromComputed(resolvedPtr).also { color ->
         color.observe { resolvedColor ->

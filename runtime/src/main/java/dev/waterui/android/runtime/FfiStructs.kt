@@ -463,7 +463,8 @@ data class MetadataShadowStruct(
     val colorPtr: Long,
     val offsetX: Float,
     val offsetY: Float,
-    val radius: Float
+    val radius: Float,
+    val cornerRadius: Float
 )
 
 data class MetadataBorderStruct(
