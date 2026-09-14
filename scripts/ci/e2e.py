@@ -436,6 +436,10 @@ def example_config(manifest: dict, example: str) -> dict:
                                    defaults.get("pixel_tolerance", 8))),
         "max_fraction": float(entry.get("max_diff_fraction",
                                         defaults.get("max_diff_fraction", 0.005))),
+        # Environment forwarded to the app through `water run --env KEY=VALUE`.
+        # An example whose workload exceeds emulator capacity tunes itself down
+        # here rather than being skipped.
+        "env": dict(entry.get("env", {})),
     }
 
 
@@ -459,10 +463,13 @@ def run_example(
         return True
 
     print(f"::group::android-e2e:{example} (mode={cfg['mode']})", flush=True)
+    command = ["water", "run", "--platform", "android", "--device", serial,
+               "--path", str(example_path)]
+    for key, value in cfg["env"].items():
+        command += ["--env", f"{key}={value}"]
     with open(log_file, "wb") as log:
         proc = subprocess.Popen(
-            ["water", "run", "--platform", "android", "--device", serial,
-             "--path", str(example_path)],
+            command,
             cwd=repo_root,
             stdout=log,
             stderr=subprocess.STDOUT,
