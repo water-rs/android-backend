@@ -26,6 +26,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.view.isEmpty
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import dev.waterui.android.components.WebViewFactory
+import dev.waterui.android.components.webViewAvailable
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
 
@@ -175,10 +176,12 @@ class WaterUiRootView @JvmOverloads constructor(
             typography = MaterialTypographyPalette.from(context),
             colorScheme = systemColorScheme(context.resources.configuration)
         )
-        NativeBindings.waterui_env_install_webview_controller(
-            initEnv.raw(),
-            WebViewFactory(context)
-        )
+        if (webViewAvailable) {
+            NativeBindings.waterui_env_install_webview_controller(
+                initEnv.raw(),
+                WebViewFactory(context)
+            )
+        }
 
         // The environment handed to `waterui_app` must already own the GPU runtime:
         // any `GpuSurface` in the tree resolves it out of the environment while the
