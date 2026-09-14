@@ -89,6 +89,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun forceAsWebView(viewPtr: Long): WebViewStruct
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
     @JvmStatic external fun forceAsMenuItem(viewPtr: Long): MenuItemStruct
@@ -115,6 +116,7 @@ object WatcherJni {
     @JvmStatic external fun dropSharedAction(actionPtr: Long)
     @JvmStatic external fun dropTabContent(contentPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
     @JvmStatic external fun dropFont(fontPtr: Long)
@@ -402,6 +404,7 @@ object WatcherJni {
     @JvmStatic external fun metadataDropDestinationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuItemId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun webViewId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
@@ -449,12 +452,15 @@ object WatcherJni {
     @JvmStatic external fun navigationCompleteNativePop(envPtr: Long, count: Int)
     @JvmStatic external fun navigationTransitionCompleted(envPtr: Long, id: Long): Boolean
     @JvmStatic external fun navigationTransitionCancelled(envPtr: Long, id: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun envInstallWebViewController(envPtr: Long, factory: WebViewFactory)
     @JvmStatic external fun envHasNavigationController(envPtr: Long): Boolean
 
     // ========== WebView Native Access ==========
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun webviewNativeHandle(webviewPtr: Long): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun webviewNativeView(handlePtr: Long): WebView
 
     // ========== OnEvent Handler Functions ==========
