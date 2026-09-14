@@ -1,9 +1,9 @@
 package dev.waterui.android.components
 
 import android.content.ClipData
-import android.net.Uri
 import android.view.DragEvent
 import android.view.View
+import androidx.core.net.toUri
 import dev.waterui.android.ffi.WatcherJni
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.RegistryBuilder
@@ -35,7 +35,7 @@ private val metadataDraggableRenderer = WuiRenderer { context, node, env, regist
                             ClipData.newUri(
                                 context.contentResolver,
                                 data.value,
-                                Uri.parse(data.value),
+                                data.value.toUri(),
                             )
                         else -> ClipData.newPlainText(data.value, data.value)
                     }
