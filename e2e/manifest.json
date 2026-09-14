@@ -26,7 +26,7 @@
     "map": { "mode": "skip", "reason": "guest Vulkan kills the emulator on SPIR-V OpSource WGSL (water-rs/waterui#764); skipping protects shard siblings until fixed" },
     "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
     "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
-    "reminders": { "mode": "smoke", "reason": "may raise a runtime permission prompt over the content" },
+    "reminders": { "mode": "skip", "reason": "GPU runtime creation panics on the emulator's GL adapter (water-rs/waterui#764); the Vulkan path the app needs is the same one whose shaders kill the emulator" },
     "starfield": { "mode": "skip", "reason": "guest Vulkan kills the emulator on SPIR-V OpSource WGSL (water-rs/waterui#764); skipping protects shard siblings until fixed" },
     "stress": { "mode": "skip", "reason": "guest Vulkan kills the emulator on SPIR-V OpSource WGSL (water-rs/waterui#764); skipping protects shard siblings until fixed" },
     "video_player": { "mode": "smoke", "reason": "video playback never reaches a settled frame" },
