@@ -13,6 +13,7 @@ import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
 import android.util.TypedValue
 import android.widget.TextView
+import androidx.core.widget.TextViewCompat
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
 import kotlin.math.roundToInt
@@ -350,6 +351,19 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
 internal fun TextView.applyResolvedFont(font: ResolvedFontStruct) {
     setTextSize(TypedValue.COMPLEX_UNIT_SP, font.size)
     typeface = font.toTypeface()
+    // Compose Material `Text` trims font padding; a plain `TextView` keeps it
+    // and measures every line ~15% taller than the twin.
+    includeFontPadding = false
+    if (font.lineHeight > 0f) {
+        // `setLineHeight` is API 28; the compat helper reproduces it below.
+        TextViewCompat.setLineHeight(
+            this,
+            (font.lineHeight * resources.displayMetrics.scaledDensity).roundToInt()
+        )
+    }
+    // `letter_spacing` crosses the FFI as absolute points; the platform
+    // setter wants an em fraction of the text size.
+    letterSpacing = if (font.size > 0f) font.letterSpacing / font.size else 0f
 }
 
 fun ResolvedFontStruct.toTypeface(italic: Boolean = false): Typeface {

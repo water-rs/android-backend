@@ -91,12 +91,23 @@ internal object NativeBindings {
 
     fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long) = WatcherJni.themeInstallFont(envPtr, slot, signalPtr)
     fun waterui_theme_font(envPtr: Long, slot: Int): Long = WatcherJni.themeFont(envPtr, slot)
-    fun waterui_create_reactive_font_state(size: Float, weight: Int): Long =
-        WatcherJni.createReactiveFontState(size, weight)
+    fun waterui_create_reactive_font_state(
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    ): Long =
+        WatcherJni.createReactiveFontState(size, weight, lineHeight, letterSpacing)
     fun waterui_reactive_font_state_to_computed(statePtr: Long): Long =
         WatcherJni.reactiveFontStateToComputed(statePtr)
-    fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int) =
-        WatcherJni.reactiveFontStateSet(statePtr, size, weight)
+    fun waterui_reactive_font_state_set(
+        statePtr: Long,
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    ) =
+        WatcherJni.reactiveFontStateSet(statePtr, size, weight, lineHeight, letterSpacing)
     fun waterui_drop_reactive_font_state(statePtr: Long) =
         WatcherJni.dropReactiveFontState(statePtr)
 

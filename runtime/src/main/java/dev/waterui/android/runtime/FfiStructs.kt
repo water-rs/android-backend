@@ -794,7 +794,11 @@ data class ResolvedFontStruct(
     val weight: Int,
     val family: String?,
     /** Ordinal of `WuiFontDesign`: which platform face to use when [family] is null. */
-    val design: Int
+    val design: Int,
+    /** Absolute line height in sp; `0f` keeps the face's natural metrics. */
+    val lineHeight: Float = 0f,
+    /** Additional spacing between adjacent glyphs in sp. */
+    val letterSpacing: Float = 0f
 ) {
     val isMonospaced: Boolean
         get() = when (design) {
