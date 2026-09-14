@@ -21,4 +21,5 @@
 -keep class dev.waterui.android.components.WebViewFactory { *; }
 -keep class dev.waterui.android.components.WebViewWrapper { *; }
 -keep class dev.waterui.android.components.NativeWebViewEventCallback { *; }
+-keep class dev.waterui.android.components.AssetResponse { *; }
 -keep interface dev.waterui.android.components.WebViewEventCallback
