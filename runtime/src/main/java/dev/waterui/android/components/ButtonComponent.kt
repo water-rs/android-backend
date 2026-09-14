@@ -37,6 +37,8 @@ private object ButtonStyle {
     const val BORDERLESS = 3
     const val BORDERED = 4
     const val BORDERED_PROMINENT = 5
+    const val GLASS = 6
+    const val GLASS_PROMINENT = 7
 }
 
 /**
@@ -78,18 +80,22 @@ private data class ButtonChrome(
  * Compose M3 mapping: the default `Button` is filled, so AUTOMATIC and
  * BORDERED_PROMINENT project to the filled button; BORDERED projects to
  * `OutlinedButton` (hairline `colorOutline` stroke, accent label);
- * PLAIN/LINK/BORDERLESS project to `TextButton` chrome.
+ * PLAIN/LINK/BORDERLESS project to `TextButton` chrome. Android has no
+ * Liquid Glass: GLASS carries the same emphasis as BORDERED and
+ * GLASS_PROMINENT the same as BORDERED_PROMINENT, so they project to those.
  */
 private fun buttonChrome(style: Int): ButtonChrome = when (style) {
     ButtonStyle.AUTOMATIC,
-    ButtonStyle.BORDERED_PROMINENT -> ButtonChrome(
+    ButtonStyle.BORDERED_PROMINENT,
+    ButtonStyle.GLASS_PROMINENT -> ButtonChrome(
         fillSlot = ColorSlot.Accent,
         strokeSlot = null,
         rippleSlot = ColorSlot.AccentForeground,
         horizontalPaddingDp = 24f,
         hasMinHeight = true
     )
-    ButtonStyle.BORDERED -> ButtonChrome(
+    ButtonStyle.BORDERED,
+    ButtonStyle.GLASS -> ButtonChrome(
         fillSlot = null,
         strokeSlot = ColorSlot.Border,
         rippleSlot = ColorSlot.Accent,
@@ -118,10 +124,12 @@ private fun buttonChrome(style: Int): ButtonChrome = when (style) {
 
 private fun labelForegroundSlot(style: Int): ColorSlot = when (style) {
     ButtonStyle.AUTOMATIC,
-    ButtonStyle.BORDERED_PROMINENT -> ColorSlot.AccentForeground
+    ButtonStyle.BORDERED_PROMINENT,
+    ButtonStyle.GLASS_PROMINENT -> ColorSlot.AccentForeground
     ButtonStyle.LINK,
     ButtonStyle.BORDERLESS,
-    ButtonStyle.BORDERED -> ColorSlot.Accent
+    ButtonStyle.BORDERED,
+    ButtonStyle.GLASS -> ColorSlot.Accent
     ButtonStyle.PLAIN -> ColorSlot.Foreground
     else -> error("unknown button style: $style")
 }
