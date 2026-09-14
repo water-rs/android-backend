@@ -227,5 +227,13 @@ private class AndroidVideoSurfaceHost(
 }
 
 internal fun RegistryBuilder.registerWuiAndroidVideoSurfaceHost() {
-    register({ androidVideoSurfaceHostTypeId }, androidVideoSurfaceHostRenderer)
+    // The surface host exists only when the package links the self-drawn
+    // player (`waterui-ffi/video`): without it the export is absent and no
+    // such view can reach the registry, so registration is skipped.
+    val typeId = try {
+        androidVideoSurfaceHostTypeId
+    } catch (_: UnsatisfiedLinkError) {
+        return
+    }
+    register({ typeId }, androidVideoSurfaceHostRenderer)
 }
