@@ -17,6 +17,7 @@ import dev.waterui.android.runtime.SubViewStruct
 import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.disposeAndRemoveView
 import dev.waterui.android.runtime.disposeWith
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -195,9 +196,13 @@ class RustLayoutViewGroup(
             val rect = placements[index]
             val child = getChildAt(index)
 
-            // Convert dp to pixels
-            val allocatedWidth = rect.width.dpToPx().roundToInt()
-            val allocatedHeight = rect.height.dpToPx().roundToInt()
+            // Convert dp to pixels. Sizes round up: every dp<->px hop through a
+            // nested container can shed a fraction of a pixel, and a child
+            // allocated less than it measured wraps or clips its content — the
+            // "Tap Me!" label that laid out 1px short and dropped "Me!" to a
+            // clipped second line.
+            val allocatedWidth = ceil(rect.width.dpToPx()).toInt()
+            val allocatedHeight = ceil(rect.height.dpToPx()).toInt()
 
             // Re-measure child at allocated size if different from measured size.
             // This is critical for StretchAxis::Horizontal components (TextField, Slider, etc.)
@@ -310,7 +315,9 @@ private fun Float.resolveDimension(min: Int, max: Int): Int {
     if (isNaN()) {
         return if (max == Int.MAX_VALUE) min else max
     }
-    val rounded = roundToInt().coerceAtLeast(0)
+    // Never under-report: a parent that allocates exactly what we report must
+    // leave room for every pixel the children measured.
+    val rounded = ceil(this).toInt().coerceAtLeast(0)
     if (max == Int.MAX_VALUE) return rounded.coerceAtLeast(min)
     return rounded.coerceIn(min, max)
 }

@@ -143,7 +143,7 @@ data class SubViewStruct(
         return when {
             proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
             proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            else -> android.view.View.MeasureSpec.makeMeasureSpec(proposalPx.toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+            else -> android.view.View.MeasureSpec.makeMeasureSpec(kotlin.math.ceil(proposalPx).toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
         }
     }
 }
