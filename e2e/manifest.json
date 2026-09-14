@@ -23,8 +23,8 @@
     "gradient": { "mode": "smoke", "reason": "animated mesh gradient never reaches a settled frame" },
     "image": { "mode": "smoke", "reason": "remote images arrive asynchronously over the network" },
     "map": {
-      "mode": "skip",
-      "reason": "SwiftShader kills the wgpu device during surface acquisition; resume once water-rs/waterui#860 recreates the GPU runtime after device loss"
+      "mode": "smoke",
+      "reason": "SwiftShader kills the wgpu device roughly every 35s; water-rs/waterui#914 rebuilds the runtime on loss, so this verifies survival, not pixels"
     },
     "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
     "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
