@@ -110,6 +110,7 @@ private fun accessibilityRoleClassName(role: Int): String = when (role) {
     1, 3, 4, 5 -> "android.widget.TextView"
     2 -> "android.widget.ImageView"
     11, 17, 19, 21, 22, 23, 27, 28 -> "android.view.ViewGroup"
+    29 -> "android.app.Dialog"
     13, 24 -> "android.widget.CheckBox"
     14, 25 -> "android.widget.RadioButton"
     15 -> "android.widget.Switch"

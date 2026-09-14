@@ -175,6 +175,20 @@ typedef enum WuiMaterial {
 } WuiMaterial;
 
 /**
+ * FFI-safe representation of a Liquid Glass style.
+ */
+typedef enum WuiGlassStyle {
+  /**
+   * Regular glass, legible over anything.
+   */
+  WuiGlassStyle_Regular = 0,
+  /**
+   * Clear glass, for surfaces over media.
+   */
+  WuiGlassStyle_Clear = 1,
+} WuiGlassStyle;
+
+/**
  * C ABI mirror of [`GradientType`], the discriminator for a resolved gradient's shape.
  */
 typedef enum WuiGradientType {
@@ -541,6 +555,14 @@ typedef enum WuiButtonStyle {
    *Mirrors `ButtonStyle::BorderedProminent`.
    */
   WuiButtonStyle_BorderedProminent,
+  /**
+   *Mirrors `ButtonStyle::Glass`.
+   */
+  WuiButtonStyle_Glass,
+  /**
+   *Mirrors `ButtonStyle::GlassProminent`.
+   */
+  WuiButtonStyle_GlassProminent,
 } WuiButtonStyle;
 
 /**
@@ -3044,24 +3066,26 @@ typedef struct WuiMetadata_WuiRetain WuiMetadataRetain;
 typedef struct WuiShapeKind {
   /**
    * Discriminant: 0 = rect, 1 = circle, 2 = ellipse, 3 = rounded rect
-   * (uniform radius), 4 = uneven rounded rect (per-corner radii),
-   * 5 = capsule, 6 = custom path.
+   * (uniform radius, normalized to the shorter side), 4 = uneven rounded
+   * rect (per-corner normalized radii), 5 = capsule, 6 = custom path,
+   * 7 = fixed rounded rect (uniform radius in logical points),
+   * 8 = fixed uneven rounded rect (per-corner radii in logical points).
    */
   int32_t tag;
   /**
-   * Top-left corner radius, used by tags 3 and 4.
+   * Top-left corner radius, used by tags 3, 4, 7, and 8.
    */
   float top_left;
   /**
-   * Top-right corner radius, used by tags 3 and 4.
+   * Top-right corner radius, used by tags 3, 4, 7, and 8.
    */
   float top_right;
   /**
-   * Bottom-right corner radius, used by tags 3 and 4.
+   * Bottom-right corner radius, used by tags 3, 4, 7, and 8.
    */
   float bottom_right;
   /**
-   * Bottom-left corner radius, used by tags 3 and 4.
+   * Bottom-left corner radius, used by tags 3, 4, 7, and 8.
    */
   float bottom_left;
 } WuiShapeKind;
@@ -3509,6 +3533,32 @@ typedef struct WuiIgnorableMetadataMaterialBackground {
    */
   enum WuiMaterial material;
 } WuiIgnorableMetadataMaterialBackground;
+
+/**
+ * FFI-safe representation of `IgnorableMetadata<GlassBackground>`
+ */
+typedef struct WuiIgnorableMetadataGlassBackground {
+  /**
+   * The view content wrapped by this metadata
+   */
+  struct WuiAnyView *content;
+  /**
+   * The glass style
+   */
+  enum WuiGlassStyle style;
+  /**
+   * Whether the glass reacts to touch and pointer interaction
+   */
+  bool interactive;
+  /**
+   * Tint color (as opaque pointer - needs environment to resolve); null when untinted
+   */
+  struct WuiColor *tint;
+  /**
+   * The outline of the glass surface, drawn by the effect itself rather than a mask
+   */
+  struct WuiShapeKind shape;
+} WuiIgnorableMetadataGlassBackground;
 
 /**
  * FFI-safe representation of Hittable metadata.
@@ -7897,6 +7947,21 @@ struct WuiTypeId waterui_ignorable_metadata_material_background_id(void);
  * that contains an `IgnorableMetadata<$ty>`.
  */
 struct WuiIgnorableMetadataMaterialBackground waterui_force_as_ignorable_metadata_material_background(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Returns the view's `TypeId` (guaranteed unique within a single binary).
+ */
+struct WuiTypeId waterui_ignorable_metadata_glass_background_id(void);
+
+/**
+ * Force-casts an `AnyView` to this ignorable metadata type.
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to an `AnyView`
+ * that contains an `IgnorableMetadata<$ty>`.
+ */
+struct WuiIgnorableMetadataGlassBackground waterui_force_as_ignorable_metadata_glass_background(struct WuiAnyView *view);
 
 /**
  * Returns the type ID as a 128-bit value for O(1) comparison.
