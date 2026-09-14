@@ -1,20 +1,64 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
+import androidx.core.graphics.Insets
 import androidx.core.view.doOnLayout
 import dev.waterui.android.layout.ViewportClipLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
+import dev.waterui.android.runtime.WuiSafeAreaManaging
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.inflateAnyView
 
 
 private val scrollTypeId: WuiTypeId by lazy { NativeBindings.waterui_scroll_view_id().toTypeId() }
+
+/**
+ * A scroll viewport that owns the window edges it is handed.
+ *
+ * The surface reaches under the system bars while its content keeps clearing
+ * them at rest — iOS spells this `contentInset` on `UIScrollView`, Android
+ * spells it padding with `clipToPadding` off: the padding is the resting
+ * clearance, and unclipped padding is what lets rows draw into the bar area
+ * once they scroll. Which axis host receives which edges follows the scroll
+ * direction: a single-axis host takes all four insets, while a bidirectional
+ * scroll splits them so neither axis double-applies.
+ */
+@SuppressLint("ViewConstructor")
+private class SafeAreaScrollViewport(
+    context: Context,
+    content: View,
+    private val verticalHost: ScrollView?,
+    private val horizontalHost: HorizontalScrollView?
+) : ViewportClipLayout(context, content), WuiSafeAreaManaging {
+    override fun applySafeArea(insets: Insets) {
+        verticalHost?.apply {
+            clipToPadding = false
+            setPadding(
+                if (horizontalHost == null) insets.left else 0,
+                insets.top,
+                if (horizontalHost == null) insets.right else 0,
+                insets.bottom
+            )
+        }
+        horizontalHost?.apply {
+            clipToPadding = false
+            setPadding(
+                insets.left,
+                if (verticalHost == null) insets.top else 0,
+                insets.right,
+                if (verticalHost == null) insets.bottom else 0
+            )
+        }
+    }
+}
 
 private const val AXIS_HORIZONTAL = 0
 private const val AXIS_VERTICAL = 1
@@ -50,7 +94,7 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
 
     // The surrounding WaterUI containers let their children draw outside their
     // own bounds, which a viewport cannot afford; it brings its own clip.
-    val root: View = ViewportClipLayout(context, viewport)
+    val root: View = SafeAreaScrollViewport(context, viewport, verticalHost, horizontalHost)
 
     val controlled = struct.scrollGenerationPtr != 0L
     check(
