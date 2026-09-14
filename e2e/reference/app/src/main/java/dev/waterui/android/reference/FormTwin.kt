@@ -58,12 +58,15 @@ private fun FormToggle(label: String, isOn: Boolean) {
 }
 
 @Composable
-private fun FormStepper(label: String, value: Int) {
+private fun FormStepper(label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         BodyText(label, modifier = Modifier.weight(1f))
-        BodyText("$value")
-        Button(onClick = {}, modifier = Modifier.padding(start = 8.dp)) { Text("−") }
-        Button(onClick = {}, modifier = Modifier.padding(start = 4.dp)) { Text("+") }
+        // The WaterUI stepper only renders an inline value when the app sets
+        // `value_formatter`; the example leaves it unset, so no value text.
+        // The backend uses MaterialButtonGroup's connected silhouette; the
+        // closest on this material3 version is a zero-gap pair.
+        Button(onClick = {}) { Text("−") }
+        Button(onClick = {}) { Text("+") }
     }
 }
 
@@ -98,7 +101,7 @@ fun FormTwin() {
                 VStack {
                     FormTextField("Full Name", "Full name of the user")
                     FormTextField("Email", "Email address for account")
-                    FormStepper("Age", 0)
+                    FormStepper("Age")
                     FormToggle("Newsletter", false)
                     FormSlider("Volume", 0f)
                 }
@@ -120,7 +123,7 @@ fun FormTwin() {
                     FormSlider("Brightness", 0f)
                     FormToggle("Dark Mode", false)
                     FormSlider("Font Scale", 0f)
-                    FormStepper("Auto Save Minutes", 0)
+                    FormStepper("Auto Save Minutes")
                     FormToggle("Notifications Enabled", false)
                 }
                 HorizontalDivider()
@@ -142,7 +145,7 @@ fun FormTwin() {
                 BodyText("Building forms manually with individual controls")
                 FormTextField("Username", "Enter your username")
                 FormToggle("Enable Feature", false)
-                FormStepper("Item Count", 5)
+                FormStepper("Item Count")
                 FormSlider("Progress", 0.5f)
                 LinearProgressIndicator(
                     progress = { 0.5f },
