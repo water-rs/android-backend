@@ -23,9 +23,8 @@
     "gradient": { "mode": "smoke", "reason": "animated mesh gradient never reaches a settled frame" },
     "image": { "mode": "smoke", "reason": "remote images arrive asynchronously over the network" },
     "map": {
-      "mode": "smoke",
-      "reason": "vector tiles stream over the network onto a GPU surface",
-      "env": { "WATERUI_LOG": "debug", "RUST_BACKTRACE": "1" }
+      "mode": "skip",
+      "reason": "SwiftShader kills the wgpu device during surface acquisition; resume once water-rs/waterui#860 recreates the GPU runtime after device loss"
     },
     "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
     "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
