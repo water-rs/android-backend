@@ -281,13 +281,6 @@ object WatcherJni {
         trailing: Float
     ): Long
     @JvmStatic external fun reactiveEdgeInsetsStateToComputed(statePtr: Long): Long
-    @JvmStatic external fun reactiveEdgeInsetsStateSet(
-        statePtr: Long,
-        top: Float,
-        bottom: Float,
-        leading: Float,
-        trailing: Float
-    )
     @JvmStatic external fun dropReactiveEdgeInsetsState(statePtr: Long)
     @JvmStatic external fun envInstallSafeArea(envPtr: Long, signalPtr: Long)
     @JvmStatic external fun createReactiveFontState(
