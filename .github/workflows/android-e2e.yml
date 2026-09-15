@@ -61,19 +61,35 @@ jobs:
           workspaces: |
             waterui
 
-      # Building the workspace's CLI for the Linux host links native libraries
-      # (libva through waterkit-codec, fonts, EGL, …); the script reuses the
-      # package list the waterui checkout maintains rather than drifting a copy.
-      - name: Install Linux native dependencies
-        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+      # `water` ships from water-rs/cli now — install the `dev` head rather
+      # than building a workspace member. The binary rides its own
+      # actions/cache entry keyed on the resolved cli commit: a hit skips
+      # the compile entirely, a `dev` move misses and rebuilds.
+      - name: Resolve the water-rs/cli dev commit
+        id: cli-rev
+        run: echo "rev=$(git ls-remote https://github.com/water-rs/cli refs/heads/dev | cut -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: Build water CLI
-        run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
+      - name: Restore the water binary
+        id: water-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/water
+            ~/.cargo/bin/water.exe
+          key: water-cli-${{ runner.os }}-${{ steps.cli-rev.outputs.rev }}
+
+      - name: Install the water CLI
+        if: steps.water-cache.outputs.cache-hit != 'true'
+        run: |
+          rm -f "$HOME/.cargo/bin/water" "$HOME/.cargo/bin/water.exe"
+          cargo install --locked \
+            --git https://github.com/water-rs/cli --branch dev \
+            waterui-cli
 
       - name: Package water CLI artifact
         run: |
           mkdir -p /tmp/water-cli
-          cp waterui/target/debug/water /tmp/water-cli/water
+          cp "$HOME/.cargo/bin/water" /tmp/water-cli/water
           chmod +x /tmp/water-cli/water
 
       - name: Upload water CLI artifact
@@ -186,8 +202,8 @@ jobs:
         run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
 
       # Examples pull workspace crates whose host-side build scripts link
-      # native libraries (libva through waterkit-codec, fonts, EGL, …) — the
-      # same dependency set the CLI build needs.
+      # native libraries (libva through waterkit-codec, fonts, EGL, …); the
+      # script reuses the package list the waterui checkout maintains.
       - name: Install Linux native dependencies
         run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
 
