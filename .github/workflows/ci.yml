@@ -48,3 +48,39 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Build debug and release artifacts
         run: ./gradlew --no-daemon :runtime:assembleDebug :runtime:assembleRelease
+
+  # A release is a merge into `main`, and `main` only accepts `dev`. The
+  # nightly is the only run of the example e2e suite, so a `dev` it has not
+  # passed must not be released: this check requires the newest completed
+  # nightly run at the pull request's head commit — scheduled or dispatched,
+  # the inputs are the same — to have succeeded. A red or cancelled run, or
+  # no run at all because `dev` moved since the last one, fails the check
+  # with the run to look at or the dispatch to make. Only `main` is gated;
+  # fixes land on `dev` through pull requests this check never sees.
+  nightly-healthy:
+    name: Nightly healthy
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Require a green nightly at the head commit
+        run: |
+          set -euo pipefail
+          run="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly.yml/runs?head_sha=${HEAD_SHA}&status=completed&per_page=1" \
+            --jq 'if (.workflow_runs | length) == 0 then "" else .workflow_runs[0] | .conclusion + " " + .html_url end')"
+          if [ -z "${run}" ]; then
+            echo "::error::no completed nightly run exists at ${HEAD_SHA}; dispatch the Nightly workflow on dev at this commit and re-run this check once it is green"
+            exit 1
+          fi
+          if [ "${run%% *}" != "success" ]; then
+            echo "::error::the newest nightly run at ${HEAD_SHA} concluded '${run%% *}' (${run#* }); a release needs a green nightly at the commit being released"
+            exit 1
+          fi
+          echo "nightly at ${HEAD_SHA} is green: ${run#* }"
