@@ -41,7 +41,8 @@ private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
                 resolved.kind,
                 resolved.commands,
                 width.toFloat(),
-                height.toFloat()
+                height.toFloat(),
+                resources.displayMetrics.density
             )
         }
 
@@ -78,12 +79,16 @@ private const val FULL_TURN_EPSILON = 0.01f
  * elliptical corners sweeping the whole edge. The kind carries what the
  * commands cannot: a corner radius as a fraction of the *shorter* side, applied
  * uniformly. Only a custom path falls back to the unit-space commands.
+ *
+ * `density` converts the point-based radii of the fixed-radius kinds; the
+ * fractional kinds ignore it.
  */
 internal fun buildShapePath(
     kind: ShapeKindStruct,
     commands: Array<PathCommandStruct>,
     width: Float,
-    height: Float
+    height: Float,
+    density: Float
 ): Path {
     val shorter = minOf(width, height)
     val bounds = RectF(0f, 0f, width, height)
@@ -128,6 +133,26 @@ internal fun buildShapePath(
             path.addRoundRect(bounds, radius, radius, Path.Direction.CW)
         }
 
+        SHAPE_FIXED_ROUNDED_RECT -> {
+            // Absolute radius in logical points — independent of the bounds,
+            // clamped to the capsule limit the same way a fraction is.
+            val radius = minOf(kind.topLeft * density, shorter / 2f)
+            path.addRoundRect(bounds, radius, radius, Path.Direction.CW)
+        }
+
+        SHAPE_FIXED_UNEVEN_ROUNDED_RECT -> {
+            val limit = shorter / 2f
+            val tl = minOf(kind.topLeft * density, limit)
+            val tr = minOf(kind.topRight * density, limit)
+            val br = minOf(kind.bottomRight * density, limit)
+            val bl = minOf(kind.bottomLeft * density, limit)
+            path.addRoundRect(
+                bounds,
+                floatArrayOf(tl, tl, tr, tr, br, br, bl, bl),
+                Path.Direction.CW
+            )
+        }
+
         SHAPE_CUSTOM_PATH -> return buildNormalizedPath(commands, width, height)
         else -> error("unknown shape kind tag: ${kind.tag}")
     }
@@ -142,6 +167,8 @@ private const val SHAPE_ROUNDED_RECT = 3
 private const val SHAPE_UNEVEN_ROUNDED_RECT = 4
 private const val SHAPE_CAPSULE = 5
 private const val SHAPE_CUSTOM_PATH = 6
+private const val SHAPE_FIXED_ROUNDED_RECT = 7
+private const val SHAPE_FIXED_UNEVEN_ROUNDED_RECT = 8
 
 internal fun buildNormalizedPath(
     commands: Array<PathCommandStruct>,
