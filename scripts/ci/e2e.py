@@ -468,6 +468,35 @@ def force_stop(serial: str, package: str) -> None:
     )
 
 
+def statusbar_inset_px(serial: str) -> int:
+    """The top inset the window manager currently grants app windows, read
+    from the display's decor-insets table. A status bar that paints without
+    publishing its insets provider leaves every app at top=0 — content slides
+    under the bar and goldens mismatch by exactly its height."""
+    out = subprocess.run(
+        ["adb", "-s", serial, "shell", "dumpsys", "window", "displays"],
+        capture_output=True,
+    ).stdout.decode("utf-8", "replace")
+    m = re.search(r"overrideNonDecorInsets=\[\d+,(\d+)\]", out)
+    return int(m.group(1)) if m else 0
+
+
+def ensure_system_bars(serial: str) -> bool:
+    """Restart SystemUI when it has not published a nonzero status-bar inset.
+    `am crash` drops the process; the persistent app restarts and
+    re-registers its insets providers, after which newly launched (and
+    already running) windows receive the real values."""
+    for _ in range(3):
+        if statusbar_inset_px(serial) > 0:
+            return True
+        subprocess.run(
+            ["adb", "-s", serial, "shell", "am", "crash", "com.android.systemui"],
+            capture_output=True,
+        )
+        time.sleep(6)
+    return statusbar_inset_px(serial) > 0
+
+
 def anr_dialog_package(serial: str) -> str | None:
     """Package named by a focused "Application Not Responding" window, or None.
     A launcher ANR overlay holds a static dimmed frame long enough to read as
@@ -819,6 +848,12 @@ def _run_packaged_example(
     if "Error" in launch_out:
         return fail(f"am start rejected the activity: {launch_out.strip()}")
 
+    if not ensure_system_bars(serial):
+        print(
+            f"::warning::{example}: status-bar inset is zero after SystemUI "
+            "restarts — the settled frame may be offset"
+        )
+
     watch = ProcessWatch(serial, package)
     status = "PASS"
     abort = watch.abort_reason()
@@ -1032,6 +1067,11 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
     failures: list[str] = []
     try:
         enter_demo_mode(serial)
+        if not ensure_system_bars(serial):
+            print(
+                "::warning::status-bar inset is zero after SystemUI restarts — "
+                "verify-mode examples on this emulator may compare offset"
+            )
         for example in assigned:
             try:
                 ok = run_example(
