@@ -78,6 +78,13 @@ jobs:
             ~/.cargo/bin/water.exe
           key: water-cli-${{ runner.os }}-${{ steps.cli-rev.outputs.rev }}
 
+      # `serialport` (the cli's default `esp32` feature) builds `libudev-sys`,
+      # whose build script needs `libudev` via pkg-config — absent from the
+      # ubuntu-latest image. Keep default features so CI builds what a user's
+      # `cargo install waterui-cli` produces.
+      - name: Install libudev for the CLI's serialport dependency
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Install the water CLI
         if: steps.water-cache.outputs.cache-hit != 'true'
         run: |
