@@ -46,6 +46,9 @@ object WatcherJni {
     @JvmStatic external fun forceAsSlider(viewPtr: Long): SliderStruct
     @JvmStatic external fun forceAsStepper(viewPtr: Long): StepperStruct
     @JvmStatic external fun forceAsProgress(viewPtr: Long): ProgressStruct
+    // jni-optional: exported only by waterui-ffi builds carrying the badge
+    // surface; registerWuiBadge tolerates the absence.
+    @JvmStatic external fun forceAsBadge(viewPtr: Long): dev.waterui.android.runtime.BadgeStruct
     @JvmStatic external fun forceAsScrollView(viewPtr: Long): ScrollStruct
     @JvmStatic external fun forceAsColorPicker(viewPtr: Long): ColorPickerStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
@@ -125,6 +128,8 @@ object WatcherJni {
     @JvmStatic external fun dropFont(fontPtr: Long)
     @JvmStatic external fun colorFromLinearRgbaHeadroom(red: Float, green: Float, blue: Float, alpha: Float, headroom: Float): Long
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
+    // jni-optional: same availability window as the badge surface.
+    @JvmStatic external fun resolveComputedColor(computedColorPtr: Long, envPtr: Long): Long
     @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
     @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
     @JvmStatic external fun getAnimationKindDurationPacked(metadataPtr: Long): Long
@@ -332,6 +337,8 @@ object WatcherJni {
     @JvmStatic external fun textFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun stepperId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun progressId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional
+    @JvmStatic external fun badgeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
