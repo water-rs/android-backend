@@ -18,6 +18,7 @@
     "animation": { "mode": "smoke", "reason": "continuous animation never reaches a settled frame" },
     "audio_visualizer": { "mode": "smoke", "reason": "continuous animation driven by audio input" },
     "chart": { "mode": "smoke", "reason": "GPU-rendered surface; software-renderer antialiasing is not golden-stable" },
+    "filter": { "mode": "smoke", "reason": "GPU-rendered filter effects; the repository boundary contract requires visual verification and forbids pixel-exact golden comparison" },
     "flame": { "mode": "smoke", "reason": "continuous GPU animation" },
     "gallery": { "mode": "smoke", "reason": "loads remote images over the network" },
     "gradient": { "mode": "smoke", "reason": "animated mesh gradient never reaches a settled frame" },
