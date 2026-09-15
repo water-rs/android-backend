@@ -228,7 +228,11 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # Each `script:` line runs through a fresh `/usr/bin/sh -c`, so this
           # stays a single line — a `cd` on its own line would be forgotten.
-          script: cd waterui/backends/android && ./gradlew --no-daemon :runtime:connectedDebugAndroidTest
+          # `guard-anr` dismisses foreign-package ANR dialogs (usually the
+          # launcher) that would otherwise hold window focus and make Espresso
+          # time out waiting for a focused root — the flake that red-lit two
+          # instrumentation legs in a row.
+          script: cd waterui/backends/android; python3 scripts/ci/e2e.py guard-anr --duration-s 1500 --protect dev.waterui.android.runtime.test & GUARD=$!; ./gradlew --no-daemon :runtime:connectedDebugAndroidTest; RC=$?; kill $GUARD 2>/dev/null; exit $RC
 
       - name: Upload instrumentation reports
         if: always()
