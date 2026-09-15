@@ -275,6 +275,12 @@ data class ProgressStruct(
     val fourColor: Boolean
 )
 
+data class BadgeStruct(
+    val valuePtr: Long,
+    val contentPtr: Long,
+    val colorPtr: Long
+)
+
 data class ScrollStruct(
     val axis: Int,
     val contentPtr: Long,

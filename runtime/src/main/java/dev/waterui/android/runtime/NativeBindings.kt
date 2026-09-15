@@ -49,6 +49,7 @@ internal object NativeBindings {
     fun waterui_menu_item_id(): TypeIdStruct = WatcherJni.menuItemId()
     fun waterui_stepper_id(): TypeIdStruct = WatcherJni.stepperId()
     fun waterui_progress_id(): TypeIdStruct = WatcherJni.progressId()
+    fun waterui_badge_id(): TypeIdStruct = WatcherJni.badgeId()
     fun waterui_dynamic_id(): TypeIdStruct = WatcherJni.dynamicId()
     fun waterui_scroll_view_id(): TypeIdStruct = WatcherJni.scrollViewId()
     fun waterui_spacer_id(): TypeIdStruct = WatcherJni.spacerId()
@@ -160,6 +161,8 @@ internal object NativeBindings {
         headroom: Float
     ): Long = WatcherJni.colorFromLinearRgbaHeadroom(red, green, blue, alpha, headroom)
     fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long = WatcherJni.resolveColor(colorPtr, envPtr)
+    fun waterui_resolve_computed_color(computedColorPtr: Long, envPtr: Long): Long =
+        WatcherJni.resolveComputedColor(computedColorPtr, envPtr)
     fun waterui_drop_color(colorPtr: Long) = WatcherJni.dropColor(colorPtr)
 
     // ========== Font resolution ==========
@@ -200,6 +203,7 @@ internal object NativeBindings {
     fun waterui_force_as_slider(viewPtr: Long): SliderStruct = WatcherJni.forceAsSlider(viewPtr)
     fun waterui_force_as_stepper(viewPtr: Long): StepperStruct = WatcherJni.forceAsStepper(viewPtr)
     fun waterui_force_as_progress(viewPtr: Long): ProgressStruct = WatcherJni.forceAsProgress(viewPtr)
+    fun waterui_force_as_badge(viewPtr: Long): BadgeStruct = WatcherJni.forceAsBadge(viewPtr)
     fun waterui_force_as_scroll(viewPtr: Long): ScrollStruct = WatcherJni.forceAsScrollView(viewPtr)
     fun waterui_force_as_color_picker(viewPtr: Long): ColorPickerStruct = WatcherJni.forceAsColorPicker(viewPtr)
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)

@@ -98,6 +98,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiMultiDatePicker()
         registerWuiWithEnv()
         registerWuiGpuSurface()
+        registerWuiBadge()
         registerWuiAndroidVideoSurfaceHost()
         registerWuiAppliedFilter()
         registerWuiViewEffect()
