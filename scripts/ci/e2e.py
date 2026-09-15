@@ -889,19 +889,20 @@ def _run_packaged_example(
             else:
                 actual.write_bytes(frame)
                 detail = "non-blank content on screen"
-        # Sample before force_stop below — afterwards pidof is always empty and
-        # the watcher would report a death we caused ourselves.
+        # Memory footprint rides every example, pass or fail — as raw dump for
+        # forensics and as parsed numbers for the nightly trend. It must run
+        # before the force_stop below: afterwards pidof is empty and dumpsys
+        # reports "No process found".
+        metrics.update(
+            dump_meminfo(
+                serial, example_path, artifacts_dir / f"{example}.meminfo.txt"
+            )
+        )
+        # Sample before force_stop — afterwards pidof is always empty and the
+        # watcher would report a death we caused ourselves.
         died = watch.abort_reason()
     finally:
         force_stop(serial, package)
-
-    # Memory footprint rides every example, pass or fail — as raw dump for
-    # forensics and as parsed numbers for the nightly trend.
-    metrics.update(
-        dump_meminfo(
-            serial, example_path, artifacts_dir / f"{example}.meminfo.txt"
-        )
-    )
     displayed = displayed_time_ms(serial, example_path)
     if displayed is not None:
         metrics["displayed_ms"] = displayed
