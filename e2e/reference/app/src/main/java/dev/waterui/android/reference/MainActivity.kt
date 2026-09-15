@@ -30,13 +30,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val example = intent.getStringExtra(EXTRA_EXAMPLE).orEmpty()
+        val disableDynamic =
+            intent.hasExtra("waterui.env.WATERUI_DISABLE_DYNAMIC_COLORS")
         setContent {
             // Match the runtime's theme source: WaterUiRootView wraps its
-            // Material3 context in DynamicColors, so on API 31+ the parity
-            // baseline is the wallpaper-derived scheme, not the static one.
+            // Material3 context in DynamicColors unless the e2e launch passes
+            // the kill-switch extra — wallpaper-seeded palettes cannot back a
+            // reproducible parity baseline.
             val dark = isSystemInDarkTheme()
             val scheme =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (!disableDynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     if (dark) dynamicDarkColorScheme(this) else dynamicLightColorScheme(this)
                 } else {
                     if (dark) darkColorScheme() else lightColorScheme()

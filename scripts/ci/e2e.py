@@ -628,8 +628,11 @@ def capture_twin(serial: str, example: str, timeout_s: float, poll_s: float) -> 
     """Launch the Compose MD3 reference host for `example` and return its
     settled screenshot. The reference activity is force-stopped afterwards so
     the next launch starts cold."""
+    # The twin honors the same kill-switch so both sides render the static
+    # MD3 baseline — see example_config's env comment.
     adb(serial, "shell", "am", "start", "-W", "-n", REFERENCE_ACTIVITY,
-        "--es", "E2EExample", example)
+        "--es", "E2EExample", example,
+        "--es", "waterui.env.WATERUI_DISABLE_DYNAMIC_COLORS", "1")
     try:
         _, frame, _ = wait_for_settle(
             serial, timeout_s, poll_s, package=REFERENCE_PACKAGE
@@ -701,7 +704,10 @@ def example_config(manifest: dict, example: str) -> dict:
         # the generated MainActivity applies them via `Os.setenv` before the
         # native library loads. An example whose workload exceeds emulator
         # capacity tunes itself down here rather than being skipped.
-        "env": dict(entry.get("env", {})),
+        # WATERUI_DISABLE_DYNAMIC_COLORS pins the static MD3 baseline palette:
+        # the wallpaper-seeded Material You scheme is not reproducible across
+        # emulator instances, so it can never back a pixel golden.
+        "env": {"WATERUI_DISABLE_DYNAMIC_COLORS": "1", **entry.get("env", {})},
     }
 
 
