@@ -497,6 +497,218 @@ def ensure_system_bars(serial: str) -> bool:
     return statusbar_inset_px(serial) > 0
 
 
+# ---------- performance probes ----------
+#
+# Everything below is pure external instrumentation — adb, dumpsys, /proc,
+# perfetto. No backend or framework code is touched: the generated
+# MainActivity's existing WATERUI_ROOT_READY logcat line is the only marker
+# the startup split relies on.
+
+SAMPLER_PATH = "/data/local/tmp/wui_proc_sampler.sh"
+# 1 Hz /proc sampler running on-device: epoch-second, utime+stime jiffies
+# (USER_HZ=100), VmRSS kB. Re-resolves the pid every tick so a mid-run
+# process restart keeps sampling instead of going silent.
+SAMPLER_SCRIPT = b"""\
+p="$1"; end=$(( $(date +%s) + $2 ))
+while [ "$(date +%s)" -lt "$end" ]; do
+  pid=$(pidof "$p" | tr ' ' '\\n' | head -1)
+  if [ -n "$pid" ]; then
+    j=$(awk '{print $14+$15}' /proc/$pid/stat 2>/dev/null)
+    r=$(awk '/VmRSS/{print $2}' /proc/$pid/status 2>/dev/null)
+    [ -n "$j" ] && echo "$(date +%s) $j ${r:-0}"
+  fi
+  sleep 1
+done
+"""
+
+
+def install_proc_sampler(serial: str, workdir: Path) -> None:
+    local = workdir / "wui_proc_sampler.sh"
+    local.write_bytes(SAMPLER_SCRIPT)
+    adb(serial, "push", str(local), SAMPLER_PATH)
+
+
+def start_proc_sampler(serial: str, package: str, duration_s: float) -> subprocess.Popen:
+    return subprocess.Popen(
+        ["adb", "-s", serial, "shell", "sh", SAMPLER_PATH, package,
+         str(max(1, int(duration_s)))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def collect_proc_sampler(proc: subprocess.Popen, out_path: Path) -> dict:
+    """Stop the sampler (terminating adb hangs up the device-side loop) and
+    turn its `ts jiffies rss` lines into launch-window metrics."""
+    proc.terminate()
+    try:
+        out, _ = proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, _ = proc.communicate()
+    if out:
+        out_path.write_bytes(out)
+    samples = []
+    for line in (out or b"").decode("utf-8", "replace").splitlines():
+        parts = line.split()
+        if len(parts) == 3 and all(p.isdigit() for p in parts):
+            samples.append(tuple(int(p) for p in parts))
+    if len(samples) < 2:
+        return {}
+    (t0, j0, _), (t1, j1, rss1) = samples[0], samples[-1]
+    metrics = {
+        "cpu_ms": (j1 - j0) * 10,  # jiffies at USER_HZ=100
+        "rss_final_kb": rss1,
+        "rss_peak_kb": max(s[2] for s in samples),
+        "proc_samples": len(samples),
+    }
+    if t1 > t0:
+        metrics["cpu_pct"] = round(metrics["cpu_ms"] / ((t1 - t0) * 10), 1)
+    return metrics
+
+
+GFXINFO_PATTERNS = {
+    "frames_total": r"Total frames rendered:\s*(\d+)",
+    "janky_frames": r"Janky frames:\s*(\d+)",
+    "frame_ms_p50": r"50th percentile:\s*(\d+)ms",
+    "frame_ms_p90": r"90th percentile:\s*(\d+)ms",
+    "frame_ms_p95": r"95th percentile:\s*(\d+)ms",
+    "frame_ms_p99": r"99th percentile:\s*(\d+)ms",
+    "missed_vsync": r"Number Missed Vsync:\s*(\d+)",
+    "deadline_missed": r"Number Frame deadline missed:\s*(\d+)",
+}
+
+
+def dump_gfxinfo(serial: str, package: str, out_path: Path, raw_path: Path) -> dict:
+    """Frame-render distribution over the process's whole life — for a
+    launch-window capture that is exactly the cold-start profile. The
+    `framestats` CSV is kept raw for forensics: the summary's percentile
+    buckets top out at 4950ms, so deep dives need the per-frame rows."""
+    try:
+        data = adb_out(serial, "shell", "dumpsys", "gfxinfo", package)
+    except subprocess.CalledProcessError:
+        return {}
+    out_path.write_bytes(data)
+    try:
+        raw_path.write_bytes(
+            adb_out(serial, "shell", "dumpsys", "gfxinfo", package, "framestats")
+        )
+    except subprocess.CalledProcessError:
+        pass
+    text = data.decode("utf-8", "replace")
+    return {
+        key: int(m.group(1))
+        for key, pattern in GFXINFO_PATTERNS.items()
+        if (m := re.search(pattern, text))
+    }
+
+
+def device_now_ms(serial: str) -> float:
+    """Device wallclock in ms — the epoch logcat stamps and the launch both
+    land on it, so host/emulator clock skew never enters the delta."""
+    try:
+        return float(adb_out(serial, "shell", "date", "+%s%3N").strip())
+    except (subprocess.CalledProcessError, ValueError):
+        return time.time() * 1000
+
+
+def root_ready_ms(serial: str, launch_device_ms: float) -> int | None:
+    """Delta `am start` -> WATERUI_ROOT_READY: the native/env/view-inflate
+    half of cold start, split from the window/displayed and first-pixel
+    halves we already measure."""
+    try:
+        data = adb_out(
+            serial, "shell", "logcat", "-d", "-v", "epoch",
+            "-s", "WaterUI.MainActivity:I", "-t", "300",
+        ).decode("utf-8", "replace")
+    except subprocess.CalledProcessError:
+        return None
+    ready = None
+    for m in re.finditer(
+        r"^(\d+\.\d+)\s+\d+\s+\d+\s+I\s+WaterUI\.MainActivity: WATERUI_ROOT_READY$",
+        data, re.MULTILINE,
+    ):
+        ts = float(m.group(1)) * 1000
+        if ts >= launch_device_ms - 5000:
+            ready = ts
+    return int(ready - launch_device_ms) if ready is not None else None
+
+
+PERFETTO_CONFIG = """\
+duration_ms: {duration}
+buffers {{ size_kb: 65536 fill_policy: DISCARD }}
+data_sources {{ config {{
+  name: "linux.ftrace"
+  ftrace_config {{
+    ftrace_events: "sched/sched_switch"
+    ftrace_events: "sched/sched_wakeup"
+    ftrace_events: "sched/sched_waking"
+    ftrace_events: "sched/sched_process_exit"
+    ftrace_events: "sched/sched_process_free"
+    ftrace_events: "power/cpu_frequency"
+    ftrace_events: "power/cpu_idle"
+    ftrace_events: "mm_event/mm_event_record"
+    atrace_categories: "am"
+    atrace_categories: "wm"
+    atrace_categories: "view"
+    atrace_categories: "gfx"
+    atrace_categories: "dalvik"
+    atrace_categories: "binder_driver"
+    atrace_categories: "binder_lock"
+    atrace_apps: "*"
+  }}
+}} }}
+data_sources {{ config {{ name: "linux.process_stats"
+  process_stats_config {{ scan_all_processes_on_start: true }} }} }}
+data_sources {{ config {{ name: "android.packages_list" }} }}
+"""
+
+
+# The perfetto SELinux domain cannot touch /data/local/tmp: config must
+# arrive over stdin (`-c -`) and output must land in the traced-owned dir,
+# which shell can still pull on userdebug/eng builds.
+PERFETTO_REMOTE_DIR = "/data/misc/perfetto-traces"
+
+
+def start_perfetto(serial: str, example: str, duration_s: float) -> tuple[subprocess.Popen | None, str]:
+    remote = f"{PERFETTO_REMOTE_DIR}/wui-{example}.pftrace"
+    try:
+        proc = subprocess.Popen(
+            ["adb", "-s", serial, "shell", "perfetto", "--txt", "-c", "-", "-o", remote],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        proc.stdin.write(
+            PERFETTO_CONFIG.format(duration=int(duration_s * 1000)).encode()
+        )
+        proc.stdin.close()
+        return proc, remote
+    except OSError:
+        return None, ""
+
+
+def stop_perfetto(serial: str, proc: subprocess.Popen | None, remote: str, out_path: Path) -> None:
+    """Finalize and pull the trace. SIGTERM stops the session early and
+    flushes the buffer instead of waiting out duration_ms."""
+    if proc is None:
+        return
+    subprocess.run(
+        ["adb", "-s", serial, "shell", "kill", "-TERM", "$(pidof perfetto)"],
+        capture_output=True,
+    )
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    subprocess.run(
+        ["adb", "-s", serial, "pull", remote, str(out_path)], capture_output=True
+    )
+    subprocess.run(
+        ["adb", "-s", serial, "shell", "rm", "-f", remote], capture_output=True
+    )
+
+
 def anr_dialog_package(serial: str) -> str | None:
     """Package named by a focused "Application Not Responding" window, or None.
     A launcher ANR overlay holds a static dimmed frame long enough to read as
@@ -756,6 +968,7 @@ def run_example(
     arch: str,
     apksigner: str,
     keystore: Path,
+    perfetto: bool,
 ) -> bool:
     if cfg["mode"] == "skip":
         print(f"Skipping {example}: {cfg['reason'] or 'no reason given'}")
@@ -767,7 +980,7 @@ def run_example(
         return _run_packaged_example(
             example, cfg, serial, repo_root, example_path, log_file,
             golden_mode, goldens_dir, artifacts_dir, candidates_dir, results,
-            parity_budget, arch, apksigner, keystore,
+            parity_budget, arch, apksigner, keystore, perfetto,
         )
     finally:
         print("::endgroup::", flush=True)
@@ -789,6 +1002,7 @@ def _run_packaged_example(
     arch: str,
     apksigner: str,
     keystore: Path,
+    perfetto: bool,
 ) -> bool:
     actual = artifacts_dir / f"{example}.actual.png"
     metrics: dict = {}
@@ -840,6 +1054,13 @@ def _run_packaged_example(
     if "Success" not in install_out:
         return fail(f"adb install rejected the APK: {install_out.strip()}")
 
+    trace_proc = None
+    trace_remote = ""
+    if perfetto:
+        trace_proc, trace_remote = start_perfetto(
+            serial, example, cfg["settle_s"] + 15
+        )
+    launch_device_ms = device_now_ms(serial)
     launch_t = time.monotonic()
     try:
         launch_out = launch_app(serial, package, cfg["env"])
@@ -848,6 +1069,7 @@ def _run_packaged_example(
     if "Error" in launch_out:
         return fail(f"am start rejected the activity: {launch_out.strip()}")
 
+    sampler = start_proc_sampler(serial, package, cfg["settle_s"] + 20)
     if not ensure_system_bars(serial):
         print(
             f"::warning::{example}: status-bar inset is zero after SystemUI "
@@ -924,15 +1146,37 @@ def _run_packaged_example(
             else:
                 actual.write_bytes(frame)
                 detail = "non-blank content on screen"
-        # Memory footprint rides every example, pass or fail — as raw dump for
-        # forensics and as parsed numbers for the nightly trend. It must run
-        # before the force_stop below: afterwards pidof is empty and dumpsys
-        # reports "No process found".
-        metrics.update(
-            dump_meminfo(
-                serial, example_path, artifacts_dir / f"{example}.meminfo.txt"
+        # All probes run while the process is still alive — after force_stop
+        # pidof is empty and every one of them reports nothing.
+        try:
+            metrics.update(
+                collect_proc_sampler(
+                    sampler, artifacts_dir / f"{example}.procstats.txt"
+                )
             )
-        )
+            metrics.update(
+                dump_gfxinfo(
+                    serial, package,
+                    artifacts_dir / f"{example}.gfxinfo.txt",
+                    artifacts_dir / f"{example}.framestats.txt",
+                )
+            )
+            metrics.update(
+                dump_meminfo(
+                    serial, example_path,
+                    artifacts_dir / f"{example}.meminfo.txt"
+                )
+            )
+            if trace_proc is not None:
+                stop_perfetto(
+                    serial, trace_proc, trace_remote,
+                    artifacts_dir / f"{example}.pftrace",
+                )
+            ready_ms = root_ready_ms(serial, launch_device_ms)
+            if ready_ms is not None:
+                metrics["root_ready_ms"] = ready_ms
+        except (subprocess.CalledProcessError, OSError) as error:
+            print(f"::warning::{example}: perf probes incomplete: {error}")
         # Sample before force_stop — afterwards pidof is always empty and the
         # watcher would report a death we caused ourselves.
         died = watch.abort_reason()
@@ -1067,6 +1311,7 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
     failures: list[str] = []
     try:
         enter_demo_mode(serial)
+        install_proc_sampler(serial, artifacts_dir)
         if not ensure_system_bars(serial):
             print(
                 "::warning::status-bar inset is zero after SystemUI restarts — "
@@ -1090,6 +1335,7 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
                     arch,
                     apksigner,
                     keystore,
+                    args.perfetto,
                 )
             except EmulatorLostError:
                 results.append((example, "FAIL", f"emulator {serial} lost mid-run"))
@@ -1210,6 +1456,9 @@ def build_parser() -> argparse.ArgumentParser:
     shard.add_argument("--artifacts-dir")
     shard.add_argument("--reference-apk",
                        help="Compose MD3 reference APK; enables twin parity checks")
+    shard.add_argument("--perfetto", action="store_true",
+                       help="record a perfetto system trace around each example "
+                            "launch; one <example>.pftrace artifact per example")
     shard.set_defaults(func=cmd_run_shard)
 
     nonblank = sub.add_parser("nonblank", help="reject a flat-color screenshot")

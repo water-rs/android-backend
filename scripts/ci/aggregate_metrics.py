@@ -49,6 +49,10 @@ def fmt_ms(value: int | None) -> str:
     return str(value) if value else "-"
 
 
+def fmt_pct(value: float | None) -> str:
+    return f"{value:g}" if value is not None else "-"
+
+
 def render_markdown(examples: list[dict], release: dict | None) -> str:
     lines = ["## Nightly device metrics", ""]
     if release:
@@ -68,18 +72,27 @@ def render_markdown(examples: list[dict], release: dict | None) -> str:
         lines.append("")
     if examples:
         lines += [
-            "| example | status | APK (MB) | displayed (ms) | first frame (ms) | PSS (MB) | RSS (MB) |",
-            "|---|---|---|---|---|---|---|",
+            "| example | status | APK (MB) | root ready (ms) | displayed (ms) | "
+            "first frame (ms) | settle (ms) | PSS (MB) | RSS peak (MB) | CPU % | "
+            "frames | janky | frame p90 (ms) |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         lines += [
-            "| {e} | {s} | {a} | {d} | {f} | {p} | {r} |".format(
+            "| {e} | {s} | {a} | {rr} | {d} | {f} | {se} | {p} | {r} | {c} | "
+            "{fr} | {j} | {p90} |".format(
                 e=entry.get("example", "?"),
                 s=entry.get("status", "?"),
                 a=fmt_bytes(entry.get("apk_bytes")),
+                rr=fmt_ms(entry.get("root_ready_ms")),
                 d=fmt_ms(entry.get("displayed_ms")),
                 f=fmt_ms(entry.get("launch_to_first_frame_ms")),
+                se=fmt_ms(entry.get("settle_ms")),
                 p=fmt_mb(entry.get("total_pss_kb")),
-                r=fmt_mb(entry.get("total_rss_kb")),
+                r=fmt_mb(entry.get("rss_peak_kb") or entry.get("total_rss_kb")),
+                c=fmt_pct(entry.get("cpu_pct")),
+                fr=fmt_ms(entry.get("frames_total")),
+                j=fmt_ms(entry.get("janky_frames")),
+                p90=fmt_ms(entry.get("frame_ms_p90")),
             )
             for entry in examples
         ]

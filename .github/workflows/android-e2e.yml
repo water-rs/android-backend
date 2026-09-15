@@ -303,7 +303,7 @@ jobs:
           # The runner executes each `script:` line through a fresh
           # `/usr/bin/sh -c`, so the whole invocation stays a single line; the
           # Python driver detects the emulator serial itself.
-          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}" --reference-apk /tmp/md3-reference/app-debug.apk
+          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}" --reference-apk /tmp/md3-reference/app-debug.apk --perfetto
 
       - name: Upload shard logs
         if: always()
