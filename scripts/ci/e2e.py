@@ -476,6 +476,41 @@ def anr_dialog_package(serial: str) -> str | None:
     return m.group(1) if m else None
 
 
+def tap_text(serial: str, text: str) -> bool:
+    """Tap the center of the on-screen node showing `text` — the generic
+    mechanism for system dialogs whose affordances adb has no action for."""
+    subprocess.run(
+        ["adb", "-s", serial, "shell", "uiautomator", "dump", "/sdcard/e2e-ui.xml"],
+        capture_output=True,
+    )
+    xml = subprocess.run(
+        ["adb", "-s", serial, "shell", "cat", "/sdcard/e2e-ui.xml"],
+        capture_output=True,
+    ).stdout.decode("utf-8", "replace")
+    m = re.search(
+        rf'text="{re.escape(text)}"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+        xml,
+    )
+    if not m:
+        return False
+    left, top, right, bottom = (int(g) for g in m.groups())
+    adb(serial, "shell", "input", "tap",
+        str((left + right) // 2), str((top + bottom) // 2))
+    return True
+
+
+def dismiss_anr(serial: str, package: str, seen: set[str]) -> None:
+    """Dismiss a foreign package's ANR dialog. Prefer the "Wait" row — killing
+    or restarting the offender just produces a cold-start ANR loop under load.
+    `am kill` is a no-op on a foreground app anyway, so a package seen twice
+    escalates straight to force-stop for a clean slate."""
+    if package in seen:
+        adb(serial, "shell", "am", "force-stop", package)
+    elif not tap_text(serial, "Wait"):
+        adb(serial, "shell", "am", "kill", package)
+    seen.add(package)
+
+
 # ---------- readiness waits ----------
 
 
@@ -493,16 +528,17 @@ def wait_for_settle(
     before content arrives, or hold a transient overlay (a scrollbar mid-fade)
     static for one poll interval. With a `watch`, only frames captured while
     the process is alive count — an app that dies before first sight leaves a
-    static crash dialog that would otherwise read as settled. A static frame
-    is checked for an ANR dialog before counting toward stability: a foreign
-    package's dialog is killed and ignored, while an ANR in `package` itself
-    fails the wait early and is reported through `anr`. Returns
-    (settled, last frame, monotonic timestamp of the first non-blank frame)."""
+    static crash dialog that would otherwise read as settled. Every poll is
+    checked for an ANR dialog — a foreign package's dialog is dismissed and
+    keeps the frame from counting, while an ANR in `package` itself fails the
+    wait early and is reported through `anr`. Returns (settled, last frame,
+    monotonic timestamp of the first non-blank frame)."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
     cur: bytes | None = None
     stable_since: float | None = None
     content_at: float | None = None
+    wedged: set[str] = set()
     while time.monotonic() < deadline:
         cur = capture_screen(serial)
         if watch is not None:
@@ -514,19 +550,20 @@ def wait_for_settle(
                 stable_since = None
                 time.sleep(poll_s)
                 continue
+        anr_pkg = anr_dialog_package(serial)
+        if anr_pkg and anr_pkg != package:
+            dismiss_anr(serial, anr_pkg, wedged)
+            prev = None
+            stable_since = None
+            time.sleep(poll_s)
+            continue
+        if anr_pkg:
+            if anr is not None:
+                anr.append(anr_pkg)
+            return False, cur, content_at
         if content_at is None and cur and is_nonblank(cur):
             content_at = time.monotonic()
         if cur and cur == prev and is_nonblank(cur):
-            anr_pkg = anr_dialog_package(serial)
-            if anr_pkg and anr_pkg != package:
-                adb(serial, "shell", "am", "kill", anr_pkg)
-                prev = None
-                stable_since = None
-                continue
-            if anr_pkg:
-                if anr is not None:
-                    anr.append(anr_pkg)
-                return False, cur, content_at
             if stable_since is None:
                 stable_since = time.monotonic()
             if time.monotonic() - stable_since >= MIN_STABLE_S:
@@ -551,12 +588,14 @@ def wait_for_content(
     a frame that stays flat past the deadline is the failure this exists to
     catch. With a `watch`, frames only count while the process is alive, so an
     app dead before first sight times out instead of passing on its crash
-    dialog. An ANR dialog is non-blank too: a foreign package's dialog is
-    killed and ignored, while an ANR in `package` itself fails the wait early
-    and is reported through `anr`. Returns (frame, monotonic timestamp of the
-    first non-blank capture)."""
+    dialog. An ANR dialog is non-blank too, and a foreign ANR can wedge the
+    compositor hard enough to keep the screen black — so every poll checks:
+    a foreign package's dialog is dismissed and ignored, while an ANR in
+    `package` itself fails the wait early and is reported through `anr`.
+    Returns (frame, monotonic timestamp of the first non-blank capture)."""
     deadline = time.monotonic() + timeout_s
     frame = b""
+    wedged: set[str] = set()
     while time.monotonic() < deadline:
         frame = capture_screen(serial)
         if watch is not None:
@@ -566,16 +605,16 @@ def wait_for_content(
             if not alive:
                 time.sleep(poll_s)
                 continue
+        anr_pkg = anr_dialog_package(serial)
+        if anr_pkg and anr_pkg != package:
+            dismiss_anr(serial, anr_pkg, wedged)
+            time.sleep(poll_s)
+            continue
+        if anr_pkg:
+            if anr is not None:
+                anr.append(anr_pkg)
+            return None, None
         if frame and is_nonblank(frame):
-            anr_pkg = anr_dialog_package(serial)
-            if anr_pkg and anr_pkg != package:
-                adb(serial, "shell", "am", "kill", anr_pkg)
-                time.sleep(poll_s)
-                continue
-            if anr_pkg:
-                if anr is not None:
-                    anr.append(anr_pkg)
-                return None, None
             return frame, time.monotonic()
         time.sleep(poll_s)
     return None, None
@@ -867,7 +906,7 @@ def _run_packaged_example(
         if died:
             detail += f"; {died} during capture — see logcat"
 
-    if golden_mode == "record" and cfg["mode"] == "verify" and status != "FAIL":
+    if golden_mode == "record" and cfg["mode"] == "verify" and settled:
         (candidates_dir / f"{example}.png").write_bytes(actual.read_bytes())
 
     if status == "FAIL":
