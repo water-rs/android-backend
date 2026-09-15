@@ -41,6 +41,10 @@ def fmt_mb(kb: int | None) -> str:
     return f"{kb / 1024:.1f}" if kb else "-"
 
 
+def fmt_bytes(value: int | None) -> str:
+    return f"{value / 1024 / 1024:.1f}" if value else "-"
+
+
 def fmt_ms(value: int | None) -> str:
     return str(value) if value else "-"
 
@@ -64,13 +68,14 @@ def render_markdown(examples: list[dict], release: dict | None) -> str:
         lines.append("")
     if examples:
         lines += [
-            "| example | status | displayed (ms) | first frame (ms) | PSS (MB) | RSS (MB) |",
-            "|---|---|---|---|---|---|",
+            "| example | status | APK (MB) | displayed (ms) | first frame (ms) | PSS (MB) | RSS (MB) |",
+            "|---|---|---|---|---|---|---|",
         ]
         lines += [
-            "| {e} | {s} | {d} | {f} | {p} | {r} |".format(
+            "| {e} | {s} | {a} | {d} | {f} | {p} | {r} |".format(
                 e=entry.get("example", "?"),
                 s=entry.get("status", "?"),
+                a=fmt_bytes(entry.get("apk_bytes")),
                 d=fmt_ms(entry.get("displayed_ms")),
                 f=fmt_ms(entry.get("launch_to_first_frame_ms")),
                 p=fmt_mb(entry.get("total_pss_kb")),

@@ -240,152 +240,24 @@ jobs:
             waterui/backends/android/runtime/build/outputs/androidTest-results/
           if-no-files-found: ignore
 
-  # Release package size: the gesture example packaged with
-  # `water package --release` so the R8/LTO/strip numbers trend nightly
-  # instead of being measured once. Runs in parallel with the emulator
-  # shards — it never touches a device.
-  release-metrics:
-    name: Release package metrics
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - name: Checkout waterui (dev)
-        uses: actions/checkout@v4
-        with:
-          repository: water-rs/waterui
-          ref: dev
-          path: waterui
-          submodules: recursive
-
-      - name: Overlay android-backend
-        uses: actions/checkout@v4
-        with:
-          path: waterui/backends/android
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Setup Gradle cache
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Restore Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: android-e2e
-          workspaces: |
-            waterui
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          # The action's default `tools platform-tools` names the legacy
-          # `tools` package, which Google has removed from the SDK
-          # repository manifest — install only platform-tools (adb); the
-          # workflows fetch platforms, build-tools, NDK, emulator and
-          # system images explicitly below.
-          packages: 'platform-tools'
-
-      - name: Install SDK platform, build-tools, and the pinned NDK
-        run: |
-          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
-          platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
-          if [ -z "$platform_pkg" ]; then
-            echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
-            exit 1
-          fi
-          sdkmanager --install "$platform_pkg"
-          latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
-          sdkmanager --install "$latest_bt"
-          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
-          sdkmanager --install "ndk;${ndk_version}"
-
-      - name: Install the Android Rust targets
-        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
-
-      # The example build's host-side build scripts link native libraries
-      # (libva through waterkit-codec, fonts, EGL, …); the script reuses the
-      # package list the waterui checkout maintains rather than drifting a copy.
-      - name: Install Linux native dependencies
-        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
-
-      # `water` ships from water-rs/cli now — install the `dev` head rather
-      # than building a workspace member. The binary rides its own
-      # actions/cache entry keyed on the resolved cli commit: a hit skips
-      # the compile entirely, a `dev` move misses and rebuilds.
-      - name: Resolve the water-rs/cli dev commit
-        id: cli-rev
-        run: echo "rev=$(git ls-remote https://github.com/water-rs/cli refs/heads/dev | cut -f1)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore the water binary
-        id: water-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/water
-            ~/.cargo/bin/water.exe
-          key: water-cli-${{ runner.os }}-${{ steps.cli-rev.outputs.rev }}
-
-      # `serialport` (the cli's default `esp32` feature) builds `libudev-sys`,
-      # whose build script needs `libudev` via pkg-config — absent from the
-      # ubuntu-latest image. Keep default features so CI builds what a user's
-      # `cargo install waterui-cli` produces.
-      - name: Install libudev for the CLI's serialport dependency
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev
-
-      - name: Install the water CLI
-        if: steps.water-cache.outputs.cache-hit != 'true'
-        run: |
-          rm -f "$HOME/.cargo/bin/water" "$HOME/.cargo/bin/water.exe"
-          cargo install --locked \
-            --git https://github.com/water-rs/cli --branch dev \
-            waterui-cli
-
-      - name: Package the release APK and record its size
-        run: |
-          echo "/tmp/water-cli" >> "$GITHUB_PATH"
-          mkdir -p /tmp/water-cli
-          cp "$HOME/.cargo/bin/water" /tmp/water-cli/water
-          python3 waterui/backends/android/scripts/ci/release_metrics.py --repo-root waterui --example gesture --out release-metrics.json
-
-      - name: Upload release metrics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-metrics
-          path: release-metrics.json
-          if-no-files-found: ignore
-
-  # Merge every shard's per-example metrics plus the release package record
-  # into nightly-metrics.json and a step summary — the numbers are the point
-  # of the run, so this renders even when examples fail.
+  # Merge every shard's per-example metrics into nightly-metrics.json and a
+  # step summary — the numbers are the point of the run, so this renders even
+  # when examples fail.
   metrics:
     name: Metrics summary
-    needs: [e2e, release-metrics]
+    needs: [e2e]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download shard + release artifacts
+      - name: Download shard artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: android-e2e-artifacts-shard-*
           path: /tmp/nightly-artifacts
           merge-multiple: false
-
-      - name: Download release metrics artifact
-        uses: actions/download-artifact@v4
-        # The release-metrics leg is best-effort; a missing artifact must not
-        # fail the summary. `continue-on-error` is a step property, not an
-        # action input — under `with:` it was ignored and the step failed hard.
-        continue-on-error: true
-        with:
-          name: release-metrics
-          path: /tmp/nightly-artifacts/release
 
       - name: Aggregate metrics
         run: python3 scripts/ci/aggregate_metrics.py --artifacts-root /tmp/nightly-artifacts --out nightly-metrics.json

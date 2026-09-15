@@ -29,7 +29,10 @@ env:
   CARGO_PROFILE_DEV_DEBUG: "0"
   CARGO_PROFILE_TEST_DEBUG: "0"
   CARGO_TERM_COLOR: always
-  SHARD_TOTAL: "8"
+  # One emulator per shard; the org's Linux runner budget (~60) leaves plenty
+  # of headroom, so shards run ~2 examples each and the suite halves its wall
+  # clock versus the old 8-way split.
+  SHARD_TOTAL: "16"
   AVD_API_LEVEL: "35"
   AVD_ARCH: x86_64
   AVD_TARGET: google_apis
@@ -157,7 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard-index: [0, 1, 2, 3, 4, 5, 6, 7]
+        shard-index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
     steps:
       - name: Checkout waterui (${{ inputs.waterui-ref }})
@@ -200,7 +203,7 @@ jobs:
           # system images explicitly below.
           packages: 'platform-tools'
 
-      # `water run` assembles each example's app at the module's compileSdk;
+      # `water package` assembles each example's app at the module's compileSdk;
       # install that platform and the newest build-tools explicitly instead of
       # relying on whatever the runner image happens to carry. Since API 37 the
       # platform package carries a minor suffix (platforms;android-37.0), so
@@ -217,10 +220,17 @@ jobs:
           latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
           sdkmanager --install "$latest_bt"
 
-      # `water run` gates on the toolchain check for every ABI it could
+      # `water package` gates on the toolchain check for every ABI it could
       # target, not just the emulator's, so install all four triples.
       - name: Install the Android Rust targets
         run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
+
+      # The pinned NDK up front — the example build would otherwise fetch it
+      # on demand inside the emulator-runner leg, which has no diagnostics.
+      - name: Install the pinned NDK
+        run: |
+          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          sdkmanager --install "ndk;${ndk_version}"
 
       # Examples pull workspace crates whose host-side build scripts link
       # native libraries (libva through waterkit-codec, fonts, EGL, …); the
