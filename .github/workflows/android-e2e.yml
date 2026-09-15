@@ -93,6 +93,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default `tools platform-tools` names the legacy
+          # `tools` package, which Google has removed from the SDK
+          # repository manifest — install only platform-tools (adb); the
+          # workflows fetch platforms, build-tools, NDK, emulator and
+          # system images explicitly below.
+          packages: 'platform-tools'
 
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
@@ -162,6 +169,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default `tools platform-tools` names the legacy
+          # `tools` package, which Google has removed from the SDK
+          # repository manifest — install only platform-tools (adb); the
+          # workflows fetch platforms, build-tools, NDK, emulator and
+          # system images explicitly below.
+          packages: 'platform-tools'
 
       # `water run` assembles each example's app at the module's compileSdk;
       # install that platform and the newest build-tools explicitly instead of

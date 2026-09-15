@@ -92,6 +92,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default `tools platform-tools` names the legacy
+          # `tools` package, which Google has removed from the SDK
+          # repository manifest — install only platform-tools (adb); the
+          # workflows fetch platforms, build-tools, NDK, emulator and
+          # system images explicitly below.
+          packages: 'platform-tools'
 
       # The generated app and this module both compile against compileSdk 37,
       # and the instrumentation build packages the staged .so through the NDK
@@ -244,6 +251,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default `tools platform-tools` names the legacy
+          # `tools` package, which Google has removed from the SDK
+          # repository manifest — install only platform-tools (adb); the
+          # workflows fetch platforms, build-tools, NDK, emulator and
+          # system images explicitly below.
+          packages: 'platform-tools'
 
       - name: Install SDK platform, build-tools, and the pinned NDK
         run: |
