@@ -763,6 +763,7 @@ def _run_packaged_example(
                     example, actual, cfg, golden_mode, goldens_dir, artifacts_dir
                 ):
                     status = "FAIL"
+                    detail += "; diverges from golden"
                 elif parity_budget is not None and golden_mode != "record":
                     if not verify_parity(
                         example, actual, serial, cfg, parity_budget, artifacts_dir
