@@ -365,10 +365,13 @@ jobs:
 
       - name: Download release metrics artifact
         uses: actions/download-artifact@v4
+        # The release-metrics leg is best-effort; a missing artifact must not
+        # fail the summary. `continue-on-error` is a step property, not an
+        # action input — under `with:` it was ignored and the step failed hard.
+        continue-on-error: true
         with:
           name: release-metrics
           path: /tmp/nightly-artifacts/release
-          continue-on-error: true
 
       - name: Aggregate metrics
         run: python3 scripts/ci/aggregate_metrics.py --artifacts-root /tmp/nightly-artifacts --out nightly-metrics.json
