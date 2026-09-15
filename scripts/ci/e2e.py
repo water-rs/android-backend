@@ -1119,6 +1119,26 @@ def cmd_compare(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_guard_anr(args: argparse.Namespace) -> int:
+    """Until the deadline or SIGTERM: dismiss ANR dialogs naming packages
+    outside --protect. Runs beside the instrumentation leg, where an overlay
+    holding window focus makes Espresso time out waiting for a focused root;
+    an ANR in the test app itself is a real failure and left alone."""
+    serial = detect_serial()
+    protected = set(args.protect)
+    wedged: set[str] = set()
+    deadline = time.monotonic() + args.duration_s
+    while time.monotonic() < deadline:
+        pkg = anr_dialog_package(serial)
+        if pkg and pkg not in protected:
+            print(f"guard-anr: dismissing ANR dialog for {pkg}", flush=True)
+            dismiss_anr(serial, pkg, wedged)
+        elif pkg:
+            print(f"guard-anr: ANR in protected {pkg} — leaving it", flush=True)
+        time.sleep(1)
+    return 0
+
+
 def cmd_rust_target(args: argparse.Namespace) -> int:
     if args.arch == "all":
         print(" ".join(ALL_RUST_TARGETS))
@@ -1156,6 +1176,15 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("max_fraction", type=float)
     compare.add_argument("diff_out")
     compare.set_defaults(func=cmd_compare)
+
+    guard = sub.add_parser(
+        "guard-anr",
+        help="dismiss foreign-package ANR dialogs until the deadline",
+    )
+    guard.add_argument("--duration-s", type=int, default=1200)
+    guard.add_argument("--protect", action="append", default=[],
+                       help="package whose own ANR is a real failure, not an overlay to dismiss")
+    guard.set_defaults(func=cmd_guard_anr)
 
     rt = sub.add_parser(
         "rust-target",
