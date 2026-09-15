@@ -82,6 +82,29 @@ jobs:
           java-version: "21"
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+      # The runtime compiles against the framework's C ABI. The committed
+      # `runtime/src/main/cpp/waterui.h` is a snapshot for standalone builds;
+      # CI builds against the header the framework's `dev` branch generates,
+      # the same way the Apple backend's CI syncs its copy, so an ABI change
+      # on the framework side is a red build here rather than a runtime
+      # mismatch later. The framework tree carries no `backends/android`
+      # gitlink any more (water-rs/waterui#940), so nothing propagates the
+      # header into this repository from that side.
+      - name: Check out the framework's FFI header
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: dev
+          path: waterui
+          sparse-checkout: ffi/waterui.h
+          sparse-checkout-cone-mode: false
+      - name: Sync the WaterUI header
+        run: |
+          set -euo pipefail
+          if ! cmp -s waterui/ffi/waterui.h runtime/src/main/cpp/waterui.h; then
+            echo "::warning file=runtime/src/main/cpp/waterui.h::the committed header differs from waterui dev's ffi/waterui.h; this build uses the framework's copy"
+          fi
+          cp waterui/ffi/waterui.h runtime/src/main/cpp/waterui.h
       - name: Build debug and release artifacts
         run: ./gradlew --no-daemon :runtime:assembleDebug :runtime:assembleRelease
 
