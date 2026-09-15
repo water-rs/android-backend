@@ -617,9 +617,12 @@ def root_ready_ms(serial: str, launch_device_ms: float) -> int | None:
     half of cold start, split from the window/displayed and first-pixel
     halves we already measure."""
     try:
+        # No -t: it counts raw buffer lines before tag filtering, and a busy
+        # emulator fills 300 lines in seconds — the tag-filtered stream is a
+        # handful of lines per launch anyway.
         data = adb_out(
             serial, "shell", "logcat", "-d", "-v", "epoch",
-            "-s", "WaterUI.MainActivity:I", "-t", "300",
+            "-s", "WaterUI.MainActivity:I",
         ).decode("utf-8", "replace")
     except subprocess.CalledProcessError:
         return None
