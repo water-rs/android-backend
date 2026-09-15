@@ -32,6 +32,42 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Static analysis and unit tests
         run: ./gradlew --no-daemon :runtime:detekt :runtime:detektDebug :runtime:lintDebug :runtime:testDebugUnitTest
+      # The runtime declares its own `minSdk` — it builds standalone and
+      # cannot read the framework manifest — but the two must agree, or a
+      # scaffolded app's floor is one the runtime does not support. The
+      # framework's floor is `package.metadata.waterui.android-min-api-level`
+      # in its root manifest, read with a TOML parser; the runtime's is read
+      # from Gradle's own evaluation of the build script, never by scraping it.
+      - name: Check out the framework manifest
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: dev
+          path: waterui
+          sparse-checkout: Cargo.toml
+          sparse-checkout-cone-mode: false
+      - name: Verify the runtime's minSdk agrees with the framework floor
+        run: |
+          set -euo pipefail
+          floor="$(python3 -c '
+          import tomllib
+          with open("waterui/Cargo.toml", "rb") as f:
+              print(tomllib.load(f)["package"]["metadata"]["waterui"]["android-min-api-level"])
+          ')"
+          if ! [[ "$floor" =~ ^[0-9]+$ ]]; then
+            echo "::error::package.metadata.waterui.android-min-api-level in the framework manifest must be an integer API level (got '$floor')"
+            exit 1
+          fi
+          min_sdk="$(./gradlew -q --no-daemon --init-script .github/scripts/android-min-sdk.init.gradle :runtime:waterUiMinSdk | sed -n 's/^WATERUI_MIN_SDK=//p')"
+          if [ -z "$min_sdk" ]; then
+            echo "::error::could not evaluate the runtime's minSdk from Gradle"
+            exit 1
+          fi
+          if [ "$min_sdk" != "$floor" ]; then
+            echo "::error::runtime minSdk ($min_sdk) does not match the framework's android-min-api-level ($floor)"
+            exit 1
+          fi
+          echo "runtime minSdk $min_sdk matches the framework floor"
 
   android-build:
     name: android-build
