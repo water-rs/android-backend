@@ -310,7 +310,11 @@ private fun createMaterialContext(base: Context): Context {
         base,
         com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar
     )
-    return WaterUiContext(DynamicColors.wrapContextIfAvailable(themed))
+    // Material You is canonical MD3, but its wallpaper-seeded palette makes
+    // screenshot goldens nondeterministic; tests opt out through
+    // `waterui.env.WATERUI_DISABLE_DYNAMIC_COLORS`.
+    val dynamic = System.getenv("WATERUI_DISABLE_DYNAMIC_COLORS") == null
+    return WaterUiContext(if (dynamic) DynamicColors.wrapContextIfAvailable(themed) else themed)
 }
 
 private fun systemColorScheme(configuration: Configuration): ColorScheme =
