@@ -1,5 +1,5 @@
 {
-  "$schema-comment": "Per-example policy for the example E2E shard script. mode=verify waits for a settled frame and compares it to e2e/goldens/<example>.png; mode=smoke only requires the app to start and show non-blank content; mode=skip does not run the example at all. env is forwarded to the app as `water run --env KEY=VALUE` pairs (delivered as waterui.env.* intent extras).",
+  "$schema-comment": "Per-example policy for the example E2E shard script. mode=verify waits for a settled frame and compares it to e2e/goldens/<example>.png; mode=smoke only requires the app to start and show non-blank content; mode=skip does not run the example at all. env is forwarded to the app as waterui.env.* intent extras (the generated MainActivity applies them via Os.setenv before the native library loads).",
   "defaults": {
     "settle_timeout_seconds": 25,
     "poll_interval_ms": 400,
@@ -24,7 +24,8 @@
     "image": { "mode": "smoke", "reason": "remote images arrive asynchronously over the network" },
     "map": {
       "mode": "smoke",
-      "reason": "SwiftShader kills the wgpu device roughly every 35s; water-rs/waterui#914 rebuilds the runtime on loss, so this verifies survival, not pixels"
+      "settle_timeout_seconds": 120,
+      "reason": "SwiftShader kills the wgpu device roughly every 35s; water-rs/waterui#914 rebuilds the runtime on loss, so this verifies survival, not pixels. Tile fetch plus a loss-recovery cycle needs well over the default window"
     },
     "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
     "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
