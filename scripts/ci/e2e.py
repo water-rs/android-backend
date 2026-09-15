@@ -464,6 +464,18 @@ def force_stop(serial: str, package: str) -> None:
     )
 
 
+def anr_dialog_package(serial: str) -> str | None:
+    """Package named by a focused "Application Not Responding" window, or None.
+    A launcher ANR overlay holds a static dimmed frame long enough to read as
+    settled — and in record mode that polluted frame becomes a golden."""
+    out = subprocess.run(
+        ["adb", "-s", serial, "shell", "dumpsys", "window", "displays"],
+        capture_output=True,
+    ).stdout.decode("utf-8", "replace")
+    m = re.search(r"Application Not Responding: ([\w.]+)", out)
+    return m.group(1) if m else None
+
+
 # ---------- readiness waits ----------
 
 
@@ -472,6 +484,8 @@ def wait_for_settle(
     timeout_s: float,
     poll_s: float,
     watch: ProcessWatch | None = None,
+    package: str | None = None,
+    anr: list[str] | None = None,
 ) -> tuple[bool, bytes | None, float | None]:
     """Poll the framebuffer until captures stay byte-identical AND non-blank
     for MIN_STABLE_S — the "the app finished drawing something" signal.
@@ -479,7 +493,10 @@ def wait_for_settle(
     before content arrives, or hold a transient overlay (a scrollbar mid-fade)
     static for one poll interval. With a `watch`, only frames captured while
     the process is alive count — an app that dies before first sight leaves a
-    static crash dialog that would otherwise read as settled. Returns
+    static crash dialog that would otherwise read as settled. A static frame
+    is checked for an ANR dialog before counting toward stability: a foreign
+    package's dialog is killed and ignored, while an ANR in `package` itself
+    fails the wait early and is reported through `anr`. Returns
     (settled, last frame, monotonic timestamp of the first non-blank frame)."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
@@ -500,6 +517,16 @@ def wait_for_settle(
         if content_at is None and cur and is_nonblank(cur):
             content_at = time.monotonic()
         if cur and cur == prev and is_nonblank(cur):
+            anr_pkg = anr_dialog_package(serial)
+            if anr_pkg and anr_pkg != package:
+                adb(serial, "shell", "am", "kill", anr_pkg)
+                prev = None
+                stable_since = None
+                continue
+            if anr_pkg:
+                if anr is not None:
+                    anr.append(anr_pkg)
+                return False, cur, content_at
             if stable_since is None:
                 stable_since = time.monotonic()
             if time.monotonic() - stable_since >= MIN_STABLE_S:
@@ -516,14 +543,18 @@ def wait_for_content(
     timeout_s: float,
     poll_s: float,
     watch: ProcessWatch | None = None,
+    package: str | None = None,
+    anr: list[str] | None = None,
 ) -> tuple[bytes | None, float | None]:
     """A smoke-mode example animates forever by definition, so "non-blank
     content on screen" is the assertion. Poll captures until content appears;
     a frame that stays flat past the deadline is the failure this exists to
     catch. With a `watch`, frames only count while the process is alive, so an
     app dead before first sight times out instead of passing on its crash
-    dialog. Returns (frame, monotonic timestamp of the first non-blank
-    capture)."""
+    dialog. An ANR dialog is non-blank too: a foreign package's dialog is
+    killed and ignored, while an ANR in `package` itself fails the wait early
+    and is reported through `anr`. Returns (frame, monotonic timestamp of the
+    first non-blank capture)."""
     deadline = time.monotonic() + timeout_s
     frame = b""
     while time.monotonic() < deadline:
@@ -536,6 +567,15 @@ def wait_for_content(
                 time.sleep(poll_s)
                 continue
         if frame and is_nonblank(frame):
+            anr_pkg = anr_dialog_package(serial)
+            if anr_pkg and anr_pkg != package:
+                adb(serial, "shell", "am", "kill", anr_pkg)
+                time.sleep(poll_s)
+                continue
+            if anr_pkg:
+                if anr is not None:
+                    anr.append(anr_pkg)
+                return None, None
             return frame, time.monotonic()
         time.sleep(poll_s)
     return None, None
@@ -548,7 +588,9 @@ def capture_twin(serial: str, example: str, timeout_s: float, poll_s: float) -> 
     adb(serial, "shell", "am", "start", "-W", "-n", REFERENCE_ACTIVITY,
         "--es", "E2EExample", example)
     try:
-        _, frame, _ = wait_for_settle(serial, timeout_s, poll_s)
+        _, frame, _ = wait_for_settle(
+            serial, timeout_s, poll_s, package=REFERENCE_PACKAGE
+        )
         return frame
     finally:
         subprocess.run(
@@ -735,13 +777,16 @@ def _run_packaged_example(
     settled_at_ms: int | None = None
     try:
         if cfg["mode"] == "verify":
+            anr_pkgs: list[str] = []
             settled, frame, content_at = wait_for_settle(
-                serial, cfg["settle_s"], cfg["poll_s"], watch=watch
+                serial, cfg["settle_s"], cfg["poll_s"], watch=watch,
+                package=package, anr=anr_pkgs,
             )
             if settled:
                 settled_at_ms = int((time.monotonic() - launch_t) * 1000)
             abort = abort or watch.abort_reason()
             detail = "settled" if settled else (
+                f"app ANR: {anr_pkgs[0]} not responding" if anr_pkgs else
                 f"{abort}, compared the final frame" if abort else
                 "app process never appeared after am start" if not watch.seen else
                 f"no settled frame within {cfg['settle_s']:g}s; compared the final frame"
@@ -773,16 +818,21 @@ def _run_packaged_example(
             if abort and status != "FAIL":
                 status = "FAIL"
         else:  # smoke
+            anr_pkgs = []
             frame, content_at = wait_for_content(
-                serial, cfg["settle_s"], cfg["poll_s"], watch=watch
+                serial, cfg["settle_s"], cfg["poll_s"], watch=watch,
+                package=package, anr=anr_pkgs,
             )
             abort = abort or watch.abort_reason()
             if frame is None:
                 status = "FAIL"
-                detail = abort or (
-                    "app process never appeared after am start"
-                    if not watch.seen else
-                    f"screen stayed blank for {cfg['settle_s']:g}s after startup"
+                detail = (
+                    f"app ANR: {anr_pkgs[0]} not responding" if anr_pkgs else
+                    abort or (
+                        "app process never appeared after am start"
+                        if not watch.seen else
+                        f"screen stayed blank for {cfg['settle_s']:g}s after startup"
+                    )
                 )
                 last = capture_screen(serial)
                 if last:
