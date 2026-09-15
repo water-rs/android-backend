@@ -2,7 +2,6 @@ package dev.waterui.android.components
 
 import android.widget.FrameLayout
 import com.google.android.material.badge.BadgeDrawable
-import com.google.android.material.badge.BadgeUtils
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -26,7 +25,13 @@ private val badgeRenderer = WuiRenderer { context, node, env, registry ->
     container.addView(anchor)
 
     val indicator = BadgeDrawable.create(context)
-    BadgeUtils.attachBadgeDrawable(indicator, anchor, container)
+    // `BadgeUtils.attachBadgeDrawable` is `@ExperimentalBadgeUtils`; attach
+    // directly instead — the drawable lives in the container's overlay and
+    // re-anchors on every layout pass, which is all the util does.
+    container.overlay.add(indicator)
+    anchor.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+        indicator.updateBadgeCoordinates(view, container)
+    }
 
     val value = WuiComputed.int(badge.valuePtr)
     value.observe { count ->
