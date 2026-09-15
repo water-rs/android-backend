@@ -76,6 +76,10 @@ CLI_ARCH_FOR_ABI = {
 # per emulator; the setting persists until the device reboots.
 DEMO_MODE_COMMANDS = (
     ("shell", "settings", "put", "global", "sysui_demo_allowed", "1"),
+    # The Theme.Material3.DayNight scaffold follows ui_night_mode, and a
+    # cached AVD carries whatever theme a previous run left — pin light so
+    # golden comparisons are theme-deterministic.
+    ("shell", "cmd", "uimode", "night", "no"),
     ("shell", "am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", "enter"),
     ("shell", "am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", "clock",
      "-e", "hhmm", "1200"),
