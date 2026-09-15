@@ -98,6 +98,9 @@ class WaterUiRootView @JvmOverloads constructor(
             check(isEmpty()) { "uninitialized WaterUiRootView has an existing child" }
             beginRenderRoot()
         }
+        // requestApplyInsets before attach can be dropped; re-ask now that a
+        // dispatch is guaranteed to land.
+        ViewCompat.requestApplyInsets(this)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
