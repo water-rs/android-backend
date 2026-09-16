@@ -380,7 +380,9 @@ private data class MaterialThemePalette(
     val tertiary: Int,
     val tertiaryContainer: Int,
     val selectionContainer: Int,
-    val selectionForeground: Int
+    val selectionForeground: Int,
+    val error: Int,
+    val errorForeground: Int
 ) {
     operator fun get(slot: ColorSlot): Int = when (slot) {
         ColorSlot.Background -> background
@@ -396,6 +398,8 @@ private data class MaterialThemePalette(
         ColorSlot.TertiaryContainer -> tertiaryContainer
         ColorSlot.SelectionContainer -> selectionContainer
         ColorSlot.SelectionForeground -> selectionForeground
+        ColorSlot.Error -> error
+        ColorSlot.ErrorForeground -> errorForeground
     }
 
     companion object {
@@ -449,6 +453,16 @@ private data class MaterialThemePalette(
                 context,
                 com.google.android.material.R.attr.colorOnSecondaryContainer,
                 "colorOnSecondaryContainer"
+            ),
+            error = resolve(
+                context,
+                androidx.appcompat.R.attr.colorError,
+                "colorError"
+            ),
+            errorForeground = resolve(
+                context,
+                com.google.android.material.R.attr.colorOnError,
+                "colorOnError"
             )
         )
 
