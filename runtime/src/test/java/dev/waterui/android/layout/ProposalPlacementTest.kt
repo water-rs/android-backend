@@ -42,8 +42,9 @@ import org.robolectric.annotation.Config
  * measurement probe happened to offer. These tests pin the transport rules the
  * Android side of that contract answers to: the proposal reaches the child
  * unchanged (NaN stays unspecified, infinity stays unbounded), the child is
- * measured under it rather than under the frame, and wrappers forward it the
- * way they forward size.
+ * measured under it rather than under the frame — except on an axis the child
+ * stretches to fill, where the allocated frame is the negotiated extent and
+ * is measured exactly — and wrappers forward it the way they forward size.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -140,10 +141,13 @@ class ProposalPlacementTest {
 
     @Test
     fun frameIsTheAllocationNeverTheOffer() {
-        val child = RecordingMeasuredView(context())
+        val child = RecordingMeasuredView(context()).apply {
+            setTag(TAG_STRETCH_AXIS, StretchAxis.NONE)
+        }
 
-        // A ZStack hands a child the frame it stretched to under an unbounded
-        // offer; measuring the child at the frame would pin it to the answer.
+        // A ZStack hands a non-stretching child a frame centred inside bounds
+        // negotiated under an unbounded offer; measuring the child at the
+        // frame would pin it to the answer.
         child.measureForPlacement(
             placement(width = 200f, height = 40f, proposalWidth = Float.POSITIVE_INFINITY, proposalHeight = Float.NaN),
             DENSITY
@@ -154,8 +158,52 @@ class ProposalPlacementTest {
     }
 
     @Test
+    fun stretchedAxisIsMeasuredAtTheAllocatedFrame() {
+        // A child that fills an axis is measured at the extent placement
+        // allocated there: Android resolves a view's internal layout at
+        // measure time, so an AT_MOST offer would leave it packed at its
+        // intrinsic size inside the wider frame. The axis it does not fill
+        // keeps the selected proposal.
+        val child = RecordingMeasuredView(context()).apply {
+            setTag(TAG_STRETCH_AXIS, StretchAxis.HORIZONTAL)
+        }
+
+        child.measureForPlacement(
+            placement(width = 200f, height = 40f, proposalWidth = 60f, proposalHeight = Float.NaN),
+            DENSITY
+        )
+
+        assertEquals(View.MeasureSpec.EXACTLY, child.lastWidthMode)
+        assertEquals(400, child.lastWidthSize)
+        assertEquals(View.MeasureSpec.UNSPECIFIED, child.lastHeightMode)
+    }
+
+    @Test
+    fun stretchedWrapperContentIsMeasuredAtTheAllocatedFrame() {
+        // A transparent wrapper answers placement through its content: the
+        // exact measure reaches the content, so its measured size agrees with
+        // the frame the wrapper is laid out to — a FrameLayout positions its
+        // content at the content's measured size.
+        val context = context()
+        val content = RecordingMeasuredView(context).apply {
+            setTag(TAG_STRETCH_AXIS, StretchAxis.HORIZONTAL)
+        }
+        val wrapper = PassThroughFrameLayout(context).apply { addView(content) }
+
+        wrapper.measureForPlacement(
+            placement(width = 200f, height = 40f, proposalWidth = 60f, proposalHeight = Float.NaN),
+            DENSITY
+        )
+
+        assertEquals(View.MeasureSpec.EXACTLY, content.lastWidthMode)
+        assertEquals(400, content.lastWidthSize)
+    }
+
+    @Test
     fun placementMeasuresUnderTheSelectedProposalNotTheLastProbe() {
-        val child = RecordingMeasuredView(context())
+        val child = RecordingMeasuredView(context()).apply {
+            setTag(TAG_STRETCH_AXIS, StretchAxis.NONE)
+        }
 
         // Probes arrive in any order; the last one must not leak into placement.
         child.measure(atMost(400), unspecified())
@@ -176,7 +224,9 @@ class ProposalPlacementTest {
     fun finiteOfferCapsTheAskNotTheAnswer() {
         // A child whose minimum exceeds the offer is still offered the offer;
         // it answers with its size and the frame overflows.
-        val child = RecordingMeasuredView(context())
+        val child = RecordingMeasuredView(context()).apply {
+            setTag(TAG_STRETCH_AXIS, StretchAxis.NONE)
+        }
 
         child.measureForPlacement(
             placement(width = 100f, height = 10f, proposalWidth = 60f, proposalHeight = Float.NaN),

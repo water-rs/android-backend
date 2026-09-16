@@ -3,6 +3,8 @@ package dev.waterui.android.components
 import android.annotation.SuppressLint
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import androidx.core.graphics.Insets
@@ -70,22 +72,53 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
 
     // Layout decisions (including centering) are made by Rust layout engine.
     // Android only measures and places children.
+    //
+    // The scroll axis stays content-sized while the cross axis takes the
+    // viewport's full extent, matching the Apple bridge: a vertical scroll
+    // proposes the viewport width to its content and a horizontal scroll the
+    // viewport height, so a centred column spans the window instead of
+    // wrapping to its widest row. A bidirectional scroll offers neither —
+    // content is measured on both axes.
     var verticalHost: ScrollView? = null
     var horizontalHost: HorizontalScrollView? = null
     val viewport: View = when (struct.axis) {
         AXIS_HORIZONTAL -> HorizontalScrollView(context).apply {
             isHorizontalScrollBarEnabled = true
-            addView(content)
+            addView(
+                content,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
             horizontalHost = this
         }
         AXIS_VERTICAL -> ScrollView(context).apply {
-            addView(content)
+            addView(
+                content,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
             verticalHost = this
         }
         AXIS_ALL -> ScrollView(context).apply {
             val horizontal = HorizontalScrollView(context)
-            horizontal.addView(content)
-            addView(horizontal)
+            horizontal.addView(
+                content,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+            addView(
+                horizontal,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
             verticalHost = this
             horizontalHost = horizontal
         }
