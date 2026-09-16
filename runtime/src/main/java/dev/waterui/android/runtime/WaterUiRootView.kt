@@ -1,6 +1,7 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -10,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +31,8 @@ import dev.waterui.android.components.WebViewFactory
 import dev.waterui.android.components.webViewAvailable
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
+
+private const val ROOT_VIEW_LOG_TAG = "WaterUI.RootView"
 
 /** Hosts one Rust-driven WaterUI view tree and owns its native environment. */
 class WaterUiRootView @JvmOverloads constructor(
@@ -63,6 +67,7 @@ class WaterUiRootView @JvmOverloads constructor(
         requireNotNull(context.findWaterUiContext()) {
             "WaterUiRootView is missing its WaterUiContext"
         }.setRootEnvironmentConsumer(::captureRootEnvironment)
+        requestWideGamutColorMode()
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, windowInsets ->
             applySafeArea(windowInsets.waterUiSafeArea())
             windowInsets
@@ -105,6 +110,9 @@ class WaterUiRootView @JvmOverloads constructor(
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // A move to another display re-reports the gamut the window is on, so
+        // the color mode tracks the configuration alongside locale and theme.
+        requestWideGamutColorMode()
         pendingEnvironment?.let { installSystemLocale(it, newConfig) }
         environment?.let { installSystemLocale(it, newConfig) }
         materialTheme?.update(
@@ -270,6 +278,37 @@ class WaterUiRootView @JvmOverloads constructor(
         setPadding(0, 0, 0, 0)
         val child = getChildAt(0) ?: return
         applyRemainingInsets(child, safeArea)
+    }
+
+    /**
+     * Opts the window into extended-range colors where the display supports them.
+     *
+     * `Window.setColorMode` is what tells SurfaceFlinger this window's surface
+     * carries colors outside sRGB: without it the surface is allocated sRGB and
+     * the extended-range values `Paint` already carries (`Color.pack` into
+     * `LINEAR_EXTENDED_SRGB`, see PackedColorDrawing) clip at composition. The
+     * request runs at view construction, before the window's first attach
+     * commits its attributes, so the common `setContentView` flow never pays
+     * the surface recreation a later request would cost. `isScreenWideColorGamut`
+     * reports the gamut of the display this context is on, so a move between
+     * displays is picked up through `onConfigurationChanged`.
+     */
+    private fun requestWideGamutColorMode() {
+        if (!resources.configuration.isScreenWideColorGamut) {
+            return
+        }
+        val window = context.requireActivity().window
+        if (window == null) {
+            // A request that never reaches the window leaves a wide-gamut
+            // display compositing the app in sRGB while the content already
+            // draws extended range — an error, not a mode to fall back from.
+            Log.e(
+                ROOT_VIEW_LOG_TAG,
+                "Cannot request the wide-gamut color mode: the host activity has no window"
+            )
+            error("WaterUiRootView requires a host activity with a window")
+        }
+        window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
     }
 
     private fun captureRootEnvironment(env: WuiEnvironment) {
