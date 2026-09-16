@@ -387,13 +387,55 @@ class RustLayoutViewGroup(
  * as the offer: a ZStack hands a child the frame it stretched to under a far
  * larger selected proposal, and re-measuring at the frame would pin the child
  * to it.
+ *
+ * The exception is an axis the child stretches to fill: there the frame is
+ * the negotiated extent, and the measured size must agree with it. Android
+ * resolves a view's internal layout at measure time — LinearLayout packs
+ * weighted children at their measured extents and FrameLayout positions
+ * content at its measured size — so a stretcher measured under AT_MOST keeps
+ * its intrinsic answer and renders packed at the leading edge of a frame it
+ * was allocated in full. Measuring the axis EXACTLY at the allocation makes
+ * the measured size the extent `layout` is about to apply.
  */
 internal fun View.measureForPlacement(placement: SubviewPlacementStruct, density: Float) {
+    val stretchAxis = getWuiStretchAxis()
     measure(
-        proposalToMeasureSpec(placement.proposalWidth * density),
-        proposalToMeasureSpec(placement.proposalHeight * density)
+        placementMeasureSpec(placement.proposalWidth, placement.width, density, stretchAxis.mayFillHorizontal()),
+        placementMeasureSpec(placement.proposalHeight, placement.height, density, stretchAxis.mayFillVertical())
     )
 }
+
+/**
+ * The spec one axis of a placed child is measured under: EXACTLY the
+ * allocated frame extent on an axis the child fills, the selected proposal's
+ * spec on an axis it does not.
+ */
+private fun placementMeasureSpec(
+    proposalDp: Float,
+    allocatedDp: Float,
+    density: Float,
+    fillsAxis: Boolean
+): Int {
+    if (!fillsAxis) {
+        return proposalToMeasureSpec(proposalDp * density)
+    }
+    val allocated = ceil(allocatedDp * density).toInt().coerceAtLeast(0)
+    return View.MeasureSpec.makeMeasureSpec(allocated, View.MeasureSpec.EXACTLY)
+}
+
+/**
+ * Whether a placement frame on the horizontal axis can be an extent this view
+ * stretched to fill. `MAIN_AXIS` and `CROSS_AXIS` are resolved against the
+ * parent stack's orientation, which is not visible at this boundary, so both
+ * count: on the axis the parent did not stretch, the frame is the child's own
+ * measured extent and an exact measure to it changes nothing.
+ */
+private fun StretchAxis.mayFillHorizontal(): Boolean =
+    this != StretchAxis.NONE && this != StretchAxis.VERTICAL
+
+/** See [mayFillHorizontal]. */
+private fun StretchAxis.mayFillVertical(): Boolean =
+    this != StretchAxis.NONE && this != StretchAxis.HORIZONTAL
 
 /**
  * Hands a placed child the proposal the Rust layout selected for it. The
