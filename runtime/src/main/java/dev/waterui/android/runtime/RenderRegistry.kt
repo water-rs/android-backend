@@ -128,6 +128,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiFocused()
         registerWuiIgnoreSafeArea()
         registerWuiRetain()
+        registerWuiLayoutPriority()
         registerWuiDynamicRange()
         registerWuiContextMenu()
         registerWuiDragDropMetadata()

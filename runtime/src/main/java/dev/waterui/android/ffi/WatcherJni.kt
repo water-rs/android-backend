@@ -64,6 +64,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsResolvedShape(viewPtr: Long): ResolvedShapeStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): dev.waterui.android.runtime.DynamicStruct
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
+    @JvmStatic external fun forceAsMetadataLayoutPriority(viewPtr: Long): MetadataLayoutPriorityStruct
     @JvmStatic external fun forceAsMetadataNavigationTransitionSource(
         viewPtr: Long
     ): MetadataNavigationTransitionStruct
@@ -320,7 +321,8 @@ object WatcherJni {
 
     @JvmStatic external fun layoutMeasure(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): ViewDimensionsStruct
     @JvmStatic external fun layoutSizeThatFits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct
-    @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct>
+    @JvmStatic external fun layoutPlaceSubviews(layoutPtr: Long, bounds: RectStruct, proposal: ProposalStruct, subviews: Array<SubViewStruct>): Array<SubviewPlacementStruct>
+    @JvmStatic external fun layoutStretchAxis(layoutPtr: Long, children: IntArray): Int
     @JvmStatic external fun layoutLazyStackAxis(layoutPtr: Long): Int
     @JvmStatic external fun layoutLazyStackSpacing(layoutPtr: Long): Float
     @JvmStatic external fun layoutLazyStackHorizontalAlignment(layoutPtr: Long): Int
@@ -385,6 +387,7 @@ object WatcherJni {
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataLayoutPriorityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataStandardDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataHighDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsMetadataStandardDynamicRange(

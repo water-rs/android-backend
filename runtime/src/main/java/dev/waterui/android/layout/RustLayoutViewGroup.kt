@@ -5,18 +5,25 @@ import android.content.Context
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Space
 import androidx.core.graphics.Insets
 import androidx.core.view.isEmpty
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.WuiLiveSlotTraits
+import dev.waterui.android.runtime.WuiMeasurableLayout
+import dev.waterui.android.runtime.WuiProposalAware
 import dev.waterui.android.runtime.WuiSafeAreaManaging
 import dev.waterui.android.runtime.applyRemainingInsets
+import dev.waterui.android.runtime.getWuiLayoutPriority
+import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.handlesSafeArea
+import dev.waterui.android.runtime.measureSpecToProposalPx
+import dev.waterui.android.runtime.proposalToMeasureSpec
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
+import dev.waterui.android.runtime.SubviewPlacementStruct
 import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.disposeAndRemoveView
 import dev.waterui.android.runtime.disposeWith
@@ -29,14 +36,16 @@ import kotlin.math.roundToInt
  * Measurement and placement are delegated to the Rust layout engine via JNI.
  * Uses the new 2-phase layout system:
  * 1. `size_that_fits` - Rust calls back to measure children as needed
- * 2. `place` - Returns final positions for all children
+ * 2. `place` - Returns each child's frame together with the proposal the
+ *    layout selected for it; the selected proposal is delivered to any child
+ *    that hosts WaterUI content of its own so nested layouts negotiate under
+ *    the same offer rather than one reconstructed from the frame.
  */
 @SuppressLint("ViewConstructor")
 class RustLayoutViewGroup(
     context: Context,
-    private val layoutPtr: Long,
-    private var descriptors: List<ChildDescriptor> = emptyList()
-) : ViewGroup(context), WuiSafeAreaManaging {
+    private val layoutPtr: Long
+) : ViewGroup(context), WuiSafeAreaManaging, WuiProposalAware, WuiMeasurableLayout, WuiLiveSlotTraits {
     /// The insets no ancestor has consumed. The children are laid out inside
     /// them; a child that handles the safe area itself and touches an edge of
     /// that area is extended to the bounds on that edge and handed the inset
@@ -77,20 +86,54 @@ class RustLayoutViewGroup(
     private fun Float.pxToDp(): Float = this / density
 
     private var cachedSubviews: Array<SubViewStruct> = emptyArray()
-    private val scratchProposal = ProposalStruct(width = Float.NaN, height = Float.NaN)
+
+    /**
+     * The offer the host environment measured this group under, in dp. It is
+     * the proposal this group passes to its Rust layout when no WaterUI parent
+     * selected one — the only place a bounded offer may originate. Every
+     * proposal a WaterUI parent selects arrives through
+     * [setWuiSelectedProposal] instead.
+     */
+    private val measuredProposal = ProposalStruct(width = Float.NaN, height = Float.NaN)
+
+    /**
+     * The proposal the enclosing Rust layout selected for this group, or null
+     * when no WaterUI parent has selected one for the current pass. Cleared on
+     * every measure so a stale selection can never outlive the offer that
+     * produced it.
+     */
+    private var selectedProposal: ProposalStruct? = null
+
     private val scratchBounds = RectStruct(x = 0f, y = 0f, width = 0f, height = 0f)
 
+    override fun setWuiSelectedProposal(proposalWidth: Float, proposalHeight: Float) {
+        selectedProposal = ProposalStruct(proposalWidth, proposalHeight)
+    }
+
+    /**
+     * The stretch answer this layout gives a WaterUI parent, computed from the
+     * children it holds right now. `Layout::stretch_axis` takes the children
+     * as an argument precisely so this is never a copy: the answer recorded at
+     * inflation was read over a child set that did not exist yet, and one
+     * refreshed only during this group's own layout pass reaches its parent a
+     * pass late. Every read asks the live membership, so neither staleness is
+     * possible.
+     */
+    override fun resolveWuiStretchAxis(): StretchAxis = StretchAxis.fromInt(
+        NativeBindings.waterui_layout_stretch_axis(
+            layoutPtr,
+            IntArray(childCount) { getChildAt(it).getWuiStretchAxis().value }
+        )
+    )
+
     private fun resolveSubviews(): Array<SubViewStruct> {
-        check(descriptors.size == childCount) {
-            "Rust layout descriptor count ${descriptors.size} does not match child count $childCount"
-        }
         if (cachedSubviews.size != childCount || subviewsOutdated()) {
             cachedSubviews = Array(childCount) { index ->
-                val descriptor = descriptors[index]
+                val child = getChildAt(index)
                 SubViewStruct(
-                    view = getChildAt(index),
-                    stretchAxis = descriptor.stretchAxis,
-                    priority = descriptor.priority,
+                    view = child,
+                    stretchAxis = child.getWuiStretchAxis(),
+                    priority = child.getWuiLayoutPriority(),
                     density = density
                 )
             }
@@ -100,7 +143,11 @@ class RustLayoutViewGroup(
 
     private fun subviewsOutdated(): Boolean {
         for (index in 0 until cachedSubviews.size) {
-            if (cachedSubviews[index].view !== getChildAt(index)) {
+            val child = getChildAt(index)
+            if (cachedSubviews[index].view !== child ||
+                cachedSubviews[index].stretchAxis != child.getWuiStretchAxis() ||
+                cachedSubviews[index].priority != child.getWuiLayoutPriority()
+            ) {
                 return true
             }
         }
@@ -128,8 +175,7 @@ class RustLayoutViewGroup(
      * focus, and accessibility node survive a membership change of the
      * surrounding collection (`ForEach`/`List` reconcile).
      */
-    fun reconcileChildren(ordered: List<View>, newDescriptors: List<ChildDescriptor>) {
-        descriptors = newDescriptors
+    fun reconcileChildren(ordered: List<View>) {
         // 1. Detach any currently-attached child that is no longer wanted.
         for (index in childCount - 1 downTo 0) {
             val existing = getChildAt(index)
@@ -151,7 +197,7 @@ class RustLayoutViewGroup(
         requestLayout()
     }
 
-    internal fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
         if (isEmpty()) {
             return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
         }
@@ -167,16 +213,23 @@ class RustLayoutViewGroup(
         }
 
         val constraints = LayoutConstraints.fromMeasureSpecs(widthMeasureSpec, heightMeasureSpec)
-        // Convert pixel constraints to dp for Rust layout engine
-        scratchProposal.width = if (constraints.maxWidth != Int.MAX_VALUE) constraints.maxWidth.toFloat() / density else Float.NaN
-        scratchProposal.height = if (constraints.maxHeight != Int.MAX_VALUE) constraints.maxHeight.toFloat() / density else Float.NaN
+        // Convert pixel specs to the dp offer Rust sees. Only a spec naming a
+        // bound is an offer, and only this host-derived proposal may create
+        // one — a WaterUI parent's selection arrives through
+        // setWuiSelectedProposal instead.
+        measuredProposal.width = measureSpecToProposalPx(widthMeasureSpec).pxToDp()
+        measuredProposal.height = measureSpecToProposalPx(heightMeasureSpec).pxToDp()
+        // A host re-measure supersedes the proposal a WaterUI parent selected
+        // for the previous pass; placement falls back to the measured offer
+        // until the next selection arrives.
+        selectedProposal = null
 
         // Create SubViewStruct array - Rust will call back to measure each child
         // Pass density so child measurements can convert between dp and pixels
         val subviews = resolveSubviews()
 
         // Rust computes layout in dp, convert result to pixels for Android
-        val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, scratchProposal, subviews)
+        val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, measuredProposal, subviews)
         val measuredWidth = requestedSize.width.dpToPx().resolveDimension(constraints.minWidth, constraints.maxWidth)
         val measuredHeight = requestedSize.height.dpToPx().resolveDimension(constraints.minHeight, constraints.maxHeight)
 
@@ -204,11 +257,18 @@ class RustLayoutViewGroup(
         // Pass density so child measurements can convert between dp and pixels
         val subviews = resolveSubviews()
 
-        // Rust returns placements in dp, convert to pixels for Android layout
-        val placements = NativeBindings.waterui_layout_place(layoutPtr, scratchBounds, subviews)
+        // The proposal this layout negotiated under: the one a WaterUI parent
+        // selected for this group if there is one, else the offer the host
+        // measured us with. It is passed to place unchanged — re-deriving it
+        // from our bounds would invent a finite offer the layout never saw.
+        val proposal = selectedProposal ?: measuredProposal
+        val placements = NativeBindings.waterui_layout_place_subviews(layoutPtr, scratchBounds, proposal, subviews)
+        check(placements.size == childCount) {
+            "Rust layout placed ${placements.size} subviews for $childCount children"
+        }
 
         for (index in 0 until childCount) {
-            val rect = placements[index]
+            val placement = placements[index]
             val child = getChildAt(index)
 
             // Convert dp to pixels. Sizes round up: every dp<->px hop through a
@@ -216,22 +276,16 @@ class RustLayoutViewGroup(
             // allocated less than it measured wraps or clips its content — the
             // "Tap Me!" label that laid out 1px short and dropped "Me!" to a
             // clipped second line.
-            val allocatedWidth = ceil(rect.width.dpToPx()).toInt()
-            val allocatedHeight = ceil(rect.height.dpToPx()).toInt()
+            val allocatedWidth = ceil(placement.width.dpToPx()).toInt()
+            val allocatedHeight = ceil(placement.height.dpToPx()).toInt()
 
-            // Re-measure child at allocated size if different from measured size.
-            // This is critical for StretchAxis::Horizontal components (TextField, Slider, etc.)
-            // which report minimum width during size_that_fits but expand during place.
-            if (child.measuredWidth != allocatedWidth || child.measuredHeight != allocatedHeight) {
-                child.measure(
-                    View.MeasureSpec.makeMeasureSpec(allocatedWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(allocatedHeight, View.MeasureSpec.EXACTLY)
-                )
-            }
+            // Measure the child under the proposal the layout selected for
+            // it — the negotiation, not the frame.
+            child.measureForPlacement(placement, density)
 
             // Convert dp positions to pixels
-            var childLeft = rect.x.dpToPx().roundToInt()
-            var childTop = rect.y.dpToPx().roundToInt()
+            var childLeft = placement.x.dpToPx().roundToInt()
+            var childTop = placement.y.dpToPx().roundToInt()
             var childRight = childLeft + allocatedWidth
             var childBottom = childTop + allocatedHeight
             if (safeArea != Insets.NONE && handlesSafeArea(child)) {
@@ -261,6 +315,10 @@ class RustLayoutViewGroup(
                     )
                 }
             }
+            // Deliver the selected proposal after every re-measure, just
+            // before the frame is applied: measuring resets a nested
+            // container's selection.
+            child.deliverSelectedProposal(placement)
             child.layout(childLeft, childTop, childRight, childBottom)
         }
     }
@@ -318,10 +376,34 @@ class RustLayoutViewGroup(
     }
 }
 
-data class ChildDescriptor(
-    val stretchAxis: StretchAxis,
-    val priority: Int = 0
-)
+/**
+ * Measures a placed child under the proposal the Rust layout selected for it.
+ *
+ * The selected proposal is the contract placement negotiated: a finite offer
+ * arrives as AT_MOST so the child answers with the size it actually takes — a
+ * child whose minimum exceeds the offer keeps its size and the frame
+ * overflows — while an axis the layout left unspecified (NaN) or probed
+ * without bound (infinity) stays free. The resolved frame is never fed back
+ * as the offer: a ZStack hands a child the frame it stretched to under a far
+ * larger selected proposal, and re-measuring at the frame would pin the child
+ * to it.
+ */
+internal fun View.measureForPlacement(placement: SubviewPlacementStruct, density: Float) {
+    measure(
+        proposalToMeasureSpec(placement.proposalWidth * density),
+        proposalToMeasureSpec(placement.proposalHeight * density)
+    )
+}
+
+/**
+ * Hands a placed child the proposal the Rust layout selected for it. The
+ * selected proposal is part of the placement contract; it is delivered after
+ * every re-measure and before the frame is applied, so a nested Rust layout
+ * places its own children under the same offer the parent negotiated for it.
+ */
+internal fun View.deliverSelectedProposal(placement: SubviewPlacementStruct) {
+    (this as? WuiProposalAware)?.setWuiSelectedProposal(placement.proposalWidth, placement.proposalHeight)
+}
 
 private data class LayoutConstraints(
     val minWidth: Int,
