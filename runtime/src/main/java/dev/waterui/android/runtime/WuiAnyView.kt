@@ -88,11 +88,45 @@ fun inflateAnyView(
 }
 
 /**
- * Gets the stretch axis stored on a view during inflation.
+ * The stretch axis this view reports to a WaterUI parent, answered live.
+ *
+ * A view carrying [WuiLiveSlotTraits] — a transparent wrapper forwarding to
+ * its content, or a `RustLayoutViewGroup` recomputing over its current
+ * children — is asked every time, so the answer can never go stale the way a
+ * tag copied at attach time does. Anything else answers with the tag inflation
+ * stamped on it.
  */
 fun View.getWuiStretchAxis(): StretchAxis {
-    return getTag(TAG_STRETCH_AXIS) as? StretchAxis
+    return (this as? WuiLiveSlotTraits)?.resolveWuiStretchAxis()
+        ?: getTag(TAG_STRETCH_AXIS) as? StretchAxis
         ?: error("WaterUI view ${javaClass.name} is missing a valid stretch-axis tag")
 }
 
-fun View.getWuiLayoutPriority(): Int = getTag(TAG_LAYOUT_PRIORITY) as? Int ?: 0
+/**
+ * The layout priority this view reports to a WaterUI parent.
+ *
+ * An explicit tag — stamped by `layoutPriority` metadata or a view with an
+ * intrinsic priority such as `Spacer` — always wins; only without one does
+ * the live answer matter, so an explicit override can never be shadowed by a
+ * stale copy or by the content behind a wrapper.
+ */
+fun View.getWuiLayoutPriority(): Int {
+    return getTag(TAG_LAYOUT_PRIORITY) as? Int
+        ?: (this as? WuiLiveSlotTraits)?.resolveWuiLayoutPriority()
+        ?: 0
+}
+
+/**
+ * Whether this view carries a WaterUI slot identity — a live slot-traits
+ * implementation, a Rust layout it can measure, or the stretch tag inflation
+ * stamps.
+ *
+ * This is what a transparent wrapper looks for when it picks the child whose
+ * slot it stands in: exactly the children that participate in the WaterUI
+ * layout contract. Auxiliary views a host adds for itself — media or capture
+ * surfaces — carry no identity and are never the content.
+ */
+internal fun View.hasWuiSlotIdentity(): Boolean {
+    return this is WuiLiveSlotTraits || this is WuiMeasurableLayout ||
+        getTag(TAG_STRETCH_AXIS) != null
+}

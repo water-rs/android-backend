@@ -127,8 +127,9 @@ internal object NativeBindings {
         WatcherJni.layoutMeasure(layoutPtr, proposal, subviews)
     fun waterui_layout_size_that_fits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct =
         WatcherJni.layoutSizeThatFits(layoutPtr, proposal, subviews)
-    fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct> =
-        WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
+    fun waterui_layout_place_subviews(layoutPtr: Long, bounds: RectStruct, proposal: ProposalStruct, subviews: Array<SubViewStruct>): Array<SubviewPlacementStruct> =
+        WatcherJni.layoutPlaceSubviews(layoutPtr, bounds, proposal, subviews)
+    fun waterui_layout_stretch_axis(layoutPtr: Long, children: IntArray): Int = WatcherJni.layoutStretchAxis(layoutPtr, children)
     fun waterui_layout_lazy_stack_axis(layoutPtr: Long): Int = WatcherJni.layoutLazyStackAxis(layoutPtr)
     fun waterui_layout_lazy_stack_spacing(layoutPtr: Long): Float = WatcherJni.layoutLazyStackSpacing(layoutPtr)
     fun waterui_layout_lazy_stack_horizontal_alignment(layoutPtr: Long): Int =
@@ -217,6 +218,8 @@ internal object NativeBindings {
     fun waterui_force_as_resolved_gradient(viewPtr: Long): ResolvedGradientStruct = WatcherJni.forceAsResolvedGradient(viewPtr)
     fun waterui_force_as_resolved_shape(viewPtr: Long): ResolvedShapeStruct = WatcherJni.forceAsResolvedShape(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
+    fun waterui_force_as_metadata_layout_priority(viewPtr: Long): MetadataLayoutPriorityStruct =
+        WatcherJni.forceAsMetadataLayoutPriority(viewPtr)
     fun waterui_force_as_metadata_navigation_transition_source(
         viewPtr: Long
     ): MetadataNavigationTransitionStruct =
@@ -368,6 +371,7 @@ internal object NativeBindings {
     fun waterui_metadata_focused_id(): TypeIdStruct = WatcherJni.metadataFocusedId()
     fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
     fun waterui_metadata_retain_id(): TypeIdStruct = WatcherJni.metadataRetainId()
+    fun waterui_metadata_layout_priority_id(): TypeIdStruct = WatcherJni.metadataLayoutPriorityId()
     fun waterui_metadata_standard_dynamic_range_id(): TypeIdStruct =
         WatcherJni.metadataStandardDynamicRangeId()
     fun waterui_metadata_high_dynamic_range_id(): TypeIdStruct =

@@ -21,12 +21,10 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativeViewCollection
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ReactiveStyledText
-import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 import java.io.Closeable
 
@@ -457,7 +455,6 @@ private val metadataContextMenuRenderer = WuiRenderer { context, node, env, regi
         setTag(PassThroughFrameLayout.TAG_WANTS_TOUCHES, true)
         isLongClickable = true
         addView(child)
-        setTag(TAG_STRETCH_AXIS, child.getWuiStretchAxis())
         setOnLongClickListener { showPopupMenu(it, source) }
         disposeWith(source)
     }

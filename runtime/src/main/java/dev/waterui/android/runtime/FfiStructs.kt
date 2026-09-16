@@ -99,8 +99,28 @@ data class ViewDimensionsStruct(
 data class RectStruct(var x: Float, var y: Float, var width: Float, var height: Float)
 
 /**
+ * A child's resolved frame plus the proposal the Rust layout selected for it.
+ * Returned by waterui_layout_place_subviews.
+ *
+ * The proposal axes carry the shared contract's encoding: [Float.NaN] for an
+ * axis the layout left unspecified, [Float.POSITIVE_INFINITY] for an
+ * unbounded probe, and a finite value for the offer the layout negotiated
+ * under. The frame is the allocation; the proposal is the negotiation — they
+ * are not interchangeable, and the proposal must never be re-derived from the
+ * frame.
+ */
+data class SubviewPlacementStruct(
+    var x: Float,
+    var y: Float,
+    var width: Float,
+    var height: Float,
+    var proposalWidth: Float,
+    var proposalHeight: Float
+)
+
+/**
  * SubView metadata for the new 2-phase layout system.
- * Used with waterui_layout_size_that_fits and waterui_layout_place.
+ * Used with waterui_layout_size_that_fits and waterui_layout_place_subviews.
  *
  * The view reference is used by the native layer to call back into Java
  * for measuring the child view during layout negotiation.
@@ -124,28 +144,63 @@ data class SubViewStruct(
      */
     @Suppress("unused") // Called from native code
     fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
-        // Convert dp proposal to pixel MeasureSpec
-        val widthSpec = proposalToMeasureSpec(proposalWidth * density)
-        val heightSpec = proposalToMeasureSpec(proposalHeight * density)
-        view.measure(widthSpec, heightSpec)
-        // Convert pixel result back to dp for Rust
-        return ViewDimensionsStruct(
-            size = SizeStruct(
-                view.measuredWidth.toFloat() / density,
-                view.measuredHeight.toFloat() / density
-            ),
-            horizontalGuides = emptyArray(),
-            verticalGuides = emptyArray()
-        )
-    }
-
-    private fun proposalToMeasureSpec(proposalPx: Float): Int {
-        return when {
-            proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            else -> android.view.View.MeasureSpec.makeMeasureSpec(kotlin.math.ceil(proposalPx).toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+        // A view hosting a Rust layout of its own answers the probe itself:
+        // squeezing it through MeasureSpec cannot tell an unbounded probe
+        // (infinity) from an unspecified one (NaN), and cannot carry the
+        // alignment guides the nested layout reports.
+        if (view is WuiMeasurableLayout) {
+            return view.measureForLayout(ProposalStruct(proposalWidth, proposalHeight))
         }
+        return view.measureForProposal(ProposalStruct(proposalWidth, proposalHeight), density)
     }
+}
+
+/**
+ * Answers a Rust layout probe on behalf of a plain Android view, in dp.
+ *
+ * Only a view hosting WaterUI content ([WuiMeasurableLayout]) answers a probe
+ * losslessly; anything else is squeezed through MeasureSpec, which cannot tell
+ * an unbounded probe (infinity) from an unspecified one (NaN) and carries no
+ * alignment guides.
+ */
+internal fun android.view.View.measureForProposal(proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
+    // Convert dp proposal to pixel MeasureSpec
+    measure(
+        proposalToMeasureSpec(proposal.width * density),
+        proposalToMeasureSpec(proposal.height * density)
+    )
+    // Convert pixel result back to dp for Rust
+    return ViewDimensionsStruct(
+        size = SizeStruct(
+            measuredWidth.toFloat() / density,
+            measuredHeight.toFloat() / density
+        ),
+        horizontalGuides = emptyArray(),
+        verticalGuides = emptyArray()
+    )
+}
+
+/**
+ * The MeasureSpec a Rust proposal axis spells for a plain Android child, in
+ * pixels: an unspecified (NaN) or unbounded (infinity) axis leaves the child
+ * free, while a finite offer caps it at the offered size.
+ */
+internal fun proposalToMeasureSpec(proposalPx: Float): Int {
+    return when {
+        proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        else -> android.view.View.MeasureSpec.makeMeasureSpec(kotlin.math.ceil(proposalPx).toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+    }
+}
+
+/**
+ * The proposal axis a MeasureSpec spells for a Rust layout, in pixels: only a
+ * spec that names a bound is an offer; UNSPECIFIED leaves the axis
+ * unspecified.
+ */
+internal fun measureSpecToProposalPx(spec: Int): Float = when (android.view.View.MeasureSpec.getMode(spec)) {
+    android.view.View.MeasureSpec.UNSPECIFIED -> Float.NaN
+    else -> android.view.View.MeasureSpec.getSize(spec).toFloat()
 }
 
 // ========== Watcher Structs ==========
@@ -360,6 +415,13 @@ data class ColorPickerStruct(
  * Provides a new environment for child views.
  */
 data class MetadataEnvStruct(val contentPtr: Long, val envPtr: Long)
+
+/**
+ * Metadata<LayoutPriority> struct.
+ * Carries the explicit layout priority a `layoutPriority` modifier assigns
+ * to its content.
+ */
+data class MetadataLayoutPriorityStruct(val contentPtr: Long, val value: Int)
 
 data class MetadataNavigationTransitionStruct(val contentPtr: Long, val id: Int)
 
