@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
-import dev.waterui.android.layout.ChildDescriptor
 import dev.waterui.android.layout.RustLayoutViewGroup
 import dev.waterui.android.reactive.WatcherGuard
 import dev.waterui.android.runtime.HorizontalAlignment
@@ -21,7 +20,6 @@ import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.getWuiStretchAxis
-import dev.waterui.android.runtime.getWuiLayoutPriority
 import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.disposeAndRemoveView
 import dev.waterui.android.runtime.disposeWith
@@ -495,7 +493,7 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
         )
     }
 
-    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = emptyList())
+    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr)
     val contentsPtr = struct.childrenPtr
     if (contentsPtr != 0L) {
         val nativeViews = NativeAnyViews(contentsPtr)
@@ -507,7 +505,6 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
         fun syncChildren(ids: IntArray) {
             val seen = HashSet<Int>(ids.size)
             val ordered = ArrayList<View>(ids.size)
-            val descriptors = ArrayList<ChildDescriptor>(ids.size)
             ids.forEachIndexed { index, id ->
                 check(seen.add(id)) { "Duplicate child view id in container: $id" }
                 val view = renderedChildren[id] ?: run {
@@ -517,15 +514,9 @@ private val layoutContainerRenderer = WuiRenderer { context, node, env, registry
                 }
                 renderedChildren[id] = view
                 ordered.add(view)
-                descriptors.add(
-                    ChildDescriptor(
-                        stretchAxis = view.getWuiStretchAxis(),
-                        priority = view.getWuiLayoutPriority()
-                    )
-                )
             }
             renderedChildren.keys.retainAll(seen)
-            group.reconcileChildren(ordered, descriptors)
+            group.reconcileChildren(ordered)
         }
 
         val watcherGuard = nativeViews.watch(::syncChildren)
@@ -545,13 +536,7 @@ private val fixedContainerRenderer = WuiRenderer { context, node, env, registry 
     val inflatedChildren = struct.childPointers.map { childPtr ->
         inflateAnyView(context, childPtr, env, registry)
     }
-    val descriptors = inflatedChildren.map { child ->
-        ChildDescriptor(
-            stretchAxis = child.getWuiStretchAxis(),
-            priority = child.getWuiLayoutPriority()
-        )
-    }
-    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr, descriptors = descriptors)
+    val group = RustLayoutViewGroup(context, layoutPtr = struct.layoutPtr)
     inflatedChildren.forEach { child ->
         group.addView(child)
     }

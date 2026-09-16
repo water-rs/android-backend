@@ -44,8 +44,7 @@ import kotlin.math.roundToInt
 @SuppressLint("ViewConstructor")
 class RustLayoutViewGroup(
     context: Context,
-    private val layoutPtr: Long,
-    private var descriptors: List<ChildDescriptor> = emptyList()
+    private val layoutPtr: Long
 ) : ViewGroup(context), WuiSafeAreaManaging, WuiProposalAware, WuiMeasurableLayout, WuiLiveSlotTraits {
     /// The insets no ancestor has consumed. The children are laid out inside
     /// them; a child that handles the safe area itself and touches an edge of
@@ -128,9 +127,6 @@ class RustLayoutViewGroup(
     )
 
     private fun resolveSubviews(): Array<SubViewStruct> {
-        check(descriptors.size == childCount) {
-            "Rust layout descriptor count ${descriptors.size} does not match child count $childCount"
-        }
         if (cachedSubviews.size != childCount || subviewsOutdated()) {
             cachedSubviews = Array(childCount) { index ->
                 val child = getChildAt(index)
@@ -179,8 +175,7 @@ class RustLayoutViewGroup(
      * focus, and accessibility node survive a membership change of the
      * surrounding collection (`ForEach`/`List` reconcile).
      */
-    fun reconcileChildren(ordered: List<View>, newDescriptors: List<ChildDescriptor>) {
-        descriptors = newDescriptors
+    fun reconcileChildren(ordered: List<View>) {
         // 1. Detach any currently-attached child that is no longer wanted.
         for (index in childCount - 1 downTo 0) {
             val existing = getChildAt(index)
@@ -380,11 +375,6 @@ class RustLayoutViewGroup(
         return false
     }
 }
-
-data class ChildDescriptor(
-    val stretchAxis: StretchAxis,
-    val priority: Int = 0
-)
 
 /**
  * Measures a placed child under the proposal the Rust layout selected for it.
