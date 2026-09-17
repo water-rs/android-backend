@@ -6,6 +6,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonGroup
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -37,7 +38,7 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
 
     val spacingPx = 8f.dp(context).toInt()
 
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }

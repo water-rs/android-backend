@@ -144,24 +144,104 @@ data class SubViewStruct(
      */
     @Suppress("unused") // Called from native code
     fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
-        // A view hosting a Rust layout of its own answers the probe itself:
-        // squeezing it through MeasureSpec cannot tell an unbounded probe
-        // (infinity) from an unspecified one (NaN), and cannot carry the
-        // alignment guides the nested layout reports.
-        if (view is WuiMeasurableLayout) {
-            return view.measureForLayout(ProposalStruct(proposalWidth, proposalHeight))
-        }
-        return view.measureForProposal(ProposalStruct(proposalWidth, proposalHeight), density)
+        return view.answerProposal(ProposalStruct(proposalWidth, proposalHeight), density)
     }
 }
 
 /**
+ * The probe answer the WaterUI leaf contract requires of this view, in dp.
+ *
+ * A view that implements the contract itself — a view hosting WaterUI
+ * content, or a leaf whose answer MeasureSpec cannot express (text, which a
+ * height proposal must never cap, or a labelled control whose content
+ * negotiates the offer minus its platform chrome) — answers through
+ * [WuiMeasurableLayout]. Any other view is squeezed through
+ * [measureForProposal].
+ */
+internal fun android.view.View.answerProposal(proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
+    if (this is WuiMeasurableLayout) {
+        return measureForLayout(proposal)
+    }
+    return measureForProposal(proposal, density)
+}
+
+/**
+ * The proposal one axis of a control's WaterUI content hears: the control's
+ * own offer minus the room its platform chrome takes on that axis, floored at
+ * zero. An unspecified (NaN) or unbounded (infinity) offer has no extent to
+ * subtract from, so it passes through untouched.
+ */
+internal fun ProposalStruct.minusChrome(horizontalDp: Float, verticalDp: Float): ProposalStruct =
+    ProposalStruct(
+        width = if (width.isFinite()) (width - horizontalDp).coerceAtLeast(0f) else width,
+        height = if (height.isFinite()) (height - verticalDp).coerceAtLeast(0f) else height
+    )
+
+/**
+ * The answer one axis of a leaf gives a Rust layout probe, in dp.
+ *
+ * On an axis the leaf does not stretch, the answer is the intrinsic extent —
+ * measured under the proposal, so a wrapped label's height reflects the wrap
+ * — never the offer itself: a leaf echoing the proposal on an axis it does
+ * not fill claims room it will not draw, and clamping the intrinsic to the
+ * offer is what made text report zero height to a stack's minimum query. On
+ * an axis the leaf fills, a finite offer is the negotiated extent and is
+ * answered whole — floored at the intrinsic extent, since content cannot
+ * compress below itself — while an unspecified probe reports the intrinsic
+ * and an unbounded one reports the axis as able to absorb any size.
+ */
+internal fun leafAxisAnswer(proposalDp: Float, intrinsicDp: Float, fillsAxis: Boolean): Float =
+    when {
+        !fillsAxis -> intrinsicDp
+        proposalDp.isInfinite() -> Float.POSITIVE_INFINITY
+        proposalDp.isNaN() -> intrinsicDp
+        else -> maxOf(proposalDp, intrinsicDp)
+    }
+
+/**
+ * The probe answer for a view that is all platform chrome — a picker group,
+ * a dropdown field: it measures at its platform intrinsic size and answers
+ * that on each axis it does not fill. See [leafAxisAnswer].
+ */
+internal fun android.view.View.platformIntrinsicAnswer(proposal: ProposalStruct): ViewDimensionsStruct {
+    val density = resources.displayMetrics.density
+    measure(
+        android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+        android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+    )
+    val axis = getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
+    return ViewDimensionsStruct(
+        size = SizeStruct(
+            width = leafAxisAnswer(proposal.width, measuredWidth.toFloat() / density, axis.mayFillHorizontal()),
+            height = leafAxisAnswer(proposal.height, measuredHeight.toFloat() / density, axis.mayFillVertical())
+        ),
+        horizontalGuides = emptyArray(),
+        verticalGuides = emptyArray()
+    )
+}
+
+/**
+ * Whether a proposal or placement frame on the horizontal axis can be an
+ * extent this view stretched to fill. `MAIN_AXIS` and `CROSS_AXIS` are
+ * resolved against the parent stack's orientation, which is not visible at
+ * this boundary, so both count: on the axis the parent did not stretch, the
+ * frame is the child's own measured extent and treating it as filled changes
+ * nothing.
+ */
+internal fun StretchAxis.mayFillHorizontal(): Boolean =
+    this != StretchAxis.NONE && this != StretchAxis.VERTICAL
+
+/** See [mayFillHorizontal]. */
+internal fun StretchAxis.mayFillVertical(): Boolean =
+    this != StretchAxis.NONE && this != StretchAxis.HORIZONTAL
+
+/**
  * Answers a Rust layout probe on behalf of a plain Android view, in dp.
  *
- * Only a view hosting WaterUI content ([WuiMeasurableLayout]) answers a probe
- * losslessly; anything else is squeezed through MeasureSpec, which cannot tell
- * an unbounded probe (infinity) from an unspecified one (NaN) and carries no
- * alignment guides.
+ * Only a view implementing the contract itself ([WuiMeasurableLayout])
+ * answers a probe losslessly; anything else is squeezed through MeasureSpec,
+ * which cannot tell an unbounded probe (infinity) from an unspecified one
+ * (NaN) and carries no alignment guides.
  */
 internal fun android.view.View.measureForProposal(proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
     // Convert dp proposal to pixel MeasureSpec

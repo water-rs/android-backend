@@ -5,6 +5,7 @@ import android.widget.CompoundButton
 import android.widget.LinearLayout
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.materialswitch.MaterialSwitch
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.InteractionBridge
 import dev.waterui.android.runtime.NativeBindings
@@ -34,7 +35,7 @@ private val toggleRenderer = WuiRenderer { context, node, env, registry ->
         TOGGLE_STYLE_CHECKBOX -> MaterialCheckBox(context)
         else -> error("unknown toggle style: ${struct.style}")
     }
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }

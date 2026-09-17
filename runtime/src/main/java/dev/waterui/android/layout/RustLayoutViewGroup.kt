@@ -17,6 +17,8 @@ import dev.waterui.android.runtime.getWuiLayoutPriority
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.handlesSafeArea
 import dev.waterui.android.runtime.measureSpecToProposalPx
+import dev.waterui.android.runtime.mayFillHorizontal
+import dev.waterui.android.runtime.mayFillVertical
 import dev.waterui.android.runtime.proposalToMeasureSpec
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
@@ -422,20 +424,6 @@ private fun placementMeasureSpec(
     val allocated = ceil(allocatedDp * density).toInt().coerceAtLeast(0)
     return View.MeasureSpec.makeMeasureSpec(allocated, View.MeasureSpec.EXACTLY)
 }
-
-/**
- * Whether a placement frame on the horizontal axis can be an extent this view
- * stretched to fill. `MAIN_AXIS` and `CROSS_AXIS` are resolved against the
- * parent stack's orientation, which is not visible at this boundary, so both
- * count: on the axis the parent did not stretch, the frame is the child's own
- * measured extent and an exact measure to it changes nothing.
- */
-private fun StretchAxis.mayFillHorizontal(): Boolean =
-    this != StretchAxis.NONE && this != StretchAxis.VERTICAL
-
-/** See [mayFillHorizontal]. */
-private fun StretchAxis.mayFillVertical(): Boolean =
-    this != StretchAxis.NONE && this != StretchAxis.HORIZONTAL
 
 /**
  * Hands a placed child the proposal the Rust layout selected for it. The

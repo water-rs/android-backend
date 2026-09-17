@@ -2,7 +2,6 @@ package dev.waterui.android.layout
 
 import android.content.Context
 import android.util.AttributeSet
-import android.widget.LinearLayout
 import dev.waterui.android.runtime.dp
 import kotlin.math.max
 
@@ -18,13 +17,18 @@ import kotlin.math.max
  * `onLayout`, where the allocated frame is the directive. This keeps stretch
  * behavior defined by Rust (StretchAxis::Horizontal) rather than hardcoding
  * "fill max width" behavior in each component.
+ *
+ * Contract probes are answered by [WuiMeasurableLinearLayout]; the same
+ * minimum-usable width floors its intrinsic answer there.
  */
 internal class AxisExpandingLinearLayout @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
     private val minWidthDp: Float = DEFAULT_MIN_WIDTH_DP
-) : LinearLayout(context, attrs, defStyleAttr) {
+) : WuiMeasurableLinearLayout(context, attrs, defStyleAttr) {
+
+    override val widthFloorDp: Float get() = minWidthDp
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthMode = MeasureSpec.getMode(widthMeasureSpec)
@@ -73,4 +77,3 @@ internal class AxisExpandingLinearLayout @JvmOverloads constructor(
         const val DEFAULT_MIN_WIDTH_DP: Float = 100f
     }
 }
-

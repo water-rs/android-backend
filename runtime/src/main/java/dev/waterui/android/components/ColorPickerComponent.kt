@@ -12,6 +12,7 @@ import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.slider.Slider
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -43,7 +44,7 @@ private val colorPickerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_color_picker(node.rawPtr)
     val binding = WuiBinding.color(struct.valuePtr)
 
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = android.view.Gravity.CENTER_VERTICAL
     }

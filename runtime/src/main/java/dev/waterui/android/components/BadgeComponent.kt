@@ -1,7 +1,7 @@
 package dev.waterui.android.components
 
-import android.widget.FrameLayout
 import com.google.android.material.badge.BadgeDrawable
+import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -19,8 +19,9 @@ private val badgeRenderer = WuiRenderer { context, node, env, registry ->
     // BadgedBox in Compose terms: the anchor sizes the container, and the
     // indicator rides the anchor's top end. `BadgeDrawable` is the View-side
     // MD3 primitive — it handles the dot/number variants, the top-end anchor
-    // offset, RTL mirroring, and the "999+" cap.
-    val container = FrameLayout(context)
+    // offset, RTL mirroring, and the "999+" cap. The container is the
+    // pass-through wrapper so probes reach the anchor's contract answer.
+    val container = PassThroughFrameLayout(context)
     val anchor = inflateAnyView(context, badge.contentPtr, env, registry)
     container.addView(anchor)
 

@@ -7,6 +7,7 @@ import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.loadingindicator.LoadingIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import dev.waterui.android.layout.AxisExpandingLinearLayout
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -38,7 +39,7 @@ private val progressRenderer = WuiRenderer { context, node, env, registry ->
     val container = if (isLinear) {
         AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     } else {
-        LinearLayout(context).apply {
+        WuiMeasurableLinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
         }
     }

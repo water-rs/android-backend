@@ -8,6 +8,7 @@ import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.DateStruct
@@ -44,10 +45,10 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
     val rangeEnd = struct.rangeEnd.toLocalDate()
     require(rangeStart <= rangeEnd) { "multi-date picker range must not be empty" }
 
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
-    val headerRow = LinearLayout(context).apply {
+    val headerRow = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
