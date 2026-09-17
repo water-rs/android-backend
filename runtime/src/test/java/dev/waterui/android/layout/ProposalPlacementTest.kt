@@ -9,6 +9,7 @@ import dev.waterui.android.components.SPACER_DEFAULT_LAYOUT_PRIORITY
 import dev.waterui.android.components.wuiSpacer
 import dev.waterui.android.runtime.HorizontalAlignment
 import dev.waterui.android.runtime.HorizontalGuideStruct
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
@@ -103,7 +104,7 @@ class ProposalPlacementTest {
         val probes = mutableListOf<ProposalStruct>()
         var answer = ViewDimensionsStruct(SizeStruct(10f, 10f), emptyArray(), emptyArray())
 
-        override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+        override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
             probes.add(proposal)
             return answer
         }
@@ -256,7 +257,7 @@ class ProposalPlacementTest {
         // axis. Through MeasureSpec that probe would collapse to "unspecified";
         // a view hosting a Rust layout must receive the probe itself.
         val host = RecordingMeasurableLayout(context())
-        val subview = SubViewStruct(view = host, stretchAxis = StretchAxis.NONE, density = 1f)
+        val subview = SubViewStruct(view = host, stretchAxis = StretchAxis.NONE, density = 1f, memos = ProbeMemos())
 
         subview.measureForLayout(Float.POSITIVE_INFINITY, 40f)
 
@@ -410,7 +411,7 @@ class ProposalPlacementTest {
         val outer = PassThroughFrameLayout(context)
         outer.addView(inner)
 
-        outer.measureForLayout(ProposalStruct(80f, Float.POSITIVE_INFINITY))
+        outer.measureForLayout(ProposalStruct(80f, Float.POSITIVE_INFINITY), ProbeMemos())
 
         val probe = content.probes.single()
         assertEquals(80f, probe.width)
@@ -432,8 +433,8 @@ class ProposalPlacementTest {
         val wrapper = PassThroughFrameLayout(context)
         wrapper.addView(content)
 
-        val dimensions = wrapper.measureForLayout(ProposalStruct(Float.POSITIVE_INFINITY, Float.NaN))
-        wrapper.measureForLayout(ProposalStruct(0f, 40f))
+        val dimensions = wrapper.measureForLayout(ProposalStruct(Float.POSITIVE_INFINITY, Float.NaN), ProbeMemos())
+        wrapper.measureForLayout(ProposalStruct(0f, 40f), ProbeMemos())
 
         assertEquals(Float.POSITIVE_INFINITY, content.probes[0].width)
         assertTrue(content.probes[0].height.isNaN())
@@ -451,7 +452,7 @@ class ProposalPlacementTest {
         val content = RecordingMeasurableLayout(context)
         val wrapper = PassThroughFrameLayout(context)
         wrapper.addView(content)
-        val subview = SubViewStruct(view = wrapper, stretchAxis = StretchAxis.NONE, density = 1f)
+        val subview = SubViewStruct(view = wrapper, stretchAxis = StretchAxis.NONE, density = 1f, memos = ProbeMemos())
 
         val dimensions = subview.measureForLayout(Float.POSITIVE_INFINITY, 40f)
 
@@ -482,7 +483,7 @@ class ProposalPlacementTest {
             )
         )
 
-        val dimensions = host.measureForLayout(ProposalStruct(200f, 100f))
+        val dimensions = host.measureForLayout(ProposalStruct(200f, 100f), ProbeMemos())
 
         // The content was measured under the proposal, and the answer is the
         // content's own 10px — not the offer a match-parent overlay fills.

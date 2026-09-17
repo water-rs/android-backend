@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.core.graphics.Insets
 import androidx.core.view.isEmpty
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.WuiLiveSlotTraits
 import dev.waterui.android.runtime.WuiMeasurableLayout
 import dev.waterui.android.runtime.WuiProposalAware
@@ -87,8 +88,6 @@ class RustLayoutViewGroup(
      */
     private fun Float.pxToDp(): Float = this / density
 
-    private var cachedSubviews: Array<SubViewStruct> = emptyArray()
-
     /**
      * The offer the host environment measured this group under, in dp. It is
      * the proposal this group passes to its Rust layout when no WaterUI parent
@@ -128,42 +127,8 @@ class RustLayoutViewGroup(
         )
     )
 
-    private fun resolveSubviews(): Array<SubViewStruct> {
-        if (cachedSubviews.size != childCount || subviewsOutdated()) {
-            cachedSubviews = Array(childCount) { index ->
-                val child = getChildAt(index)
-                SubViewStruct(
-                    view = child,
-                    stretchAxis = child.getWuiStretchAxis(),
-                    priority = child.getWuiLayoutPriority(),
-                    density = density
-                )
-            }
-        }
-        return cachedSubviews
-    }
-
-    private fun subviewsOutdated(): Boolean {
-        for (index in 0 until cachedSubviews.size) {
-            val child = getChildAt(index)
-            if (cachedSubviews[index].view !== child ||
-                cachedSubviews[index].stretchAxis != child.getWuiStretchAxis() ||
-                cachedSubviews[index].priority != child.getWuiLayoutPriority()
-            ) {
-                return true
-            }
-        }
-        return false
-    }
-
-    override fun onViewAdded(child: View) {
-        super.onViewAdded(child)
-        cachedSubviews = emptyArray()
-    }
-
     override fun onViewRemoved(child: View) {
         super.onViewRemoved(child)
-        cachedSubviews = emptyArray()
         gestures.forget(child)
     }
 
@@ -195,15 +160,14 @@ class RustLayoutViewGroup(
             }
             addView(child, index)
         }
-        cachedSubviews = emptyArray()
         requestLayout()
     }
 
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         if (isEmpty()) {
             return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
         }
-        val subviews = resolveSubviews()
+        val subviews = buildSubViewBridges(density, memos)
         return NativeBindings.waterui_layout_measure(layoutPtr, proposal, subviews)
     }
 
@@ -228,7 +192,7 @@ class RustLayoutViewGroup(
 
         // Create SubViewStruct array - Rust will call back to measure each child
         // Pass density so child measurements can convert between dp and pixels
-        val subviews = resolveSubviews()
+        val subviews = buildSubViewBridges(density)
 
         // Rust computes layout in dp, convert result to pixels for Android
         val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, measuredProposal, subviews)
@@ -257,7 +221,7 @@ class RustLayoutViewGroup(
 
         // Create SubViewStruct array for placement
         // Pass density so child measurements can convert between dp and pixels
-        val subviews = resolveSubviews()
+        val subviews = buildSubViewBridges(density)
 
         // The proposal this layout negotiated under: the one a WaterUI parent
         // selected for this group if there is one, else the offer the host
@@ -434,6 +398,40 @@ private fun placementMeasureSpec(
 internal fun View.deliverSelectedProposal(placement: SubviewPlacementStruct) {
     (this as? WuiProposalAware)?.setWuiSelectedProposal(placement.proposalWidth, placement.proposalHeight)
 }
+
+/**
+ * The `SubView` bridge objects one `waterui_layout_*` call hands to the
+ * Rust layout, all sharing the negotiation's [ProbeMemos].
+ *
+ * A fresh array every call — rebuilding the set re-reads stretch axes and
+ * layout priorities live, the same contract `resolveWuiStretchAxis` keeps —
+ * but the answer store is the caller's: a nested container probed by its
+ * parent passes the store it was probed with, so one pass memoizes each
+ * descendant once per distinct proposal no matter how many times the pass
+ * re-enters a nested `waterui_layout_measure`, and no answer can outlive
+ * the outermost synchronous call. No invalidation walk could promise the
+ * same — `View.requestLayout` stops propagating at the first ancestor
+ * already flagged for layout, so a leaf changing size under a flagged
+ * intermediate would never reach a long-lived cache.
+ */
+internal fun ViewGroup.buildSubViewBridges(density: Float, memos: ProbeMemos): Array<SubViewStruct> =
+    Array(childCount) { index ->
+        val child = getChildAt(index)
+        SubViewStruct(
+            view = child,
+            stretchAxis = child.getWuiStretchAxis(),
+            priority = child.getWuiLayoutPriority(),
+            density = density,
+            memos = memos
+        )
+    }
+
+/**
+ * The bridge set for a top-level negotiation — a host `onMeasure`/`onLayout`
+ * entry — whose answers memoize in a store scoped to that call alone.
+ */
+internal fun ViewGroup.buildSubViewBridges(density: Float): Array<SubViewStruct> =
+    buildSubViewBridges(density, ProbeMemos())
 
 private data class LayoutConstraints(
     val minWidth: Int,

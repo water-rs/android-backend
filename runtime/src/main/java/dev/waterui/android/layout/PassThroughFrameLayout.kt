@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Space
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
@@ -93,9 +94,9 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
      * the content, never the wrapper — so an overlay sibling cannot inflate
      * the answer to the whole offer.
      */
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         val content = wuiLayoutContent ?: return measureForProposal(proposal, density)
-        return content.answerProposal(proposal, density)
+        return content.answerProposal(proposal, density, memos)
     }
 
     override fun setWuiSelectedProposal(proposalWidth: Float, proposalHeight: Float) {
