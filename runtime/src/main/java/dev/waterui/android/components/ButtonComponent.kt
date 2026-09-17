@@ -1,5 +1,6 @@
 package dev.waterui.android.components
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -16,15 +17,27 @@ import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.InteractionBridge
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.SizeStruct
+import dev.waterui.android.runtime.StretchAxis
+import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.ThemeBridge
+import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiEnvironment
+import dev.waterui.android.runtime.WuiMeasurableLayout
+import dev.waterui.android.runtime.WuiProposalAware
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
+import dev.waterui.android.runtime.answerProposal
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.disposeWith
 import dev.waterui.android.runtime.dp
 import dev.waterui.android.runtime.inflateAnyView
+import dev.waterui.android.runtime.leafAxisAnswer
+import dev.waterui.android.runtime.mayFillHorizontal
+import dev.waterui.android.runtime.mayFillVertical
+import dev.waterui.android.runtime.minusChrome
 import dev.waterui.android.runtime.toColorInt
 
 /**
@@ -45,10 +58,11 @@ private object ButtonStyle {
  * Material 3 button chrome for one WaterUI button style.
  *
  * A WaterUI button label is an arbitrary view, so `MaterialButton` (a
- * `TextView`) cannot host it; the container stays a `FrameLayout` and this
- * chrome reproduces the Compose M3 button spec on it: stadium shape, 40dp
- * min height, `ButtonDefaults.ContentPadding` (24/8; text buttons 12/8),
- * outlined stroke in `colorOutline`, and the M3 disabled tokens
+ * `TextView`) cannot host it; the container stays a [WuiButtonLayout] —
+ * a `FrameLayout` that answers probes through the control contract — and
+ * this chrome reproduces the Compose M3 button spec on it: stadium shape,
+ * 40dp min height, `ButtonDefaults.ContentPadding` (24/8; text buttons
+ * 12/8), outlined stroke in `colorOutline`, and the M3 disabled tokens
  * (`onSurface` at 12% container / 38% content) instead of whole-view alpha.
  */
 private data class ButtonChrome(
@@ -139,6 +153,64 @@ private const val DISABLED_CONTENT_ALPHA = 0.38f
 private const val RIPPLE_ALPHA = 0.12f
 private const val MIN_BUTTON_HEIGHT_DP = 40f
 
+/**
+ * The container a WaterUI button wraps its label in.
+ *
+ * Its probe answer is the Controls contract: the label measured under the
+ * button's own offer minus the M3 content padding — the chrome a
+ * `MaterialButton` would have eaten — plus that padding back, floored at the
+ * minimum touch height the style reserves. A plain `FrameLayout` would
+ * squeeze the probe through MeasureSpec on both axes, so a stack's `0`
+ * minimum query measured the label at zero height and a compressed stack
+ * collapsed the button to a thin pill.
+ */
+// The label is a construction input — the container is only ever inflated in
+// code, never from layout XML.
+@SuppressLint("ViewConstructor")
+private class WuiButtonLayout(context: Context, private val label: View) :
+    FrameLayout(context), WuiMeasurableLayout, WuiProposalAware {
+
+    private val density = resources.displayMetrics.density
+
+    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+        val labelDims = label.answerProposal(labelOffer(proposal), density)
+        val axis = getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
+        return ViewDimensionsStruct(
+            size = SizeStruct(
+                width = leafAxisAnswer(
+                    proposal.width,
+                    maxOf(
+                        labelDims.size.width + (paddingLeft + paddingRight) / density,
+                        suggestedMinimumWidth / density
+                    ),
+                    axis.mayFillHorizontal()
+                ),
+                height = leafAxisAnswer(
+                    proposal.height,
+                    maxOf(
+                        labelDims.size.height + (paddingTop + paddingBottom) / density,
+                        suggestedMinimumHeight / density
+                    ),
+                    axis.mayFillVertical()
+                )
+            ),
+            horizontalGuides = emptyArray(),
+            verticalGuides = emptyArray()
+        )
+    }
+
+    override fun setWuiSelectedProposal(proposalWidth: Float, proposalHeight: Float) {
+        val offer = labelOffer(ProposalStruct(proposalWidth, proposalHeight))
+        (label as? WuiProposalAware)?.setWuiSelectedProposal(offer.width, offer.height)
+    }
+
+    /** The proposal the label hears: the button's offer minus its padding. */
+    private fun labelOffer(proposal: ProposalStruct): ProposalStruct = proposal.minusChrome(
+        (paddingLeft + paddingRight) / density,
+        (paddingTop + paddingBottom) / density
+    )
+}
+
 private val buttonTypeId: WuiTypeId by lazy { NativeBindings.waterui_button_id().toTypeId() }
 
 private val buttonRenderer = WuiRenderer { context, node, env, registry ->
@@ -152,7 +224,7 @@ private val buttonRenderer = WuiRenderer { context, node, env, registry ->
     val labelView = inflateAnyView(context, struct.labelPtr, labelEnv, registry)
 
     val chrome = buttonChrome(struct.style)
-    val container = FrameLayout(context).apply {
+    val container = WuiButtonLayout(context, labelView).apply {
         disposeWith(labelEnv)
         isClickable = true
         isFocusable = true

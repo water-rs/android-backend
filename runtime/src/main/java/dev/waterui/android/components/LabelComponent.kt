@@ -1,6 +1,5 @@
 package dev.waterui.android.components
 
-import android.widget.TextView
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -14,7 +13,7 @@ private val labelTypeId: WuiTypeId by lazy { NativeBindings.waterui_plain_id().t
 
 private val labelRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_plain(node.rawPtr)
-    val textView = TextView(context).apply {
+    val textView = WuiTextView(context).apply {
         text = struct.text
     }
     val color = ThemeBridge.foreground(env)

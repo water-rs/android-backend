@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.view.Gravity
 import android.widget.LinearLayout
 import dev.waterui.android.layout.AxisExpandingLinearLayout
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.InteractionBridge
@@ -45,7 +46,7 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     container.addView(slider)
 
     if (struct.minLabelPtr != 0L || struct.maxLabelPtr != 0L) {
-        val minMaxRow = LinearLayout(context).apply {
+        val minMaxRow = WuiMeasurableLinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_HORIZONTAL
         }

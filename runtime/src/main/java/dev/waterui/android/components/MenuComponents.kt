@@ -5,7 +5,6 @@ import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.FrameLayout
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.PopupMenu
@@ -410,7 +409,7 @@ private class SelectionMenuCallback(
     }
 }
 
-private fun applyMenuTriggerFeedback(container: FrameLayout) {
+private fun applyMenuTriggerFeedback(container: PassThroughFrameLayout) {
     val typedValue = android.util.TypedValue()
     if (container.context.theme.resolveAttribute(
             android.R.attr.selectableItemBackgroundBorderless,
@@ -427,9 +426,13 @@ private val menuRenderer = WuiRenderer { context, node, env, registry ->
     val labelView = inflateAnyView(context, struct.labelPtr, env, registry)
     val source = ReactiveAndroidMenu(struct.itemsPtr, env)
 
-    FrameLayout(context).apply {
+    // The trigger stands in its label's slot: PassThroughFrameLayout answers
+    // probes with the label's own contract answer and lays the label out over
+    // whatever frame the WaterUI parent allocates.
+    PassThroughFrameLayout(context).apply {
         isClickable = true
         isFocusable = true
+        consumesTouches = true
         applyMenuTriggerFeedback(this)
         addView(labelView)
         installSemanticAccessibilityLabel(

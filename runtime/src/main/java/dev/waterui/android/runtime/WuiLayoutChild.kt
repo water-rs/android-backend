@@ -21,13 +21,17 @@ interface WuiProposalAware {
 }
 
 /**
- * A view that answers a Rust layout probe itself, forwarding it to the Rust
- * layout it hosts.
+ * A view that answers a Rust layout probe itself, by the WaterUI layout
+ * contract, instead of being squeezed through [android.view.View.MeasureSpec].
  *
- * Squeezing the probe through [android.view.View.MeasureSpec] loses the
- * difference between an unspecified axis (NaN) and an unbounded one
- * (infinity), and drops the explicit alignment guides a nested Rust layout
- * reports. Views implementing this interface keep the probe lossless.
+ * Two kinds implement it. A view hosting WaterUI content — a nested
+ * `RustLayoutViewGroup`, or a transparent wrapper standing in its content's
+ * slot — forwards the probe losslessly, keeping an unspecified axis (NaN)
+ * distinct from an unbounded one (infinity) and carrying the alignment
+ * guides the nested layout reports. And a leaf whose contract answer a
+ * MeasureSpec cannot express — text, which a height proposal must never cap,
+ * or a labelled control, whose content negotiates the offer minus its
+ * platform chrome — computes its own.
  */
 interface WuiMeasurableLayout {
     fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct

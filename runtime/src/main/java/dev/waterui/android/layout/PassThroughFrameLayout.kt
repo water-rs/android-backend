@@ -14,6 +14,7 @@ import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiLiveSlotTraits
 import dev.waterui.android.runtime.WuiMeasurableLayout
 import dev.waterui.android.runtime.WuiProposalAware
+import dev.waterui.android.runtime.answerProposal
 import dev.waterui.android.runtime.getWuiLayoutPriority
 import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.hasWuiSlotIdentity
@@ -88,17 +89,13 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
      * content: forwarded verbatim it keeps an unbounded axis (infinity)
      * distinct from an unspecified one (NaN) and carries the content's
      * alignment guides back — both lost the moment the probe is squeezed
-     * through a MeasureSpec. Content that cannot answer probes itself is
-     * measured under the spec the proposal spells — the content, never the
-     * wrapper, so an overlay sibling cannot inflate the answer to the whole
-     * offer.
+     * through a MeasureSpec. Content answers through its own contract path —
+     * the content, never the wrapper — so an overlay sibling cannot inflate
+     * the answer to the whole offer.
      */
     override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
         val content = wuiLayoutContent ?: return measureForProposal(proposal, density)
-        return when (content) {
-            is WuiMeasurableLayout -> content.measureForLayout(proposal)
-            else -> content.measureForProposal(proposal, density)
-        }
+        return content.answerProposal(proposal, density)
     }
 
     override fun setWuiSelectedProposal(proposalWidth: Float, proposalHeight: Float) {

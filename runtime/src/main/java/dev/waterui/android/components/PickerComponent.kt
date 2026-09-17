@@ -17,12 +17,16 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativeViewCollection
 import dev.waterui.android.runtime.NativeViewItem
 import dev.waterui.android.runtime.PickerStyle
+import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.ReactiveStyledText
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiEnvironment
+import dev.waterui.android.runtime.WuiMeasurableLayout
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.platformIntrinsicAnswer
 import java.io.Closeable
 
 private val pickerTypeId: WuiTypeId by lazy { NativeBindings.waterui_picker_id().toTypeId() }
@@ -76,6 +80,33 @@ private val pickerRenderer = WuiRenderer { context, node, env, _ ->
     view
 }
 
+/**
+ * A control that is all platform chrome — the picker's dropdown field, its
+ * segmented and radio groups — answers a probe with its platform intrinsic
+ * size ([platformIntrinsicAnswer]) rather than being squeezed through
+ * MeasureSpec, where a stack's `0` minimum query would collapse it.
+ */
+private class WuiDropdownLayout(context: Context) : TextInputLayout(
+    context,
+    null,
+    com.google.android.material.R.attr.textInputFilledExposedDropdownMenuStyle
+), WuiMeasurableLayout {
+    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct =
+        platformIntrinsicAnswer(proposal)
+}
+
+private class WuiSegmentedGroup(context: Context) :
+    MaterialButtonToggleGroup(context), WuiMeasurableLayout {
+    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct =
+        platformIntrinsicAnswer(proposal)
+}
+
+private class WuiRadioGroup(context: Context) :
+    RadioGroup(context), WuiMeasurableLayout {
+    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct =
+        platformIntrinsicAnswer(proposal)
+}
+
 private fun buildMenuPicker(
     context: Context,
     selection: WuiBinding<Int>,
@@ -84,11 +115,7 @@ private fun buildMenuPicker(
     // Compose M3's menu picker is the exposed dropdown menu: a read-only
     // filled text field with a trailing chevron opening an elevated M3 menu.
     // The legacy Spinner used framework item layouts and no Material chrome.
-    val layout = TextInputLayout(
-        context,
-        null,
-        com.google.android.material.R.attr.textInputFilledExposedDropdownMenuStyle
-    ).apply { isHintEnabled = false }
+    val layout = WuiDropdownLayout(context).apply { isHintEnabled = false }
     val field = MaterialAutoCompleteTextView(layout.context).apply {
         inputType = InputType.TYPE_NULL
     }
@@ -151,7 +178,7 @@ private fun buildSegmentedPicker(
     selection: WuiBinding<Int>,
     source: NativeViewCollection<PickerOption>
 ): View {
-    val group = MaterialButtonToggleGroup(context).apply {
+    val group = WuiSegmentedGroup(context).apply {
         isSingleSelection = true
         isSelectionRequired = true
     }
@@ -189,7 +216,7 @@ private fun buildRadioPicker(
     selection: WuiBinding<Int>,
     source: NativeViewCollection<PickerOption>
 ): View {
-    val group = RadioGroup(context).apply { orientation = RadioGroup.VERTICAL }
+    val group = WuiRadioGroup(context).apply { orientation = RadioGroup.VERTICAL }
     return buildChoicePicker(
         group = group,
         selection = selection,

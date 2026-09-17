@@ -2,7 +2,6 @@ package dev.waterui.android.components
 
 import android.view.Gravity
 import android.view.View
-import android.widget.TextView
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -25,7 +24,7 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
     val computed = WuiComputed.styledString(struct.contentPtr)
     val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr)
-    val textView = TextView(context)
+    val textView = WuiTextView(context)
     if (struct.lineLimit > 0) {
         // TextConfig::line_limit: cap the laid-out lines and truncate the last
         // visible one with an ellipsis, the SwiftUI/Material label baseline.

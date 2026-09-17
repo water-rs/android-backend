@@ -15,6 +15,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.google.android.material.datepicker.MaterialDatePicker
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.DatePickerStruct
 import dev.waterui.android.runtime.DatePickerType
@@ -46,7 +47,7 @@ private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
     val rangeEnd = struct.rangeEnd.toLocalDateTime()
     require(rangeStart <= rangeEnd) { "date picker range must not be empty" }
 
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
