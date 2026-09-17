@@ -3,10 +3,12 @@ package dev.waterui.android.layout
 import android.app.Activity
 import android.content.Context
 import android.view.View
+import android.widget.FrameLayout
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
+import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.ViewDimensionsStruct
 import dev.waterui.android.runtime.WuiMeasurableLayout
 import org.junit.Assert.assertEquals
@@ -134,6 +136,34 @@ class SubViewMeasurementMemoTest {
         subview.measureForLayout(40f, Float.NaN)
 
         assertTrue(innerAnswer != null)
+    }
+
+    @Test
+    fun consecutiveNegotiationsNeverShareAMemo() {
+        // Each `waterui_layout_*` call is handed a fresh bridge set, so no
+        // memoized answer can outlive the synchronous call that computed it.
+        // This is the absorbed-`requestLayout` case: `View.requestLayout`
+        // stops at the first ancestor already flagged for layout, so a leaf
+        // changing size under a flagged intermediate can never rely on
+        // propagation reaching a long-lived cache — the next negotiation must
+        // re-measure on its own.
+        val group = FrameLayout(context())
+        val child = CountingMeasurableView(group.context)
+        child.setTag(TAG_STRETCH_AXIS, StretchAxis.NONE)
+        group.addView(child)
+
+        group.buildSubViewBridges(density = 1f).single()
+            .measureForLayout(40f, Float.NaN)
+
+        group.requestLayout() // the flag an absorbed descendant request stops at
+        child.answer = ViewDimensionsStruct(SizeStruct(50f, 20f), emptyArray(), emptyArray())
+
+        val dims = group.buildSubViewBridges(density = 1f).single()
+            .measureForLayout(40f, Float.NaN)
+
+        assertEquals(2, child.probes.size)
+        assertEquals(50f, dims.size.width, 0.001f)
+        assertEquals(20f, dims.size.height, 0.001f)
     }
 
     @Test

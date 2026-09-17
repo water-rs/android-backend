@@ -5,7 +5,6 @@ import android.content.Context
 import android.text.Layout
 import android.view.View.MeasureSpec
 import android.widget.TextView
-import dev.waterui.android.layout.dropAncestorMeasurementMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
@@ -71,7 +70,6 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
 
     override fun requestLayout() {
         shapedAnswers = null
-        dropAncestorMeasurementMemos()
         super.requestLayout()
     }
 

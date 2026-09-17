@@ -87,34 +87,6 @@ class RustLayoutViewGroup(
      */
     private fun Float.pxToDp(): Float = this / density
 
-    private var cachedSubviews: Array<SubViewStruct> = emptyArray()
-
-    /**
-     * Drops the SubView bridge objects — and every memoized probe answer they
-     * carry. Called when the content behind this layout's children may have
-     * changed; the next [resolveSubviews] rebuilds the array and negotiates
-     * from scratch.
-     */
-    internal fun dropMeasurementMemos() {
-        cachedSubviews = emptyArray()
-    }
-
-    /**
-     * A memoized probe answer is only valid while the content behind it is
-     * unchanged, and a descendant's content change invalidates the answers of
-     * every ancestor holding this subtree in a slot. `View.requestLayout`
-     * stops its upward walk at the first ancestor already flagged for layout,
-     * so waiting for each ancestor's own `requestLayout` would leave stale
-     * memos behind the moment propagation is absorbed — drop them all the way
-     * up unconditionally, the same contract Apple's `invalidateLayoutHierarchy`
-     * gives `cachedSubViews` in `WuiContainer`.
-     */
-    override fun requestLayout() {
-        dropMeasurementMemos()
-        dropAncestorMeasurementMemos()
-        super.requestLayout()
-    }
-
     /**
      * The offer the host environment measured this group under, in dp. It is
      * the proposal this group passes to its Rust layout when no WaterUI parent
@@ -154,42 +126,8 @@ class RustLayoutViewGroup(
         )
     )
 
-    private fun resolveSubviews(): Array<SubViewStruct> {
-        if (cachedSubviews.size != childCount || subviewsOutdated()) {
-            cachedSubviews = Array(childCount) { index ->
-                val child = getChildAt(index)
-                SubViewStruct(
-                    view = child,
-                    stretchAxis = child.getWuiStretchAxis(),
-                    priority = child.getWuiLayoutPriority(),
-                    density = density
-                )
-            }
-        }
-        return cachedSubviews
-    }
-
-    private fun subviewsOutdated(): Boolean {
-        for (index in 0 until cachedSubviews.size) {
-            val child = getChildAt(index)
-            if (cachedSubviews[index].view !== child ||
-                cachedSubviews[index].stretchAxis != child.getWuiStretchAxis() ||
-                cachedSubviews[index].priority != child.getWuiLayoutPriority()
-            ) {
-                return true
-            }
-        }
-        return false
-    }
-
-    override fun onViewAdded(child: View) {
-        super.onViewAdded(child)
-        cachedSubviews = emptyArray()
-    }
-
     override fun onViewRemoved(child: View) {
         super.onViewRemoved(child)
-        cachedSubviews = emptyArray()
         gestures.forget(child)
     }
 
@@ -221,7 +159,6 @@ class RustLayoutViewGroup(
             }
             addView(child, index)
         }
-        cachedSubviews = emptyArray()
         requestLayout()
     }
 
@@ -229,7 +166,7 @@ class RustLayoutViewGroup(
         if (isEmpty()) {
             return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
         }
-        val subviews = resolveSubviews()
+        val subviews = buildSubViewBridges(density)
         return NativeBindings.waterui_layout_measure(layoutPtr, proposal, subviews)
     }
 
@@ -238,14 +175,6 @@ class RustLayoutViewGroup(
         if (isEmpty()) {
             setMeasuredDimension(0, 0)
             return
-        }
-
-        // A flagged pass negotiates from scratch: the flag may have been
-        // raised while this group was already flagged — absorbed before the
-        // requestLayout override ran — leaving memos repopulated between the
-        // two invalidations stale.
-        if (isLayoutRequested) {
-            dropMeasurementMemos()
         }
 
         val constraints = LayoutConstraints.fromMeasureSpecs(widthMeasureSpec, heightMeasureSpec)
@@ -262,7 +191,7 @@ class RustLayoutViewGroup(
 
         // Create SubViewStruct array - Rust will call back to measure each child
         // Pass density so child measurements can convert between dp and pixels
-        val subviews = resolveSubviews()
+        val subviews = buildSubViewBridges(density)
 
         // Rust computes layout in dp, convert result to pixels for Android
         val requestedSize = NativeBindings.waterui_layout_size_that_fits(layoutPtr, measuredProposal, subviews)
@@ -278,12 +207,6 @@ class RustLayoutViewGroup(
             return
         }
 
-        // A request-during-layout lands flagged here: the answers measured
-        // earlier in this pass may predate it, so placement re-negotiates.
-        if (isLayoutRequested) {
-            dropMeasurementMemos()
-        }
-
         // Convert pixel bounds to dp for Rust layout engine; the children are
         // laid out inside the safe area.
         val safeLeft = safeArea.left
@@ -297,7 +220,7 @@ class RustLayoutViewGroup(
 
         // Create SubViewStruct array for placement
         // Pass density so child measurements can convert between dp and pixels
-        val subviews = resolveSubviews()
+        val subviews = buildSubViewBridges(density)
 
         // The proposal this layout negotiated under: the one a WaterUI parent
         // selected for this group if there is one, else the offer the host
@@ -476,31 +399,27 @@ internal fun View.deliverSelectedProposal(placement: SubviewPlacementStruct) {
 }
 
 /**
- * Drops memoized probe answers on every [RustLayoutViewGroup] above this view.
+ * The `SubView` bridge objects one negotiation hands to the Rust layout.
  *
- * `View.requestLayout` stops propagating at the first ancestor already flagged
- * for layout — fine for scheduling a traversal, wrong for cache invalidation:
- * an ancestor's memoized answers about the slot holding this subtree are stale
- * either way. The walk is unconditional, matching Apple's
- * `invalidateLayoutHierarchy` which nils `cachedSubViews` on every ancestor.
+ * A fresh array every call: each bridge memoizes its probe answers (see
+ * [SubViewStruct.measureForLayout]), and a memo that cannot outlive the
+ * synchronous `waterui_layout_*` call it was built for can never answer stale.
+ * No invalidation walk could promise that — `View.requestLayout` stops
+ * propagating at the first ancestor already flagged for layout, so a leaf
+ * changing size under a flagged intermediate would never reach a long-lived
+ * cache — and rebuilding the set also re-reads stretch axes and layout
+ * priorities live, the same contract `resolveWuiStretchAxis` keeps.
  */
-internal fun View.dropAncestorMeasurementMemos() {
-    var ancestor = parent
-    while (ancestor != null) {
-        (ancestor as? RustLayoutViewGroup)?.dropMeasurementMemos()
-        ancestor = ancestor.parent
+internal fun ViewGroup.buildSubViewBridges(density: Float): Array<SubViewStruct> =
+    Array(childCount) { index ->
+        val child = getChildAt(index)
+        SubViewStruct(
+            view = child,
+            stretchAxis = child.getWuiStretchAxis(),
+            priority = child.getWuiLayoutPriority(),
+            density = density
+        )
     }
-}
-
-/**
- * The invalidation a view whose measured content changed must issue: flag the
- * layout pass through [View.requestLayout], and drop ancestor probe memos even
- * where propagation would have been absorbed by an already-flagged ancestor.
- */
-internal fun View.invalidateWuiLayoutHierarchy() {
-    dropAncestorMeasurementMemos()
-    requestLayout()
-}
 
 private data class LayoutConstraints(
     val minWidth: Int,

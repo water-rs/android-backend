@@ -135,15 +135,18 @@ data class SubViewStruct(
     val density: Float = 1f
 ) {
     /**
-     * The probe answers this bridge object has already computed, keyed by the
-     * proposal's raw bits. Rust layout containers probe their children freely —
-     * ideal, minimum, and allocated offers — and a probe repeated under the
-     * same proposal must return the remembered answer instead of measuring the
-     * child again: every re-measure of a nested container re-enters its whole
-     * subtree, which multiplies identical probes into an exponential
-     * measurement storm (the Apple backend's `SubViewProxy` memoizes the same
-     * way). The memo dies with this object; the owning container rebuilds its
-     * SubView array when the child set or the content behind it invalidates.
+     * The probe answers this bridge object has computed within one
+     * negotiation, keyed by the proposal's raw bits. Rust layout containers
+     * probe their children freely — ideal, minimum, and allocated offers — and
+     * a probe repeated under the same proposal must return the remembered
+     * answer instead of measuring the child again: every re-measure of a
+     * nested container re-enters its whole subtree, which multiplies identical
+     * probes into an exponential measurement storm (the Apple backend's
+     * `SubViewProxy` memoizes the same way). The memo dies with this object:
+     * the owning group hands the Rust layout a fresh bridge set for every
+     * `waterui_layout_*` call, so no answer can outlive the synchronous
+     * negotiation it was computed in — no invalidation propagation is needed
+     * or relied upon.
      */
     private val measurements = HashMap<Long, ViewDimensionsStruct>()
 
