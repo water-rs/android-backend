@@ -6,6 +6,7 @@ import android.view.View.MeasureSpec
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
 import dev.waterui.android.runtime.measureForProposal
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.ProposalStruct
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -49,7 +50,7 @@ class WuiTextViewContractTest {
         WuiTextView(context()).apply { this.text = text }
 
     private fun measure(view: WuiTextView, width: Float, height: Float) =
-        SubViewStruct(view, StretchAxis.NONE, density = density)
+        SubViewStruct(view, StretchAxis.NONE, density = density, memos = ProbeMemos())
             .measureForLayout(width, height).size
 
     @Test
@@ -131,8 +132,8 @@ class WuiTextViewContractTest {
         // stalls the main thread, so an equivalent repeat must reuse the
         // shaped answer.
         val view = textView(WRAP_TEXT)
-        val first = view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
-        val second = view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+        val first = view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN), ProbeMemos())
+        val second = view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN), ProbeMemos())
 
         assertEquals(1, view.layoutPassCount)
         assertEquals(first.size.width, second.size.width, 0.001f)
@@ -145,8 +146,8 @@ class WuiTextViewContractTest {
         // line count regardless — so probes differing only in height share one
         // layout pass.
         val view = textView(WRAP_TEXT)
-        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, 0f))
-        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.POSITIVE_INFINITY))
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, 0f), ProbeMemos())
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.POSITIVE_INFINITY), ProbeMemos())
 
         assertEquals(1, view.layoutPassCount)
     }
@@ -154,8 +155,8 @@ class WuiTextViewContractTest {
     @Test
     fun aDifferentWrapWidthShapesAgain() {
         val view = textView(WRAP_TEXT)
-        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
-        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP / 2f, Float.NaN))
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN), ProbeMemos())
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP / 2f, Float.NaN), ProbeMemos())
 
         assertEquals(2, view.layoutPassCount)
     }
@@ -165,9 +166,9 @@ class WuiTextViewContractTest {
         // The shaped answers cannot outlive the text's invalidation funnel:
         // requestLayout is where every shaping input reports a change.
         val view = textView(WRAP_TEXT)
-        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN), ProbeMemos())
         view.requestLayout()
-        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN), ProbeMemos())
 
         assertEquals(2, view.layoutPassCount)
     }

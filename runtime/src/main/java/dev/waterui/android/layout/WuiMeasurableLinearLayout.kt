@@ -7,6 +7,7 @@ import android.view.View.MeasureSpec
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.core.view.isGone
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
@@ -53,7 +54,7 @@ internal open class WuiMeasurableLinearLayout @JvmOverloads constructor(
      */
     protected open val widthFloorDp: Float get() = 0f
 
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         val horizontal = orientation == HORIZONTAL
         var flowPx = (if (horizontal) paddingLeft + paddingRight else paddingTop + paddingBottom).toFloat()
         var crossPx = (if (horizontal) paddingTop + paddingBottom else paddingLeft + paddingRight).toFloat()
@@ -119,7 +120,7 @@ internal open class WuiMeasurableLinearLayout @JvmOverloads constructor(
                     offer.flowAxis(horizontal) * (weight / totalWeight)
                 )
             }
-            val dims = child.answerProposal(offer, density)
+            val dims = child.answerProposal(offer, density, memos)
             flowPx += (if (horizontal) dims.size.width else dims.size.height) * density +
                 (if (horizontal) margins.horizontally else margins.vertically)
             crossPx = maxOf(crossPx, (if (horizontal) dims.size.height else dims.size.width) * density +

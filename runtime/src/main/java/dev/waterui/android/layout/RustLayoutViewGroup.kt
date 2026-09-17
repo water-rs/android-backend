@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.core.graphics.Insets
 import androidx.core.view.isEmpty
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.WuiLiveSlotTraits
 import dev.waterui.android.runtime.WuiMeasurableLayout
 import dev.waterui.android.runtime.WuiProposalAware
@@ -162,11 +163,11 @@ class RustLayoutViewGroup(
         requestLayout()
     }
 
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         if (isEmpty()) {
             return ViewDimensionsStruct(SizeStruct(0f, 0f), emptyArray(), emptyArray())
         }
-        val subviews = buildSubViewBridges(density)
+        val subviews = buildSubViewBridges(density, memos)
         return NativeBindings.waterui_layout_measure(layoutPtr, proposal, subviews)
     }
 
@@ -399,25 +400,36 @@ internal fun View.deliverSelectedProposal(placement: SubviewPlacementStruct) {
 }
 
 /**
- * The `SubView` bridge objects one negotiation hands to the Rust layout.
+ * The `SubView` bridge objects one `waterui_layout_*` call hands to the
+ * Rust layout, all sharing the negotiation's [ProbeMemos].
  *
- * A fresh array every call: each bridge memoizes its probe answers (see
- * [SubViewStruct.measureForLayout]), and a memo that cannot outlive the
- * synchronous `waterui_layout_*` call it was built for can never answer stale.
- * No invalidation walk could promise that — `View.requestLayout` stops
- * propagating at the first ancestor already flagged for layout, so a leaf
- * changing size under a flagged intermediate would never reach a long-lived
- * cache — and rebuilding the set also re-reads stretch axes and layout
- * priorities live, the same contract `resolveWuiStretchAxis` keeps.
+ * A fresh array every call — rebuilding the set re-reads stretch axes and
+ * layout priorities live, the same contract `resolveWuiStretchAxis` keeps —
+ * but the answer store is the caller's: a nested container probed by its
+ * parent passes the store it was probed with, so one pass memoizes each
+ * descendant once per distinct proposal no matter how many times the pass
+ * re-enters a nested `waterui_layout_measure`, and no answer can outlive
+ * the outermost synchronous call. No invalidation walk could promise the
+ * same — `View.requestLayout` stops propagating at the first ancestor
+ * already flagged for layout, so a leaf changing size under a flagged
+ * intermediate would never reach a long-lived cache.
+ */
+/**
+ * The bridge set for a top-level negotiation — a host `onMeasure`/`onLayout`
+ * entry — whose answers memoize in a store scoped to that call alone.
  */
 internal fun ViewGroup.buildSubViewBridges(density: Float): Array<SubViewStruct> =
+    buildSubViewBridges(density, ProbeMemos())
+
+internal fun ViewGroup.buildSubViewBridges(density: Float, memos: ProbeMemos): Array<SubViewStruct> =
     Array(childCount) { index ->
         val child = getChildAt(index)
         SubViewStruct(
             view = child,
             stretchAxis = child.getWuiStretchAxis(),
             priority = child.getWuiLayoutPriority(),
-            density = density
+            density = density,
+            memos = memos
         )
     }
 

@@ -34,7 +34,13 @@ interface WuiProposalAware {
  * platform chrome — computes its own.
  */
 interface WuiMeasurableLayout {
-    fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct
+    /**
+     * Answers a probe under [proposal]. [memos] is the shared answer store of
+     * the negotiation the probe belongs to; a view that forwards the probe or
+     * probes children of its own passes it through unchanged, so a nested
+     * container's answers live for the whole pass and die with it.
+     */
+    fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct
 }
 
 /**

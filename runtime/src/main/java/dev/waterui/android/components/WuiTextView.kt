@@ -5,6 +5,7 @@ import android.content.Context
 import android.text.Layout
 import android.view.View.MeasureSpec
 import android.widget.TextView
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
@@ -73,7 +74,7 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
         super.requestLayout()
     }
 
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         val cache = shapedAnswers ?: ShapedAnswers().also { shapedAnswers = it }
         val spec = widthSpecFor(proposal.width, cache)
         val answer = cache.bySpec.getOrPut(spec) { shapeAnswer(spec) }

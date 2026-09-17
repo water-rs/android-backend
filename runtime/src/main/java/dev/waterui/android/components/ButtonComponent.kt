@@ -16,6 +16,7 @@ import com.google.android.material.shape.ShapeAppearanceModel
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.ColorSlot
 import dev.waterui.android.runtime.InteractionBridge
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RegistryBuilder
@@ -172,8 +173,8 @@ private class WuiButtonLayout(context: Context, private val label: View) :
 
     private val density = resources.displayMetrics.density
 
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
-        val labelDims = label.answerProposal(labelOffer(proposal), density)
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
+        val labelDims = label.answerProposal(labelOffer(proposal), density, memos)
         val axis = getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
         return ViewDimensionsStruct(
             size = SizeStruct(

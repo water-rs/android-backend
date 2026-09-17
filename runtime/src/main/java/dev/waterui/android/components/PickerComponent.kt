@@ -15,6 +15,7 @@ import com.google.android.material.textfield.TextInputLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.NativeViewCollection
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.NativeViewItem
 import dev.waterui.android.runtime.PickerStyle
 import dev.waterui.android.runtime.ProposalStruct
@@ -91,19 +92,19 @@ private class WuiDropdownLayout(context: Context) : TextInputLayout(
     null,
     com.google.android.material.R.attr.textInputFilledExposedDropdownMenuStyle
 ), WuiMeasurableLayout {
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct =
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct =
         platformIntrinsicAnswer(proposal)
 }
 
 private class WuiSegmentedGroup(context: Context) :
     MaterialButtonToggleGroup(context), WuiMeasurableLayout {
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct =
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct =
         platformIntrinsicAnswer(proposal)
 }
 
 private class WuiRadioGroup(context: Context) :
     RadioGroup(context), WuiMeasurableLayout {
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct =
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct =
         platformIntrinsicAnswer(proposal)
 }
 

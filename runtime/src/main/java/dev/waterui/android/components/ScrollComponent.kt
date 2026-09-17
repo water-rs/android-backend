@@ -12,6 +12,7 @@ import androidx.core.view.doOnLayout
 import dev.waterui.android.layout.ViewportClipLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.SizeStruct
@@ -78,7 +79,7 @@ internal class SafeAreaScrollViewport(
      * shrinks the viewport to the content instead of letting the content
      * centre inside it.
      */
-    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+    override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         val minWidthQuery = proposal.width == 0f
         val minHeightQuery = proposal.height == 0f
         val offeredWidth = if (proposal.width.isNaN()) 0f else proposal.width

@@ -132,31 +132,9 @@ data class SubViewStruct(
     val view: android.view.View,
     val stretchAxis: StretchAxis,
     val priority: Int = 0,
-    val density: Float = 1f
+    val density: Float = 1f,
+    val memos: ProbeMemos
 ) {
-    /**
-     * The probe answers this bridge object has computed within one
-     * negotiation, keyed by the proposal's raw bits. Rust layout containers
-     * probe their children freely — ideal, minimum, and allocated offers — and
-     * a probe repeated under the same proposal must return the remembered
-     * answer instead of measuring the child again: every re-measure of a
-     * nested container re-enters its whole subtree, which multiplies identical
-     * probes into an exponential measurement storm (the Apple backend's
-     * `SubViewProxy` memoizes the same way). The memo dies with this object:
-     * the owning group hands the Rust layout a fresh bridge set for every
-     * `waterui_layout_*` call, so no answer can outlive the synchronous
-     * negotiation it was computed in — no invalidation propagation is needed
-     * or relied upon.
-     */
-    private val measurements = HashMap<Long, ViewDimensionsStruct>()
-
-    /**
-     * Proposals currently being answered. A repeat before the first answer
-     * returns means a container is recursively measuring this child under the
-     * same proposal — a broken layout contract that must not resolve quietly.
-     */
-    private val activeMeasurements = HashSet<Long>()
-
     /**
      * Called by native code to measure this view for a given proposal.
      * This method must be present for the JNI callback to work.
@@ -166,17 +144,55 @@ data class SubViewStruct(
      * @return Measured dimensions in dp for the Rust layout engine
      */
     @Suppress("unused") // Called from native code
-    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
-        // Raw bits, not float equality: NaN (unspecified) never equals itself,
-        // and -0.0, +0.0, and the infinities are distinct proposals.
-        val key = proposalWidth.toRawBits().toLong() shl 32 or
-            (proposalHeight.toRawBits().toLong() and 0xFFFF_FFFFL)
+    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct =
+        memos.answer(view, ProposalStruct(proposalWidth, proposalHeight), density)
+}
+
+/**
+ * The probe answers memoized for one layout negotiation.
+ *
+ * Rust layout containers probe their children freely — ideal, minimum, and
+ * allocated offers — and a probe repeated under the same proposal must
+ * return the remembered answer instead of measuring the child again (the
+ * Apple backend's `SubViewProxy` memoizes the same way, and the framework's
+ * `with_memoized_children` defines the same scope: one layout pass). A probe
+ * of a nested container re-enters `waterui_layout_*` for that subtree, so a
+ * memo tied to a single JNI call only dedupes within it: each probe of the
+ * nested group re-runs its subtree's probes, multiplying one pass's work
+ * exponentially in the nesting depth. The memo therefore lives here, shared
+ * by every bridge built while the outermost call runs — a nested container
+ * receives this object through [WuiMeasurableLayout.measureForLayout] and
+ * hands it to its own children — so a descendant's answer survives every
+ * nested call of the pass but can never outlive it. No invalidation
+ * propagation is needed or relied upon: content cannot change during a
+ * synchronous negotiation, and the next negotiation builds a new store.
+ */
+class ProbeMemos internal constructor() {
+    /**
+     * One probe: the view and the proposal's raw bits. Raw bits, not float
+     * equality: NaN (unspecified) never equals itself, and -0.0, +0.0, and
+     * the infinities are distinct proposals.
+     */
+    private data class Probe(val view: android.view.View, val widthBits: Int, val heightBits: Int)
+
+    private val measurements = HashMap<Probe, ViewDimensionsStruct>()
+
+    /**
+     * Probes currently being answered. A repeat before the first answer
+     * returns means a container is recursively measuring this child under
+     * the same proposal — a broken layout contract that must not resolve
+     * quietly.
+     */
+    private val activeMeasurements = HashSet<Probe>()
+
+    fun answer(view: android.view.View, proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
+        val key = Probe(view, proposal.width.toRawBits(), proposal.height.toRawBits())
         measurements[key]?.let { return it }
         check(activeMeasurements.add(key)) {
-            "WaterUI: recursive layout measurement for proposal ($proposalWidth, $proposalHeight)"
+            "WaterUI: recursive layout measurement for proposal (${proposal.width}, ${proposal.height})"
         }
         try {
-            val dimensions = view.answerProposal(ProposalStruct(proposalWidth, proposalHeight), density)
+            val dimensions = view.answerProposal(proposal, density, this)
             measurements[key] = dimensions
             return dimensions
         } finally {
@@ -195,9 +211,13 @@ data class SubViewStruct(
  * [WuiMeasurableLayout]. Any other view is squeezed through
  * [measureForProposal].
  */
-internal fun android.view.View.answerProposal(proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
+internal fun android.view.View.answerProposal(
+    proposal: ProposalStruct,
+    density: Float,
+    memos: ProbeMemos
+): ViewDimensionsStruct {
     if (this is WuiMeasurableLayout) {
-        return measureForLayout(proposal)
+        return measureForLayout(proposal, memos)
     }
     return measureForProposal(proposal, density)
 }

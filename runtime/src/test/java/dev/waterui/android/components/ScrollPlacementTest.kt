@@ -9,6 +9,7 @@ import android.widget.FrameLayout
 import android.widget.ScrollView
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.layout.measureForPlacement
+import dev.waterui.android.runtime.ProbeMemos
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
 import dev.waterui.android.runtime.SubviewPlacementStruct
@@ -95,7 +96,7 @@ class ScrollPlacementTest {
         // The overlay above the scroll measures its base through the probe
         // channel and allocates min(measured, bounds): the scroll has to
         // answer the full offer or the allocation shrinks to the content.
-        val subview = SubViewStruct(viewport, StretchAxis.BOTH, density = DENSITY)
+        val subview = SubViewStruct(viewport, StretchAxis.BOTH, density = DENSITY, memos = ProbeMemos())
         val measured = subview.measureForLayout(VIEWPORT_WIDTH_DP, VIEWPORT_HEIGHT_DP)
         assertEquals(VIEWPORT_WIDTH_DP, measured.size.width)
 
@@ -127,7 +128,7 @@ class ScrollPlacementTest {
         val context = context()
         val contextDensity = context.resources.displayMetrics.density
         val (viewport, _) = mountNarrowContent(context)
-        val subview = SubViewStruct(viewport, StretchAxis.BOTH, density = DENSITY)
+        val subview = SubViewStruct(viewport, StretchAxis.BOTH, density = DENSITY, memos = ProbeMemos())
 
         // A zero-width probe is a parent's "how small can you get" question:
         // the cross axis answers with the content's intrinsic extent, the
