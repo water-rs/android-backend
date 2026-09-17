@@ -124,6 +124,19 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
             }
         }
         super.onLayout(changed, left, top, right, bottom)
+        // The wrapper stands in its content's slot, so the bounds the WaterUI
+        // parent allocated to it are the content's frame. FrameLayout positions
+        // a child at its measured size, which keeps a content measured narrower
+        // than the allocation — a column that fills no axis — packed at the
+        // leading edge instead of laid out across the frame it was assigned.
+        val content = wuiLayoutContent ?: return
+        val margins = content.layoutParams as? ViewGroup.MarginLayoutParams
+        content.layout(
+            paddingLeft + (margins?.leftMargin ?: 0),
+            paddingTop + (margins?.topMargin ?: 0),
+            right - left - paddingRight - (margins?.rightMargin ?: 0),
+            bottom - top - paddingBottom - (margins?.bottomMargin ?: 0)
+        )
     }
 
     init {
