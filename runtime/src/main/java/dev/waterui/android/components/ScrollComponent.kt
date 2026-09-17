@@ -12,7 +12,11 @@ import androidx.core.view.doOnLayout
 import dev.waterui.android.layout.ViewportClipLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.SizeStruct
+import dev.waterui.android.runtime.ViewDimensionsStruct
+import dev.waterui.android.runtime.WuiMeasurableLayout
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiSafeAreaManaging
 import dev.waterui.android.runtime.WuiTypeId
@@ -34,12 +38,13 @@ private val scrollTypeId: WuiTypeId by lazy { NativeBindings.waterui_scroll_view
  * scroll splits them so neither axis double-applies.
  */
 @SuppressLint("ViewConstructor")
-private class SafeAreaScrollViewport(
+internal class SafeAreaScrollViewport(
     context: Context,
     content: View,
     private val verticalHost: ScrollView?,
     private val horizontalHost: HorizontalScrollView?
-) : ViewportClipLayout(context, content), WuiSafeAreaManaging {
+) : ViewportClipLayout(context, content), WuiSafeAreaManaging, WuiMeasurableLayout {
+    private val density: Float = context.resources.displayMetrics.density
     override fun applySafeArea(insets: Insets) {
         verticalHost?.apply {
             clipToPadding = false
@@ -59,6 +64,58 @@ private class SafeAreaScrollViewport(
                 if (verticalHost == null) insets.bottom else 0
             )
         }
+    }
+
+    /**
+     * Answers a Rust layout probe the way the Apple bridge's `scrollMinSize`
+     * does: a scroll claims the whole offer — every axis that names a bound is
+     * the viewport's extent — and only a min-size (zero) query looks at the
+     * content, reporting its intrinsic extent on the cross axis and zero on the
+     * scroll axis. Routing the probe through `MeasureSpec` cannot express that
+     * claim: under AT_MOST a `MATCH_PARENT` child is itself offered AT_MOST and
+     * answers with its natural size, so a parent that allocates
+     * `min(measured, bounds)` — an overlay's base, a centred stack cell —
+     * shrinks the viewport to the content instead of letting the content
+     * centre inside it.
+     */
+    override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
+        val minWidthQuery = proposal.width == 0f
+        val minHeightQuery = proposal.height == 0f
+        val offeredWidth = if (proposal.width.isNaN()) 0f else proposal.width
+        val offeredHeight = if (proposal.height.isNaN()) 0f else proposal.height
+        if (!minWidthQuery && !minHeightQuery) {
+            return ViewDimensionsStruct(
+                size = SizeStruct(offeredWidth, offeredHeight),
+                horizontalGuides = emptyArray(),
+                verticalGuides = emptyArray()
+            )
+        }
+        val host = checkNotNull(verticalHost ?: horizontalHost)
+        host.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val intrinsicWidth = host.measuredWidth / density
+        val intrinsicHeight = host.measuredHeight / density
+        val size = when {
+            verticalHost != null && horizontalHost != null -> SizeStruct(
+                if (minWidthQuery) 0f else offeredWidth,
+                if (minHeightQuery) 0f else offeredHeight
+            )
+            verticalHost != null -> SizeStruct(
+                if (minWidthQuery) intrinsicWidth else offeredWidth,
+                if (minHeightQuery) 0f else offeredHeight
+            )
+            else -> SizeStruct(
+                if (minWidthQuery) 0f else offeredWidth,
+                if (minHeightQuery) intrinsicHeight else offeredHeight
+            )
+        }
+        return ViewDimensionsStruct(
+            size = size,
+            horizontalGuides = emptyArray(),
+            verticalGuides = emptyArray()
+        )
     }
 }
 
