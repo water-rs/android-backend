@@ -25,13 +25,14 @@ import kotlin.math.ceil
  *
  * Its probe answer is the layout contract's leaf contract, which a
  * MeasureSpec squeeze cannot express: a finite width offer is the wrap width
- * and the answer is the widest laid-out line — not the offer; a zero-width
- * offer asks for the narrowest wrap, the widest run between line-break
- * opportunities; and the height offer never enters at all — text answers its
- * laid-out line count times the platform line box. Measured through
- * MeasureSpec instead, `TextView.onMeasure` clamps its desired height to an
- * AT_MOST offer, so a stack's `0` minimum query was answered with a zero
- * height and a compressed stack dropped the text entirely.
+ * and the answer is the extent the view measures under it — once text wraps
+ * or ellipsizes that is the whole cap, wider than the widest line's ink; a
+ * zero-width offer asks for the narrowest wrap, the widest run between
+ * line-break opportunities; and the height offer never enters at all — text
+ * answers its laid-out line count times the platform line box. Measured
+ * through MeasureSpec instead, `TextView.onMeasure` clamps its desired
+ * height to an AT_MOST offer, so a stack's `0` minimum query was answered
+ * with a zero height and a compressed stack dropped the text entirely.
  */
 // The backend renders every text leaf with the framework TextView — colors
 // and fonts come from resolved theme values, not compat tinting.
@@ -108,6 +109,16 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
      * Lays the text out under [widthSpec] and distils the probe answer. The
      * height offer never enters: the answer is the laid-out line count times
      * the platform line box, whatever the probe proposed.
+     *
+     * The width answer is the view's measured extent, not the widest line's
+     * ink: once text wraps or ellipsizes, `TextView.onMeasure` occupies the
+     * whole wrap cap while `Layout.getLineMax` reports only the drawn ink.
+     * A container that negotiates on the answer but positions by
+     * `measuredWidth` — a centred label inside a padded control — would lay
+     * the view out offset from the frame the answer produced and clip its
+     * first glyph. `measuredWidth` already carries the compound padding and
+     * the suggested minimum, so the answer is the exact extent a measure
+     * pass under the same spec produces.
      */
     private fun shapeAnswer(widthSpec: Int): ProbeAnswer {
         layoutPassCount += 1
@@ -116,15 +127,8 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
         val lines = layout
         // `getMaxLines` answers -1 when no limit is set.
         val shownLines = if (maxLines >= 0) minOf(lines.lineCount, maxLines) else lines.lineCount
-        var widestPx = 0f
-        for (line in 0 until shownLines) {
-            widestPx = maxOf(widestPx, lines.getLineMax(line))
-        }
         return ProbeAnswer(
-            intrinsicWidth = maxOf(
-                widestPx + compoundPaddingLeft + compoundPaddingRight,
-                suggestedMinimumWidth.toFloat()
-            ) / density,
+            intrinsicWidth = measuredWidth.toFloat() / density,
             intrinsicHeight = measuredHeight.toFloat() / density,
             verticalGuides = baselineGuides(lines, shownLines)
         )
