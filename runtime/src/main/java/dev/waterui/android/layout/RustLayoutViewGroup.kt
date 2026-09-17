@@ -414,13 +414,6 @@ internal fun View.deliverSelectedProposal(placement: SubviewPlacementStruct) {
  * already flagged for layout, so a leaf changing size under a flagged
  * intermediate would never reach a long-lived cache.
  */
-/**
- * The bridge set for a top-level negotiation — a host `onMeasure`/`onLayout`
- * entry — whose answers memoize in a store scoped to that call alone.
- */
-internal fun ViewGroup.buildSubViewBridges(density: Float): Array<SubViewStruct> =
-    buildSubViewBridges(density, ProbeMemos())
-
 internal fun ViewGroup.buildSubViewBridges(density: Float, memos: ProbeMemos): Array<SubViewStruct> =
     Array(childCount) { index ->
         val child = getChildAt(index)
@@ -432,6 +425,13 @@ internal fun ViewGroup.buildSubViewBridges(density: Float, memos: ProbeMemos): A
             memos = memos
         )
     }
+
+/**
+ * The bridge set for a top-level negotiation — a host `onMeasure`/`onLayout`
+ * entry — whose answers memoize in a store scoped to that call alone.
+ */
+internal fun ViewGroup.buildSubViewBridges(density: Float): Array<SubViewStruct> =
+    buildSubViewBridges(density, ProbeMemos())
 
 private data class LayoutConstraints(
     val minWidth: Int,
