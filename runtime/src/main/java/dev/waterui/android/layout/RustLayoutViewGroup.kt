@@ -90,6 +90,32 @@ class RustLayoutViewGroup(
     private var cachedSubviews: Array<SubViewStruct> = emptyArray()
 
     /**
+     * Drops the SubView bridge objects — and every memoized probe answer they
+     * carry. Called when the content behind this layout's children may have
+     * changed; the next [resolveSubviews] rebuilds the array and negotiates
+     * from scratch.
+     */
+    internal fun dropMeasurementMemos() {
+        cachedSubviews = emptyArray()
+    }
+
+    /**
+     * A memoized probe answer is only valid while the content behind it is
+     * unchanged, and a descendant's content change invalidates the answers of
+     * every ancestor holding this subtree in a slot. `View.requestLayout`
+     * stops its upward walk at the first ancestor already flagged for layout,
+     * so waiting for each ancestor's own `requestLayout` would leave stale
+     * memos behind the moment propagation is absorbed — drop them all the way
+     * up unconditionally, the same contract Apple's `invalidateLayoutHierarchy`
+     * gives `cachedSubViews` in `WuiContainer`.
+     */
+    override fun requestLayout() {
+        dropMeasurementMemos()
+        dropAncestorMeasurementMemos()
+        super.requestLayout()
+    }
+
+    /**
      * The offer the host environment measured this group under, in dp. It is
      * the proposal this group passes to its Rust layout when no WaterUI parent
      * selected one — the only place a bounded offer may originate. Every
@@ -214,6 +240,14 @@ class RustLayoutViewGroup(
             return
         }
 
+        // A flagged pass negotiates from scratch: the flag may have been
+        // raised while this group was already flagged — absorbed before the
+        // requestLayout override ran — leaving memos repopulated between the
+        // two invalidations stale.
+        if (isLayoutRequested) {
+            dropMeasurementMemos()
+        }
+
         val constraints = LayoutConstraints.fromMeasureSpecs(widthMeasureSpec, heightMeasureSpec)
         // Convert pixel specs to the dp offer Rust sees. Only a spec naming a
         // bound is an offer, and only this host-derived proposal may create
@@ -242,6 +276,12 @@ class RustLayoutViewGroup(
         // Nothing to layout for empty containers
         if (isEmpty()) {
             return
+        }
+
+        // A request-during-layout lands flagged here: the answers measured
+        // earlier in this pass may predate it, so placement re-negotiates.
+        if (isLayoutRequested) {
+            dropMeasurementMemos()
         }
 
         // Convert pixel bounds to dp for Rust layout engine; the children are
@@ -433,6 +473,33 @@ private fun placementMeasureSpec(
  */
 internal fun View.deliverSelectedProposal(placement: SubviewPlacementStruct) {
     (this as? WuiProposalAware)?.setWuiSelectedProposal(placement.proposalWidth, placement.proposalHeight)
+}
+
+/**
+ * Drops memoized probe answers on every [RustLayoutViewGroup] above this view.
+ *
+ * `View.requestLayout` stops propagating at the first ancestor already flagged
+ * for layout — fine for scheduling a traversal, wrong for cache invalidation:
+ * an ancestor's memoized answers about the slot holding this subtree are stale
+ * either way. The walk is unconditional, matching Apple's
+ * `invalidateLayoutHierarchy` which nils `cachedSubViews` on every ancestor.
+ */
+internal fun View.dropAncestorMeasurementMemos() {
+    var ancestor = parent
+    while (ancestor != null) {
+        (ancestor as? RustLayoutViewGroup)?.dropMeasurementMemos()
+        ancestor = ancestor.parent
+    }
+}
+
+/**
+ * The invalidation a view whose measured content changed must issue: flag the
+ * layout pass through [View.requestLayout], and drop ancestor probe memos even
+ * where propagation would have been absorbed by an already-flagged ancestor.
+ */
+internal fun View.invalidateWuiLayoutHierarchy() {
+    dropAncestorMeasurementMemos()
+    requestLayout()
 }
 
 private data class LayoutConstraints(

@@ -26,6 +26,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.Keep
 import androidx.core.view.isVisible
+import dev.waterui.android.layout.invalidateWuiLayoutHierarchy
 import dev.waterui.android.runtime.GpuSurfaceStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -802,7 +803,7 @@ internal class GpuSurfaceView(
             setupPending = false
             if (layoutRequestedWhileSetup) {
                 layoutRequestedWhileSetup = false
-                requestLayout()
+                invalidateWuiLayoutHierarchy()
             }
         }
         return rendererReady

@@ -135,6 +135,26 @@ data class SubViewStruct(
     val density: Float = 1f
 ) {
     /**
+     * The probe answers this bridge object has already computed, keyed by the
+     * proposal's raw bits. Rust layout containers probe their children freely —
+     * ideal, minimum, and allocated offers — and a probe repeated under the
+     * same proposal must return the remembered answer instead of measuring the
+     * child again: every re-measure of a nested container re-enters its whole
+     * subtree, which multiplies identical probes into an exponential
+     * measurement storm (the Apple backend's `SubViewProxy` memoizes the same
+     * way). The memo dies with this object; the owning container rebuilds its
+     * SubView array when the child set or the content behind it invalidates.
+     */
+    private val measurements = HashMap<Long, ViewDimensionsStruct>()
+
+    /**
+     * Proposals currently being answered. A repeat before the first answer
+     * returns means a container is recursively measuring this child under the
+     * same proposal — a broken layout contract that must not resolve quietly.
+     */
+    private val activeMeasurements = HashSet<Long>()
+
+    /**
      * Called by native code to measure this view for a given proposal.
      * This method must be present for the JNI callback to work.
      *
@@ -144,7 +164,21 @@ data class SubViewStruct(
      */
     @Suppress("unused") // Called from native code
     fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
-        return view.answerProposal(ProposalStruct(proposalWidth, proposalHeight), density)
+        // Raw bits, not float equality: NaN (unspecified) never equals itself,
+        // and -0.0, +0.0, and the infinities are distinct proposals.
+        val key = proposalWidth.toRawBits().toLong() shl 32 or
+            (proposalHeight.toRawBits().toLong() and 0xFFFF_FFFFL)
+        measurements[key]?.let { return it }
+        check(activeMeasurements.add(key)) {
+            "WaterUI: recursive layout measurement for proposal ($proposalWidth, $proposalHeight)"
+        }
+        try {
+            val dimensions = view.answerProposal(ProposalStruct(proposalWidth, proposalHeight), density)
+            measurements[key] = dimensions
+            return dimensions
+        } finally {
+            activeMeasurements.remove(key)
+        }
     }
 }
 

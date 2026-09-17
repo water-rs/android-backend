@@ -8,6 +8,7 @@ import android.view.ViewTreeObserver
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import dev.waterui.android.layout.RustLayoutViewGroup
+import dev.waterui.android.layout.invalidateWuiLayoutHierarchy
 import dev.waterui.android.reactive.WatcherGuard
 import dev.waterui.android.runtime.HorizontalAlignment
 import dev.waterui.android.runtime.NativeAnyViews
@@ -105,7 +106,7 @@ private class LazyStackLayoutView(
                 if (scrollChangedListener != null) {
                     return
                 }
-                val listener = ViewTreeObserver.OnScrollChangedListener { requestLayout() }
+                val listener = ViewTreeObserver.OnScrollChangedListener { invalidateWuiLayoutHierarchy() }
                 scrollChangedListener = listener
                 viewTreeObserver.addOnScrollChangedListener(listener)
             }
@@ -145,7 +146,7 @@ private class LazyStackLayoutView(
                 true
             }
         }
-        requestLayout()
+        invalidateWuiLayoutHierarchy()
     }
 
     private fun crossConstraintPx(widthMeasureSpec: Int, heightMeasureSpec: Int): Int {
@@ -475,7 +476,7 @@ private class LazyStackLayoutView(
         }
 
         if (requiresRelayout) {
-            requestLayout()
+            invalidateWuiLayoutHierarchy()
         }
     }
 }

@@ -125,6 +125,54 @@ class WuiTextViewContractTest {
     }
 
     @Test
+    fun repeatedEquivalentProbeLaysTheTextOutOnce() {
+        // Every layout pass probes a text leaf several times under identical
+        // offers; laying the text out per probe is the StaticLayout storm that
+        // stalls the main thread, so an equivalent repeat must reuse the
+        // shaped answer.
+        val view = textView(WRAP_TEXT)
+        val first = view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+        val second = view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+
+        assertEquals(1, view.layoutPassCount)
+        assertEquals(first.size.width, second.size.width, 0.001f)
+        assertEquals(first.size.height, second.size.height, 0.001f)
+    }
+
+    @Test
+    fun theHeightOfferNeverEntersTheShapingKey() {
+        // Height proposals carry no shaping input — text answers its laid-out
+        // line count regardless — so probes differing only in height share one
+        // layout pass.
+        val view = textView(WRAP_TEXT)
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, 0f))
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.POSITIVE_INFINITY))
+
+        assertEquals(1, view.layoutPassCount)
+    }
+
+    @Test
+    fun aDifferentWrapWidthShapesAgain() {
+        val view = textView(WRAP_TEXT)
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP / 2f, Float.NaN))
+
+        assertEquals(2, view.layoutPassCount)
+    }
+
+    @Test
+    fun aContentInvalidationReshapesTheNextProbe() {
+        // The shaped answers cannot outlive the text's invalidation funnel:
+        // requestLayout is where every shaping input reports a change.
+        val view = textView(WRAP_TEXT)
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+        view.requestLayout()
+        view.measureForLayout(ProposalStruct(WRAP_WIDTH_DP, Float.NaN))
+
+        assertEquals(2, view.layoutPassCount)
+    }
+
+    @Test
     fun genericSqueezeStillAnswersZeroForPlainViews() {
         // The contract violation this fix removes: a plain TextView probed
         // through MeasureSpec clamps to the AT_MOST offer and reports no

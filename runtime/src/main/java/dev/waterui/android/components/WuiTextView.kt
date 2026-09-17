@@ -5,6 +5,7 @@ import android.content.Context
 import android.text.Layout
 import android.view.View.MeasureSpec
 import android.widget.TextView
+import dev.waterui.android.layout.dropAncestorMeasurementMemos
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
@@ -39,20 +40,78 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
 
     private val density = resources.displayMetrics.density
 
+    /**
+     * The answers computed under resolved width specs, plus the narrowest-wrap
+     * answer. Shaping is the expensive half of a probe — every miss runs
+     * `TextView.measure`, which lays the text out again — so a repeated
+     * equivalent probe must return the remembered answer instead. The holder
+     * survives until [requestLayout], the funnel every shaping input (text,
+     * typeface, sizes, spacing, line limits, padding) passes through on its
+     * way to invalidating the layout — and `requestLayout` also runs inside
+     * the TextView constructor, before any property here is initialized, so
+     * the holder is nullable and created on first probe.
+     */
+    private var shapedAnswers: ShapedAnswers? = null
+
+    /** How many probes have actually laid the text out; a test seam. */
+    internal var layoutPassCount = 0
+        private set
+
+    private class ShapedAnswers {
+        val bySpec = HashMap<Int, ProbeAnswer>()
+        var narrowestWrapPx: Float? = null
+    }
+
+    /** The probe answer measured under one width spec, in dp. */
+    private class ProbeAnswer(
+        val intrinsicWidth: Float,
+        val intrinsicHeight: Float,
+        val verticalGuides: Array<VerticalGuideStruct>
+    )
+
+    override fun requestLayout() {
+        shapedAnswers = null
+        dropAncestorMeasurementMemos()
+        super.requestLayout()
+    }
+
     override fun measureForLayout(proposal: ProposalStruct): ViewDimensionsStruct {
-        val widthSpec = when {
-            // Unspecified and unbounded probes both ask for the unwrapped line.
-            proposal.width.isNaN() || proposal.width.isInfinite() ->
-                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-            // A finite offer is the wrap width.
-            proposal.width > 0f ->
-                MeasureSpec.makeMeasureSpec(ceil(proposal.width * density).toInt(), MeasureSpec.AT_MOST)
-            // A zero offer asks for the narrowest wrap; a bare AT_MOST 0
-            // would squeeze to nothing and UNSPECIFIED never wraps.
-            else -> MeasureSpec.makeMeasureSpec(ceil(narrowestWrapWidthPx()).toInt(), MeasureSpec.AT_MOST)
-        }
-        // The height offer never enters: the answer is the laid-out line
-        // count times the platform line box, whatever the probe proposed.
+        val cache = shapedAnswers ?: ShapedAnswers().also { shapedAnswers = it }
+        val spec = widthSpecFor(proposal.width, cache)
+        val answer = cache.bySpec.getOrPut(spec) { shapeAnswer(spec) }
+
+        val axis = getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
+        return ViewDimensionsStruct(
+            size = SizeStruct(
+                width = leafAxisAnswer(proposal.width, answer.intrinsicWidth, axis.mayFillHorizontal()),
+                height = leafAxisAnswer(proposal.height, answer.intrinsicHeight, axis.mayFillVertical())
+            ),
+            horizontalGuides = emptyArray(),
+            verticalGuides = answer.verticalGuides
+        )
+    }
+
+    /**
+     * The spec one width proposal resolves to: unspecified and unbounded
+     * probes both ask for the unwrapped line, a finite offer is the wrap
+     * width, and a zero offer asks for the narrowest wrap — a bare AT_MOST 0
+     * would squeeze to nothing and UNSPECIFIED never wraps.
+     */
+    private fun widthSpecFor(widthDp: Float, cache: ShapedAnswers): Int = when {
+        widthDp.isNaN() || widthDp.isInfinite() ->
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        widthDp > 0f ->
+            MeasureSpec.makeMeasureSpec(ceil(widthDp * density).toInt(), MeasureSpec.AT_MOST)
+        else -> MeasureSpec.makeMeasureSpec(ceil(narrowestWrapWidthPx(cache)).toInt(), MeasureSpec.AT_MOST)
+    }
+
+    /**
+     * Lays the text out under [widthSpec] and distils the probe answer. The
+     * height offer never enters: the answer is the laid-out line count times
+     * the platform line box, whatever the probe proposed.
+     */
+    private fun shapeAnswer(widthSpec: Int): ProbeAnswer {
+        layoutPassCount += 1
         measure(widthSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
 
         val lines = layout
@@ -62,19 +121,12 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
         for (line in 0 until shownLines) {
             widestPx = maxOf(widestPx, lines.getLineMax(line))
         }
-        val intrinsicWidth = maxOf(
-            widestPx + compoundPaddingLeft + compoundPaddingRight,
-            suggestedMinimumWidth.toFloat()
-        ) / density
-        val intrinsicHeight = measuredHeight.toFloat() / density
-
-        val axis = getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
-        return ViewDimensionsStruct(
-            size = SizeStruct(
-                width = leafAxisAnswer(proposal.width, intrinsicWidth, axis.mayFillHorizontal()),
-                height = leafAxisAnswer(proposal.height, intrinsicHeight, axis.mayFillVertical())
-            ),
-            horizontalGuides = emptyArray(),
+        return ProbeAnswer(
+            intrinsicWidth = maxOf(
+                widestPx + compoundPaddingLeft + compoundPaddingRight,
+                suggestedMinimumWidth.toFloat()
+            ) / density,
+            intrinsicHeight = measuredHeight.toFloat() / density,
             verticalGuides = baselineGuides(lines, shownLines)
         )
     }
@@ -105,9 +157,11 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
      * run between the line-break opportunities `BreakIterator` finds in the
      * laid-out text, measured on the text's own layout so styled spans count.
      */
-    private fun narrowestWrapWidthPx(): Float {
+    private fun narrowestWrapWidthPx(cache: ShapedAnswers): Float {
+        cache.narrowestWrapPx?.let { return it }
         // Lay the text out unbounded so every break offset is a horizontal
         // advance on a single laid-out line per paragraph.
+        layoutPassCount += 1
         measure(
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
@@ -135,6 +189,8 @@ internal class WuiTextView(context: Context) : TextView(context), WuiMeasurableL
             start = end
             end = breaks.next()
         }
-        return widestPx + compoundPaddingLeft + compoundPaddingRight
+        val narrowestPx = widestPx + compoundPaddingLeft + compoundPaddingRight
+        cache.narrowestWrapPx = narrowestPx
+        return narrowestPx
     }
 }
