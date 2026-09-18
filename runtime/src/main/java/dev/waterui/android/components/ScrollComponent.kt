@@ -41,10 +41,12 @@ private val scrollTypeId: WuiTypeId by lazy { NativeBindings.waterui_scroll_view
 @SuppressLint("ViewConstructor")
 internal class SafeAreaScrollViewport(
     context: Context,
-    content: View,
+    viewport: View,
+    /** The WaterUI content the hosts scroll, probed on a min-size query. */
+    private val content: View,
     private val verticalHost: ScrollView?,
     private val horizontalHost: HorizontalScrollView?
-) : ViewportClipLayout(context, content), WuiSafeAreaManaging, WuiMeasurableLayout {
+) : ViewportClipLayout(context, viewport), WuiSafeAreaManaging, WuiMeasurableLayout {
     private val density: Float = context.resources.displayMetrics.density
     override fun applySafeArea(insets: Insets) {
         verticalHost?.apply {
@@ -71,13 +73,21 @@ internal class SafeAreaScrollViewport(
      * Answers a Rust layout probe the way the Apple bridge's `scrollMinSize`
      * does: a scroll claims the whole offer — every axis that names a bound is
      * the viewport's extent — and only a min-size (zero) query looks at the
-     * content, reporting its intrinsic extent on the cross axis and zero on the
-     * scroll axis. Routing the probe through `MeasureSpec` cannot express that
-     * claim: under AT_MOST a `MATCH_PARENT` child is itself offered AT_MOST and
-     * answers with its natural size, so a parent that allocates
-     * `min(measured, bounds)` — an overlay's base, a centred stack cell —
-     * shrinks the viewport to the content instead of letting the content
-     * centre inside it.
+     * content, reporting zero on the scroll axis and, on the cross axis, the
+     * content's own minimum. Routing the probe through `MeasureSpec` cannot
+     * express that claim: under AT_MOST a `MATCH_PARENT` child is itself
+     * offered AT_MOST and answers with its natural size, so a parent that
+     * allocates `min(measured, bounds)` — an overlay's base, a centred stack
+     * cell — shrinks the viewport to the content instead of letting the
+     * content centre inside it.
+     *
+     * The cross-axis minimum is the content's answer to the same min query
+     * — zero on that axis, unspecified on the scroll axis — not its ideal
+     * extent: a vertical scroll over a paragraph is as narrow as the paragraph
+     * wraps, which is what the paragraph itself reports for a zero offer. An
+     * unspecified measure of the host instead returned the unwrapped line,
+     * and a stack trusting that floor pushed the whole row off the window
+     * (the `reply` example's detail pane, android-backend#193).
      */
     override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
         val minWidthQuery = proposal.width == 0f
@@ -91,31 +101,37 @@ internal class SafeAreaScrollViewport(
                 verticalGuides = emptyArray()
             )
         }
-        val host = checkNotNull(verticalHost ?: horizontalHost)
-        host.measure(
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        val intrinsicWidth = host.measuredWidth / density
-        val intrinsicHeight = host.measuredHeight / density
         val size = when {
             verticalHost != null && horizontalHost != null -> SizeStruct(
                 if (minWidthQuery) 0f else offeredWidth,
                 if (minHeightQuery) 0f else offeredHeight
             )
             verticalHost != null -> SizeStruct(
-                if (minWidthQuery) intrinsicWidth else offeredWidth,
+                if (minWidthQuery) contentMinimum(memos, width = 0f, height = Float.NaN).width else offeredWidth,
                 if (minHeightQuery) 0f else offeredHeight
             )
             else -> SizeStruct(
                 if (minWidthQuery) 0f else offeredWidth,
-                if (minHeightQuery) intrinsicHeight else offeredHeight
+                if (minHeightQuery) contentMinimum(memos, width = Float.NaN, height = 0f).height else offeredHeight
             )
         }
         return ViewDimensionsStruct(
             size = size,
             horizontalGuides = emptyArray(),
             verticalGuides = emptyArray()
+        )
+    }
+
+    /**
+     * The content's answer to a min query on the cross axis, plus the host
+     * padding that keeps it clear of the window edges on that axis.
+     */
+    private fun contentMinimum(memos: ProbeMemos, width: Float, height: Float): SizeStruct {
+        val host = checkNotNull(verticalHost ?: horizontalHost)
+        val answer = memos.answer(content, ProposalStruct(width, height), density).size
+        return SizeStruct(
+            answer.width + (host.paddingLeft + host.paddingRight) / density,
+            answer.height + (host.paddingTop + host.paddingBottom) / density
         )
     }
 }
@@ -185,7 +201,7 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
 
     // The surrounding WaterUI containers let their children draw outside their
     // own bounds, which a viewport cannot afford; it brings its own clip.
-    val root: View = SafeAreaScrollViewport(context, viewport, verticalHost, horizontalHost)
+    val root: View = SafeAreaScrollViewport(context, viewport, content, verticalHost, horizontalHost)
 
     val controlled = struct.scrollGenerationPtr != 0L
     check(

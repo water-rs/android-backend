@@ -10,10 +10,14 @@ import android.widget.ScrollView
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.layout.measureForPlacement
 import dev.waterui.android.runtime.ProbeMemos
+import dev.waterui.android.runtime.ProposalStruct
+import dev.waterui.android.runtime.SizeStruct
 import dev.waterui.android.runtime.StretchAxis
 import dev.waterui.android.runtime.SubViewStruct
 import dev.waterui.android.runtime.SubviewPlacementStruct
 import dev.waterui.android.runtime.TAG_STRETCH_AXIS
+import dev.waterui.android.runtime.ViewDimensionsStruct
+import dev.waterui.android.runtime.WuiMeasurableLayout
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,9 +37,9 @@ import org.robolectric.annotation.Config
  * reports its natural size, so a parent that allocates `min(measured,
  * bounds)` — an overlay's base child, a stack cell — parks the whole viewport
  * at the content's natural width and its centred column hugs the leading
- * edge. Only a min-size (zero) query measures the content, reporting its
- * intrinsic extent on the cross axis so a parent can still learn the column's
- * natural width.
+ * edge. Only a min-size (zero) query probes the content, and it asks the
+ * content the same question — how narrow can you get — so a parent learns the
+ * column's minimum on the cross axis, never its unwrapped ideal.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -47,10 +51,28 @@ class ScrollPlacementTest {
         const val VIEWPORT_HEIGHT_DP = 800f
         const val VIEWPORT_WIDTH_PX = 720
         const val VIEWPORT_HEIGHT_PX = 1600
+        const val NARROWEST_WRAP_DP = 48f
+        const val UNWRAPPED_LINE_DP = 2200f
     }
 
     private fun context(): Context =
         Robolectric.buildActivity(Activity::class.java).setup().get()
+
+    /**
+     * A column that answers the WaterUI contract the way a paragraph does:
+     * its ideal width is the unwrapped line, its minimum the narrowest wrap.
+     * The two differ so a probe that asks the wrong question is caught.
+     */
+    private class WrappingColumn(context: Context) : FrameLayout(context), WuiMeasurableLayout {
+        override fun measureForLayout(proposal: ProposalStruct, memos: ProbeMemos): ViewDimensionsStruct {
+            val width = when {
+                proposal.width == 0f -> NARROWEST_WRAP_DP
+                proposal.width.isNaN() || proposal.width.isInfinite() -> UNWRAPPED_LINE_DP
+                else -> minOf(proposal.width, UNWRAPPED_LINE_DP)
+            }
+            return ViewDimensionsStruct(SizeStruct(width, 100f), emptyArray(), emptyArray())
+        }
+    }
 
     /**
      * Mounts a vertical scroll over content that measures [CONTENT_WIDTH_PX]
@@ -84,9 +106,25 @@ class ScrollPlacementTest {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
-        val viewport = SafeAreaScrollViewport(context, host, host, null)
+        val viewport = SafeAreaScrollViewport(context, host, wrapper, host, null)
         viewport.setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
         return viewport to marker
+    }
+
+    /** Mounts a vertical scroll over a [WrappingColumn]. */
+    private fun mountWrappingContent(context: Context): SafeAreaScrollViewport {
+        val column = WrappingColumn(context)
+        val host = ScrollView(context)
+        host.addView(
+            column,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+        val viewport = SafeAreaScrollViewport(context, host, column, host, null)
+        viewport.setTag(TAG_STRETCH_AXIS, StretchAxis.BOTH)
+        return viewport
     }
 
     @Test
@@ -124,17 +162,16 @@ class ScrollPlacementTest {
     }
 
     @Test
-    fun scrollMinSizeQueryReportsTheContentsIntrinsicCrossAxis() {
-        val context = context()
-        val contextDensity = context.resources.displayMetrics.density
-        val (viewport, _) = mountNarrowContent(context)
+    fun scrollMinSizeQueryReportsTheContentsMinimumCrossAxis() {
+        val viewport = mountWrappingContent(context())
         val subview = SubViewStruct(viewport, StretchAxis.BOTH, density = DENSITY, memos = ProbeMemos())
 
         // A zero-width probe is a parent's "how small can you get" question:
-        // the cross axis answers with the content's intrinsic extent, the
-        // scroll axis — here height, which is not queried — the offer.
+        // the cross axis answers with the content's own minimum — the
+        // narrowest wrap, not the unwrapped line — and the scroll axis, here
+        // height, which is not queried, the offer.
         val measured = subview.measureForLayout(0f, VIEWPORT_HEIGHT_DP)
-        assertEquals(CONTENT_WIDTH_PX / contextDensity, measured.size.width)
+        assertEquals(NARROWEST_WRAP_DP, measured.size.width)
         assertEquals(VIEWPORT_HEIGHT_DP, measured.size.height)
 
         // A zero-height probe asks the same on the scroll axis: the content
