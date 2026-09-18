@@ -855,6 +855,7 @@ def wait_for_settle(
                 stable_since = None
                 time.sleep(poll_s)
                 continue
+            last_foreign = None
         if content_at is None and cur and is_nonblank(cur):
             content_at = time.monotonic()
         if cur and cur == prev and is_nonblank(cur):
@@ -928,26 +929,35 @@ def wait_for_content(
                     )
                 time.sleep(poll_s)
                 continue
+            last_foreign = None
         if frame and is_nonblank(frame):
             return frame, time.monotonic()
         time.sleep(poll_s)
     return None, None
 
 
-def capture_twin(serial: str, example: str, timeout_s: float, poll_s: float) -> bytes | None:
+def capture_twin(
+    serial: str,
+    example: str,
+    timeout_s: float,
+    poll_s: float,
+    foreign: list[str],
+) -> bytes | None:
     """Launch the Compose MD3 reference host for `example` and return its
-    settled screenshot. The reference activity is force-stopped afterwards so
-    the next launch starts cold."""
+    settled screenshot, or None when no settled twin frame arrived — a frame
+    the settle wait rejected for a foreign focused window is not the twin and
+    is never handed back; `foreign` names the offender. The reference
+    activity is force-stopped afterwards so the next launch starts cold."""
     # The twin honors the same kill-switch so both sides render the static
     # MD3 baseline — see example_config's env comment.
     adb(serial, "shell", "am", "start", "-W", "-n", REFERENCE_ACTIVITY,
         "--es", "E2EExample", example,
         "--es", "waterui.env.WATERUI_DISABLE_DYNAMIC_COLORS", "1")
     try:
-        _, frame, _ = wait_for_settle(
-            serial, timeout_s, poll_s, package=REFERENCE_PACKAGE
+        settled, frame, _ = wait_for_settle(
+            serial, timeout_s, poll_s, package=REFERENCE_PACKAGE, foreign=foreign
         )
-        return frame
+        return frame if settled else None
     finally:
         subprocess.run(
             ["adb", "-s", serial, "shell", "am", "force-stop", REFERENCE_PACKAGE],
@@ -962,30 +972,37 @@ def verify_parity(
     cfg: dict,
     budget: float,
     artifacts_dir: Path,
-) -> bool:
+) -> str | None:
     """Render the registered Compose twin and pixel-compare it against the
-    WaterUI capture. Returns False when the twin cannot render or the diff
-    exceeds the example's parity budget."""
+    WaterUI capture. Returns the failure detail — None when the twin renders
+    and the diff stays inside the example's parity budget. A foreign window
+    holding focus during the twin's settle wait is the failure itself: no
+    twin frame is written and no comparison runs on the rejected capture."""
     twin_png = artifacts_dir / f"{example}.twin.png"
-    frame = capture_twin(serial, example, cfg["settle_s"], cfg["poll_s"])
-    if not frame:
-        print(f"parity: twin for {example} produced no frame", file=sys.stderr)
-        return False
+    foreign: list[str] = []
+    frame = capture_twin(serial, example, cfg["settle_s"], cfg["poll_s"], foreign)
+    if frame is None:
+        detail = (
+            f"foreign window '{foreign[-1]}' held focus"
+            if foreign else f"twin for {example} produced no frame"
+        )
+        print(f"parity: {detail}", file=sys.stderr)
+        return detail
     twin_png.write_bytes(frame)
     result = compare_images(
         twin_png, actual, cfg["tolerance"], budget,
         artifacts_dir / f"{example}.parity.diff.png",
     )
     if result == 2:
-        return False
+        return f"twin for {example} could not be compared"
     if result != 0:
-        print(
-            f"parity: {example} diverges from its Compose twin beyond budget "
-            f"{budget:.4%} — see {example}.parity.diff.png",
-            file=sys.stderr,
+        detail = (
+            f"{example} diverges from its Compose twin beyond budget "
+            f"{budget:.4%} — see {example}.parity.diff.png"
         )
-        return False
-    return True
+        print(f"parity: {detail}", file=sys.stderr)
+        return detail
+    return None
 
 
 # ---------- shard driver ----------
@@ -1194,11 +1211,12 @@ def _run_packaged_example(
                     status = "FAIL"
                     detail += "; diverges from golden"
                 elif parity_budget is not None and golden_mode != "record":
-                    if not verify_parity(
+                    parity_detail = verify_parity(
                         example, actual, serial, cfg, parity_budget, artifacts_dir
-                    ):
+                    )
+                    if parity_detail is not None:
                         status = "FAIL"
-                        detail += "; diverges from Compose twin"
+                        detail += f"; {parity_detail}"
             if abort and status != "FAIL":
                 status = "FAIL"
         else:  # smoke

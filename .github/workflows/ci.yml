@@ -32,6 +32,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Static analysis and unit tests
         run: ./gradlew --no-daemon :runtime:detekt :runtime:detektDebug :runtime:lintDebug :runtime:testDebugUnitTest
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+      - name: E2E harness unit tests
+        run: uv run --with pytest pytest scripts/ci/test_e2e.py
       # The runtime declares its own `minSdk` — it builds standalone and
       # cannot read the framework manifest — but the two must agree, or a
       # scaffolded app's floor is one the runtime does not support. The

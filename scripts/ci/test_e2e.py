@@ -7,6 +7,8 @@ candidate golden in nightly run 35268572603 — and one with the notification
 shade holding focus over a live app.
 """
 
+import subprocess
+
 import e2e
 
 
@@ -125,3 +127,65 @@ def test_window_package_of_exiting_app_window():
 def test_parse_anr_package_finds_dialog_package():
     assert e2e.parse_anr_package(ANR_FOCUSED) == "com.android.systemui"
     assert e2e.parse_anr_package(APP_FOCUSED) is None
+
+
+def test_capture_twin_drops_a_frame_rejected_for_foreign_focus(monkeypatch):
+    # wait_for_settle hands back its last capture on a rejected-frame
+    # timeout — the foreign window itself — which must never be consumed
+    # as the twin.
+    foreign = []
+    monkeypatch.setattr(e2e, "adb", lambda *args: None)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0),
+    )
+
+    def rejected(serial, timeout_s, poll_s, **kwargs):
+        kwargs["foreign"].append("NotificationShade")
+        return False, b"the foreign window's frame", None
+
+    monkeypatch.setattr(e2e, "wait_for_settle", rejected)
+    assert e2e.capture_twin("emulator-5554", "shape", 1.0, 0.1, foreign) is None
+    assert foreign == ["NotificationShade"]
+
+
+def test_capture_twin_returns_the_settled_frame(monkeypatch):
+    foreign = []
+    monkeypatch.setattr(e2e, "adb", lambda *args: None)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args, 0),
+    )
+    monkeypatch.setattr(
+        e2e, "wait_for_settle", lambda *args, **kwargs: (True, b"twin", None)
+    )
+    assert (
+        e2e.capture_twin("emulator-5554", "shape", 1.0, 0.1, foreign) == b"twin"
+    )
+    assert foreign == []
+
+
+def test_verify_parity_fails_on_foreign_focus_without_comparing(
+    monkeypatch, tmp_path
+):
+    def rejected(serial, example, timeout_s, poll_s, foreign):
+        foreign.append("Application Error: com.android.systemui")
+        return None
+
+    monkeypatch.setattr(e2e, "capture_twin", rejected)
+    compared = []
+    monkeypatch.setattr(
+        e2e, "compare_images", lambda *args: compared.append(args) or 0
+    )
+    cfg = {"settle_s": 1.0, "poll_s": 0.1, "tolerance": 8}
+    detail = e2e.verify_parity(
+        "shape", tmp_path / "shape.actual.png", "emulator-5554",
+        cfg, 0.005, tmp_path
+    )
+    assert detail == (
+        "foreign window 'Application Error: com.android.systemui' held focus"
+    )
+    assert compared == []
+    assert not (tmp_path / "shape.twin.png").exists()
