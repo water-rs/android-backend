@@ -168,7 +168,7 @@ private const val MIN_BUTTON_HEIGHT_DP = 40f
 // The label is a construction input — the container is only ever inflated in
 // code, never from layout XML.
 @SuppressLint("ViewConstructor")
-private class WuiButtonLayout(context: Context, private val label: View) :
+internal class WuiButtonLayout(context: Context, private val label: View) :
     FrameLayout(context), WuiMeasurableLayout, WuiProposalAware {
 
     private val density = resources.displayMetrics.density
