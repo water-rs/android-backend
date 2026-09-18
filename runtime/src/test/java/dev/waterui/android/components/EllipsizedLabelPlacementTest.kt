@@ -105,7 +105,6 @@ class EllipsizedLabelPlacementTest {
             ProposalStruct(OFFER_DP, Float.NaN),
             ProbeMemos()
         ).size
-        val labelAnswer = answer.width - CHROME_DP
         assertTrue(label.layout.getEllipsisCount(0) > 0)
 
         button.measure(
