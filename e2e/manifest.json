@@ -31,6 +31,7 @@
     "multi_window": { "mode": "smoke", "reason": "secondary windows need windowing the single-display emulator lacks" },
     "particle": { "mode": "smoke", "reason": "continuous GPU particle animation" },
     "reminders": { "mode": "smoke", "reason": "may raise a runtime permission prompt over the content" },
+    "reply": { "mode": "smoke", "reason": "avatars and message photos load over the network from a remote repository, so a settled frame may or may not contain them" },
     "starfield": { "mode": "smoke", "reason": "continuous GPU animation" },
     "stress": {
       "mode": "smoke",
