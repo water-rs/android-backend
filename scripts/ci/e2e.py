@@ -468,16 +468,21 @@ def force_stop(serial: str, package: str) -> None:
     )
 
 
+def dumpsys_displays(serial: str) -> str:
+    return subprocess.run(
+        ["adb", "-s", serial, "shell", "dumpsys", "window", "displays"],
+        capture_output=True,
+    ).stdout.decode("utf-8", "replace")
+
+
 def statusbar_inset_px(serial: str) -> int:
     """The top inset the window manager currently grants app windows, read
     from the display's decor-insets table. A status bar that paints without
     publishing its insets provider leaves every app at top=0 — content slides
     under the bar and goldens mismatch by exactly its height."""
-    out = subprocess.run(
-        ["adb", "-s", serial, "shell", "dumpsys", "window", "displays"],
-        capture_output=True,
-    ).stdout.decode("utf-8", "replace")
-    m = re.search(r"overrideNonDecorInsets=\[\d+,(\d+)\]", out)
+    m = re.search(
+        r"overrideNonDecorInsets=\[\d+,(\d+)\]", dumpsys_displays(serial)
+    )
     return int(m.group(1)) if m else 0
 
 
@@ -712,16 +717,33 @@ def stop_perfetto(serial: str, proc: subprocess.Popen | None, remote: str, out_p
     )
 
 
+def parse_anr_package(dump: str) -> str | None:
+    m = re.search(r"Application Not Responding: ([\w.]+)", dump)
+    return m.group(1) if m else None
+
+
 def anr_dialog_package(serial: str) -> str | None:
     """Package named by a focused "Application Not Responding" window, or None.
     A launcher ANR overlay holds a static dimmed frame long enough to read as
     settled — and in record mode that polluted frame becomes a golden."""
-    out = subprocess.run(
-        ["adb", "-s", serial, "shell", "dumpsys", "window", "displays"],
-        capture_output=True,
-    ).stdout.decode("utf-8", "replace")
-    m = re.search(r"Application Not Responding: ([\w.]+)", out)
-    return m.group(1) if m else None
+    return parse_anr_package(dumpsys_displays(serial))
+
+
+def parse_focused_window(dump: str) -> str | None:
+    """Title of the window holding input focus in a `dumpsys window displays`
+    dump — `<package>/<component>` for app windows, a bare label for system
+    surfaces (`NotificationShade`, `Application Error: <pkg>`, the ANR
+    dialog) — or None when no window holds focus (`mCurrentFocus=null`)."""
+    m = re.search(
+        r"mCurrentFocus=Window\{[0-9a-fA-F]+ u\d+ ([^}]+)\}", dump
+    ) or re.search(r"mFocusedWindow=Window\{[0-9a-fA-F]+ u\d+ ([^}]+)\}", dump)
+    return m.group(1).strip() if m else None
+
+
+def window_package(title: str) -> str | None:
+    """Owning package of a `<package>/<component>` window title; system
+    surfaces title themselves freely and report None."""
+    return title.split("/", 1)[0] if "/" in title else None
 
 
 def tap_text(serial: str, text: str) -> bool:
@@ -769,6 +791,7 @@ def wait_for_settle(
     watch: ProcessWatch | None = None,
     package: str | None = None,
     anr: list[str] | None = None,
+    foreign: list[str] | None = None,
 ) -> tuple[bool, bytes | None, float | None]:
     """Poll the framebuffer until captures stay byte-identical AND non-blank
     for MIN_STABLE_S — the "the app finished drawing something" signal.
@@ -779,14 +802,19 @@ def wait_for_settle(
     static crash dialog that would otherwise read as settled. Every poll is
     checked for an ANR dialog — a foreign package's dialog is dismissed and
     keeps the frame from counting, while an ANR in `package` itself fails the
-    wait early and is reported through `anr`. Returns (settled, last frame,
-    monotonic timestamp of the first non-blank frame)."""
+    wait early and is reported through `anr`. A frame only counts while the
+    focused window belongs to `package` — a crash dialog, the launcher, or
+    any other system surface holding focus rejects the frame, and each
+    rejected title is logged and reported through `foreign`. Returns
+    (settled, last frame, monotonic timestamp of the first non-blank
+    frame)."""
     deadline = time.monotonic() + timeout_s
     prev: bytes | None = None
     cur: bytes | None = None
     stable_since: float | None = None
     content_at: float | None = None
     wedged: set[str] = set()
+    last_foreign: str | None = None
     while time.monotonic() < deadline:
         cur = capture_screen(serial)
         if watch is not None:
@@ -798,7 +826,8 @@ def wait_for_settle(
                 stable_since = None
                 time.sleep(poll_s)
                 continue
-        anr_pkg = anr_dialog_package(serial)
+        dump = dumpsys_displays(serial)
+        anr_pkg = parse_anr_package(dump)
         if anr_pkg and anr_pkg != package:
             dismiss_anr(serial, anr_pkg, wedged)
             prev = None
@@ -809,6 +838,23 @@ def wait_for_settle(
             if anr is not None:
                 anr.append(anr_pkg)
             return False, cur, content_at
+        if package is not None:
+            focus = parse_focused_window(dump)
+            if focus is None or window_package(focus) != package:
+                if focus != last_foreign:
+                    last_foreign = focus
+                    label = focus if focus is not None else "<no focused window>"
+                    if foreign is not None:
+                        foreign.append(label)
+                    print(
+                        f"e2e: frame rejected — focused window "
+                        f"'{label}' is not {package}",
+                        flush=True,
+                    )
+                prev = None
+                stable_since = None
+                time.sleep(poll_s)
+                continue
         if content_at is None and cur and is_nonblank(cur):
             content_at = time.monotonic()
         if cur and cur == prev and is_nonblank(cur):
@@ -830,20 +876,24 @@ def wait_for_content(
     watch: ProcessWatch | None = None,
     package: str | None = None,
     anr: list[str] | None = None,
+    foreign: list[str] | None = None,
 ) -> tuple[bytes | None, float | None]:
     """A smoke-mode example animates forever by definition, so "non-blank
     content on screen" is the assertion. Poll captures until content appears;
     a frame that stays flat past the deadline is the failure this exists to
     catch. With a `watch`, frames only count while the process is alive, so an
     app dead before first sight times out instead of passing on its crash
-    dialog. An ANR dialog is non-blank too, and a foreign ANR can wedge the
-    compositor hard enough to keep the screen black — so every poll checks:
-    a foreign package's dialog is dismissed and ignored, while an ANR in
-    `package` itself fails the wait early and is reported through `anr`.
+    dialog. A foreign window is non-blank too, and can wedge the compositor
+    hard enough to keep the screen black — so every poll checks: an ANR
+    dialog in another package is dismissed and ignored, an ANR in `package`
+    itself fails the wait early and is reported through `anr`, and any
+    focused window outside `package` keeps its frame from counting, with
+    each rejected title logged and reported through `foreign`.
     Returns (frame, monotonic timestamp of the first non-blank capture)."""
     deadline = time.monotonic() + timeout_s
     frame = b""
     wedged: set[str] = set()
+    last_foreign: str | None = None
     while time.monotonic() < deadline:
         frame = capture_screen(serial)
         if watch is not None:
@@ -853,7 +903,8 @@ def wait_for_content(
             if not alive:
                 time.sleep(poll_s)
                 continue
-        anr_pkg = anr_dialog_package(serial)
+        dump = dumpsys_displays(serial)
+        anr_pkg = parse_anr_package(dump)
         if anr_pkg and anr_pkg != package:
             dismiss_anr(serial, anr_pkg, wedged)
             time.sleep(poll_s)
@@ -862,6 +913,21 @@ def wait_for_content(
             if anr is not None:
                 anr.append(anr_pkg)
             return None, None
+        if package is not None:
+            focus = parse_focused_window(dump)
+            if focus is None or window_package(focus) != package:
+                if focus != last_foreign:
+                    last_foreign = focus
+                    label = focus if focus is not None else "<no focused window>"
+                    if foreign is not None:
+                        foreign.append(label)
+                    print(
+                        f"e2e: frame rejected — focused window "
+                        f"'{label}' is not {package}",
+                        flush=True,
+                    )
+                time.sleep(poll_s)
+                continue
         if frame and is_nonblank(frame):
             return frame, time.monotonic()
         time.sleep(poll_s)
@@ -1087,9 +1153,10 @@ def _run_packaged_example(
     try:
         if cfg["mode"] == "verify":
             anr_pkgs: list[str] = []
+            foreign_windows: list[str] = []
             settled, frame, content_at = wait_for_settle(
                 serial, cfg["settle_s"], cfg["poll_s"], watch=watch,
-                package=package, anr=anr_pkgs,
+                package=package, anr=anr_pkgs, foreign=foreign_windows,
             )
             if settled:
                 settled_at_ms = int((time.monotonic() - launch_t) * 1000)
@@ -1098,6 +1165,8 @@ def _run_packaged_example(
                 f"app ANR: {anr_pkgs[0]} not responding" if anr_pkgs else
                 f"{abort}, compared the final frame" if abort else
                 "app process never appeared after am start" if not watch.seen else
+                f"foreign window '{foreign_windows[-1]}' held focus"
+                if foreign_windows else
                 f"no settled frame within {cfg['settle_s']:g}s; compared the final frame"
             )
             if not frame:
@@ -1106,6 +1175,12 @@ def _run_packaged_example(
             elif not watch.seen:
                 # The frame is a crash dialog or the launcher, not the app —
                 # keep it as a forensic artifact but do not compare it.
+                actual.write_bytes(frame)
+                status = "FAIL"
+            elif not settled and foreign_windows:
+                # Focus never returned to the app — the captured frame is
+                # the foreign window. Keep it for forensics but never
+                # compare it or record it as a golden.
                 actual.write_bytes(frame)
                 status = "FAIL"
             else:
@@ -1128,9 +1203,10 @@ def _run_packaged_example(
                 status = "FAIL"
         else:  # smoke
             anr_pkgs = []
+            foreign_windows = []
             frame, content_at = wait_for_content(
                 serial, cfg["settle_s"], cfg["poll_s"], watch=watch,
-                package=package, anr=anr_pkgs,
+                package=package, anr=anr_pkgs, foreign=foreign_windows,
             )
             abort = abort or watch.abort_reason()
             if frame is None:
@@ -1140,6 +1216,8 @@ def _run_packaged_example(
                     abort or (
                         "app process never appeared after am start"
                         if not watch.seen else
+                        f"foreign window '{foreign_windows[-1]}' held focus"
+                        if foreign_windows else
                         f"screen stayed blank for {cfg['settle_s']:g}s after startup"
                     )
                 )
