@@ -310,6 +310,15 @@ internal class ResolvedStyledTextStyle(
  * `LineHeightStyle` centres it, and top/bottom are pinned to ascent/descent
  * so `includeFontPadding=false` cannot trim the box back off the measured
  * height.
+ *
+ * The pin only ever loosens the box. A resolved line height below the run's
+ * own ascent-to-descent is a metrics bug upstream of the span — the value
+ * the resolver kept from a smaller base face when a run's size was
+ * overridden — and honouring it shrinks the box under the baseline while the
+ * glyphs still draw at their own metrics: the view measures the collapsed
+ * box and `TextView`'s draw clip cuts the ink that overflows it. Keeping the
+ * natural metrics is the same rule the leaf contract keeps everywhere else:
+ * the extent a view reports must cover what it renders.
  */
 internal class ExactLineHeightSpan(
     private val lineHeightPx: Int
@@ -325,6 +334,7 @@ internal class ExactLineHeightSpan(
         val natural = fm.descent - fm.ascent
         if (natural <= 0) return
         val extra = lineHeightPx - natural
+        if (extra <= 0) return
         val half = extra / 2
         fm.ascent -= half
         fm.descent += extra - half
