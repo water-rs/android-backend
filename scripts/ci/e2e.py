@@ -1338,7 +1338,9 @@ def verify_golden(
 
 def cmd_run_shard(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).resolve()
-    backend_dir = repo_root / "backends" / "android"
+    # The backend is its own repository now — the script's location is the
+    # backend root wherever the workflow checked it out.
+    backend_dir = Path(__file__).resolve().parents[2]
     examples_root = repo_root / "examples"
 
     log_dir = Path(args.log_dir or backend_dir / "ci-logs")
