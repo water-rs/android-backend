@@ -1,7 +1,13 @@
 plugins {
     id("com.android.library")
     id("dev.detekt") version "2.0.0-alpha.6"
+    id("maven-publish")
 }
+
+group = providers.gradleProperty("group").orElse("dev.waterui.android").get()
+version = providers.gradleProperty("version")
+    .orElse(provider { rootProject.file("version.txt").readText().trim() })
+    .get()
 
 android {
     namespace = "dev.waterui.android.runtime"
@@ -26,6 +32,12 @@ android {
         }
     }
 
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
+
     lint {
         targetSdk = 37
         abortOnError = true
@@ -43,6 +55,18 @@ android {
             // Robolectric needs the merged resources of this library and its
             // dependencies to inflate real Material views in a JVM test.
             isIncludeAndroidResources = true
+        }
+    }
+}
+
+publishing {
+    publications {
+        register<MavenPublication>("release") {
+            artifactId = "runtime"
+
+            afterEvaluate {
+                from(components["release"])
+            }
         }
     }
 }
