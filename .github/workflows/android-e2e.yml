@@ -43,6 +43,10 @@ jobs:
     name: Prepare water CLI
     runs-on: ubuntu-latest
     steps:
+      # The backend checkout carries the CI scripts and the reference host.
+      - name: Checkout android-backend
+        uses: actions/checkout@v4
+
       - name: Checkout waterui (${{ inputs.waterui-ref }})
         uses: actions/checkout@v4
         with:
@@ -50,12 +54,6 @@ jobs:
           ref: ${{ inputs.waterui-ref }}
           path: waterui
           submodules: recursive
-
-      # The backend overlay carries the CI scripts this job runs.
-      - name: Overlay android-backend
-        uses: actions/checkout@v4
-        with:
-          path: waterui/backends/android
 
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@v2
@@ -132,7 +130,7 @@ jobs:
 
       - name: Install SDK platform for reference app
         run: |
-          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/e2e/reference/app/build.gradle.kts)"
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' e2e/reference/app/build.gradle.kts)"
           platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
           if [ -z "$platform_pkg" ]; then
             echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
@@ -142,14 +140,14 @@ jobs:
 
       - name: Build Compose reference APK
         run: |
-          cd waterui/backends/android/e2e/reference
+          cd e2e/reference
           ./gradlew --no-daemon :app:assembleDebug
 
       - name: Upload reference APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: md3-reference-apk
-          path: waterui/backends/android/e2e/reference/app/build/outputs/apk/debug/app-debug.apk
+          path: e2e/reference/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
   examples-shard:
@@ -163,6 +161,9 @@ jobs:
         shard-index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
     steps:
+      - name: Checkout android-backend
+        uses: actions/checkout@v4
+
       - name: Checkout waterui (${{ inputs.waterui-ref }})
         uses: actions/checkout@v4
         with:
@@ -170,11 +171,6 @@ jobs:
           ref: ${{ inputs.waterui-ref }}
           path: waterui
           submodules: recursive
-
-      - name: Overlay android-backend
-        uses: actions/checkout@v4
-        with:
-          path: waterui/backends/android
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -191,7 +187,6 @@ jobs:
           shared-key: android-e2e
           workspaces: |
             waterui
-            waterui/backends/android
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -210,7 +205,7 @@ jobs:
       # resolve the newest package matching the declared major level.
       - name: Install SDK platform for compileSdk
         run: |
-          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' runtime/build.gradle.kts)"
           platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
           if [ -z "$platform_pkg" ]; then
             echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
@@ -223,20 +218,20 @@ jobs:
       # `water package` gates on the toolchain check for every ABI it could
       # target, not just the emulator's, so install all four triples.
       - name: Install the Android Rust targets
-        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
+        run: python3 scripts/ci/e2e.py rust-target all | xargs rustup target add
 
       # The pinned NDK up front — the example build would otherwise fetch it
       # on demand inside the emulator-runner leg, which has no diagnostics.
       - name: Install the pinned NDK
         run: |
-          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' runtime/build.gradle.kts)"
           sdkmanager --install "ndk;${ndk_version}"
 
       # Examples pull workspace crates whose host-side build scripts link
       # native libraries (libva through waterkit-codec, fonts, EGL, …); the
       # script reuses the package list the waterui checkout maintains.
       - name: Install Linux native dependencies
-        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+        run: python3 scripts/ci/install_linux_deps.py waterui
 
       - name: Install Pillow for screenshot checks
         run: python3 -m pip install pillow==11.3.0
@@ -303,14 +298,14 @@ jobs:
           # The runner executes each `script:` line through a fresh
           # `/usr/bin/sh -c`, so the whole invocation stays a single line; the
           # Python driver detects the emulator serial itself.
-          script: python3 "$GITHUB_WORKSPACE/waterui/backends/android/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}" --reference-apk /tmp/md3-reference/app-debug.apk --perfetto
+          script: python3 "$GITHUB_WORKSPACE/scripts/ci/e2e.py" run-shard --repo-root "$GITHUB_WORKSPACE/waterui" --shard-index "${{ matrix.shard-index }}" --shard-total "${{ env.SHARD_TOTAL }}" --golden-mode "${{ inputs.golden_mode }}" --reference-apk /tmp/md3-reference/app-debug.apk --perfetto
 
       - name: Upload shard logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-e2e-logs-shard-${{ matrix.shard-index }}
-          path: waterui/backends/android/ci-logs
+          path: ci-logs
           if-no-files-found: ignore
 
       - name: Upload shard screenshots
@@ -318,5 +313,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-e2e-artifacts-shard-${{ matrix.shard-index }}
-          path: waterui/backends/android/ci-artifacts
+          path: ci-artifacts
           if-no-files-found: ignore
