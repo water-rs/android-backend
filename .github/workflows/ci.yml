@@ -35,7 +35,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.1.0
       - name: E2E harness unit tests
-        run: uv run --with pytest pytest scripts/ci/test_e2e.py
+        run: uv run --with pytest --with tomlkit==0.13.3 pytest scripts/ci/test_e2e.py
       # The runtime declares its own `minSdk` — it builds standalone and
       # cannot read the framework manifest — but the two must agree, or a
       # scaffolded app's floor is one the runtime does not support. The

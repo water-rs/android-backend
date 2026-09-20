@@ -28,6 +28,7 @@ import re
 import subprocess
 import sys
 import time
+import tomllib
 from io import BytesIO
 from pathlib import Path
 
@@ -264,6 +265,44 @@ def bundle_id(example_path: Path) -> str | None:
     except OSError:
         return None
     return match.group(1) if match else None
+
+
+def pin_android_backend(example_path: Path, backend_dir: Path) -> str:
+    """Point the example at the android-backend checkout under test.
+
+    `water package` resolves the runtime from the JitPack coordinate the
+    pinned framework revision declares unless the manifest names a local
+    checkout, so the shard writes `[backends.android] backend_path` into each
+    example's Water.toml before packaging — a manifest that already sets one
+    is a deliberate override and is kept. Returns the effective backend path.
+    """
+    manifest_path = example_path / "Water.toml"
+    text = manifest_path.read_text()
+    existing = (
+        tomllib.loads(text)
+        .get("backends", {})
+        .get("android", {})
+        .get("backend_path")
+    )
+    if existing:
+        return str(existing)
+
+    # tomlkit rewrites in place so comments and sibling keys survive; the
+    # import stays local because only run-shard needs it.
+    import tomlkit
+
+    document = tomlkit.parse(text)
+    backends = document.get("backends")
+    if backends is None:
+        backends = tomlkit.table()
+        document["backends"] = backends
+    android = backends.get("android")
+    if android is None:
+        android = tomlkit.table()
+        backends["android"] = android
+    android["backend_path"] = str(backend_dir)
+    manifest_path.write_text(tomlkit.dumps(document))
+    return str(backend_dir)
 
 
 def parse_meminfo(data: bytes) -> dict:
@@ -1043,6 +1082,7 @@ def run_example(
     cfg: dict,
     serial: str,
     repo_root: Path,
+    backend_dir: Path,
     example_path: Path,
     log_file: Path,
     golden_mode: str,
@@ -1064,7 +1104,7 @@ def run_example(
     print(f"::group::android-e2e:{example} (mode={cfg['mode']})", flush=True)
     try:
         return _run_packaged_example(
-            example, cfg, serial, repo_root, example_path, log_file,
+            example, cfg, serial, repo_root, backend_dir, example_path, log_file,
             golden_mode, goldens_dir, artifacts_dir, candidates_dir, results,
             parity_budget, arch, apksigner, keystore, perfetto,
         )
@@ -1077,6 +1117,7 @@ def _run_packaged_example(
     cfg: dict,
     serial: str,
     repo_root: Path,
+    backend_dir: Path,
     example_path: Path,
     log_file: Path,
     golden_mode: str,
@@ -1111,6 +1152,11 @@ def _run_packaged_example(
             print("\n".join(log_file.read_text(errors="replace").splitlines()[-100:]))
         results.append((example, "FAIL", detail))
         return False
+
+    try:
+        pin_android_backend(example_path, backend_dir)
+    except OSError as error:
+        return fail(f"cannot update {example}'s Water.toml: {error}")
 
     package = bundle_id(example_path)
     if not package:
@@ -1388,6 +1434,9 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
         f"examples on {serial} (golden-mode={args.golden_mode})"
     )
     print(f"Assigned examples: {' '.join(assigned)}")
+    # The shard certifies this checkout: each packaged example's manifest is
+    # pointed at it instead of the JitPack coordinate the framework pins.
+    print(f"Android backend under test: {backend_dir}")
 
     manifest = load_manifest(manifest_path)
 
@@ -1425,6 +1474,7 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
                     example_config(manifest, example),
                     serial,
                     repo_root,
+                    backend_dir,
                     examples_root / example,
                     log_dir / f"{example}.log",
                     args.golden_mode,
