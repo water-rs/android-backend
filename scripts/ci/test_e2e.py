@@ -8,6 +8,7 @@ shade holding focus over a live app.
 """
 
 import subprocess
+import tomllib
 
 import e2e
 
@@ -189,3 +190,86 @@ def test_verify_parity_fails_on_foreign_focus_without_comparing(
     )
     assert compared == []
     assert not (tmp_path / "shape.twin.png").exists()
+
+
+def test_pin_android_backend_points_manifest_at_the_checkout(tmp_path):
+    example = tmp_path / "gesture"
+    example.mkdir()
+    manifest = example / "Water.toml"
+    manifest.write_text(
+        'waterui_path = "../.."\n'
+        "\n"
+        "[package]\n"
+        'type = "playground"\n'
+        'name = "Gesture Example"\n'
+        'bundle_identifier = "com.waterui.gesture_example"\n'
+    )
+    backend = tmp_path / "backend"
+    backend.mkdir()
+
+    assert e2e.pin_android_backend(example, backend) == str(backend)
+
+    parsed = tomllib.loads(manifest.read_text())
+    assert parsed["backends"]["android"]["backend_path"] == str(backend)
+    # The examples' framework checkout selection is untouched.
+    assert parsed["waterui_path"] == "../.."
+    assert parsed["package"]["type"] == "playground"
+
+    # A second run returns the same path and leaves the file byte-identical.
+    written = manifest.read_text()
+    assert e2e.pin_android_backend(example, backend) == str(backend)
+    assert manifest.read_text() == written
+
+
+def test_pin_android_backend_preserves_existing_configuration(tmp_path):
+    example = tmp_path / "demo"
+    example.mkdir()
+    manifest = example / "Water.toml"
+    manifest.write_text(
+        'waterui_path = "../.."\n'
+        "\n"
+        "[package]\n"
+        'type = "playground"\n'
+        'name = "Demo"\n'
+        'bundle_identifier = "dev.waterui.demo"\n'
+        "\n"
+        "# already pinned by the example author\n"
+        "[backends.android]\n"
+        'backend_path = "/elsewhere/android-backend"\n'
+        'version = "1.2.3"\n'
+    )
+
+    # An existing backend_path is a deliberate override, not rewritten.
+    assert (
+        e2e.pin_android_backend(example, tmp_path / "backend")
+        == "/elsewhere/android-backend"
+    )
+    parsed = tomllib.loads(manifest.read_text())
+    assert (
+        parsed["backends"]["android"]["backend_path"]
+        == "/elsewhere/android-backend"
+    )
+    assert parsed["backends"]["android"]["version"] == "1.2.3"
+    assert "# already pinned by the example author" in manifest.read_text()
+
+
+def test_pin_android_backend_extends_a_pathless_android_table(tmp_path):
+    example = tmp_path / "demo"
+    example.mkdir()
+    manifest = example / "Water.toml"
+    manifest.write_text(
+        "[package]\n"
+        'type = "playground"\n'
+        'name = "Demo"\n'
+        'bundle_identifier = "dev.waterui.demo"\n'
+        "\n"
+        "[backends.android]\n"
+        'version = "1.2.3"\n'
+    )
+    backend = tmp_path / "backend"
+    backend.mkdir()
+
+    assert e2e.pin_android_backend(example, backend) == str(backend)
+    parsed = tomllib.loads(manifest.read_text())
+    assert parsed["backends"]["android"]["backend_path"] == str(backend)
+    assert parsed["backends"]["android"]["version"] == "1.2.3"

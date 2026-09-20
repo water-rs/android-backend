@@ -236,6 +236,10 @@ jobs:
       - name: Install Pillow for screenshot checks
         run: python3 -m pip install pillow==11.3.0
 
+      # e2e.py run-shard rewrites each example's Water.toml through tomlkit.
+      - name: Install tomlkit for manifest edits
+        run: python3 -m pip install tomlkit==0.13.3
+
       - name: Cache AVD
         id: avd-cache
         uses: actions/cache@v4
