@@ -9,6 +9,7 @@ shade holding focus over a live app.
 
 import subprocess
 import tomllib
+from pathlib import Path
 
 import e2e
 
@@ -273,3 +274,26 @@ def test_pin_android_backend_extends_a_pathless_android_table(tmp_path):
     parsed = tomllib.loads(manifest.read_text())
     assert parsed["backends"]["android"]["backend_path"] == str(backend)
     assert parsed["backends"]["android"]["version"] == "1.2.3"
+
+
+def test_pin_backend_subcommand_points_at_this_checkout(tmp_path, capsys):
+    example = tmp_path / "gesture"
+    example.mkdir()
+    manifest = example / "Water.toml"
+    manifest.write_text(
+        'waterui_path = "../.."\n'
+        "\n"
+        "[package]\n"
+        'type = "playground"\n'
+        'name = "Gesture Example"\n'
+        'bundle_identifier = "com.waterui.gesture_example"\n'
+    )
+
+    # The subcommand derives the backend root from e2e.py's own location,
+    # exactly the way run-shard does.
+    backend_root = Path(e2e.__file__).resolve().parents[2]
+    assert e2e.main(["pin-backend", str(example)]) == 0
+
+    parsed = tomllib.loads(manifest.read_text())
+    assert parsed["backends"]["android"]["backend_path"] == str(backend_root)
+    assert capsys.readouterr().out.strip() == str(backend_root)
