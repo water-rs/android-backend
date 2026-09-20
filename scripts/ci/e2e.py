@@ -1591,6 +1591,14 @@ def cmd_rust_target(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pin_backend(args: argparse.Namespace) -> int:
+    # Same derivation as run-shard: the script lives under the backend
+    # repository root wherever the workflow checked it out.
+    backend_dir = Path(__file__).resolve().parents[2]
+    print(pin_android_backend(Path(args.example_path), backend_dir))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1640,11 +1648,19 @@ def build_parser() -> argparse.ArgumentParser:
     rt.add_argument("arch", choices=[*sorted(RUST_TARGET_FOR_ARCH), "all"])
     rt.set_defaults(func=cmd_rust_target)
 
+    pin = sub.add_parser(
+        "pin-backend",
+        help="point an example's Water.toml at this android-backend checkout",
+    )
+    pin.add_argument("example_path",
+                     help="path to the example whose Water.toml gains backend_path")
+    pin.set_defaults(func=cmd_pin_backend)
+
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     if getattr(args, "shard_total", 1) <= 0:
         sys.exit("--shard-total must be > 0")
     if hasattr(args, "shard_index") and not (0 <= args.shard_index < args.shard_total):
