@@ -65,6 +65,7 @@ import dev.waterui.android.runtime.NavigationStackStruct
 import dev.waterui.android.runtime.NavigationViewStruct
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ReactiveColorSignal
+import dev.waterui.android.runtime.rendersNothing
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -768,29 +769,6 @@ private class NavigationBarView(
             group.getChildAt(index).semanticTextView()?.let { return it }
         }
         return null
-    }
-
-    /// Whether this view tree carries nothing the bar could show.
-    ///
-    /// A bar's title and subtitle are always views, so a page that declares no
-    /// subtitle still sends one: WaterUI's empty view, inside whatever scopes
-    /// the tree wrapped around it. That is "no subtitle", not a subtitle the
-    /// bar failed to read, and the two have to be told apart because only the
-    /// second one is a bug.
-    private fun View.rendersNothing(): Boolean {
-        if (this is WuiEmptyView) {
-            return true
-        }
-        val group = this as? ViewGroup ?: return false
-        if (group.isEmpty()) {
-            return false
-        }
-        for (index in 0 until group.childCount) {
-            if (!group.getChildAt(index).rendersNothing()) {
-                return false
-            }
-        }
-        return true
     }
 
     private fun addToolbarView(target: Toolbar, view: View, gravity: Int) {

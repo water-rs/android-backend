@@ -2,6 +2,10 @@ package dev.waterui.android.runtime
 
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.isEmpty
+import dev.waterui.android.components.WuiEmptyView
+import dev.waterui.android.layout.RustLayoutViewGroup
 
 /**
  * Tag key for storing stretch axis on inflated views.
@@ -129,4 +133,35 @@ fun View.getWuiLayoutPriority(): Int {
 internal fun View.hasWuiSlotIdentity(): Boolean {
     return this is WuiLiveSlotTraits || this is WuiMeasurableLayout ||
         getTag(TAG_STRETCH_AXIS) != null
+}
+
+/**
+ * Whether this view is WaterUI's empty view `()`, possibly under
+ * layout-transparent wrappers or hosted by a `Dynamic`.
+ *
+ * This is a semantic answer, not a measured size: a `Color` or `Spacer`
+ * squeezed to zero still renders and still answers false, and so does a
+ * `RustLayoutViewGroup` (a frame or nested stack explicitly claims its
+ * slot — e.g. `().size(w, h)`). Transparent hosts forward the child's
+ * answer. A stack treats a view answering true as a non-member (§4.4: no
+ * slot, no spacing), and the same answer drives the navigation bar's
+ * "no subtitle" check.
+ */
+internal fun View.rendersNothing(): Boolean {
+    if (this is WuiEmptyView) {
+        return true
+    }
+    if (this is RustLayoutViewGroup) {
+        return false
+    }
+    val group = this as? ViewGroup ?: return false
+    if (group.isEmpty()) {
+        return false
+    }
+    for (index in 0 until group.childCount) {
+        if (!group.getChildAt(index).rendersNothing()) {
+            return false
+        }
+    }
+    return true
 }
