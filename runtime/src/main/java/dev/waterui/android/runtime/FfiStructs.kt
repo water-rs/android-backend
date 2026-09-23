@@ -133,7 +133,8 @@ data class SubViewStruct(
     val stretchAxis: StretchAxis,
     val priority: Int = 0,
     val density: Float = 1f,
-    val memos: ProbeMemos
+    val memos: ProbeMemos,
+    val isEmpty: Boolean = false
 ) {
     /**
      * Called by native code to measure this view for a given proposal.

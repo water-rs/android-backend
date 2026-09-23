@@ -21,6 +21,7 @@ import dev.waterui.android.runtime.measureSpecToProposalPx
 import dev.waterui.android.runtime.mayFillHorizontal
 import dev.waterui.android.runtime.mayFillVertical
 import dev.waterui.android.runtime.proposalToMeasureSpec
+import dev.waterui.android.runtime.rendersNothing
 import dev.waterui.android.runtime.ProposalStruct
 import dev.waterui.android.runtime.RectStruct
 import dev.waterui.android.runtime.SizeStruct
@@ -422,7 +423,8 @@ internal fun ViewGroup.buildSubViewBridges(density: Float, memos: ProbeMemos): A
             stretchAxis = child.getWuiStretchAxis(),
             priority = child.getWuiLayoutPriority(),
             density = density,
-            memos = memos
+            memos = memos,
+            isEmpty = child.rendersNothing()
         )
     }
 
