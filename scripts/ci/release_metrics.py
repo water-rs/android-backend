@@ -16,7 +16,6 @@ import os
 import re
 import subprocess
 import sys
-import time
 import zipfile
 from pathlib import Path
 
@@ -57,17 +56,17 @@ def apk_breakdown(apk_path: Path) -> dict:
     }
 
 
-def find_release_apk(build_cache: Path, since: float) -> Path | None:
-    """Newest release APK produced under the CLI build cache — the generated
-    gradle project lands in a per-example directory we don't want to derive."""
-    candidates = [
-        path
-        for path in build_cache.glob("**/apk/release/*.apk")
-        if path.stat().st_mtime >= since
-    ]
+def find_release_apk(package_dir: Path) -> Path | None:
+    """Release APK in the example's package output directory.
+
+    `water package` places the artifact at `<example>/target/package/`
+    (water-rs/cli#129); that directory is the documented output location,
+    not a cache to search by file age."""
+    candidates = sorted(package_dir.glob("*.apk"))
     if not candidates:
         return None
-    return max(candidates, key=lambda path: path.stat().st_mtime)
+    unsigned = [path for path in candidates if "release-unsigned" in path.name]
+    return unsigned[0] if unsigned else candidates[0]
 
 
 def main() -> int:
@@ -83,7 +82,6 @@ def main() -> int:
     if not example_path.is_dir():
         sys.exit(f"example not found: {example_path}")
 
-    started = time.time()
     result = subprocess.run(
         [
             "water", "package",
@@ -98,9 +96,9 @@ def main() -> int:
     if result.returncode != 0:
         sys.exit(f"water package --release failed ({result.returncode})")
 
-    apk = find_release_apk(Path.home() / ".water" / "build_cache", started - 60)
+    apk = find_release_apk(example_path / "target" / "package")
     if apk is None:
-        sys.exit("no release APK under ~/.water/build_cache after packaging")
+        sys.exit("no release APK under target/package after packaging")
 
     metrics = {
         "kind": "release-package",
