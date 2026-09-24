@@ -106,6 +106,19 @@ class WuiBinding<T>(
                 dropper = WatcherJni::dropBindingId
             )
 
+        /// `Binding<Set<Id>>` crosses as an erased-id vector, so the Kotlin
+        /// side sees a plain `IntArray` of `WuiId`s.
+        fun idVec(bindingPtr: Long): WuiBinding<IntArray> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = WatcherJni::readBindingIdVec,
+                writer = WatcherJni::setBindingIdVec,
+                watcherFactory = WatcherJni::createIdVecWatcher,
+                watcherRegistrar = WatcherJni::watchBindingIdVec,
+                dropper = WatcherJni::dropBindingIdVec,
+                valuesEqual = IntArray::contentEquals
+            )
+
         fun double(bindingPtr: Long): WuiBinding<Double> =
             WuiBinding(
                 bindingPtr = bindingPtr,

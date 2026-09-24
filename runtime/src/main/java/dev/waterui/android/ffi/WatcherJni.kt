@@ -151,6 +151,7 @@ object WatcherJni {
     @JvmStatic external fun readBindingBool(bindingPtr: Long): Boolean
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
     @JvmStatic external fun readBindingId(bindingPtr: Long): Int
+    @JvmStatic external fun readBindingIdVec(bindingPtr: Long): IntArray
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
     @JvmStatic external fun readBindingStr(bindingPtr: Long): String
     @JvmStatic external fun readBindingStyledStrPlain(bindingPtr: Long): String
@@ -158,6 +159,7 @@ object WatcherJni {
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingId(bindingPtr: Long, value: Int)
+    @JvmStatic external fun setBindingIdVec(bindingPtr: Long, value: IntArray)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
     @JvmStatic external fun setBindingStr(bindingPtr: Long, value: String)
     @JvmStatic external fun setBindingStyledStrPlain(bindingPtr: Long, value: String)
@@ -166,6 +168,7 @@ object WatcherJni {
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingId(bindingPtr: Long)
+    @JvmStatic external fun dropBindingIdVec(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
     @JvmStatic external fun dropBindingStr(bindingPtr: Long)
     @JvmStatic external fun dropBindingStyledStr(bindingPtr: Long)
@@ -220,6 +223,7 @@ object WatcherJni {
     @JvmStatic external fun createBoolWatcher(callback: WatcherCallback<Boolean>): WatcherStruct
     @JvmStatic external fun createIntWatcher(callback: WatcherCallback<Int>): WatcherStruct
     @JvmStatic external fun createIdWatcher(callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createIdVecWatcher(callback: WatcherCallback<IntArray>): WatcherStruct
     @JvmStatic external fun createCursorStyleWatcher(callback: WatcherCallback<Int>): WatcherStruct
     @JvmStatic external fun createColorSchemeWatcher(callback: WatcherCallback<Int>): WatcherStruct
     @JvmStatic external fun createHorizontalAlignmentWatcher(
@@ -246,6 +250,7 @@ object WatcherJni {
     @JvmStatic external fun watchBindingBool(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingInt(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingId(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingIdVec(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDouble(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingStr(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingSecure(bindingPtr: Long, watcher: WatcherStruct): Long
