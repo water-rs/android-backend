@@ -429,13 +429,11 @@ def package_release(
     package_ms = int((time.time() - started) * 1000)
     if result.returncode != 0:
         raise RuntimeError(f"water package --release exited {result.returncode}")
-    apk = find_release_apk(
-        Path.home() / ".water" / "build_cache", started - 60
-    )
+    apk = find_release_apk(example_path / "target" / "package")
     if apk is None:
         raise RuntimeError(
             "water package succeeded but produced no release APK under "
-            "~/.water/build_cache"
+            "the example's target/package"
         )
     return apk, package_ms
 
