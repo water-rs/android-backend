@@ -1160,6 +1160,11 @@ data class TabsStruct(
 /**
  * List component data.
  * - contentsPtr: WuiAnyViews pointer containing ListItem views
+ * - selectionMode: WuiListSelectionMode (0 = none, 1 = single, 2 = multiple)
+ * - selectionSinglePtr: Binding<i32> erased-id pointer, 0 standing for
+ *   "nothing selected" (non-null only in single mode)
+ * - selectionMultiplePtr: Binding<Vec<Id>> pointer (non-null only in multiple
+ *   mode)
  * - editingPtr: Computed<Boolean> pointer for edit mode
  * - onDeletePtr: IndexAction pointer (0 if unsupported)
  * - onMovePtr: MoveAction pointer (0 if unsupported)
@@ -1168,6 +1173,9 @@ data class TabsStruct(
  */
 data class ListStruct(
     val contentsPtr: Long,
+    val selectionMode: Int,
+    val selectionSinglePtr: Long,
+    val selectionMultiplePtr: Long,
     val editingPtr: Long,
     val onDeletePtr: Long,
     val onMovePtr: Long,
@@ -1180,9 +1188,7 @@ data class ListStruct(
  * ListItem component data.
  * - contentPtr: AnyView pointer for item content
  * - deletablePtr: Computed<Boolean> pointer controlling item delete ability
- * - selectedPtr: Computed<Boolean> pointer marking the row as the current selection
- */
-/**
+ *
  * A list row, plus the section break it may open.
  *
  * `hasSection` distinguishes "this row starts a new section" from "this row
@@ -1190,11 +1196,13 @@ data class ListStruct(
  * pure divider, so both text pointers are then `0`. The two pointers are
  * reactive styled-text signals, not resolved strings: a section title
  * localizes and can be driven by app state.
+ *
+ * Selected state no longer rides the row: the list-level selection on
+ * `ListStruct` owns it.
  */
 data class ListItemStruct(
     val contentPtr: Long,
     val deletablePtr: Long,
-    val selectedPtr: Long,
     val hasSection: Boolean,
     val sectionLabelPtr: Long,
     val sectionFooterPtr: Long
