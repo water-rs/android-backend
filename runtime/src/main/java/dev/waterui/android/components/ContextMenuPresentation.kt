@@ -1,24 +1,23 @@
 package dev.waterui.android.components
 
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Path
+import android.graphics.Outline
 import android.graphics.Rect
-import android.graphics.RectF
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.widget.PopupMenu
-import androidx.core.graphics.withSave
+import androidx.core.view.drawToBitmap
 import androidx.core.view.get
 import androidx.core.view.size
 import com.google.android.material.card.MaterialCardView
@@ -73,7 +72,6 @@ private const val CHECK_SLOT_DP = 24f
 private const val TITLE_TEXT_SP = 15f
 private const val PREVIEW_ELEVATION_DP = 12f
 private const val PREVIEW_RADIUS_DP = 12f
-private const val HOLE_RADIUS_DP = 8f
 
 /**
  * The composed context-menu presentation used when the menu carries a preview
@@ -129,12 +127,8 @@ internal class ContextMenuPresentation(
         val root = FrameLayout(context)
         container = root
 
-        val scrim = ScrimView(context).apply {
-            hole = if (preview == null) {
-                Rect(sourceRect).apply { offset(-display.left, -display.top) }
-            } else {
-                null
-            }
+        val scrim = View(context).apply {
+            setBackgroundColor(SCRIM_COLOR)
             setOnClickListener { dismiss() }
             isClickable = true
             isFocusable = false
@@ -142,10 +136,19 @@ internal class ContextMenuPresentation(
         }
         root.addView(scrim, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
 
-        if (preview != null) {
-            val host = MaterialCardView(context).apply {
+        // Without an explicit preview the source itself is lifted: it is
+        // drawn into a snapshot so the lift reproduces exactly what the view
+        // renders — rounded corners and alpha included — and elevated through
+        // the source's own outline so the lift shadow follows its real shape
+        // instead of an artificial card frame.
+        val lifted = if (preview != null) {
+            // The provider hands back the same view instance on a re-show;
+            // detach it from the previous presentation's host first.
+            (preview.parent as? ViewGroup)?.removeView(preview)
+            MaterialCardView(context).apply {
                 radius = PREVIEW_RADIUS_DP * density
                 cardElevation = PREVIEW_ELEVATION_DP * density
+                clipToOutline = true
                 addView(
                     preview,
                     FrameLayout.LayoutParams(
@@ -154,14 +157,21 @@ internal class ContextMenuPresentation(
                     )
                 )
             }
-            root.addView(
-                host,
-                FrameLayout.LayoutParams(sourceRect.width(), sourceRect.height()).apply {
-                    leftMargin = sourceRect.left - display.left
-                    topMargin = sourceRect.top - display.top
+        } else {
+            anchor.snapshot().apply {
+                outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) {
+                        anchor.outlineProvider.getOutline(anchor, outline)
+                    }
                 }
-            )
+                clipToOutline = true
+                elevation = PREVIEW_ELEVATION_DP * density
+            }
         }
+        root.addView(
+            lifted,
+            FrameLayout.LayoutParams(sourceRect.width(), sourceRect.height())
+        )
 
         val boundMenu = menuFactory(context)
         source.bind(boundMenu, context)
@@ -188,32 +198,65 @@ internal class ContextMenuPresentation(
         presentationPopup = presentation
         presentation.showAtLocation(anchor, Gravity.NO_GRAVITY, display.left, display.top)
 
-        // The card is measured after the window exists so WRAP_CONTENT sizes
-        // settle against the real content rather than a speculative measure.
+        // Window decorations may inset the popup's content (a focusable popup
+        // sits below the status bar while the anchor's coordinates are in raw
+        // screen space), so positions are resolved against the root's actual
+        // on-screen origin once the window exists rather than the display
+        // frame assumed up front. The card is also measured now so
+        // WRAP_CONTENT sizes settle against the real content.
         root.post {
-            positionMenuCard(root, card, sourceRect, display, density)
+            if (root.parent == null) {
+                return@post
+            }
+            val popupOrigin = IntArray(2)
+            root.getLocationOnScreen(popupOrigin)
+            (lifted.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+                params.leftMargin = sourceRect.left - popupOrigin[0]
+                params.topMargin = sourceRect.top - popupOrigin[1]
+                lifted.layoutParams = params
+            }
+            positionMenuCard(root, card, sourceRect, popupOrigin, display, density)
         }
 
         accessoryView()?.let { accessory ->
+            (accessory.parent as? ViewGroup)?.removeView(accessory)
             val gap = (MENU_GAP_DP * density).roundToInt()
+            val surface = MaterialColors.getColor(
+                context,
+                MaterialR.attr.colorSurface,
+                "WaterUI context menu requires a Material colorSurface"
+            )
+            val host = MaterialCardView(context).apply {
+                radius = MENU_CARD_RADIUS_DP * density
+                cardElevation = MENU_CARD_ELEVATION_DP * density
+                setCardBackgroundColor(surface)
+                clipToOutline = true
+                addView(
+                    accessory,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT
+                    )
+                )
+            }
             val maxAccessoryWidth = (display.width() - 2 * gap).coerceAtLeast(0)
-            accessory.measure(
+            host.measure(
                 View.MeasureSpec.makeMeasureSpec(maxAccessoryWidth, View.MeasureSpec.AT_MOST),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
             )
-            val accessoryHeight = accessory.measuredHeight
+            val accessoryHeight = host.measuredHeight
             var accessoryTop = sourceRect.top - gap - accessoryHeight
             if (accessoryTop < display.top + gap) {
                 accessoryTop = sourceRect.bottom + gap
             }
             val accessoryLeft = (
-                sourceRect.left + sourceRect.width() / 2 - accessory.measuredWidth / 2
+                sourceRect.left + sourceRect.width() / 2 - host.measuredWidth / 2
                 ).coerceIn(
                     display.left + gap,
-                    (display.right - gap - accessory.measuredWidth).coerceAtLeast(display.left + gap)
+                    (display.right - gap - host.measuredWidth).coerceAtLeast(display.left + gap)
                 )
             val popup = popupFactory(
-                accessory,
+                host,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 false
@@ -254,6 +297,7 @@ internal class ContextMenuPresentation(
         root: FrameLayout,
         card: View,
         sourceRect: Rect,
+        popupOrigin: IntArray,
         display: Rect,
         density: Float
     ) {
@@ -281,12 +325,12 @@ internal class ContextMenuPresentation(
             cardHeight = card.measuredHeight.coerceAtMost(maxHeight)
         }
 
-        val left = (sourceRect.left - display.left)
+        val left = (sourceRect.left - popupOrigin[0])
             .coerceIn(margin, (display.width() - margin - cardWidth).coerceAtLeast(margin))
-        val belowTop = sourceRect.bottom - display.top + gap
+        val belowTop = sourceRect.bottom - popupOrigin[1] + gap
         var top = belowTop
         if (belowTop + cardHeight > display.height() - margin) {
-            top = sourceRect.top - display.top - gap - cardHeight
+            top = sourceRect.top - popupOrigin[1] - gap - cardHeight
         }
         top = top.coerceIn(margin, (display.height() - margin - cardHeight).coerceAtLeast(margin))
 
@@ -346,6 +390,13 @@ internal class ContextMenuPresentation(
         if (levelStack.isNotEmpty()) {
             column.addView(backRow(context))
         }
+        // Like the platform popup, the leading column is only reserved when
+        // some visible item actually carries an icon (or a checked state that
+        // renders in that slot); otherwise titles start at the row padding.
+        val hasIcons = (0 until menu.size).any { index ->
+            val item = menu[index]
+            item.isVisible && (item.icon != null || item.isChecked)
+        }
         var previousGroup = -1
         for (index in 0 until menu.size) {
             val item = menu[index]
@@ -356,7 +407,7 @@ internal class ContextMenuPresentation(
                 column.addView(divider(context))
             }
             previousGroup = item.groupId
-            column.addView(commandRow(context, item))
+            column.addView(commandRow(context, item, hasIcons))
         }
     }
 
@@ -400,7 +451,7 @@ internal class ContextMenuPresentation(
         }
     }
 
-    private fun commandRow(context: Context, item: MenuItem): View {
+    private fun commandRow(context: Context, item: MenuItem, hasIcons: Boolean): View {
         val density = context.resources.displayMetrics.density
         val onSurface = MaterialColors.getColor(
             context,
@@ -413,20 +464,35 @@ internal class ContextMenuPresentation(
             applyRowChrome(context)
             alpha = if (item.isEnabled) 1f else 0.38f
         }
-        val check = TextView(context).apply {
-            text = if (item.isChecked) "✓" else ""
-            textSize = TITLE_TEXT_SP
-            setTextColor(onSurface)
-        }
-        row.addView(
-            check,
-            LinearLayout.LayoutParams(
-                (CHECK_SLOT_DP * density).roundToInt(),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                marginEnd = (4f * density).roundToInt()
+        if (hasIcons) {
+            val slotSize = (CHECK_SLOT_DP * density).roundToInt()
+            val slot = FrameLayout(context)
+            if (item.icon != null) {
+                slot.addView(
+                    ImageView(context).apply { setImageDrawable(item.icon) },
+                    FrameLayout.LayoutParams(slotSize, slotSize, Gravity.CENTER)
+                )
+            } else {
+                slot.addView(
+                    TextView(context).apply {
+                        text = if (item.isChecked) "✓" else ""
+                        textSize = TITLE_TEXT_SP
+                        setTextColor(onSurface)
+                        gravity = Gravity.CENTER
+                    },
+                    FrameLayout.LayoutParams(slotSize, slotSize)
+                )
             }
-        )
+            row.addView(
+                slot,
+                LinearLayout.LayoutParams(
+                    slotSize,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginEnd = (4f * density).roundToInt()
+                }
+            )
+        }
         val title = TextView(context).apply {
             text = item.title
             textSize = TITLE_TEXT_SP
@@ -464,6 +530,11 @@ internal class ContextMenuPresentation(
         return row
     }
 
+    /** Renders this view into a same-size bitmap inside an [ImageView]. */
+    private fun View.snapshot(): View {
+        return ImageView(context).apply { setImageBitmap(this@snapshot.drawToBitmap()) }
+    }
+
     private fun LinearLayout.applyRowChrome(context: Context) {
         val density = context.resources.displayMetrics.density
         setPadding(
@@ -484,37 +555,5 @@ internal class ContextMenuPresentation(
         }
         isClickable = true
         isFocusable = true
-    }
-
-    private class ScrimView(context: Context) : View(context) {
-        /** A rect, in this view's own coordinates, left out of the dim. */
-        var hole: Rect? = null
-            set(value) {
-                field = value
-                invalidate()
-            }
-
-        private val paint = Paint().apply {
-            color = SCRIM_COLOR
-            isAntiAlias = true
-        }
-        private val path = Path()
-        private val holeRect = RectF()
-
-        override fun onDraw(canvas: Canvas) {
-            val clear = hole
-            if (clear == null) {
-                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
-                return
-            }
-            val corner = HOLE_RADIUS_DP * resources.displayMetrics.density
-            holeRect.set(clear)
-            path.reset()
-            path.addRoundRect(holeRect, corner, corner, Path.Direction.CW)
-            canvas.withSave {
-                clipOutPath(path)
-                drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
-            }
-        }
     }
 }

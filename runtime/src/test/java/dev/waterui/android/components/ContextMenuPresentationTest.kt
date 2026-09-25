@@ -12,6 +12,7 @@ import android.widget.TextView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,7 +48,10 @@ class ContextMenuPresentationTest {
         }
 
     /** A menu source that plants fixed titles in the [Menu] it is handed. */
-    private class FakeMenuSource(private val titles: List<CharSequence>) : ContextMenuSource {
+    private class FakeMenuSource(
+        private val titles: List<CharSequence>,
+        private val checked: Set<Int> = emptySet()
+    ) : ContextMenuSource {
         override var onRebuilt: (() -> Unit)? = null
         var bound = false
             private set
@@ -60,7 +64,11 @@ class ContextMenuPresentationTest {
         override fun bind(menu: Menu, context: android.content.Context) {
             bound = true
             titles.forEachIndexed { index, title ->
-                menu.add(Menu.NONE, index, Menu.NONE, title)
+                val item = menu.add(Menu.NONE, index, Menu.NONE, title)
+                if (index in checked) {
+                    item.isCheckable = true
+                    item.isChecked = true
+                }
             }
         }
 
@@ -105,13 +113,14 @@ class ContextMenuPresentationTest {
         activity: Activity,
         titles: List<CharSequence>,
         accessory: View? = View(activity),
-        signal: FakeDismissSignal = FakeDismissSignal()
+        signal: FakeDismissSignal = FakeDismissSignal(),
+        checked: Set<Int> = emptySet()
     ): Triple<ContextMenuPresentation, FakeMenuSource, List<PopupWindow>> {
         val anchor = View(activity)
         activity.setContentView(anchor, ViewGroup.LayoutParams(ANCHOR_WIDTH, ANCHOR_HEIGHT))
         anchor.layout(0, 400, ANCHOR_WIDTH, 400 + ANCHOR_HEIGHT)
 
-        val source = FakeMenuSource(titles)
+        val source = FakeMenuSource(titles, checked)
         val popups = mutableListOf<PopupWindow>()
         val presentation = ContextMenuPresentation(
             anchor = anchor,
@@ -235,6 +244,30 @@ class ContextMenuPresentationTest {
             .firstOrNull()
         assertNotNull("the subtitle renders smaller than the title", size)
         assertTrue(size!!.sizeChange < 1f)
+    }
+
+    @Test
+    fun menuWithoutIconsReservesNoIconColumn() {
+        val (_, _, popups) = showMenu(activity(), listOf("Rename", "Delete"))
+        val title = menuTexts(popups.first()).first { it.text.toString() == "Rename" }
+        val row = title.parent as ViewGroup
+
+        assertSame("the title leads the row when no item has an icon", title, row.getChildAt(0))
+    }
+
+    @Test
+    fun aCheckedItemReservesTheIconColumn() {
+        val (_, _, popups) = showMenu(
+            activity(),
+            listOf("Rename", "Delete"),
+            checked = setOf(0)
+        )
+        val title = menuTexts(popups.first()).first { it.text.toString() == "Rename" }
+        val row = title.parent as ViewGroup
+
+        assertTrue("the icon column leads the row", row.getChildAt(0) != title)
+        val mark = menuTexts(popups.first()).firstOrNull { it.text.toString() == "✓" }
+        assertNotNull("the checked item shows its mark in the icon column", mark)
     }
 
     @Test
