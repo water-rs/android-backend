@@ -396,12 +396,23 @@ enum class MenuItemTag(val value: Int) {
     }
 }
 
+enum class CommandRole(val value: Int) {
+    STANDARD(0),
+    DESTRUCTIVE(1);
+
+    companion object {
+        fun fromInt(value: Int): CommandRole = entries.firstOrNull { it.value == value }
+            ?: error("unsupported command role: $value")
+    }
+}
+
 /**
  * Android intentionally omits `SystemIcon` from semantic menu nodes.
  *
  * `SystemIcon` is not a reliable cross-platform contract here, and icon-pack based icons currently live in the
  * regular view layer rather than the semantic menu payload.
  */
+@Suppress("LongParameterList") // JNI constructor signature mirrors WuiMenuItem exactly.
 data class MenuItemStruct(
     val tag: Int,
     val labelPtr: Long,
@@ -413,6 +424,8 @@ data class MenuItemStruct(
     val shift: Boolean,
     val option: Boolean,
     val control: Boolean,
+    val role: Int,
+    val subtitle: String?,
     val itemsPtr: Long
 )
 
@@ -422,9 +435,16 @@ data class MenuStruct(
     val accessibilityLabelPtr: Long
 )
 
+/**
+ * A zero preview or accessory pointer means the context menu has none; a zero
+ * dismiss-requests pointer means it carries no `Computed<i32>` channel.
+ */
 data class MetadataContextMenuStruct(
     val contentPtr: Long,
-    val itemsPtr: Long
+    val itemsPtr: Long,
+    val previewPtr: Long,
+    val accessoryPtr: Long,
+    val dismissRequestsPtr: Long
 )
 
 data class SecureFieldStruct(

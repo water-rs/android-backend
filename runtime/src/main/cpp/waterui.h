@@ -152,6 +152,20 @@ typedef enum WuiMenuItemTag {
 } WuiMenuItemTag;
 
 /**
+ * FFI-safe command role.
+ */
+typedef enum WuiCommandRole {
+  /**
+   * An ordinary command.
+   */
+  WuiCommandRole_Standard = 0,
+  /**
+   * A command that deletes or irreversibly changes data.
+   */
+  WuiCommandRole_Destructive = 1,
+} WuiCommandRole;
+
+/**
  * FFI-safe representation of a material blur style.
  *
  * Maps to `SwiftUI`'s Material types on Apple platforms.
@@ -3518,6 +3532,14 @@ typedef struct WuiMenuItem {
    */
   struct WuiShortcut *shortcut;
   /**
+   * What a command does, which decides its presentation.
+   */
+  enum WuiCommandRole role;
+  /**
+   * Optional secondary line under a command's label; null when absent.
+   */
+  struct WuiStr *subtitle;
+  /**
    * Nested menu items.
    */
   struct WuiAnyViews *items;
@@ -3531,6 +3553,20 @@ typedef struct WuiContextMenu {
    * Identity-aware reactive menu items.
    */
   struct WuiAnyViews *items;
+  /**
+   * The view to lift while the menu is open; null lifts the source view.
+   */
+  struct WuiAnyView *preview;
+  /**
+   * The interactive view anchored to the lifted preview; null when the
+   * menu has none.
+   */
+  struct WuiAnyView *accessory;
+  /**
+   * Dismiss requests from the accessory: every change closes the open
+   * menu.
+   */
+  WuiComputed_i32 *dismiss_requests;
 } WuiContextMenu;
 
 /**
@@ -8162,6 +8198,15 @@ struct WuiSystemIcon waterui_menu_item_take_icon(struct WuiSystemIcon *icon);
 struct WuiShortcut waterui_menu_item_take_shortcut(struct WuiShortcut *shortcut);
 
 /**
+ * Takes the subtitle value from an owned menu-item subtitle allocation.
+ *
+ * # Safety
+ *
+ * `subtitle` must be consumed exactly once.
+ */
+struct WuiStr waterui_menu_item_take_subtitle(struct WuiStr *subtitle);
+
+/**
  * # Safety
  *
  * `view` must be a valid, owning `WuiAnyView` handle whose erased value is a
@@ -9358,6 +9403,20 @@ struct WuiWatcher_Id *waterui_new_watcher_id(void *data,
                                                           struct WuiId,
                                                           struct WuiWatcherMetadata*),
                                              void (*drop)(void*));
+
+/**
+ * Creates a watcher from native callbacks.
+ *
+ * # Safety
+ *
+ * All function pointers must be valid and `data` must remain valid
+ * until `drop` is called exactly once.
+ */
+struct WuiWatcher_Vec_Id *waterui_new_watcher_id_vec(void *data,
+                                                     void (*call)(void*,
+                                                                  struct WuiArray_WuiId,
+                                                                  struct WuiWatcherMetadata*),
+                                                     void (*drop)(void*));
 
 /**
  * Opens the inspector for this application.
