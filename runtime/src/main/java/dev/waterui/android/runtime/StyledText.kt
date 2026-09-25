@@ -324,7 +324,10 @@ internal class ExactLineHeightSpan(
     ) {
         val natural = fm.descent - fm.ascent
         if (natural <= 0) return
-        val extra = lineHeightPx - natural
+        // The pin only ever loosens the box: shrinking it below the run's
+        // natural ascent-to-descent lets the view clip the ink the glyphs
+        // draw outside their line box (ascenders first).
+        val extra = (lineHeightPx - natural).coerceAtLeast(0)
         val half = extra / 2
         fm.ascent -= half
         fm.descent += extra - half
@@ -403,7 +406,9 @@ internal fun TextView.applyResolvedFont(font: ResolvedFontStruct, applyLineHeigh
         // exactly `lineHeight` and wrapped lines keep that pitch.
         val lineHeightPx = (font.lineHeight * context.pxPerSp()).roundToInt()
         val metrics = paint.fontMetricsInt
-        val extra = lineHeightPx - (metrics.descent - metrics.ascent)
+        // Same rule as `ExactLineHeightSpan`: a pin below the natural box
+        // keeps natural metrics rather than clipping the glyph run.
+        val extra = (lineHeightPx - (metrics.descent - metrics.ascent)).coerceAtLeast(0)
         val half = extra / 2
         TextViewCompat.setFirstBaselineToTopHeight(this, -metrics.ascent + half)
         TextViewCompat.setLastBaselineToBottomHeight(this, metrics.descent + extra - half)
