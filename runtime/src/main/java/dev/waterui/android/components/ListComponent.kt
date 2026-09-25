@@ -35,6 +35,7 @@ import dev.waterui.android.runtime.R
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.reactive.WatcherGuard
+import dev.waterui.android.runtime.EdgeInsetsStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ReactivePlainText
 import dev.waterui.android.runtime.NativeAnyViews
@@ -171,6 +172,12 @@ internal class ListItemModel(
     hasSection: Boolean,
     sectionLabelPtr: Long,
     sectionFooterPtr: Long,
+    /**
+     * The insets between the row's edges and its content, flattened out of
+     * the item struct's `hasInsets`/`inset*` fields. `null` keeps the
+     * theme's row insets.
+     */
+    val insets: EdgeInsetsStruct?,
     private val context: Context,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
@@ -257,6 +264,12 @@ private class WuiListAdapter(
     private val usesSections: Boolean,
     private val onDeletePtr: Long,
     private val onMovePtr: Long,
+    /**
+     * The row height floor in points the list's environment resolves, in
+     * place of the theme's one-line height. `null` keeps the theme's floor;
+     * `0` sizes each row to its content plus its insets.
+     */
+    private val minRowHeight: Float?,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>(), Closeable, PopupTextProvider {
@@ -267,6 +280,7 @@ private class WuiListAdapter(
 
     private val editing = WuiComputed.bool(editingPtr)
     private val mutedForeground = ThemeBridge.mutedForeground(env)
+    private val minRowHeightPx = minRowHeight?.dp(context)?.toInt()
     private val selectionContainer = ThemeBridge.selectionContainer(env)
     private val motion = MaterialListMotion(context)
     private val source = NativeAnyViews(contentsPtr)
@@ -304,6 +318,16 @@ private class WuiListAdapter(
             hasSection = item.hasSection,
             sectionLabelPtr = item.sectionLabelPtr,
             sectionFooterPtr = item.sectionFooterPtr,
+            insets = if (item.hasInsets) {
+                EdgeInsetsStruct(
+                    top = item.insetTop,
+                    leading = item.insetLeading,
+                    bottom = item.insetBottom,
+                    trailing = item.insetTrailing
+                )
+            } else {
+                null
+            },
             context = context,
             env = env,
             registry = registry
@@ -446,6 +470,7 @@ private class WuiListAdapter(
         }
         holder.model = model
         holder.ownsModel = !usesSections
+        bindListRowMetrics(holder, model.insets, minRowHeightPx, context)
         applySelection(holder, selection.isSelected(entry.rowId))
         bindRowActivation(holder)
         bindTheme(holder)
@@ -1167,6 +1192,7 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
         usesSections = struct.usesSections,
         onDeletePtr = struct.onDeletePtr,
         onMovePtr = struct.onMovePtr,
+        minRowHeight = struct.minRowHeight.takeIf { struct.hasMinRowHeight },
         env = env,
         registry = registry
     )

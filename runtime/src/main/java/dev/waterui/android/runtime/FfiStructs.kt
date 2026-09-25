@@ -1190,6 +1190,10 @@ data class TabsStruct(
  * - onMovePtr: MoveAction pointer (0 if unsupported)
  * - targetIndexPtr: Computed<Int> requested row (0 if uncontrolled)
  * - scrollGenerationPtr: Computed<Int> request generation (0 if uncontrolled)
+ * - hasMinRowHeight: whether minRowHeight holds a value; false keeps the
+ *   theme's one-line row height
+ * - minRowHeight: the row height floor in points when hasMinRowHeight is
+ *   true; 0 sizes each row to its content plus its insets
  */
 data class ListStruct(
     val contentsPtr: Long,
@@ -1201,7 +1205,9 @@ data class ListStruct(
     val onMovePtr: Long,
     val targetIndexPtr: Long,
     val scrollGenerationPtr: Long,
-    val usesSections: Boolean
+    val usesSections: Boolean,
+    val hasMinRowHeight: Boolean,
+    val minRowHeight: Float
 )
 
 /**
@@ -1219,13 +1225,37 @@ data class ListStruct(
  *
  * Selected state no longer rides the row: the list-level selection on
  * `ListStruct` owns it.
+ *
+ * `hasInsets` selects between the theme's row insets and the
+ * `insetTop`/`insetLeading`/`insetBottom`/`insetTrailing` edges, in points —
+ * the space between the row's edges and its content. The JNI conversion
+ * frees the owning `WuiEdgeInsets` while flattening it into these fields.
  */
 data class ListItemStruct(
     val contentPtr: Long,
     val deletablePtr: Long,
     val hasSection: Boolean,
     val sectionLabelPtr: Long,
-    val sectionFooterPtr: Long
+    val sectionFooterPtr: Long,
+    val hasInsets: Boolean,
+    val insetTop: Float,
+    val insetLeading: Float,
+    val insetBottom: Float,
+    val insetTrailing: Float
+)
+
+/**
+ * The four edges of a `WuiEdgeInsets`, in points, carried by
+ * `ListItemStruct`'s `hasInsets`/`inset*` fields.
+ *
+ * `leading`/`trailing` follow text direction — they map to the start and end
+ * edges on Android, so the pair swaps sides under RTL.
+ */
+data class EdgeInsetsStruct(
+    val top: Float,
+    val leading: Float,
+    val bottom: Float,
+    val trailing: Float
 )
 
 // ========== App Struct ==========
