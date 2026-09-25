@@ -1,5 +1,10 @@
 package dev.waterui.android.components
 
+import android.content.Context
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.view.ActionMode
 import android.view.KeyEvent
 import android.view.Menu
@@ -10,8 +15,10 @@ import androidx.appcompat.widget.AppCompatEditText
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.MenuCompat
 import androidx.core.view.MenuItemCompat
+import com.google.android.material.color.MaterialColors
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.CommandRole
 import dev.waterui.android.runtime.MenuItemStruct
 import dev.waterui.android.runtime.MenuItemTag
 import dev.waterui.android.runtime.MenuStruct
@@ -24,8 +31,11 @@ import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.disposeWuiTree
 import dev.waterui.android.runtime.inflateAnyView
 import java.io.Closeable
+import androidx.appcompat.R as AppCompatR
+import com.google.android.material.R as MaterialR
 
 private val menuTypeId: WuiTypeId by lazy { NativeBindings.waterui_menu_id().toTypeId() }
 private val menuItemTypeId: WuiTypeId by lazy {
@@ -85,11 +95,72 @@ private data class AndroidMenuShortcut(
 
 private class MenuBuildState(
     val actions: MutableMap<Int, Long>,
-    val topLevelItemIds: MutableList<Int>
+    val topLevelItemIds: MutableList<Int>,
+    private val context: Context
 ) {
     private var nextItemId = MENU_ITEM_ID_BASE
 
     fun nextId(): Int = nextItemId++
+
+    val destructiveColor: Int by lazy {
+        MaterialColors.getColor(
+            context,
+            AppCompatR.attr.colorError,
+            "WaterUI menus require a Material colorError for destructive commands"
+        )
+    }
+    val subtitleColor: Int by lazy {
+        MaterialColors.getColor(
+            context,
+            MaterialR.attr.colorOnSurfaceVariant,
+            "WaterUI menus require a Material colorOnSurfaceVariant for subtitles"
+        )
+    }
+}
+
+private const val SUBTITLE_SIZE_RATIO = 0.85f
+
+/**
+ * The rendered title of one command row: the label, tinted in the Material
+ * error colour when the command is destructive, followed by the subtitle on a
+ * second, de-emphasized line when the command carries one.
+ */
+internal fun composeMenuItemTitle(
+    label: CharSequence,
+    subtitle: String?,
+    destructiveColor: Int?,
+    subtitleColor: Int
+): CharSequence {
+    if (destructiveColor == null && subtitle == null) {
+        return label
+    }
+    val builder = SpannableStringBuilder(label)
+    if (destructiveColor != null) {
+        builder.setSpan(
+            ForegroundColorSpan(destructiveColor),
+            0,
+            builder.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+    }
+    if (subtitle != null) {
+        builder.append('\n')
+        val start = builder.length
+        builder.append(subtitle)
+        builder.setSpan(
+            RelativeSizeSpan(SUBTITLE_SIZE_RATIO),
+            start,
+            builder.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        builder.setSpan(
+            ForegroundColorSpan(subtitleColor),
+            start,
+            builder.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+    }
+    return builder
 }
 
 private sealed interface ReactiveMenuNode : Closeable {
@@ -101,6 +172,8 @@ private sealed interface ReactiveMenuNode : Closeable {
         private val actionPtr: Long,
         disabledPtr: Long,
         selectedPtr: Long,
+        private val role: CommandRole,
+        private val subtitle: String?,
         private val shortcut: AndroidMenuShortcut?,
         env: WuiEnvironment
     ) : ReactiveMenuNode {
@@ -132,7 +205,18 @@ private sealed interface ReactiveMenuNode : Closeable {
             val itemId = state.nextId()
             val created = menu.add(groupId, itemId, order, "")
             item = created
-            label.attach { created.title = it }
+            label.attach {
+                created.title = composeMenuItemTitle(
+                    label = it,
+                    subtitle = subtitle,
+                    destructiveColor = if (role == CommandRole.DESTRUCTIVE) {
+                        state.destructiveColor
+                    } else {
+                        null
+                    },
+                    subtitleColor = state.subtitleColor
+                )
+            }
             created.isEnabled = !isDisabled && actionPtr != 0L
             created.isCheckable = selected != null
             created.isChecked = isSelected
@@ -226,6 +310,8 @@ private sealed interface ReactiveMenuNode : Closeable {
                     actionPtr = item.actionPtr,
                     disabledPtr = item.disabledPtr,
                     selectedPtr = item.selectedPtr,
+                    role = CommandRole.fromInt(item.role),
+                    subtitle = item.subtitle,
                     shortcut = item.keyEquivalent?.let { key ->
                         AndroidMenuShortcut(
                             keyEquivalent = key,
@@ -242,7 +328,8 @@ private sealed interface ReactiveMenuNode : Closeable {
             MenuItemTag.DIVIDER -> {
                 require(
                     item.labelPtr == 0L && item.actionPtr == 0L &&
-                        item.disabledPtr == 0L && item.selectedPtr == 0L && item.itemsPtr == 0L
+                        item.disabledPtr == 0L && item.selectedPtr == 0L && item.itemsPtr == 0L &&
+                        item.role == CommandRole.STANDARD.value && item.subtitle == null
                 ) { "menu divider unexpectedly owns presentation pointers" }
                 Divider
             }
@@ -251,7 +338,8 @@ private sealed interface ReactiveMenuNode : Closeable {
                 require(item.labelPtr != 0L) { "nested menu label pointer is null" }
                 require(item.itemsPtr != 0L) { "nested menu items pointer is null" }
                 require(
-                    item.actionPtr == 0L && item.disabledPtr == 0L && item.selectedPtr == 0L
+                    item.actionPtr == 0L && item.disabledPtr == 0L && item.selectedPtr == 0L &&
+                        item.role == CommandRole.STANDARD.value && item.subtitle == null
                 ) { "nested menu unexpectedly owns command state" }
                 Nested(item.labelPtr, item.itemsPtr, env, invalidator)
             }
@@ -314,34 +402,39 @@ private class ReactiveMenuGroup(
 private class ReactiveAndroidMenu(
     itemsPtr: Long,
     private val env: WuiEnvironment
-) : Closeable {
+) : ContextMenuSource, Closeable {
     private val invalidator = MenuInvalidator()
     private val root = ReactiveMenuGroup(itemsPtr, env, invalidator)
     private val actions = mutableMapOf<Int, Long>()
     private val topLevelItemIds = mutableListOf<Int>()
     private var activeMenu: Menu? = null
+    private var bindContext: Context? = null
 
     init {
         invalidator.listener = ::rebuild
     }
 
-    val isEmpty: Boolean
+    override var onRebuilt: (() -> Unit)? = null
+
+    override val isEmpty: Boolean
         get() = root.isEmpty
 
-    fun bind(menu: Menu) {
+    override fun bind(menu: Menu, context: Context) {
         activeMenu?.let(::clear)
         activeMenu = menu
+        bindContext = context
         rebuild()
     }
 
-    fun unbind() {
+    override fun unbind() {
         root.detach()
         actions.clear()
         topLevelItemIds.clear()
         activeMenu = null
+        bindContext = null
     }
 
-    fun onMenuItemSelected(itemId: Int): Boolean {
+    override fun onMenuItemSelected(itemId: Int): Boolean {
         val actionPtr = actions[itemId] ?: return false
         NativeBindings.waterui_call_shared_action(actionPtr, env.raw())
         return true
@@ -349,9 +442,11 @@ private class ReactiveAndroidMenu(
 
     private fun rebuild() {
         val menu = activeMenu ?: return
+        val context = bindContext ?: return
         clear(menu)
         MenuCompat.setGroupDividerEnabled(menu, true)
-        root.append(menu, MenuBuildState(actions, topLevelItemIds), isTopLevel = true)
+        root.append(menu, MenuBuildState(actions, topLevelItemIds, context), isTopLevel = true)
+        onRebuilt?.invoke()
     }
 
     private fun clear(menu: Menu) {
@@ -368,31 +463,32 @@ private class ReactiveAndroidMenu(
     }
 }
 
-private fun showPopupMenu(anchor: View, source: ReactiveAndroidMenu): Boolean {
+private fun showPopupMenu(anchor: View, source: ReactiveAndroidMenu): PopupMenu? {
     if (source.isEmpty) {
-        return false
+        return null
     }
     val popup = PopupMenu(anchor.context, anchor)
-    source.bind(popup.menu)
+    source.bind(popup.menu, anchor.context)
     popup.setOnMenuItemClickListener { item -> source.onMenuItemSelected(item.itemId) }
     popup.setOnDismissListener { source.unbind() }
     popup.show()
-    return true
+    return popup
 }
 
 private class SelectionMenuCallback(
-    private val source: ReactiveAndroidMenu
+    private val source: ReactiveAndroidMenu,
+    private val context: Context
 ) : ActionMode.Callback {
     override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
         if (source.isEmpty) {
             return false
         }
-        source.bind(menu)
+        source.bind(menu, context)
         return true
     }
 
     override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
-        source.bind(menu)
+        source.bind(menu, context)
         return true
     }
 
@@ -452,14 +548,44 @@ private val metadataContextMenuRenderer = WuiRenderer { context, node, env, regi
     require(metadata.contentPtr != 0L) { "MetadataContextMenu.contentPtr is null" }
     val source = ReactiveAndroidMenu(metadata.itemsPtr, env)
     val child = inflateAnyView(context, metadata.contentPtr, env, registry)
+    val dismissRequests = metadata.dismissRequestsPtr
+        .takeIf { it != 0L }
+        ?.let(::WuiDismissRequests)
 
     PassThroughFrameLayout(context).apply {
         consumesTouches = true
         setTag(PassThroughFrameLayout.TAG_WANTS_TOUCHES, true)
         isLongClickable = true
         addView(child)
-        setOnLongClickListener { showPopupMenu(it, source) }
         disposeWith(source)
+        dismissRequests?.let(::disposeWith)
+
+        if (metadata.previewPtr == 0L && metadata.accessoryPtr == 0L) {
+            var popup: PopupMenu? = null
+            setOnLongClickListener { anchor ->
+                popup = showPopupMenu(anchor, source)
+                true
+            }
+            dismissRequests?.watch { popup?.dismiss() }
+        } else {
+            val preview = OwnedWuiAnyView(metadata.previewPtr) { ptr ->
+                inflateAnyView(context, ptr, env, registry)
+            }
+            val accessory = OwnedWuiAnyView(metadata.accessoryPtr) { ptr ->
+                inflateAnyView(context, ptr, env, registry)
+            }
+            val presentation = ContextMenuPresentation(
+                anchor = this,
+                source = source,
+                previewView = preview::view,
+                accessoryView = accessory::view
+            )
+            dismissRequests?.watch(presentation::dismiss)
+            setOnLongClickListener { presentation.show() }
+            disposeWith(preview)
+            disposeWith(accessory)
+            disposeWith { presentation.dismiss() }
+        }
     }
 }
 
@@ -472,8 +598,39 @@ internal fun installTextSelectionMenu(
         return
     }
     val source = ReactiveAndroidMenu(selectionMenuPtr, env)
-    editText.customSelectionActionModeCallback = SelectionMenuCallback(source)
+    editText.customSelectionActionModeCallback = SelectionMenuCallback(source, editText.context)
     editText.disposeWith(source)
+}
+
+/**
+ * Owns a raw `*mut WuiAnyView` handle received over JNI. The pointer is consumed
+ * exactly once: either lazily inflated into a View the first time [view] is
+ * called, or dropped through `waterui_drop_any_view` if the view was never
+ * needed. An already-inflated view is disposed through the normal tree
+ * disposal so its child pointers are released.
+ */
+private class OwnedWuiAnyView(
+    private var ptr: Long,
+    private val inflate: (Long) -> View
+) : Closeable {
+    private var inflated: View? = null
+
+    fun view(): View? {
+        if (inflated == null && ptr != 0L) {
+            inflated = inflate(ptr)
+            ptr = 0L
+        }
+        return inflated
+    }
+
+    override fun close() {
+        inflated?.let { it.disposeWuiTree() }
+        inflated = null
+        if (ptr != 0L) {
+            NativeBindings.waterui_drop_any_view(ptr)
+            ptr = 0L
+        }
+    }
 }
 
 internal fun RegistryBuilder.registerWuiMenu() {
