@@ -10,6 +10,7 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
+import dev.waterui.android.runtime.EdgeInsetsStruct
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.dp
 import com.google.android.material.button.MaterialButton
@@ -88,6 +89,43 @@ internal fun createListRowViews(context: Context, horizontalMargin: Int): ListIt
     row.addView(actions)
     card.addView(row)
     return ListItemHolder(card, content, actions, deleteButton, moveButton)
+}
+
+/// The theme's one-line row height the card's content is floored to when the
+/// list carries no minimum of its own.
+private const val THEME_ROW_MIN_HEIGHT_DP = 48f
+
+/**
+ * Applies a row's metrics while it is bound: the insets between the card's
+ * edges and the content, and the floor the row's height measures against.
+ *
+ * `null` insets keep the theme's row insets — none, the content fills the
+ * card — while a row that carries its own pads the content inside the card
+ * instead; leading and trailing follow text direction, so they land on the
+ * start and end edges under RTL. `null` minRowHeightPx keeps the theme's
+ * one-line floor; `0` lets the row size to its content plus its insets. The
+ * floor covers the insets, the same clamp the self-drawn renderer applies
+ * (`content + insets` measured against the floor). The actions column keeps
+ * its own chrome — the insets belong to the content alone.
+ */
+internal fun bindListRowMetrics(
+    holder: ListItemHolder,
+    insets: EdgeInsetsStruct?,
+    minRowHeightPx: Int?,
+    context: Context
+) {
+    val content = holder.content
+    if (insets == null) {
+        content.setPadding(0, 0, 0, 0)
+    } else {
+        content.setPaddingRelative(
+            insets.leading.dp(context).toInt(),
+            insets.top.dp(context).toInt(),
+            insets.trailing.dp(context).toInt(),
+            insets.bottom.dp(context).toInt()
+        )
+    }
+    content.minimumHeight = minRowHeightPx ?: THEME_ROW_MIN_HEIGHT_DP.dp(context).toInt()
 }
 
 /// The three platform flags a selected row carries: Material's checked-card
