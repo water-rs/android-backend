@@ -297,3 +297,47 @@ def test_pin_backend_subcommand_points_at_this_checkout(tmp_path, capsys):
     parsed = tomllib.loads(manifest.read_text())
     assert parsed["backends"]["android"]["backend_path"] == str(backend_root)
     assert capsys.readouterr().out.strip() == str(backend_root)
+
+
+def test_package_release_fetches_remote_fonts_before_packaging(
+    monkeypatch, tmp_path
+):
+    # A remote font declaration resolves out of the font cache `water fetch`
+    # seeds — packaging alone never downloads (the build's no-network
+    # guarantee). The suite ran `water package` without it, so any example
+    # declaring a remote font failed packaging outright (nightly #206).
+    commands = []
+
+    def record(cmd, **kwargs):
+        commands.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", record)
+    monkeypatch.setattr(
+        e2e, "find_release_apk", lambda _dir: tmp_path / "app.apk"
+    )
+
+    e2e.package_release(
+        tmp_path, tmp_path / "examples" / "icons", "x86_64", tmp_path / "log"
+    )
+
+    assert [cmd[1] for cmd in commands] == ["fetch", "package"]
+    fetch = commands[0]
+    assert fetch[0] == "water"
+    assert "--backend" in fetch and "android" in fetch
+
+
+def test_package_release_fails_when_the_fetch_fails(monkeypatch, tmp_path):
+    def fail_fetch(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 1 if cmd[1] == "fetch" else 0)
+
+    monkeypatch.setattr(subprocess, "run", fail_fetch)
+
+    try:
+        e2e.package_release(
+            tmp_path, tmp_path / "example", "x86_64", tmp_path / "log"
+        )
+    except RuntimeError as error:
+        assert "water fetch" in str(error)
+    else:
+        raise AssertionError("a failed fetch must fail the packaging step")
