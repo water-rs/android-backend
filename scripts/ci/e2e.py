@@ -409,6 +409,29 @@ def package_release(
     Raises RuntimeError with the log tail on build failure."""
     started = time.time()
     with open(log_file, "wb") as log:
+        # Remote font declarations resolve out of the host font cache —
+        # `water package` reads it without fetching (the build's no-network
+        # guarantee), so the fetch is the suite's step: without it any
+        # example declaring a remote font fails packaging outright. Scoped to
+        # the android backend — the crates an Android build scans.
+        try:
+            fetch = subprocess.run(
+                ["water", "fetch",
+                 "--path", str(example_path),
+                 "--backend", "android"],
+                cwd=repo_root,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                timeout=PACKAGE_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"water fetch hit the {PACKAGE_TIMEOUT_S}s cap"
+            ) from None
+        if fetch.returncode != 0:
+            raise RuntimeError(
+                f"water fetch --backend android exited {fetch.returncode}"
+            )
         try:
             result = subprocess.run(
                 ["water", "package",
