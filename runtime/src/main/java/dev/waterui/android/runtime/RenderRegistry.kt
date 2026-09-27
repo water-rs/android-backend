@@ -131,6 +131,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiLayoutPriority()
         registerWuiDynamicRange()
         registerWuiContextMenu()
+        registerWuiAnchoredOverlay()
         registerWuiDragDropMetadata()
     }
     builder.components to builder.metadataTypes

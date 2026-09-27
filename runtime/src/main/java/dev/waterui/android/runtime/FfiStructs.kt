@@ -447,6 +447,33 @@ data class MetadataContextMenuStruct(
     val dismissRequestsPtr: Long
 )
 
+/**
+ * `edge`/`alignment`/`clampTag`/`dismissal` carry the Rust enum ordinals from
+ * `WuiAnchorEdge`/`WuiEdgeAlignment`/`WuiClampTag`/`WuiDismissal`;
+ * `clampMargin` only applies when `clampTag` is the `Window` variant (1).
+ */
+data class MetadataAnchoredOverlayStruct(
+    val contentPtr: Long,
+    val overlayContentPtr: Long,
+    val isPresentedPtr: Long,
+    val edge: Int,
+    val alignment: Int,
+    val gap: Float,
+    val flip: Boolean,
+    val clampTag: Int,
+    val clampMargin: Float,
+    val dismissal: Int
+)
+
+/** The overlay's placed frame plus the physical edge (WuiPhysicalEdge: 0 Top, 1 Bottom, 2 Left, 3 Right — Leading/Trailing already resolved under the layout direction) it ended up against. */
+data class AnchoredOverlayPlacementStruct(
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val height: Float,
+    val edge: Int
+)
+
 data class SecureFieldStruct(
     val labelPtr: Long,
     val accessibilityLabelPtr: Long,

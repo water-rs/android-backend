@@ -609,7 +609,7 @@ internal fun installTextSelectionMenu(
  * needed. An already-inflated view is disposed through the normal tree
  * disposal so its child pointers are released.
  */
-private class OwnedWuiAnyView(
+internal class OwnedWuiAnyView(
     private var ptr: Long,
     private val inflate: (Long) -> View
 ) : Closeable {

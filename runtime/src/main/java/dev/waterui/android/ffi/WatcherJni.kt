@@ -101,6 +101,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
     @JvmStatic external fun forceAsMenuItem(viewPtr: Long): MenuItemStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
+    @JvmStatic external fun forceAsMetadataAnchoredOverlay(viewPtr: Long): MetadataAnchoredOverlayStruct
     @JvmStatic external fun forceAsMetadataDraggable(viewPtr: Long): MetadataDraggableStruct
     @JvmStatic external fun forceAsMetadataDropDestination(viewPtr: Long): MetadataDropDestinationStruct
 
@@ -108,6 +109,31 @@ object WatcherJni {
 
     @JvmStatic external fun draggableGetData(draggablePtr: Long): DragDataStruct
     @JvmStatic external fun dropDraggable(draggablePtr: Long)
+    /**
+     * Computes an anchored overlay's frame in window space — the shared
+     * placement contract — so `PopupWindow` is positioned by WaterUI's own
+     * placement function rather than a re-implementation. `envPtr` is the
+     * renderer's `WuiEnv` pointer; `0` computes left-to-right.
+     */
+    @Suppress("LongParameterList") // The placement geometry crosses the ABI flattened.
+    @JvmStatic external fun anchoredOverlayPlace(
+        envPtr: Long,
+        anchorX: Float,
+        anchorY: Float,
+        anchorW: Float,
+        anchorH: Float,
+        windowW: Float,
+        windowH: Float,
+        overlayW: Float,
+        overlayH: Float,
+        edge: Int,
+        alignment: Int,
+        gap: Float,
+        flip: Boolean,
+        clampTag: Int,
+        clampMargin: Float
+    ): dev.waterui.android.runtime.AnchoredOverlayPlacementStruct
+
     @JvmStatic external fun dropDestinationOnDrop(destinationPtr: Long, envPtr: Long, dataTag: Int, dataValue: String)
     @JvmStatic external fun dropDestinationOnEnter(destinationPtr: Long, envPtr: Long)
     @JvmStatic external fun dropDestinationOnExit(destinationPtr: Long, envPtr: Long)
@@ -402,6 +428,7 @@ object WatcherJni {
         viewPtr: Long
     ): dev.waterui.android.runtime.MetadataDynamicRangeStruct
     @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataAnchoredOverlayId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataDraggableId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataDropDestinationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
