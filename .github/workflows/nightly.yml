@@ -172,7 +172,7 @@ jobs:
         run: python3 scripts/ci/e2e.py pin-backend waterui/examples/gesture
 
       - name: Build the gesture fixture's native library
-        run: water package --platform android --backend android --arch x86-64 --path waterui/examples/gesture
+        run: water package --platform android --backend android --arch x86-64 --debug --path waterui/examples/gesture
 
       # Playground examples keep their generated backend under the CLI's
       # build cache, so locate the staged ABI directory rather than assuming a
