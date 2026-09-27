@@ -166,6 +166,113 @@ typedef enum WuiCommandRole {
 } WuiCommandRole;
 
 /**
+ * C ABI mirror of [`AnchorEdge`].
+ */
+typedef enum WuiAnchorEdge {
+  /**
+   * Above the anchor.
+   */
+  WuiAnchorEdge_Top = 0,
+  /**
+   * Below the anchor.
+   */
+  WuiAnchorEdge_Bottom = 1,
+  /**
+   * Before the anchor in the layout direction.
+   */
+  WuiAnchorEdge_Leading = 2,
+  /**
+   * After the anchor in the layout direction.
+   */
+  WuiAnchorEdge_Trailing = 3,
+} WuiAnchorEdge;
+
+/**
+ * C ABI mirror of [`EdgeAlignment`].
+ */
+typedef enum WuiEdgeAlignment {
+  /**
+   * The overlay's start side lines up with the anchor's start side.
+   */
+  WuiEdgeAlignment_Start = 0,
+  /**
+   * The overlay is centered on the anchor.
+   */
+  WuiEdgeAlignment_Center = 1,
+  /**
+   * The overlay's end side lines up with the anchor's end side.
+   */
+  WuiEdgeAlignment_End = 2,
+} WuiEdgeAlignment;
+
+/**
+ * The tag half of [`WuiClamp`].
+ */
+typedef enum WuiClampTag {
+  /**
+   * The overlay may extend past the window's edges.
+   */
+  WuiClampTag_Off = 0,
+  /**
+   * The overlay is shifted to stay `margin` points inside the window.
+   */
+  WuiClampTag_Window = 1,
+} WuiClampTag;
+
+/**
+ * C ABI mirror of [`Dismissal`].
+ */
+typedef enum WuiDismissal {
+  /**
+   * Only setting the binding to `false` closes the overlay.
+   */
+  WuiDismissal_Manual = 0,
+  /**
+   * The backend also closes the overlay, writing `false` to its binding,
+   * when the user interacts outside it.
+   */
+  WuiDismissal_OutsideInteraction = 1,
+} WuiDismissal;
+
+/**
+ * C ABI mirror of [`waterui_backend_core::overlay::PhysicalEdge`]: the
+ * physical side of the anchor an overlay landed on — `Leading`/`Trailing`
+ * already resolved under the layout direction.
+ */
+typedef enum WuiPhysicalEdge {
+  /**
+   * Above the anchor.
+   */
+  WuiPhysicalEdge_Top = 0,
+  /**
+   * Below the anchor.
+   */
+  WuiPhysicalEdge_Bottom = 1,
+  /**
+   * To the anchor's left.
+   */
+  WuiPhysicalEdge_Left = 2,
+  /**
+   * To the anchor's right.
+   */
+  WuiPhysicalEdge_Right = 3,
+} WuiPhysicalEdge;
+
+/**
+ * C ABI mirror of [`LayoutDirection`].
+ */
+typedef enum WuiLayoutDirection {
+  /**
+   * Leading is the physical left edge.
+   */
+  WuiLayoutDirection_LeftToRight = 0,
+  /**
+   * Leading is the physical right edge.
+   */
+  WuiLayoutDirection_RightToLeft = 1,
+} WuiLayoutDirection;
+
+/**
  * FFI-safe representation of a material blur style.
  *
  * Maps to `SwiftUI`'s Material types on Apple platforms.
@@ -2810,6 +2917,223 @@ typedef struct WuiIgnorableMetadataAccessibilityState {
 } WuiIgnorableMetadataAccessibilityState;
 
 /**
+ * C ABI mirror of [`ShapeKind`], flattened into a discriminant tag plus the
+ * per-corner radii used only by the rounded-rect variants.
+ */
+typedef struct WuiShapeKind {
+  /**
+   * Discriminant: 0 = rect, 1 = circle, 2 = ellipse, 3 = rounded rect
+   * (uniform radius, normalized to the shorter side), 4 = uneven rounded
+   * rect (per-corner normalized radii), 5 = capsule, 6 = custom path,
+   * 7 = fixed rounded rect (uniform radius in logical points),
+   * 8 = fixed uneven rounded rect (per-corner radii in logical points).
+   */
+  int32_t tag;
+  /**
+   * Top-left corner radius, used by tags 3, 4, 7, and 8.
+   */
+  float top_left;
+  /**
+   * Top-right corner radius, used by tags 3, 4, 7, and 8.
+   */
+  float top_right;
+  /**
+   * Bottom-right corner radius, used by tags 3, 4, 7, and 8.
+   */
+  float bottom_right;
+  /**
+   * Bottom-left corner radius, used by tags 3, 4, 7, and 8.
+   */
+  float bottom_left;
+} WuiShapeKind;
+
+/**
+ * FFI-safe representation of a path command.
+ * All coordinates are normalized (0.0-1.0) and scale with view bounds.
+ */
+typedef enum WuiPathCommand_Tag {
+  /**
+   * Move to a position without drawing.
+   */
+  WuiPathCommand_MoveTo,
+  /**
+   * Draw a straight line to a position.
+   */
+  WuiPathCommand_LineTo,
+  /**
+   * Draw a quadratic bezier curve.
+   */
+  WuiPathCommand_QuadTo,
+  /**
+   * Draw a cubic bezier curve.
+   */
+  WuiPathCommand_CubicTo,
+  /**
+   * Draw an arc.
+   */
+  WuiPathCommand_Arc,
+  /**
+   * Close the current subpath.
+   */
+  WuiPathCommand_Close,
+} WuiPathCommand_Tag;
+
+typedef struct WuiPathCommand_MoveTo_Body {
+  /**
+   * Target X coordinate.
+   */
+  float x;
+  /**
+   * Target Y coordinate.
+   */
+  float y;
+} WuiPathCommand_MoveTo_Body;
+
+typedef struct WuiPathCommand_LineTo_Body {
+  /**
+   * Target X coordinate.
+   */
+  float x;
+  /**
+   * Target Y coordinate.
+   */
+  float y;
+} WuiPathCommand_LineTo_Body;
+
+typedef struct WuiPathCommand_QuadTo_Body {
+  /**
+   * Control point X coordinate.
+   */
+  float cx;
+  /**
+   * Control point Y coordinate.
+   */
+  float cy;
+  /**
+   * End point X coordinate.
+   */
+  float x;
+  /**
+   * End point Y coordinate.
+   */
+  float y;
+} WuiPathCommand_QuadTo_Body;
+
+typedef struct WuiPathCommand_CubicTo_Body {
+  /**
+   * First control point X coordinate.
+   */
+  float c1x;
+  /**
+   * First control point Y coordinate.
+   */
+  float c1y;
+  /**
+   * Second control point X coordinate.
+   */
+  float c2x;
+  /**
+   * Second control point Y coordinate.
+   */
+  float c2y;
+  /**
+   * End point X coordinate.
+   */
+  float x;
+  /**
+   * End point Y coordinate.
+   */
+  float y;
+} WuiPathCommand_CubicTo_Body;
+
+typedef struct WuiPathCommand_Arc_Body {
+  /**
+   * Center X coordinate.
+   */
+  float cx;
+  /**
+   * Center Y coordinate.
+   */
+  float cy;
+  /**
+   * Radius along the X axis.
+   */
+  float rx;
+  /**
+   * Radius along the Y axis.
+   */
+  float ry;
+  /**
+   * Start angle in radians.
+   */
+  float start;
+  /**
+   * Sweep angle in radians.
+   */
+  float sweep;
+} WuiPathCommand_Arc_Body;
+
+typedef struct WuiPathCommand {
+  WuiPathCommand_Tag tag;
+  union {
+    WuiPathCommand_MoveTo_Body move_to;
+    WuiPathCommand_LineTo_Body line_to;
+    WuiPathCommand_QuadTo_Body quad_to;
+    WuiPathCommand_CubicTo_Body cubic_to;
+    WuiPathCommand_Arc_Body arc;
+  };
+} WuiPathCommand;
+
+/**
+ * A raw, borrowed view of a `WuiArray`'s elements as a pointer and length.
+ */
+typedef struct WuiArraySlice_WuiPathCommand {
+  struct WuiPathCommand *head;
+  uintptr_t len;
+} WuiArraySlice_WuiPathCommand;
+
+/**
+ * The pair of function pointers `WuiArray` uses to view and free its backing storage.
+ *
+ * `drop` releases the boxed container referenced by [`WuiArray::data`](WuiArray),
+ * and `slice` exposes that container's elements as a raw [`WuiArraySlice`].
+ */
+typedef struct WuiArrayVTable_WuiPathCommand {
+  void (*drop)(void*);
+  struct WuiArraySlice_WuiPathCommand (*slice)(const void*);
+} WuiArrayVTable_WuiPathCommand;
+
+/**
+ * A generic array structure for FFI, representing a contiguous sequence of elements.
+ *
+ * `WuiArray` can represent multiple types of arrays, for instance, a `&[T]` (in this case, the lifetime of `WuiArray` is bound to the caller's scope),
+ * or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`, `Bytes`, or even a foreign allocated array.
+ * For a value type, `WuiArray` contains a destructor function pointer to free the array buffer, whatever it is allocated by Rust side or foreign side.
+ * We assume `T` does not contain any non-trivial drop logic, and `WuiArray` will not call `drop` on each element when it is dropped.
+ */
+typedef struct WuiArray_WuiPathCommand {
+  NonNull data;
+  struct WuiArrayVTable_WuiPathCommand vtable;
+} WuiArray_WuiPathCommand;
+
+/**
+ * FFI-safe representation of a clip shape.
+ * Contains the structured kind plus the path commands defining the mask.
+ */
+typedef struct WuiClipShape {
+  /**
+   * Shape kind for backend-side rendering. Prefer this over `commands`:
+   * the commands are in unit space, where a corner radius stretches with
+   * the clipped rect's aspect ratio.
+   */
+  struct WuiShapeKind kind;
+  /**
+   * Array of path commands defining the shape.
+   */
+  struct WuiArray_WuiPathCommand commands;
+} WuiClipShape;
+
+/**
  * FFI-safe representation of a shadow.
  */
 typedef struct WuiShadow {
@@ -2830,9 +3154,9 @@ typedef struct WuiShadow {
    */
   float radius;
   /**
-   * Corner radius of the element casting the shadow.
+   * Shape of the element casting the shadow; the shadow blurs this shape.
    */
-  float corner_radius;
+  struct WuiClipShape silhouette;
 } WuiShadow;
 
 /**
@@ -3185,223 +3509,6 @@ typedef struct WuiMetadata_WuiRetain {
 typedef struct WuiMetadata_WuiRetain WuiMetadataRetain;
 
 /**
- * C ABI mirror of [`ShapeKind`], flattened into a discriminant tag plus the
- * per-corner radii used only by the rounded-rect variants.
- */
-typedef struct WuiShapeKind {
-  /**
-   * Discriminant: 0 = rect, 1 = circle, 2 = ellipse, 3 = rounded rect
-   * (uniform radius, normalized to the shorter side), 4 = uneven rounded
-   * rect (per-corner normalized radii), 5 = capsule, 6 = custom path,
-   * 7 = fixed rounded rect (uniform radius in logical points),
-   * 8 = fixed uneven rounded rect (per-corner radii in logical points).
-   */
-  int32_t tag;
-  /**
-   * Top-left corner radius, used by tags 3, 4, 7, and 8.
-   */
-  float top_left;
-  /**
-   * Top-right corner radius, used by tags 3, 4, 7, and 8.
-   */
-  float top_right;
-  /**
-   * Bottom-right corner radius, used by tags 3, 4, 7, and 8.
-   */
-  float bottom_right;
-  /**
-   * Bottom-left corner radius, used by tags 3, 4, 7, and 8.
-   */
-  float bottom_left;
-} WuiShapeKind;
-
-/**
- * FFI-safe representation of a path command.
- * All coordinates are normalized (0.0-1.0) and scale with view bounds.
- */
-typedef enum WuiPathCommand_Tag {
-  /**
-   * Move to a position without drawing.
-   */
-  WuiPathCommand_MoveTo,
-  /**
-   * Draw a straight line to a position.
-   */
-  WuiPathCommand_LineTo,
-  /**
-   * Draw a quadratic bezier curve.
-   */
-  WuiPathCommand_QuadTo,
-  /**
-   * Draw a cubic bezier curve.
-   */
-  WuiPathCommand_CubicTo,
-  /**
-   * Draw an arc.
-   */
-  WuiPathCommand_Arc,
-  /**
-   * Close the current subpath.
-   */
-  WuiPathCommand_Close,
-} WuiPathCommand_Tag;
-
-typedef struct WuiPathCommand_MoveTo_Body {
-  /**
-   * Target X coordinate.
-   */
-  float x;
-  /**
-   * Target Y coordinate.
-   */
-  float y;
-} WuiPathCommand_MoveTo_Body;
-
-typedef struct WuiPathCommand_LineTo_Body {
-  /**
-   * Target X coordinate.
-   */
-  float x;
-  /**
-   * Target Y coordinate.
-   */
-  float y;
-} WuiPathCommand_LineTo_Body;
-
-typedef struct WuiPathCommand_QuadTo_Body {
-  /**
-   * Control point X coordinate.
-   */
-  float cx;
-  /**
-   * Control point Y coordinate.
-   */
-  float cy;
-  /**
-   * End point X coordinate.
-   */
-  float x;
-  /**
-   * End point Y coordinate.
-   */
-  float y;
-} WuiPathCommand_QuadTo_Body;
-
-typedef struct WuiPathCommand_CubicTo_Body {
-  /**
-   * First control point X coordinate.
-   */
-  float c1x;
-  /**
-   * First control point Y coordinate.
-   */
-  float c1y;
-  /**
-   * Second control point X coordinate.
-   */
-  float c2x;
-  /**
-   * Second control point Y coordinate.
-   */
-  float c2y;
-  /**
-   * End point X coordinate.
-   */
-  float x;
-  /**
-   * End point Y coordinate.
-   */
-  float y;
-} WuiPathCommand_CubicTo_Body;
-
-typedef struct WuiPathCommand_Arc_Body {
-  /**
-   * Center X coordinate.
-   */
-  float cx;
-  /**
-   * Center Y coordinate.
-   */
-  float cy;
-  /**
-   * Radius along the X axis.
-   */
-  float rx;
-  /**
-   * Radius along the Y axis.
-   */
-  float ry;
-  /**
-   * Start angle in radians.
-   */
-  float start;
-  /**
-   * Sweep angle in radians.
-   */
-  float sweep;
-} WuiPathCommand_Arc_Body;
-
-typedef struct WuiPathCommand {
-  WuiPathCommand_Tag tag;
-  union {
-    WuiPathCommand_MoveTo_Body move_to;
-    WuiPathCommand_LineTo_Body line_to;
-    WuiPathCommand_QuadTo_Body quad_to;
-    WuiPathCommand_CubicTo_Body cubic_to;
-    WuiPathCommand_Arc_Body arc;
-  };
-} WuiPathCommand;
-
-/**
- * A raw, borrowed view of a `WuiArray`'s elements as a pointer and length.
- */
-typedef struct WuiArraySlice_WuiPathCommand {
-  struct WuiPathCommand *head;
-  uintptr_t len;
-} WuiArraySlice_WuiPathCommand;
-
-/**
- * The pair of function pointers `WuiArray` uses to view and free its backing storage.
- *
- * `drop` releases the boxed container referenced by [`WuiArray::data`](WuiArray),
- * and `slice` exposes that container's elements as a raw [`WuiArraySlice`].
- */
-typedef struct WuiArrayVTable_WuiPathCommand {
-  void (*drop)(void*);
-  struct WuiArraySlice_WuiPathCommand (*slice)(const void*);
-} WuiArrayVTable_WuiPathCommand;
-
-/**
- * A generic array structure for FFI, representing a contiguous sequence of elements.
- *
- * `WuiArray` can represent multiple types of arrays, for instance, a `&[T]` (in this case, the lifetime of `WuiArray` is bound to the caller's scope),
- * or a value type having a static lifetime like `Vec<T>`, `Box<[T]>`, `Bytes`, or even a foreign allocated array.
- * For a value type, `WuiArray` contains a destructor function pointer to free the array buffer, whatever it is allocated by Rust side or foreign side.
- * We assume `T` does not contain any non-trivial drop logic, and `WuiArray` will not call `drop` on each element when it is dropped.
- */
-typedef struct WuiArray_WuiPathCommand {
-  NonNull data;
-  struct WuiArrayVTable_WuiPathCommand vtable;
-} WuiArray_WuiPathCommand;
-
-/**
- * FFI-safe representation of a clip shape.
- * Contains the structured kind plus the path commands defining the mask.
- */
-typedef struct WuiClipShape {
-  /**
-   * Shape kind for backend-side rendering. Prefer this over `commands`:
-   * the commands are in unit space, where a corner radius stretches with
-   * the clipped rect's aspect ratio.
-   */
-  struct WuiShapeKind kind;
-  /**
-   * Array of path commands defining the shape.
-   */
-  struct WuiArray_WuiPathCommand commands;
-} WuiClipShape;
-
-/**
  * Generic FFI payload for `Metadata<T>` views: the wrapped content plus the
  * attached metadata value.
  */
@@ -3588,6 +3695,145 @@ typedef struct WuiMetadata_WuiContextMenu {
  * Type alias for `Metadata<ContextMenu>` FFI struct
  */
 typedef struct WuiMetadata_WuiContextMenu WuiMetadataContextMenu;
+
+/**
+ * C ABI mirror of [`Clamp`]: a flat tagged struct — `margin` only applies
+ * when `tag` is [`WuiClampTag::Window`].
+ */
+typedef struct WuiClamp {
+  /**
+   * Whether and how the overlay is kept inside the window.
+   */
+  enum WuiClampTag tag;
+  /**
+   * The minimum distance from the window's edges, in points.
+   */
+  float margin;
+} WuiClamp;
+
+/**
+ * C ABI mirror of [`AnchorPlacement`].
+ */
+typedef struct WuiAnchorPlacement {
+  /**
+   * The edge of the anchor the overlay is placed against.
+   */
+  enum WuiAnchorEdge edge;
+  /**
+   * How the overlay lines up with the anchor along that edge.
+   */
+  enum WuiEdgeAlignment alignment;
+  /**
+   * The distance between the anchor and the overlay, in points.
+   */
+  float gap;
+  /**
+   * Whether the overlay moves to the opposite edge when the preferred
+   * edge has no room for it.
+   */
+  bool flip;
+  /**
+   * How the overlay is kept inside the window.
+   */
+  struct WuiClamp clamp;
+} WuiAnchorPlacement;
+
+/**
+ * FFI-safe representation of an anchored overlay.
+ */
+typedef struct WuiAnchoredOverlay {
+  /**
+   * The view presented next to the anchor.
+   */
+  struct WuiAnyView *content;
+  /**
+   * Whether the overlay is presented; the backend writes `false` when it
+   * dismisses the overlay itself.
+   */
+  WuiBinding_bool *is_presented;
+  /**
+   * Where the overlay sits relative to the anchor.
+   */
+  struct WuiAnchorPlacement placement;
+  /**
+   * What besides the binding closes the overlay.
+   */
+  enum WuiDismissal dismissal;
+} WuiAnchoredOverlay;
+
+/**
+ * Generic FFI payload for `Metadata<T>` views: the wrapped content plus the
+ * attached metadata value.
+ */
+typedef struct WuiMetadata_WuiAnchoredOverlay {
+  /**
+   * The view content wrapped by this metadata node.
+   */
+  struct WuiAnyView *content;
+  /**
+   * The metadata value attached to `content`.
+   */
+  struct WuiAnchoredOverlay value;
+} WuiMetadata_WuiAnchoredOverlay;
+
+/**
+ * Type alias for `Metadata<AnchoredOverlay>` FFI struct
+ */
+typedef struct WuiMetadata_WuiAnchoredOverlay WuiMetadataAnchoredOverlay;
+
+/**
+ *C ABI mirror of `Point`.
+ */
+typedef struct WuiPoint {
+  /**
+   *Mirrors the `x` field of `Point`.
+   */
+  float x;
+  /**
+   *Mirrors the `y` field of `Point`.
+   */
+  float y;
+} WuiPoint;
+
+/**
+ *C ABI mirror of `Size`.
+ */
+typedef struct WuiSize {
+  /**
+   *Mirrors the `width` field of `Size`.
+   */
+  float width;
+  /**
+   *Mirrors the `height` field of `Size`.
+   */
+  float height;
+} WuiSize;
+
+/**
+ * C ABI mirror of [`Rect`]: an axis-aligned rectangle expressed as an
+ * origin point and a size, relative to its parent's coordinate space.
+ */
+typedef struct WuiRect {
+  struct WuiPoint origin;
+  struct WuiSize size;
+} WuiRect;
+
+/**
+ * C ABI mirror of [`waterui_backend_core::overlay::AnchoredOverlayPlacement`]:
+ * the overlay's frame in window space and the anchor edge it was placed
+ * against after any flip.
+ */
+typedef struct WuiAnchoredOverlayPlacement {
+  /**
+   * The overlay's frame in window space.
+   */
+  struct WuiRect frame;
+  /**
+   * The physical edge of the anchor the overlay was placed against, after
+   * flipping.
+   */
+  enum WuiPhysicalEdge edge;
+} WuiAnchoredOverlayPlacement;
 
 /**
  * FFI-safe representation of a Menu component.
@@ -5188,43 +5434,6 @@ typedef struct WuiContainer {
  * Native callback invoked when a reactive layout input changes.
  */
 typedef void (*WuiLayoutInvalidationCallback)(void *context);
-
-/**
- *C ABI mirror of `Size`.
- */
-typedef struct WuiSize {
-  /**
-   *Mirrors the `width` field of `Size`.
-   */
-  float width;
-  /**
-   *Mirrors the `height` field of `Size`.
-   */
-  float height;
-} WuiSize;
-
-/**
- *C ABI mirror of `Point`.
- */
-typedef struct WuiPoint {
-  /**
-   *Mirrors the `x` field of `Point`.
-   */
-  float x;
-  /**
-   *Mirrors the `y` field of `Point`.
-   */
-  float y;
-} WuiPoint;
-
-/**
- * C ABI mirror of [`Rect`]: an axis-aligned rectangle expressed as an
- * origin point and a size, relative to its parent's coordinate space.
- */
-typedef struct WuiRect {
-  struct WuiPoint origin;
-  struct WuiSize size;
-} WuiRect;
 
 /**
  * C ABI mirror of [`EdgeInsets`]: the space between a rectangle's edges and
@@ -7573,6 +7782,14 @@ typedef void (*ViewRenderFn)(void *context,
                              struct ViewRenderCallback callback);
 
 /**
+ * Raw handles transferred from the exported app entry point to Android JNI.
+ */
+typedef struct WuiAndroidAppHandles {
+  void *content;
+  void *env;
+} WuiAndroidAppHandles;
+
+/**
  * A raw, borrowed view of a `WuiArray`'s elements as a pointer and length.
  */
 typedef struct WuiArraySlice_WuiWindow {
@@ -8279,6 +8496,48 @@ struct WuiTypeId waterui_metadata_context_menu_id(void);
  * that contains a `Metadata<$ty>`.
  */
 WuiMetadataContextMenu waterui_force_as_metadata_context_menu(struct WuiAnyView *view);
+
+/**
+ * Returns the type ID as a 128-bit value for O(1) comparison.
+ * Returns the view's `TypeId` (guaranteed unique within a single binary).
+ */
+struct WuiTypeId waterui_metadata_anchored_overlay_id(void);
+
+/**
+ * Force-casts an `AnyView` to this metadata type.
+ *
+ * # Safety
+ * The caller must ensure that `view` is a valid pointer to an `AnyView`
+ * that contains a `Metadata<$ty>`.
+ */
+WuiMetadataAnchoredOverlay waterui_force_as_metadata_anchored_overlay(struct WuiAnyView *view);
+
+/**
+ * Computes an anchored overlay's frame in window space.
+ *
+ * The same placement contract the Rust backends implement — so a native
+ * backend that positions the overlay itself (a `PopupWindow`, a borderless
+ * child window, a `GtkPopover` GTK cannot steer) calls this instead of
+ * re-implementing it.
+ *
+ * `overlay` is the content's ideal size; `window` is the window's bounds and
+ * `anchor` the anchor's frame, both in the same window coordinate space.
+ * `direction` resolves `Leading`/`Trailing` edges and `Start`/`End`
+ * alignments. Pass `NULL` for `env` to compute with the default
+ * left-to-right direction; when non-null the environment's layout direction
+ * wins over `direction`.
+ *
+ * # Safety
+ *
+ * `env` must be `NULL` or a valid `WuiEnv` pointer; all other inputs are
+ * plain-data FFI mirrors.
+ */
+struct WuiAnchoredOverlayPlacement waterui_anchored_overlay_place(struct WuiRect anchor,
+                                                                  struct WuiRect window,
+                                                                  struct WuiSize overlay,
+                                                                  struct WuiAnchorPlacement placement,
+                                                                  enum WuiLayoutDirection direction,
+                                                                  const struct WuiEnv *env);
 
 /**
  * # Safety
@@ -12529,6 +12788,10 @@ void waterui_env_install_view_renderer(struct WuiEnv *env,
                                        void *context,
                                        ViewRenderFn render_fn,
                                        void (*drop_context)(void*));
+
+extern void *waterui_android_init(void);
+
+extern struct WuiAndroidAppHandles waterui_android_app(void *env);
 
 WuiEnv* waterui_init(void);
 

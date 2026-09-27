@@ -710,6 +710,10 @@ data class MetadataLifecycleHookStruct(
 
 /**
  * Metadata<Shadow> struct for shadow effects.
+ *
+ * The silhouette rides the same (kind, commands) pair a clip shape does: the
+ * kind says what the caster is, the unit-space commands are the fallback for
+ * `ShapeKind::CustomPath`.
  */
 data class MetadataShadowStruct(
     val contentPtr: Long,
@@ -717,8 +721,32 @@ data class MetadataShadowStruct(
     val offsetX: Float,
     val offsetY: Float,
     val radius: Float,
-    val cornerRadius: Float
-)
+    val silhouetteKind: ShapeKindStruct,
+    val silhouetteCommands: Array<PathCommandStruct>
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is MetadataShadowStruct) return false
+        return contentPtr == other.contentPtr &&
+            colorPtr == other.colorPtr &&
+            offsetX == other.offsetX &&
+            offsetY == other.offsetY &&
+            radius == other.radius &&
+            silhouetteKind == other.silhouetteKind &&
+            silhouetteCommands.contentEquals(other.silhouetteCommands)
+    }
+
+    override fun hashCode(): Int {
+        var result = contentPtr.hashCode()
+        result = 31 * result + colorPtr.hashCode()
+        result = 31 * result + offsetX.hashCode()
+        result = 31 * result + offsetY.hashCode()
+        result = 31 * result + radius.hashCode()
+        result = 31 * result + silhouetteKind.hashCode()
+        result = 31 * result + silhouetteCommands.contentHashCode()
+        return result
+    }
+}
 
 data class MetadataBorderStruct(
     val contentPtr: Long,
