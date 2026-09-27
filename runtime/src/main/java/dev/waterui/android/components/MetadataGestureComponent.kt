@@ -322,12 +322,26 @@ private fun compositeTouchHandler(vararg handlers: GestureTouchHandler): Gesture
         }
     }
 
+private val POINTER_GESTURES = setOf(GestureType.TAP, GestureType.LONG_PRESS, GestureType.DRAG)
+private const val POINTER_BUTTON_PRIMARY = 1
+
 private fun buildGestureTouchHandler(
     context: Context,
     gestureTree: GestureTree,
     onRecognized: () -> Unit
-): GestureTouchHandler =
-    when (gestureTree.type) {
+): GestureTouchHandler {
+    // Android touch recognizers see no pointer-button mask (unlike AppKit's
+    // `buttonMask` or UIKit's `buttonMaskRequired`): every press is PRIMARY,
+    // so a leaf gesture whose `buttons` set excludes it can never recognize
+    // here. Composite children recurse through this same check.
+    if (gestureTree.type in POINTER_GESTURES &&
+        gestureTree.data.buttons and POINTER_BUTTON_PRIMARY == 0
+    ) {
+        return object : GestureTouchHandler {
+            override fun onTouch(event: MotionEvent) = Unit
+        }
+    }
+    return when (gestureTree.type) {
         GestureType.TAP -> TapGestureTouchHandler(
             context = context,
             requiredTapCount = gestureTree.data.tapCount.also {
@@ -410,6 +424,7 @@ private fun buildGestureTouchHandler(
             }
         }
     }
+}
 
 private val metadataGestureRenderer = WuiRenderer { context, node, env, registry ->
     val gestureMetadata = NativeBindings.waterui_force_as_metadata_gesture(node.rawPtr)

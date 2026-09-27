@@ -35,6 +35,31 @@ typedef struct WuiArray {
 
 
 /**
+ * `WuiGesture.buttons` bit for [`WuiPointerButton::Primary`].
+ */
+#define WATERUI_POINTER_BUTTON_PRIMARY (1 << 0)
+
+/**
+ * `WuiGesture.buttons` bit for [`WuiPointerButton::Secondary`].
+ */
+#define WATERUI_POINTER_BUTTON_SECONDARY (1 << 1)
+
+/**
+ * `WuiGesture.buttons` bit for [`WuiPointerButton::Middle`].
+ */
+#define WATERUI_POINTER_BUTTON_MIDDLE (1 << 2)
+
+/**
+ * `WuiGesture.buttons` bit for [`WuiPointerButton::Back`].
+ */
+#define WATERUI_POINTER_BUTTON_BACK (1 << 3)
+
+/**
+ * `WuiGesture.buttons` bit for [`WuiPointerButton::Forward`].
+ */
+#define WATERUI_POINTER_BUTTON_FORWARD (1 << 4)
+
+/**
  * `Modifiers::SHIFT` — a shift key is held.
  */
 #define WUI_SURFACE_MODIFIER_SHIFT 512
@@ -1554,6 +1579,33 @@ typedef enum WuiScrollUnit {
 } WuiScrollUnit;
 
 /**
+ * A pointer button that can press a gesture, mirroring
+ * `waterui::gesture::PointerButton` for FFI consumers.
+ */
+typedef enum WuiPointerButton {
+  /**
+   * The main button: a left mouse click, a touch, a pen contact.
+   */
+  WuiPointerButton_Primary,
+  /**
+   * The secondary button, usually a right click.
+   */
+  WuiPointerButton_Secondary,
+  /**
+   * The middle button, usually a wheel click.
+   */
+  WuiPointerButton_Middle,
+  /**
+   * The "back" side button.
+   */
+  WuiPointerButton_Back,
+  /**
+   * The "forward" side button.
+   */
+  WuiPointerButton_Forward,
+} WuiPointerButton;
+
+/**
  * 2D affine transform stored as a row-major 2x3 matrix.
  *
  * The transform maps a point `(x, y)` to:
@@ -2580,6 +2632,11 @@ typedef struct WuiGesture_Tap_Body {
    * Number of taps required to recognize the gesture.
    */
   uint32_t count;
+  /**
+   * Mask of buttons that can tap (`WATERUI_POINTER_BUTTON_*`);
+   * `WATERUI_POINTER_BUTTON_PRIMARY` for a default gesture.
+   */
+  uint8_t buttons;
 } WuiGesture_Tap_Body;
 
 typedef struct WuiGesture_LongPress_Body {
@@ -2587,6 +2644,10 @@ typedef struct WuiGesture_LongPress_Body {
    * Minimum press duration in milliseconds before the gesture fires.
    */
   uint32_t duration;
+  /**
+   * Mask of buttons that can press (`WATERUI_POINTER_BUTTON_*`).
+   */
+  uint8_t buttons;
 } WuiGesture_LongPress_Body;
 
 typedef struct WuiGesture_Drag_Body {
@@ -2594,6 +2655,10 @@ typedef struct WuiGesture_Drag_Body {
    * Minimum drag distance (in points) before the gesture fires.
    */
   float min_distance;
+  /**
+   * Mask of buttons that can drag (`WATERUI_POINTER_BUTTON_*`).
+   */
+  uint8_t buttons;
 } WuiGesture_Drag_Body;
 
 typedef struct WuiGesture_Magnification_Body {

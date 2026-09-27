@@ -655,7 +655,7 @@ data class MetadataGestureStruct(
 
 /**
  * Gesture-specific data union.
- * Note: No default values - JNI requires explicit constructor signature (IIFFFFJJ)V
+ * Note: No default values - JNI requires explicit constructor signature (IIFFFIJJ)V
  */
 data class GestureDataStruct(
     val tapCount: Int,
@@ -663,6 +663,7 @@ data class GestureDataStruct(
     val dragMinDistance: Float,
     val magnificationInitialScale: Float,
     val rotationInitialAngle: Float,
+    val buttons: Int,
     val thenFirstPtr: Long,
     val thenSecondPtr: Long
 )
