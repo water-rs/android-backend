@@ -1,6 +1,7 @@
 package dev.waterui.android.components
 
 import android.graphics.Rect
+import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -66,7 +67,11 @@ internal class AnchoredOverlayPresentation(
         ).apply {
             // Not touch-modal: presses outside the popup's bounds dispatch to
             // the application window and reach their real target.
-            setTouchModal(false)
+            // API 29+; below that the decor-view interceptor already forwards
+            // outside presses to their real target.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                setTouchModal(false)
+            }
             elevation = 24f * anchor.resources.displayMetrics.density
         }
         this.popup = popup
@@ -248,8 +253,8 @@ private val metadataAnchoredOverlayRenderer = WuiRenderer { context, node, env, 
         override fun onViewAttachedToWindow(v: View) {}
         override fun onViewDetachedFromWindow(v: View) {
             // The anchor left the tree: the overlay closes with it.
-            if (presentation != null) {
-                presentation?.dismiss()
+            presentation?.let {
+                it.dismiss()
                 isPresented.set(false)
             }
         }

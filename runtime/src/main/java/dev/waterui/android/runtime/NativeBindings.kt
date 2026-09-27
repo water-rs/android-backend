@@ -82,6 +82,7 @@ internal object NativeBindings {
      * Positions an anchored overlay in window space through the shared
      * placement contract exported by `waterui-ffi`.
      */
+    @Suppress("LongParameterList") // The placement geometry crosses the ABI flattened.
     fun waterui_anchored_overlay_place(
         envPtr: Long,
         anchorX: Float,

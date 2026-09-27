@@ -115,6 +115,7 @@ object WatcherJni {
      * placement function rather than a re-implementation. `envPtr` is the
      * renderer's `WuiEnv` pointer; `0` computes left-to-right.
      */
+    @Suppress("LongParameterList") // The placement geometry crosses the ABI flattened.
     @JvmStatic external fun anchoredOverlayPlace(
         envPtr: Long,
         anchorX: Float,
