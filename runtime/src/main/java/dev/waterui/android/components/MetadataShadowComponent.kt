@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
+import androidx.core.graphics.withTranslation
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -167,11 +168,10 @@ private class SilhouetteShadowDrawable(
         if (width <= 0f || height <= 0f) return
         val silhouette = path ?: buildShapePath(kind, commands, width, height, density)
             .also { path = it }
-        canvas.save()
-        canvas.translate(bounds.left + inset, bounds.top + inset)
-        paint.setShadowLayer(blur, dx, dy, shadowColor)
-        canvas.drawPath(silhouette, paint)
-        canvas.restore()
+        canvas.withTranslation(bounds.left + inset, bounds.top + inset) {
+            paint.setShadowLayer(blur, dx, dy, shadowColor)
+            drawPath(silhouette, paint)
+        }
     }
 
     override fun setAlpha(alpha: Int) = Unit
