@@ -10,6 +10,7 @@ import dev.waterui.android.ffi.WatcherJni
  *
  * This module provides a thin wrapper over WatcherJni JNI exports.
  */
+@Suppress("LargeClass") // One wrapper per JNI export; splitting it would scatter the ABI surface.
 internal object NativeBindings {
 
     /**
@@ -75,6 +76,32 @@ internal object NativeBindings {
     fun waterui_metadata_navigation_transition_destination_id(): TypeIdStruct =
         WatcherJni.metadataNavigationTransitionDestinationId()
     fun waterui_metadata_context_menu_id(): TypeIdStruct = WatcherJni.metadataContextMenuId()
+    fun waterui_metadata_anchored_overlay_id(): TypeIdStruct = WatcherJni.metadataAnchoredOverlayId()
+
+    /**
+     * Positions an anchored overlay in window space through the shared
+     * placement contract exported by `waterui-ffi`.
+     */
+    fun waterui_anchored_overlay_place(
+        envPtr: Long,
+        anchorX: Float,
+        anchorY: Float,
+        anchorW: Float,
+        anchorH: Float,
+        windowW: Float,
+        windowH: Float,
+        overlayW: Float,
+        overlayH: Float,
+        edge: Int,
+        alignment: Int,
+        gap: Float,
+        flip: Boolean,
+        clampTag: Int,
+        clampMargin: Float
+    ): AnchoredOverlayPlacementStruct = WatcherJni.anchoredOverlayPlace(
+        envPtr, anchorX, anchorY, anchorW, anchorH, windowW, windowH,
+        overlayW, overlayH, edge, alignment, gap, flip, clampTag, clampMargin
+    )
 
     // ========== Theme: Color Scheme ==========
 
@@ -229,6 +256,8 @@ internal object NativeBindings {
     ): MetadataNavigationTransitionStruct =
         WatcherJni.forceAsMetadataNavigationTransitionDestination(viewPtr)
     fun waterui_force_as_metadata_context_menu(viewPtr: Long): MetadataContextMenuStruct = WatcherJni.forceAsMetadataContextMenu(viewPtr)
+    fun waterui_force_as_metadata_anchored_overlay(viewPtr: Long): MetadataAnchoredOverlayStruct =
+        WatcherJni.forceAsMetadataAnchoredOverlay(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
     fun waterui_gesture_from_ptr(gesturePtr: Long): GestureStruct = WatcherJni.gestureFromPtr(gesturePtr)
