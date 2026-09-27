@@ -39,13 +39,34 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
     container.elevation = metadata.radius.dp(context)
 
     // The elevation shadow follows the view outline; the default provider is
-    // the rectangular bounds, so without this a rounded caster throws a
-    // square-cornered shadow. `clipToOutline` stays off — the outline shapes
-    // the shadow only, children may still draw outside it.
-    val cornerRadius = metadata.cornerRadius.dp(context)
+    // the rectangular bounds, so without this a non-rectangular caster throws
+    // a square-cornered shadow. The silhouette arrives as the same (kind,
+    // commands) pair a clip shape carries, resolved by the shared builder.
+    // `clipToOutline` stays off — the outline shapes the shadow only, children
+    // may still draw outside it.
+    val density = context.resources.displayMetrics.density
     container.outlineProvider = object : ViewOutlineProvider() {
         override fun getOutline(view: View, outline: Outline) {
-            outline.setRoundRect(0, 0, view.width, view.height, cornerRadius)
+            if (view.width == 0 || view.height == 0) return
+            val path = buildShapePath(
+                metadata.silhouetteKind,
+                metadata.silhouetteCommands,
+                view.width.toFloat(),
+                view.height.toFloat(),
+                density
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                outline.setPath(path)
+            } else {
+                // Outlines are convex-only before API 30; a concave silhouette
+                // falls back to its bounding rect there.
+                try {
+                    @Suppress("DEPRECATION")
+                    outline.setConvexPath(path)
+                } catch (_: IllegalArgumentException) {
+                    outline.setRect(0, 0, view.width, view.height)
+                }
+            }
         }
     }
 
