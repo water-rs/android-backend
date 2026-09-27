@@ -35,27 +35,27 @@ typedef struct WuiArray {
 
 
 /**
- * `WuiGesture.buttons` bit for [`WuiPointerButton::Primary`].
+ * `WuiGesture.buttons` bit for the primary button.
  */
 #define WATERUI_POINTER_BUTTON_PRIMARY (1 << 0)
 
 /**
- * `WuiGesture.buttons` bit for [`WuiPointerButton::Secondary`].
+ * `WuiGesture.buttons` bit for the secondary button.
  */
 #define WATERUI_POINTER_BUTTON_SECONDARY (1 << 1)
 
 /**
- * `WuiGesture.buttons` bit for [`WuiPointerButton::Middle`].
+ * `WuiGesture.buttons` bit for the middle button.
  */
 #define WATERUI_POINTER_BUTTON_MIDDLE (1 << 2)
 
 /**
- * `WuiGesture.buttons` bit for [`WuiPointerButton::Back`].
+ * `WuiGesture.buttons` bit for the "back" side button.
  */
 #define WATERUI_POINTER_BUTTON_BACK (1 << 3)
 
 /**
- * `WuiGesture.buttons` bit for [`WuiPointerButton::Forward`].
+ * `WuiGesture.buttons` bit for the "forward" side button.
  */
 #define WATERUI_POINTER_BUTTON_FORWARD (1 << 4)
 
@@ -1577,33 +1577,6 @@ typedef enum WuiScrollUnit {
    */
   WuiScrollUnit_Pixel,
 } WuiScrollUnit;
-
-/**
- * A pointer button that can press a gesture, mirroring
- * `waterui::gesture::PointerButton` for FFI consumers.
- */
-typedef enum WuiPointerButton {
-  /**
-   * The main button: a left mouse click, a touch, a pen contact.
-   */
-  WuiPointerButton_Primary,
-  /**
-   * The secondary button, usually a right click.
-   */
-  WuiPointerButton_Secondary,
-  /**
-   * The middle button, usually a wheel click.
-   */
-  WuiPointerButton_Middle,
-  /**
-   * The "back" side button.
-   */
-  WuiPointerButton_Back,
-  /**
-   * The "forward" side button.
-   */
-  WuiPointerButton_Forward,
-} WuiPointerButton;
 
 /**
  * 2D affine transform stored as a row-major 2x3 matrix.
