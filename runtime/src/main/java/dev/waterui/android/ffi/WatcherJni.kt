@@ -108,7 +108,17 @@ object WatcherJni {
 
     // ========== Drag and Drop ==========
 
-    @JvmStatic external fun draggableGetData(draggablePtr: Long): DragDataStruct
+    /** Reads the payload a drag starting now carries; release with dropDragPayload. */
+    @JvmStatic external fun draggablePayload(draggablePtr: Long): Long
+    /** The WuiTransferKind ordinal of a payload (0 = text, 1 = URL, 2 = files, 3 = in-process). */
+    @JvmStatic external fun dragPayloadKind(payloadPtr: Long): Int
+    @JvmStatic external fun dragPayloadText(payloadPtr: Long): String
+    @JvmStatic external fun dragPayloadUrl(payloadPtr: Long): String
+    @JvmStatic external fun dragPayloadFiles(payloadPtr: Long): Array<String>
+    @JvmStatic external fun dragPayloadFromText(text: String): Long
+    @JvmStatic external fun dragPayloadFromUrl(url: String): Long
+    @JvmStatic external fun dragPayloadFromFiles(uris: Array<String>): Long
+    @JvmStatic external fun dropDragPayload(payloadPtr: Long)
     @JvmStatic external fun dropDraggable(draggablePtr: Long)
     /**
      * Computes an anchored overlay's frame in window space — the shared
@@ -135,7 +145,10 @@ object WatcherJni {
         clampMargin: Float
     ): dev.waterui.android.runtime.AnchoredOverlayPlacementStruct
 
-    @JvmStatic external fun dropDestinationOnDrop(destinationPtr: Long, envPtr: Long, dataTag: Int, dataValue: String)
+    /** Whether a drop destination accepts a payload; gates highlighting and delivery. */
+    @JvmStatic external fun dropDestinationAccepts(destinationPtr: Long, payloadPtr: Long): Boolean
+    /** Delivers an accepted payload; the handle stays owned by the caller. */
+    @JvmStatic external fun dropDestinationOnDrop(destinationPtr: Long, envPtr: Long, payloadPtr: Long)
     @JvmStatic external fun dropDestinationOnEnter(destinationPtr: Long, envPtr: Long)
     @JvmStatic external fun dropDestinationOnExit(destinationPtr: Long, envPtr: Long)
     @JvmStatic external fun dropDropDestination(destinationPtr: Long)
