@@ -144,6 +144,7 @@ internal object NativeBindings {
 
     fun waterui_clone_env(envPtr: Long): Long = WatcherJni.cloneEnv(envPtr)
     fun waterui_env_drop(envPtr: Long) = WatcherJni.dropEnv(envPtr)
+    fun waterui_drop_value_formatter(formatterPtr: Long) = WatcherJni.dropValueFormatter(formatterPtr)
     fun waterui_env_install_locale_tag(envPtr: Long, localeTag: String) =
         WatcherJni.envInstallLocaleTag(envPtr, localeTag)
 

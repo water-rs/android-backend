@@ -22,6 +22,13 @@ private val sliderTypeId: WuiTypeId by lazy { NativeBindings.waterui_slider_id()
 
 private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_slider(node.rawPtr)
+    // Android sliders have no platform size classes; `struct.size` applies
+    // where the platform has them (macOS controlSize).
+    // The drag-time value indicator is a backend-drawn chrome Android does not
+    // implement here; release the formatter handle so it does not leak.
+    if (struct.valueFormatterPtr != 0L) {
+        NativeBindings.waterui_drop_value_formatter(struct.valueFormatterPtr)
+    }
     val binding = WuiBinding.double(struct.bindingPtr)
     val rangeStart = struct.rangeStart.toFloat()
     val rangeEnd = struct.rangeEnd.toFloat()
