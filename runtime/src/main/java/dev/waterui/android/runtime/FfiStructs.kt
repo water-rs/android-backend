@@ -468,7 +468,8 @@ data class MetadataAnchoredOverlayStruct(
     val flip: Boolean,
     val clampTag: Int,
     val clampMargin: Float,
-    val dismissal: Int
+    val dismissal: Int,
+    val placedEdgePtr: Long
 )
 
 /** The overlay's placed frame plus the physical edge (WuiPhysicalEdge: 0 Top, 1 Bottom, 2 Left, 3 Right — Leading/Trailing already resolved under the layout direction) it ended up against. */
@@ -477,7 +478,8 @@ data class AnchoredOverlayPlacementStruct(
     val y: Float,
     val width: Float,
     val height: Float,
-    val edge: Int
+    val edge: Int,
+    val logicalEdge: Int
 )
 
 data class SecureFieldStruct(
