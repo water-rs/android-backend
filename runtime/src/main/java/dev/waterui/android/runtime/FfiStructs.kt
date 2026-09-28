@@ -878,14 +878,13 @@ data class MetadataDraggableStruct(
 /**
  * Metadata<DropDestination> struct for drop targets.
  * destinationPtr is an opaque handle released via WatcherJni.dropDropDestination.
+ * acceptedKind is the WuiTransferKind ordinal the destination accepts.
  */
 data class MetadataDropDestinationStruct(
     val contentPtr: Long,
-    val destinationPtr: Long
+    val destinationPtr: Long,
+    val acceptedKind: Int
 )
-
-/** Drag payload: tag 0 = plain text, 1 = URL. */
-data class DragDataStruct(val tag: Int, val value: String)
 
 // ========== Text Styling Structs ==========
 
