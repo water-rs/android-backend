@@ -55,6 +55,9 @@ class WuiBinding<T>(
         subscription.clearObserver()
     }
 
+    /** The value the Rust side currently holds. */
+    fun get(): T = reader(raw())
+
     fun set(value: T) {
         check(!isReleased) { "cannot update a released WaterUI binding" }
         if (subscription.isWatching && subscription.currentMatches(value)) return
@@ -94,6 +97,18 @@ class WuiBinding<T>(
                 watcherFactory = WatcherJni::createIntWatcher,
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingInt(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingInt(ptr) }
+            )
+
+        /// `Binding<AnchorEdge>` crosses as the `WuiAnchorEdge` ordinal: an
+        /// `Int` on the Kotlin side with the int watcher shape.
+        fun anchorEdge(bindingPtr: Long): WuiBinding<Int> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingAnchorEdge(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingAnchorEdge(ptr, value) },
+                watcherFactory = WatcherJni::createIntWatcher,
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingAnchorEdge(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingAnchorEdge(ptr) }
             )
 
         fun id(bindingPtr: Long): WuiBinding<Int> =

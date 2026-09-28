@@ -44,6 +44,7 @@ internal class AnchoredOverlayPresentation(
     private val env: WuiEnvironment,
     private val overlayView: View,
     private val isPresented: WuiBinding<Boolean>,
+    private val placedEdge: WuiBinding<Int>,
     private val metadata: MetadataAnchoredOverlayStruct,
     private val popupFactory: (View, Int, Int, Boolean) -> PopupWindow =
         { view, width, height, focusable -> PopupWindow(view, width, height, focusable) }
@@ -132,6 +133,7 @@ internal class AnchoredOverlayPresentation(
             metadata.clampTag,
             metadata.clampMargin * density
         )
+        reportPlacedEdge(placedEdge, placed.logicalEdge)
         val left = windowOrigin[0] + placed.x.roundToInt()
         val top = windowOrigin[1] + placed.y.roundToInt()
         return Rect(left, top, left + placed.width.roundToInt(), top + placed.height.roundToInt())
@@ -218,12 +220,14 @@ private val metadataAnchoredOverlayRenderer = WuiRenderer { context, node, env, 
     require(metadata.contentPtr != 0L) { "MetadataAnchoredOverlay.contentPtr is null" }
     require(metadata.overlayContentPtr != 0L) { "MetadataAnchoredOverlay.overlayContentPtr is null" }
     require(metadata.isPresentedPtr != 0L) { "MetadataAnchoredOverlay.isPresentedPtr is null" }
+    require(metadata.placedEdgePtr != 0L) { "MetadataAnchoredOverlay.placedEdgePtr is null" }
 
     val child = inflateAnyView(context, metadata.contentPtr, env, registry)
     val overlay = OwnedWuiAnyView(metadata.overlayContentPtr) { ptr ->
         inflateAnyView(context, ptr, env, registry)
     }
     val isPresented = WuiBinding.bool(metadata.isPresentedPtr)
+    val placedEdge = WuiBinding.anchorEdge(metadata.placedEdgePtr)
 
     val wrapper = PassThroughFrameLayout(context).apply {
         consumesTouches = true
@@ -231,6 +235,7 @@ private val metadataAnchoredOverlayRenderer = WuiRenderer { context, node, env, 
         addView(child)
         disposeWith(overlay)
         disposeWith(isPresented)
+        disposeWith(placedEdge)
     }
 
     var presentation: AnchoredOverlayPresentation? = null
@@ -242,6 +247,7 @@ private val metadataAnchoredOverlayRenderer = WuiRenderer { context, node, env, 
                 env = env,
                 overlayView = overlayView,
                 isPresented = isPresented,
+                placedEdge = placedEdge,
                 metadata = metadata
             ).also { presentation = it }
             current.show()
@@ -261,6 +267,17 @@ private val metadataAnchoredOverlayRenderer = WuiRenderer { context, node, env, 
     })
     wrapper.disposeWith { presentation?.close() }
     wrapper
+}
+
+/**
+ * The logical edge after any flip — what `placed_edge` carries. Written only
+ * when the resolved edge changed, so a stable placement does not churn
+ * watchers.
+ */
+internal fun reportPlacedEdge(placedEdge: WuiBinding<Int>, logicalEdge: Int) {
+    if (placedEdge.get() != logicalEdge) {
+        placedEdge.set(logicalEdge)
+    }
 }
 
 internal fun RegistryBuilder.registerWuiAnchoredOverlay() {

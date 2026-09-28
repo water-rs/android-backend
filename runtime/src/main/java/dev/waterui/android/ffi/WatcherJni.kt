@@ -182,6 +182,7 @@ object WatcherJni {
     @JvmStatic external fun readBindingStr(bindingPtr: Long): String
     @JvmStatic external fun readBindingStyledStrPlain(bindingPtr: Long): String
     @JvmStatic external fun readBindingSecure(bindingPtr: Long): String
+    @JvmStatic external fun readBindingAnchorEdge(bindingPtr: Long): Int
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingId(bindingPtr: Long, value: Int)
@@ -190,7 +191,9 @@ object WatcherJni {
     @JvmStatic external fun setBindingStr(bindingPtr: Long, value: String)
     @JvmStatic external fun setBindingStyledStrPlain(bindingPtr: Long, value: String)
     @JvmStatic external fun setBindingSecure(bindingPtr: Long, value: String)
+    @JvmStatic external fun setBindingAnchorEdge(bindingPtr: Long, value: Int)
     @JvmStatic external fun dropBindingSecure(bindingPtr: Long)
+    @JvmStatic external fun dropBindingAnchorEdge(bindingPtr: Long)
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingId(bindingPtr: Long)
@@ -284,6 +287,7 @@ object WatcherJni {
     @JvmStatic external fun watchBindingColor(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateTime(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateVec(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingAnchorEdge(bindingPtr: Long, watcher: WatcherStruct): Long
 
     // ========== Watch Computed ==========
 
