@@ -534,7 +534,11 @@ data class ScrollStruct(
     val contentPtr: Long,
     val targetXPtr: Long,
     val targetYPtr: Long,
-    val scrollGenerationPtr: Long
+    val scrollGenerationPtr: Long,
+    // `report_offset` bindings (0 if none connected). The Android backend
+    // is frozen for features: the offset is left unreported until then.
+    val offsetXPtr: Long,
+    val offsetYPtr: Long
 )
 
 data class DynamicStruct(val dynamicPtr: Long)
