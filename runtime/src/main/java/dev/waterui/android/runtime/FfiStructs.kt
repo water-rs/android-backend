@@ -382,7 +382,13 @@ data class TextFieldStruct(
      * Maximum number of lines the field accepts: `1` is single-line, a larger
      * value caps a multi-line field, and `0` means no limit.
      */
-    val lineLimit: Int
+    val lineLimit: Int,
+    /**
+     * `WuiSharedAction` run when the user submits a single-line field with
+     * Return, or `0` when the field has none. Owned by the backend: drop it
+     * with `waterui_drop_shared_action` when the view dies.
+     */
+    val onSubmitPtr: Long,
 )
 
 enum class MenuItemTag(val value: Int) {
