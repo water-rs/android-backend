@@ -502,7 +502,9 @@ data class SliderStruct(
     val maxLabelPtr: Long,
     val rangeStart: Double,
     val rangeEnd: Double,
-    val bindingPtr: Long
+    val bindingPtr: Long,
+    val size: Int,
+    val valueFormatterPtr: Long
 )
 
 data class StepperStruct(

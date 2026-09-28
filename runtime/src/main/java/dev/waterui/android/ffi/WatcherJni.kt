@@ -35,6 +35,7 @@ object WatcherJni {
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
     @JvmStatic external fun cloneEnv(envPtr: Long): Long
     @JvmStatic external fun dropEnv(envPtr: Long)
+    @JvmStatic external fun dropValueFormatter(formatterPtr: Long)
     @JvmStatic external fun envInstallLocaleTag(envPtr: Long, localeTag: String)
     // ========== Force-As Functions ==========
 
