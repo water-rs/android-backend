@@ -3,6 +3,7 @@ package dev.waterui.android.runtime
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
 import android.view.GestureDetector
 import android.view.MotionEvent
 import dev.waterui.android.ffi.InspectorJni
@@ -224,7 +225,7 @@ class WaterUiRootView @JvmOverloads constructor(
         val renderEnv = WuiEnvironment(app.takeEnvironment(), initEnv.fontTable)
         renderEnv.pxPerSp = context.pxPerSp()
         environment = renderEnv
-        bindBackgroundTheme(renderEnv)
+        bindWindowBackground(app.takeBackground())
         val child = inflateAnyView(context, app.takeContent(), renderEnv, registry)
         addView(
             child,
@@ -332,9 +333,24 @@ class WaterUiRootView @JvmOverloads constructor(
         }
     }
 
-    private fun bindBackgroundTheme(env: WuiEnvironment) {
-        backgroundTheme = ThemeBridge.background(env).also { computed ->
-            computed.observe { color -> setBackgroundColor(color.toColorInt()) }
+    /**
+     * Paints the window's reactive background (water-rs/waterui#1308).
+     *
+     * The framework resolves it to one colour signal — the theme background
+     * for an opaque window, the declared colour otherwise — that follows both
+     * a change of the background and a change of its colour. The root view and
+     * the activity window's background drawable both take it, so a translucent
+     * colour reaches the window surface instead of stopping at the view.
+     */
+    private fun bindWindowBackground(backgroundPtr: Long) {
+        val window = context.requireActivity().window
+            ?: error("WaterUiRootView requires a host activity with a window")
+        backgroundTheme = WuiComputed.colorFromComputed(backgroundPtr).also { computed ->
+            computed.observe { color ->
+                val argb = color.toColorInt()
+                setBackgroundColor(argb)
+                window.setBackgroundDrawable(ColorDrawable(argb))
+            }
         }
     }
 
