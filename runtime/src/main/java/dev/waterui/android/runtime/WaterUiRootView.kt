@@ -53,12 +53,22 @@ class WaterUiRootView @JvmOverloads constructor(
     /// release build; see [installInspectGesture].
     private var inspectGesture: GestureDetector? = null
     private var lifecycle: Lifecycle? = null
+    private var runtimeOwner: WaterUiRuntimeOwner? = null
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         if (event == Lifecycle.Event.ON_DESTROY) {
             close()
         }
+    }
+
+    /**
+     * Mounts a WaterUI root against an explicit runtime owner, for hosts that
+     * bootstrap the runtime themselves through [WaterUiEmbedding] instead of
+     * implementing [WaterUiRuntimeOwner] on their `Application`.
+     */
+    constructor(baseContext: Context, owner: WaterUiRuntimeOwner) : this(baseContext) {
+        runtimeOwner = owner
     }
 
     init {
@@ -167,9 +177,10 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     private fun beginRenderRoot() {
-        val runtimeOwner = context.applicationContext as? WaterUiRuntimeOwner
+        val owner = runtimeOwner
+            ?: context.applicationContext as? WaterUiRuntimeOwner
             ?: error("WaterUiRootView requires a WaterUiRuntimeOwner Application")
-        val initEnv = runtimeOwner.createWaterUiEnvironment()
+        val initEnv = owner.createWaterUiEnvironment()
         pendingEnvironment = initEnv
         installSystemLocale(initEnv, context.resources.configuration)
         materialTheme = MaterialThemeSignals.install(
