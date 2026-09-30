@@ -17,7 +17,7 @@ class WaterUiTestApplication : Application(), WaterUiRuntimeOwner {
             runtimeOwner = bootstrapWaterUiRuntime(activity)
         }
         if (processEnvironment == null) {
-            processEnvironment = WuiEnvironment.create()
+            processEnvironment = WuiEnvironment.create(WaterUiFontTable(activity))
         }
     }
 

@@ -221,7 +221,7 @@ class WaterUiRootView @JvmOverloads constructor(
         pendingEnvironment = null
 
         val app = NativeBindings.waterui_app(initEnv.takeRaw())
-        val renderEnv = WuiEnvironment(app.takeEnvironment())
+        val renderEnv = WuiEnvironment(app.takeEnvironment(), initEnv.fontTable)
         renderEnv.pxPerSp = context.pxPerSp()
         environment = renderEnv
         bindBackgroundTheme(renderEnv)

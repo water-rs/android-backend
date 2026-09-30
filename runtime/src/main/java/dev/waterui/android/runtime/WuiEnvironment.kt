@@ -4,7 +4,14 @@ package dev.waterui.android.runtime
  * Android counterpart to the WaterUI environment handle. Responsible for owning the native pointer.
  */
 class WuiEnvironment(
-    envPtr: Long
+    envPtr: Long,
+    /**
+     * The declared-font table the runtime owner built at bootstrap, inherited
+     * by every environment cloned or wrapped from this one — the same
+     * propagation rule as [pxPerSp]. An app that declares no fonts carries an
+     * empty table, never `null`.
+     */
+    val fontTable: WaterUiFontTable
 ) : NativePointer(envPtr) {
     /**
      * Pixels per sp unit for the hosting activity, stamped by the root view
@@ -14,15 +21,17 @@ class WuiEnvironment(
     var pxPerSp: Float = 0f
 
     companion object {
-        fun create(): WuiEnvironment {
+        fun create(fontTable: WaterUiFontTable): WuiEnvironment {
             val envPtr = NativeBindings.waterui_init()
-            return WuiEnvironment(envPtr)
+            return WuiEnvironment(envPtr, fontTable)
         }
     }
 
     fun clone(): WuiEnvironment {
         val cloned = NativeBindings.waterui_clone_env(raw())
-        return WuiEnvironment(cloned).also { it.pxPerSp = pxPerSp }
+        return WuiEnvironment(cloned, fontTable).also {
+            it.pxPerSp = pxPerSp
+        }
     }
 
     fun requirePxPerSp(): Float {

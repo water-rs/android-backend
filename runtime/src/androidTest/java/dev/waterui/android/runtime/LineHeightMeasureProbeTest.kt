@@ -30,6 +30,9 @@ class LineHeightMeasureProbeTest {
     private val pxPerSp
         get() = context.pxPerSp()
 
+    private val fonts
+        get() = WaterUiFontTable(context)
+
     private fun bodyFont() = ResolvedFontStruct(
         size = 16f,
         weight = 3, // FontWeight.Regular ordinal
@@ -60,7 +63,7 @@ class LineHeightMeasureProbeTest {
     @Test
     fun plainTextViewMeasuresTheExactLineBox() {
         val view = textView()
-        view.applyResolvedFont(bodyFont())
+        view.applyResolvedFont(bodyFont(), fonts)
 
         val target = (24f * pxPerSp).roundToInt()
         assertEquals(target, view.measureHeight(1))
@@ -70,7 +73,7 @@ class LineHeightMeasureProbeTest {
     @Test
     fun spannedChunkOwnsItsOwnLineBox() {
         val view = textView()
-        view.applyResolvedFont(bodyFont(), applyLineHeight = false)
+        view.applyResolvedFont(bodyFont(), fonts, applyLineHeight = false)
 
         // A headline-sized run inside body-fonted chrome keeps its own slot's
         // line box: headlineMedium is 28sp text on a 32sp line.

@@ -20,7 +20,7 @@ private val labelRenderer = WuiRenderer { context, node, env, _ ->
     color.observe { resolved -> textView.setTextColor(resolved.toColorInt()) }
     color.attachTo(textView)
     val font = ThemeBridge.bodyFont(env)
-    font.observe(textView::applyResolvedFont)
+    font.observe { textView.applyResolvedFont(it, env.fontTable) }
     font.attachTo(textView)
     textView
 }

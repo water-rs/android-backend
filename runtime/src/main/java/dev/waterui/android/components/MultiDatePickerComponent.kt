@@ -71,7 +71,7 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
 
     val helperText = TextView(context)
     val helperFont = ThemeBridge.bodyFont(env)
-    helperFont.observe(helperText::applyResolvedFont)
+    helperFont.observe { helperText.applyResolvedFont(it, env.fontTable) }
     helperFont.attachTo(helperText)
     val helperColor = ThemeBridge.mutedForeground(env)
     helperColor.observe { color -> helperText.setTextColor(color.toColorInt()) }
