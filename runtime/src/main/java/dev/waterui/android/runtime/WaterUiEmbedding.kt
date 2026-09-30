@@ -30,6 +30,7 @@ import androidx.lifecycle.LifecycleEventObserver
  */
 class WaterUiEmbedding(activity: ComponentActivity) : WaterUiRuntimeOwner {
     private var owner: Long
+    private val fontTable = WaterUiFontTable(activity)
     private var templateEnvironment: WuiEnvironment? = null
     private var released = false
 
@@ -64,7 +65,7 @@ class WaterUiEmbedding(activity: ComponentActivity) : WaterUiRuntimeOwner {
         check(!released) {
             "WaterUiEmbedding cannot create an environment after its activity was destroyed"
         }
-        val template = templateEnvironment ?: WuiEnvironment.create().also {
+        val template = templateEnvironment ?: WuiEnvironment.create(fontTable).also {
             templateEnvironment = it
         }
         return template.clone()

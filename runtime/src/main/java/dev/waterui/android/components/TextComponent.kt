@@ -40,7 +40,7 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     // The content is a styled string whose chunks carry their own
     // line-height spans; a view-level pin would clamp larger runs to the
     // body line box.
-    bodyFont.observe { font -> textView.applyResolvedFont(font, applyLineHeight = false) }
+    bodyFont.observe { font -> textView.applyResolvedFont(font, env.fontTable, applyLineHeight = false) }
     bodyFont.attachTo(textView)
     paragraphAlignment.observe { alignment ->
         when (alignment) {

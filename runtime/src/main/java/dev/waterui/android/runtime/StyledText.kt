@@ -148,6 +148,7 @@ internal class StyledTextStyle(
                 else -> background.resolve(env)
             },
             sharedForegroundAndBackground = foreground != null && foreground === background,
+            fontTable = env.fontTable,
             onChange = onChange
         )
 
@@ -220,6 +221,7 @@ internal class ResolvedStyledTextStyle(
     foreground: WuiComputed<ResolvedColorStruct>?,
     background: WuiComputed<ResolvedColorStruct>?,
     private val sharedForegroundAndBackground: Boolean,
+    private val fontTable: WaterUiFontTable,
     private val onChange: () -> Unit
 ) : Closeable {
     private val fontSignal = font
@@ -250,7 +252,7 @@ internal class ResolvedStyledTextStyle(
     fun applySpans(builder: SpannableStringBuilder, start: Int, end: Int) {
         val font = requireNotNull(resolvedFont) { "styled-text font did not resolve synchronously" }
         builder.setSpan(
-            ResolvedTypefaceSpan(font, italic),
+            ResolvedTypefaceSpan(font, italic, fontTable),
             start,
             end,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -338,14 +340,15 @@ internal class ExactLineHeightSpan(
 
 private class ResolvedTypefaceSpan(
     private val font: ResolvedFontStruct,
-    private val italic: Boolean
+    private val italic: Boolean,
+    private val fontTable: WaterUiFontTable
 ) : MetricAffectingSpan() {
     override fun updateMeasureState(textPaint: TextPaint) {
-        textPaint.typeface = font.toTypeface(italic)
+        textPaint.typeface = font.toTypeface(italic, fontTable)
     }
 
     override fun updateDrawState(textPaint: TextPaint) {
-        textPaint.typeface = font.toTypeface(italic)
+        textPaint.typeface = font.toTypeface(italic, fontTable)
     }
 }
 
@@ -391,9 +394,13 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
     )
 }
 
-internal fun TextView.applyResolvedFont(font: ResolvedFontStruct, applyLineHeight: Boolean = true) {
+internal fun TextView.applyResolvedFont(
+    font: ResolvedFontStruct,
+    fonts: WaterUiFontTable,
+    applyLineHeight: Boolean = true
+) {
     setTextSize(TypedValue.COMPLEX_UNIT_SP, font.size)
-    typeface = font.toTypeface()
+    typeface = font.toTypeface(fonts = fonts)
     // Compose Material `Text` trims font padding; a plain `TextView` keeps it
     // and measures every line ~15% taller than the twin.
     includeFontPadding = false
@@ -419,7 +426,7 @@ internal fun TextView.applyResolvedFont(font: ResolvedFontStruct, applyLineHeigh
     letterSpacing = if (font.size > 0f) font.letterSpacing / font.size else 0f
 }
 
-fun ResolvedFontStruct.toTypeface(italic: Boolean = false): Typeface {
+fun ResolvedFontStruct.toTypeface(italic: Boolean = false, fonts: WaterUiFontTable): Typeface {
     val weightValue = when (weight) {
         0 -> 100
         1 -> 200
@@ -433,9 +440,11 @@ fun ResolvedFontStruct.toTypeface(italic: Boolean = false): Typeface {
         else -> error("unknown font weight: $weight")
     }
     // A named family is exact; the design picks between the platform's own
-    // faces in its absence.
+    // faces in its absence. Declared bundled fonts resolve through the table
+    // the runtime owner stamped on the environment before the platform
+    // family-name lookup runs.
     val base = family?.let { familyName ->
-        Typeface.create(familyName, Typeface.NORMAL)
+        fonts.typefaceFor(familyName) ?: Typeface.create(familyName, Typeface.NORMAL)
     } ?: if (isMonospaced) Typeface.MONOSPACE else Typeface.DEFAULT
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         Typeface.create(base, weightValue, italic)
