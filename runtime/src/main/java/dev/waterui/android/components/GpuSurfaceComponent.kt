@@ -41,6 +41,23 @@ import kotlin.math.roundToInt
 private val gpuSurfaceTypeId: WuiTypeId by lazy { NativeBindings.waterui_gpu_surface_id().toTypeId() }
 private const val GPU_SURFACE_LOG_TAG = "WaterUI.GpuSurface"
 
+/**
+ * The whole `gpu` surface exists only when the package links `waterui-ffi/gpu`;
+ * without it the exports are absent and every `WatcherJni` gpu entry point —
+ * `gpuSurfaceId`, the `gpuRuntime*` family, `appliedFilter*`, `viewEffect*` —
+ * throws `UnsatisfiedLinkError`. Registry and GPU-runtime install paths must
+ * consult this probe first — the same contract `WebView` follows for `webview`
+ * and `AndroidVideoSurfaceHost` for `video`.
+ */
+internal val gpuSurfaceAvailable: Boolean by lazy {
+    try {
+        gpuSurfaceTypeId
+        true
+    } catch (_: UnsatisfiedLinkError) {
+        false
+    }
+}
+
 private val gpuSurfaceRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_gpu_surface(node.rawPtr)
     GpuSurfaceView(
@@ -931,5 +948,8 @@ internal class GpuSurfaceView(
 }
 
 internal fun RegistryBuilder.registerWuiGpuSurface() {
+    // Without the ffi `gpu` feature no such view can reach the registry,
+    // so registration is skipped entirely.
+    if (!gpuSurfaceAvailable) return
     register({ gpuSurfaceTypeId }, gpuSurfaceRenderer)
 }
