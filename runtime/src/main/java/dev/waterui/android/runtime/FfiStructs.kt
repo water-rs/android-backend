@@ -1329,15 +1329,26 @@ data class EdgeInsetsStruct(
 
 // ========== App Struct ==========
 
-/** Move-only Android projection of the app's main content and environment. */
-class AppStruct(contentPtr: Long, envPtr: Long) {
+/**
+ * Move-only Android projection of the app's main content, environment and the
+ * window's resolved background colour signal.
+ */
+class AppStruct(contentPtr: Long, envPtr: Long, backgroundPtr: Long) {
     private var ownedContentPtr = contentPtr
     private var ownedEnvironmentPtr = envPtr
+    private var ownedBackgroundPtr = backgroundPtr
 
     init {
         require(contentPtr != 0L) { "AppStruct.contentPtr is null" }
         require(envPtr != 0L) { "AppStruct.envPtr is null" }
+        require(backgroundPtr != 0L) { "AppStruct.backgroundPtr is null" }
     }
+
+    /** A `WuiComputed<ResolvedColor>`: the window background to paint. */
+    fun takeBackground(): Long = takeOwnedPointer(
+        pointer = ownedBackgroundPtr,
+        name = "AppStruct.backgroundPtr"
+    ).also { ownedBackgroundPtr = 0L }
 
     fun takeContent(): Long = takeOwnedPointer(
         pointer = ownedContentPtr,
