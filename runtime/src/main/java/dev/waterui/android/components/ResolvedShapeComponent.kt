@@ -8,6 +8,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.PathCommandStruct
 import dev.waterui.android.runtime.ShapeKindStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
@@ -19,9 +20,9 @@ private val resolvedShapeTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_resolved_shape_id().toTypeId()
 }
 
-private val resolvedShapeRenderer = WuiRenderer { context, node, _, _ ->
+private val resolvedShapeRenderer = WuiRenderer { context, node, env, _ ->
     val resolved = NativeBindings.waterui_force_as_resolved_shape(node.rawPtr)
-    val fill = WuiComputed.colorFromComputed(resolved.fillPtr)
+    val fill = WuiComputed.colorFromComputed(resolved.fillPtr, env)
     object : StretchVisualView(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL

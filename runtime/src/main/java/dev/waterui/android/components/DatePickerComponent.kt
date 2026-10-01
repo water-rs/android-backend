@@ -41,7 +41,7 @@ private val datePickerTypeId: WuiTypeId by lazy { NativeBindings.waterui_date_pi
 
 private val datePickerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_date_picker(node.rawPtr)
-    val binding = WuiBinding.dateTime(struct.valuePtr)
+    val binding = WuiBinding.dateTime(struct.valuePtr, env)
     val pickerType = DatePickerType.fromInt(struct.type)
     val rangeStart = struct.rangeStart.toLocalDateTime()
     val rangeEnd = struct.rangeEnd.toLocalDateTime()

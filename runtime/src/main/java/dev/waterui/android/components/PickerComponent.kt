@@ -58,7 +58,7 @@ private class PickerOption(
 
 private val pickerRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_picker(node.rawPtr)
-    val selection = WuiBinding.id(struct.selectionPtr)
+    val selection = WuiBinding.id(struct.selectionPtr, env)
     val items = NativeViewCollection(
         handle = struct.itemsPtr,
         expectedType = pickerItemTypeId

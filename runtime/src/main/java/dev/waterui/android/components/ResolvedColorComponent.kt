@@ -22,7 +22,7 @@ private val colorRenderer = WuiRenderer { context, node, env, _ ->
     val colorPtr = NativeBindings.waterui_force_as_color(node.rawPtr)
     val resolvedPtr = NativeBindings.waterui_resolve_color(colorPtr, env.raw())
     NativeBindings.waterui_drop_color(colorPtr)
-    val resolved = WuiComputed.colorFromComputed(resolvedPtr)
+    val resolved = WuiComputed.colorFromComputed(resolvedPtr, env)
     ColorFillView(context).apply {
         resolved.observe(::setResolvedColor)
         disposeWith(resolved)

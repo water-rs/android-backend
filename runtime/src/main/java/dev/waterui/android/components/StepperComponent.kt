@@ -30,8 +30,8 @@ private val stepperTypeId: WuiTypeId by lazy { NativeBindings.waterui_stepper_id
 // Widget.Material3 colors, typography, and touch targets.
 private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_stepper(node.rawPtr)
-    val binding = WuiBinding.int(struct.bindingPtr)
-    val stepComputed = WuiComputed.int(struct.stepPtr)
+    val binding = WuiBinding.int(struct.bindingPtr, env)
+    val stepComputed = WuiComputed.int(struct.stepPtr, env)
     val rangeStart = struct.rangeStart
     val rangeEnd = struct.rangeEnd
     require(rangeStart <= rangeEnd) { "stepper range must not be empty" }

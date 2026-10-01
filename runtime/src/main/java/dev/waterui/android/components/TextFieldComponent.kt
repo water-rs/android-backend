@@ -33,9 +33,9 @@ private const val KEYBOARD_PHONE = 4
 
 private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_text_field(node.rawPtr)
-    val binding = WuiBinding.styledPlain(struct.valuePtr)
-    val promptComputed = WuiComputed.styledString(struct.promptPtr)
-    val promptAlignment = WuiComputed.horizontalAlignment(struct.promptAlignmentPtr)
+    val binding = WuiBinding.styledPlain(struct.valuePtr, env)
+    val promptComputed = WuiComputed.styledString(struct.promptPtr, env)
+    val promptAlignment = WuiComputed.horizontalAlignment(struct.promptAlignmentPtr, env)
 
     val container = AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 

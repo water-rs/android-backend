@@ -93,7 +93,7 @@ private val metadataBorderRenderer = WuiRenderer { context, node, env, registry 
     BorderLayout(context, metadata.width, metadata.cornerRadius, metadata.edges)
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
         .apply {
-            val color = WuiComputed.colorFromComputed(resolvedPtr)
+            val color = WuiComputed.colorFromComputed(resolvedPtr, env)
             color.observe { resolved -> setBorderColor(resolved.toColorInt()) }
             disposeWith(color)
         }

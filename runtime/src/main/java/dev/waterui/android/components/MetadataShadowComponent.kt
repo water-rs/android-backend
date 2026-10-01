@@ -113,7 +113,7 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
 
     container.attachMetadataContent(context, metadata.contentPtr, env, registry)
 
-    WuiComputed.colorFromComputed(resolvedPtr).also { color ->
+    WuiComputed.colorFromComputed(resolvedPtr, env).also { color ->
         color.observe { resolvedColor ->
             val shadowColor = resolvedColor.toColorInt()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

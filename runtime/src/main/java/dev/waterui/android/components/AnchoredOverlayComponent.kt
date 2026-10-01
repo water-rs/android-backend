@@ -226,8 +226,8 @@ private val metadataAnchoredOverlayRenderer = WuiRenderer { context, node, env, 
     val overlay = OwnedWuiAnyView(metadata.overlayContentPtr) { ptr ->
         inflateAnyView(context, ptr, env, registry)
     }
-    val isPresented = WuiBinding.bool(metadata.isPresentedPtr)
-    val placedEdge = WuiBinding.anchorEdge(metadata.placedEdgePtr)
+    val isPresented = WuiBinding.bool(metadata.isPresentedPtr, env)
+    val placedEdge = WuiBinding.anchorEdge(metadata.placedEdgePtr, env)
 
     val wrapper = PassThroughFrameLayout(context).apply {
         consumesTouches = true

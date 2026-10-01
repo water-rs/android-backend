@@ -8,6 +8,7 @@ import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ViewTransform
 import dev.waterui.android.runtime.WuiAnimation
+import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.applyRustTransform
@@ -40,9 +41,10 @@ private class AnchoredTransformLayout(
 
 private fun PassThroughFrameLayout.bindFloat(
     pointer: Long,
+    env: WuiEnvironment,
     onValue: (Float, WuiAnimation) -> Unit
 ) {
-    val computed = WuiComputed.float(pointer)
+    val computed = WuiComputed.float(pointer, env)
     computed.observeWithAnimation(onValue)
     disposeWith(computed)
 }
@@ -59,11 +61,11 @@ private val metadataScaleRenderer = WuiRenderer { context, node, env, registry -
             ViewTransform(scaleX = scaleX, scaleY = scaleY)
         )
     }
-    container.bindFloat(metadata.scaleXPtr) { value, animation ->
+    container.bindFloat(metadata.scaleXPtr, env) { value, animation ->
         scaleX = value
         apply(animation)
     }
-    container.bindFloat(metadata.scaleYPtr) { value, animation ->
+    container.bindFloat(metadata.scaleYPtr, env) { value, animation ->
         scaleY = value
         apply(animation)
     }
@@ -75,7 +77,7 @@ private val metadataRotationRenderer = WuiRenderer { context, node, env, registr
     AnchoredTransformLayout(context, metadata.anchorX, metadata.anchorY)
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
         .apply {
-            bindFloat(metadata.anglePtr) { angle, animation ->
+            bindFloat(metadata.anglePtr, env) { angle, animation ->
                 applyRustTransform(animation, ViewTransform(rotation = angle))
             }
         }
@@ -96,11 +98,11 @@ private val metadataOffsetRenderer = WuiRenderer { context, node, env, registry 
             )
         )
     }
-    container.bindFloat(metadata.offsetXPtr) { value, animation ->
+    container.bindFloat(metadata.offsetXPtr, env) { value, animation ->
         offsetX = value
         apply(animation)
     }
-    container.bindFloat(metadata.offsetYPtr) { value, animation ->
+    container.bindFloat(metadata.offsetYPtr, env) { value, animation ->
         offsetY = value
         apply(animation)
     }

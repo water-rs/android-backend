@@ -326,7 +326,7 @@ private class NavigationDestinationState(
     private val popPtr: Long,
     private val env: WuiEnvironment
 ) : Closeable {
-    private val popEnabled = WuiComputed.bool(popEnabledPtr)
+    private val popEnabled = WuiComputed.bool(popEnabledPtr, env)
     private var enabled = true
 
     init {
@@ -428,19 +428,19 @@ private fun buildBarSpec(
         )
     }
 
-    val searchBinding = bar.search?.textPtr?.takeIf { it != 0L }?.let { WuiBinding.str(it) }
+    val searchBinding = bar.search?.textPtr?.takeIf { it != 0L }?.let { WuiBinding.str(it, env) }
     val searchPrompt = bar.search?.promptPtr?.takeIf { it != 0L }?.let { promptPtr ->
-        WuiComputed.styledString(promptPtr)
+        WuiComputed.styledString(promptPtr, env)
     }
 
     val colorSignal = if (bar.colorPtr == 0L) {
         ThemeBridge.surface(env)
     } else {
-        WuiComputed.colorFromComputed(bar.colorPtr)
+        WuiComputed.colorFromComputed(bar.colorPtr, env)
     }
 
     val hiddenComputed = bar.hiddenPtr.takeIf { it != 0L }?.let {
-        WuiComputed.bool(it)
+        WuiComputed.bool(it, env)
     }
 
     return NavigationBarSpec(
@@ -1933,7 +1933,7 @@ private const val SPLIT_DESTINATION_CACHE_CAPACITY = 8
 
 private val tabsRenderer = WuiRenderer { context, node, env, registry ->
     val struct: TabsStruct = NativeBindings.waterui_force_as_tabs(node.rawPtr)
-    val selection = WuiBinding.id(struct.selectionPtr)
+    val selection = WuiBinding.id(struct.selectionPtr, env)
     val entries = struct.tabs.map { tab ->
         val label = inflateAnyView(context, tab.labelPtr, env, registry)
         val title = tabLabelText(label)
@@ -1950,9 +1950,9 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
             tab = tab,
             screen = screen,
             badge = tab.badgePtr.takeIf { it != 0L }?.let { badgePtr ->
-                WuiComputed.int(badgePtr)
+                WuiComputed.int(badgePtr, env)
             },
-            enabled = WuiComputed.bool(tab.enabledPtr)
+            enabled = WuiComputed.bool(tab.enabledPtr, env)
         )
     }
     AdaptiveTabsView(context, entries, selection, struct.style, env, registry).apply {
@@ -2517,11 +2517,11 @@ private val splitNavigationContainerRenderer = WuiRenderer { context, node, env,
     // to `Option<Id>`). Reading it through the `Id` accessors punned the binding
     // to `WuiBinding<Id>`, and clearing the selection then tried to build an
     // `Id` out of 0 — which is a `NonZeroI32` — and killed the process.
-    val primarySelection = WuiBinding.int(struct.primarySelectionPtr)
+    val primarySelection = WuiBinding.int(struct.primarySelectionPtr, env)
     val secondarySelection = struct.secondarySelectionPtr.takeIf { it != 0L }?.let { ptr ->
-        WuiBinding.int(ptr)
+        WuiBinding.int(ptr, env)
     }
-    val columnVisibility = WuiComputed.int(struct.columnVisibilityPtr)
+    val columnVisibility = WuiComputed.int(struct.columnVisibilityPtr, env)
 
     val splitSpec = SplitNavigationSpec(
         sidebarView = sidebar,

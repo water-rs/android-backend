@@ -185,7 +185,7 @@ internal class ListItemModel(
     private var contentPtr = contentPtr
     private var contentView: View? = null
     private var contentDisposed = false
-    private val deletable = WuiComputed.bool(deletablePtr)
+    private val deletable = WuiComputed.bool(deletablePtr, env)
 
     /** Whether this row opens a section, even one that draws no chrome. */
     val opensSection = hasSection
@@ -195,8 +195,8 @@ internal class ListItemModel(
      * model for its lifetime; the holder that draws a given piece of chrome
      * subscribes to it while bound and lets go on recycle.
      */
-    val sectionLabel = sectionLabelPtr.takeIf { it != 0L }?.let(::ReactivePlainText)
-    val sectionFooter = sectionFooterPtr.takeIf { it != 0L }?.let(::ReactivePlainText)
+    val sectionLabel = sectionLabelPtr.takeIf { it != 0L }?.let { ReactivePlainText(it, env) }
+    val sectionFooter = sectionFooterPtr.takeIf { it != 0L }?.let { ReactivePlainText(it, env) }
     var isDeletable = false
         private set
 
@@ -278,7 +278,7 @@ private class WuiListAdapter(
         val originalRow: Int
     )
 
-    private val editing = WuiComputed.bool(editingPtr)
+    private val editing = WuiComputed.bool(editingPtr, env)
     private val mutedForeground = ThemeBridge.mutedForeground(env)
     private val minRowHeightPx = minRowHeight?.dp(context)?.toInt()
     private val selectionContainer = ThemeBridge.selectionContainer(env)
@@ -345,8 +345,8 @@ private class WuiListAdapter(
     private val selection = ListSelection(
         mode = selectionMode,
         rowIds = { itemIds },
-        singleBinding = selectionSinglePtr.takeIf { it != 0L }?.let { WuiBinding.int(it) },
-        multipleBinding = selectionMultiplePtr.takeIf { it != 0L }?.let { WuiBinding.idVec(it) }
+        singleBinding = selectionSinglePtr.takeIf { it != 0L }?.let { WuiBinding.int(it, env) },
+        multipleBinding = selectionMultiplePtr.takeIf { it != 0L }?.let { WuiBinding.idVec(it, env) }
     )
 
     /// The meta state of the tap currently in flight, captured on ACTION_DOWN
@@ -1242,8 +1242,8 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
     }
     if (controlled) {
         val motion = MaterialListMotion(context)
-        val targetIndex = WuiComputed.int(struct.targetIndexPtr)
-        val generation = WuiComputed.int(struct.scrollGenerationPtr)
+        val targetIndex = WuiComputed.int(struct.targetIndexPtr, env)
+        val generation = WuiComputed.int(struct.scrollGenerationPtr, env)
         var target = 0
         targetIndex.observe { target = it }
         generation.observe { request ->

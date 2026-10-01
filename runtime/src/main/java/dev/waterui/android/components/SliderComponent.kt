@@ -29,7 +29,7 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     if (struct.valueFormatterPtr != 0L) {
         NativeBindings.waterui_drop_value_formatter(struct.valueFormatterPtr)
     }
-    val binding = WuiBinding.double(struct.bindingPtr)
+    val binding = WuiBinding.double(struct.bindingPtr, env)
     val rangeStart = struct.rangeStart.toFloat()
     val rangeEnd = struct.rangeEnd.toFloat()
     require(rangeStart.isFinite() && rangeEnd.isFinite() && rangeStart < rangeEnd) {

@@ -192,7 +192,7 @@ class WaterUiRootView @JvmOverloads constructor(
         if (webViewAvailable) {
             NativeBindings.waterui_env_install_webview_controller(
                 initEnv.raw(),
-                WebViewFactory(context)
+                WebViewFactory(context, initEnv)
             )
         }
 

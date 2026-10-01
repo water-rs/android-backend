@@ -34,7 +34,7 @@ private val badgeRenderer = WuiRenderer { context, node, env, registry ->
         indicator.updateBadgeCoordinates(view, container)
     }
 
-    val value = WuiComputed.int(badge.valuePtr)
+    val value = WuiComputed.int(badge.valuePtr, env)
     value.observe { count ->
         // MaterialBadge documents `0` as the small dot; negative counts are
         // meaningless and collapse to the same shape.
@@ -45,7 +45,7 @@ private val badgeRenderer = WuiRenderer { context, node, env, registry ->
     // `color` arrives as an unresolved `Computed<Color>`; resolve it against
     // this environment to a resolved-color signal before observing.
     val colorPtr = NativeBindings.waterui_resolve_computed_color(badge.colorPtr, env.raw())
-    val color = WuiComputed.colorFromComputed(colorPtr)
+    val color = WuiComputed.colorFromComputed(colorPtr, env)
     color.observe { resolved ->
         // `Color::default()` (opaque black) is the unset sentinel: MD3 badges
         // default to the theme's error color, which `BadgeDrawable` already

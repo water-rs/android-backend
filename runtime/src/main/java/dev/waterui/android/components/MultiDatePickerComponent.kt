@@ -39,8 +39,8 @@ private val multiDatePickerTypeId: WuiTypeId by lazy {
 // pre-Material framework CalendarView in a hand-built dialog.
 private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_multi_date_picker(node.rawPtr)
-    val binding = WuiBinding.dateVec(struct.valuePtr)
-    val decorated = WuiComputed.dateVec(struct.decoratedPtr)
+    val binding = WuiBinding.dateVec(struct.valuePtr, env)
+    val decorated = WuiComputed.dateVec(struct.decoratedPtr, env)
     val rangeStart = struct.rangeStart.toLocalDate()
     val rangeEnd = struct.rangeEnd.toLocalDate()
     require(rangeStart <= rangeEnd) { "multi-date picker range must not be empty" }

@@ -49,9 +49,10 @@ class WuiStyledStr internal constructor(
  * which would override the header style.
  */
 internal class ReactivePlainText(
-    computedPtr: Long
+    computedPtr: Long,
+    env: WuiEnvironment
 ) : Closeable {
-    private val computed = WuiComputed.styledString(computedPtr)
+    private val computed = WuiComputed.styledString(computedPtr, env)
     private var value: CharSequence = ""
     private var updateNative: (CharSequence) -> Unit = {}
 
@@ -81,7 +82,7 @@ internal class ReactiveStyledText(
     computedPtr: Long,
     env: WuiEnvironment
 ) : Closeable {
-    private val computed = WuiComputed.styledString(computedPtr)
+    private val computed = WuiComputed.styledString(computedPtr, env)
     private var resolvedBinding: Closeable? = null
     private var value: CharSequence = ""
     private var updateNative: (CharSequence) -> Unit = {}
@@ -356,7 +357,7 @@ internal class WuiFont(handle: Long) : NativePointer(handle) {
     fun resolve(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> {
         val ptr = NativeBindings.waterui_resolve_font(raw(), env.raw())
         check(ptr != 0L) { "waterui_resolve_font returned a null computed" }
-        return WuiComputed.fontFromComputed(ptr)
+        return WuiComputed.fontFromComputed(ptr, env)
     }
 
     override fun release(ptr: Long) {
@@ -368,7 +369,7 @@ internal class WuiColor(handle: Long) : NativePointer(handle) {
     fun resolve(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> {
         val ptr = NativeBindings.waterui_resolve_color(raw(), env.raw())
         check(ptr != 0L) { "waterui_resolve_color returned a null computed" }
-        return WuiComputed.colorFromComputed(ptr)
+        return WuiComputed.colorFromComputed(ptr, env)
     }
 
     override fun release(ptr: Long) {

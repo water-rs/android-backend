@@ -17,7 +17,7 @@ private val dynamicRenderer = WuiRenderer { context, node, env, registry ->
     val dynamic = NativeBindings.waterui_force_as_dynamic(node.rawPtr)
     val container = PassThroughFrameLayout(context)
 
-    val watcher = WatcherJni.createAnyViewWatcher { pointer, _ ->
+    val watcher = WatcherJni.createAnyViewWatcher(env.watcherContextPtr) { pointer, _ ->
         check(Looper.myLooper() === Looper.getMainLooper()) {
             "Dynamic view updates must run on the Android main thread"
         }

@@ -1,16 +1,22 @@
 package dev.waterui.android.components
 
+import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * Opacity must composite, not clip.
@@ -80,5 +86,49 @@ class OpacityLayoutTest {
         assertEquals(OFFSET.toFloat(), child.translationY)
         assertEquals(FRAME, child.right)
         assertEquals((FRAME + OFFSET).toFloat(), child.right + child.translationX)
+    }
+
+    /**
+     * Group opacity, not distributed alpha. Two opaque red children under
+     * `.opacity(0.5)` overlap: SwiftUI composites the subtree and applies the
+     * alpha once, so the overlap is the same colour as either child alone.
+     * Folding the alpha into each child's draw commands instead double-dips —
+     * the overlap comes out darker. The children here read pixel-for-pixel.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun overlappingChildrenCompositeAsOneGroupUnderOpacity() {
+        val context = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val container = OpacityLayout(context).apply { alpha = 0.5f }
+        fun redChild(leftMargin: Int, topMargin: Int) {
+            container.addView(
+                View(context).apply { setBackgroundColor(Color.RED) },
+                FrameLayout.LayoutParams(FRAME, FRAME).apply {
+                    this.leftMargin = leftMargin
+                    this.topMargin = topMargin
+                }
+            )
+        }
+        // (0,0)-(36,36) and (18,18)-(54,54): overlap is 18..36 × 18..36.
+        redChild(0, 0)
+        redChild(18, 18)
+        layOut(container)
+
+        val bitmap = Bitmap.createBitmap(FRAME + 18 + 16, FRAME + 18 + 16, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+        container.draw(canvas)
+
+        val singleCoverage = bitmap.getPixel(9, 9)
+        val overlap = bitmap.getPixel(27, 27)
+        val secondChildOnly = bitmap.getPixel(45, 45)
+        val background = bitmap.getPixel(FRAME + 18 + 15, FRAME + 18 + 15)
+
+        // The two children drew (not transparent), and where both cover a
+        // pixel it is identical to where only one does — the alpha folded
+        // once over the composited group, not once per child.
+        assertNotEquals(background, singleCoverage)
+        assertEquals(singleCoverage, overlap)
+        assertEquals(singleCoverage, secondChildOnly)
     }
 }

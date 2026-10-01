@@ -196,7 +196,7 @@ object ThemeBridge {
     fun colorScheme(env: WuiEnvironment): WuiComputed<Int> {
         val ptr = NativeBindings.waterui_theme_color_scheme(env.raw())
         check(ptr != 0L) { "WaterUI environment has no color-scheme signal" }
-        return WuiComputed.colorScheme(ptr)
+        return WuiComputed.colorScheme(ptr, env)
     }
 
     // ========== Slot-based Color API ==========
@@ -213,7 +213,7 @@ object ThemeBridge {
      */
     fun color(env: WuiEnvironment, slot: ColorSlot): WuiComputed<ResolvedColorStruct> {
         val ptr = NativeBindings.waterui_theme_color(env.raw(), slot.value)
-        return WuiComputed.colorFromComputed(ptr)
+        return WuiComputed.colorFromComputed(ptr, env)
     }
 
     // ========== Slot-based Font API ==========
@@ -230,7 +230,7 @@ object ThemeBridge {
      */
     fun font(env: WuiEnvironment, slot: FontSlot): WuiComputed<ResolvedFontStruct> {
         val ptr = NativeBindings.waterui_theme_font(env.raw(), slot.value)
-        return WuiComputed.fontFromComputed(ptr)
+        return WuiComputed.fontFromComputed(ptr, env)
     }
 
     // ========== Convenience accessors (use slot-based API internally) ==========
