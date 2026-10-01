@@ -5,9 +5,18 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AppStructTest {
+    private fun app(contentPtr: Long = 41L, envPtr: Long = 73L, backgroundPtr: Long = 97L) =
+        AppStruct(
+            contentPtr = contentPtr,
+            envPtr = envPtr,
+            backgroundPtr = backgroundPtr,
+            colorSpaceRequest = 0,
+            colorSpaceRange = 0
+        )
+
     @Test
     fun ownedPointersTransferIndependently() {
-        val app = AppStruct(contentPtr = 41L, envPtr = 73L, backgroundPtr = 97L)
+        val app = app()
 
         assertEquals(73L, app.takeEnvironment())
         assertEquals(97L, app.takeBackground())
@@ -16,7 +25,7 @@ class AppStructTest {
 
     @Test
     fun eachOwnedPointerCanOnlyBeTakenOnce() {
-        val app = AppStruct(contentPtr = 41L, envPtr = 73L, backgroundPtr = 97L)
+        val app = app()
         app.takeContent()
         app.takeEnvironment()
         app.takeBackground()
@@ -28,14 +37,8 @@ class AppStructTest {
 
     @Test
     fun nullOwnedPointersFailAtConstruction() {
-        assertThrows(IllegalArgumentException::class.java) {
-            AppStruct(contentPtr = 0L, envPtr = 73L, backgroundPtr = 97L)
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            AppStruct(contentPtr = 41L, envPtr = 0L, backgroundPtr = 97L)
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            AppStruct(contentPtr = 41L, envPtr = 73L, backgroundPtr = 0L)
-        }
+        assertThrows(IllegalArgumentException::class.java) { app(contentPtr = 0L) }
+        assertThrows(IllegalArgumentException::class.java) { app(envPtr = 0L) }
+        assertThrows(IllegalArgumentException::class.java) { app(backgroundPtr = 0L) }
     }
 }

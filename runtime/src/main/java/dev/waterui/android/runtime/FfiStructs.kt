@@ -1,5 +1,7 @@
 package dev.waterui.android.runtime
 
+import android.content.pm.ActivityInfo
+
 /**
  * Data classes that mirror native FFI structs.
  *
@@ -1330,10 +1332,80 @@ data class EdgeInsetsStruct(
 // ========== App Struct ==========
 
 /**
- * Move-only Android projection of the app's main content, environment and the
- * window's resolved background colour signal.
+ * A window's output color request (water-rs/waterui#1300): the
+ * `WuiColorSpaceRequest` and `WuiWindowColorRange` discriminants the framework
+ * hands over.
  */
-class AppStruct(contentPtr: Long, envPtr: Long, backgroundPtr: Long) {
+class WindowColorRequest(private val request: Int, private val range: Int) {
+    init {
+        require(request in NEGOTIATED_REQUEST..REQUIRED_REQUEST) { "unknown color request $request" }
+        require(range in STANDARD_RANGE..HDR_RANGE) { "unknown color range $range" }
+    }
+
+    /**
+     * The `ActivityInfo` color mode for a display offering the given ranges.
+     *
+     * A negotiated or preferred request takes the widest mode the display
+     * offers up to the requested range; a required range the display cannot
+     * show is an error, never a narrower substitute.
+     */
+    fun colorMode(wideGamutAvailable: Boolean, hdrAvailable: Boolean): Int {
+        val widest = when {
+            hdrAvailable -> HDR_RANGE
+            wideGamutAvailable -> WIDE_GAMUT_RANGE
+            else -> STANDARD_RANGE
+        }
+        val chosen = when (request) {
+            // Negotiation keeps SDR: the window content draws extended-range
+            // SDR, and HDR is opted into, not handed to every app.
+            NEGOTIATED_REQUEST -> minOf(widest, WIDE_GAMUT_RANGE)
+            PREFERRED_REQUEST -> minOf(widest, range)
+            else -> {
+                check(range <= widest) {
+                    "the display cannot show the required ${rangeName(range)} window output"
+                }
+                range
+            }
+        }
+        return when (chosen) {
+            HDR_RANGE -> ActivityInfo.COLOR_MODE_HDR
+            WIDE_GAMUT_RANGE -> ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+            else -> ActivityInfo.COLOR_MODE_DEFAULT
+        }
+    }
+
+    companion object {
+        private const val NEGOTIATED_REQUEST = 0
+        private const val PREFERRED_REQUEST = 1
+        private const val REQUIRED_REQUEST = 2
+        private const val STANDARD_RANGE = 0
+        private const val WIDE_GAMUT_RANGE = 1
+        private const val HDR_RANGE = 2
+
+        val NEGOTIATED = WindowColorRequest(NEGOTIATED_REQUEST, STANDARD_RANGE)
+
+        private fun rangeName(range: Int): String = when (range) {
+            HDR_RANGE -> "high-dynamic-range"
+            WIDE_GAMUT_RANGE -> "wide-gamut"
+            else -> "standard"
+        }
+    }
+}
+
+/**
+ * Move-only Android projection of the app's main content, environment, the
+ * window's resolved background colour signal and its output color request.
+ */
+class AppStruct(
+    contentPtr: Long,
+    envPtr: Long,
+    backgroundPtr: Long,
+    colorSpaceRequest: Int,
+    colorSpaceRange: Int
+) {
+    /** The window's output color request. */
+    val colorRequest = WindowColorRequest(colorSpaceRequest, colorSpaceRange)
+
     private var ownedContentPtr = contentPtr
     private var ownedEnvironmentPtr = envPtr
     private var ownedBackgroundPtr = backgroundPtr
