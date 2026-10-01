@@ -1,0 +1,84 @@
+package dev.waterui.android.components
+
+import android.content.Context
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * Opacity must composite, not clip.
+ *
+ * SwiftUI's `.offset(...).opacity(0.5)` draws the translated content whole —
+ * opacity is not a clip. On Android, `alpha < 1` on a view that reports
+ * overlapping rendering promotes the subtree to a compositing layer sized to
+ * the view's own bounds, and the layer clips anything drawn outside them:
+ * offset content, shadows, unclipped shapes. [OpacityLayout] opts out of that
+ * promotion, so an offset child under opacity keeps drawing at its translated
+ * position.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class OpacityLayoutTest {
+    private companion object {
+        /** The 36 dp layout frame from the benchmark's clipped-rect failure. */
+        const val FRAME = 36
+
+        /** A translation that puts the child fully outside that frame. */
+        const val OFFSET = 120
+    }
+
+    private fun host(context: Context): OpacityLayout {
+        val container = OpacityLayout(context)
+        container.addView(
+            View(context),
+            FrameLayout.LayoutParams(FRAME, FRAME)
+        )
+        return container
+    }
+
+    private fun layOut(view: View, width: Int = FRAME * 8, height: Int = FRAME * 8) {
+        view.measure(
+            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY)
+        )
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+    }
+
+    @Test
+    fun alphaBelowOneDoesNotPromoteABoundedCompositingLayer() {
+        val context = Robolectric.buildActivity(android.app.Activity::class.java).get()
+        val container = host(context).apply { alpha = 0.5f }
+        layOut(container)
+
+        // The clip lives in the promoted layer: no promotion, no clip.
+        assertFalse(container.hasOverlappingRendering())
+        assertEquals(View.LAYER_TYPE_NONE, container.layerType)
+        assertEquals(0.5f, container.alpha)
+    }
+
+    @Test
+    fun offsetChildKeepsItsTranslatedPositionUnderOpacity() {
+        val context = Robolectric.buildActivity(android.app.Activity::class.java).get()
+        val container = host(context).apply { alpha = 0.5f }
+        val child = container.getChildAt(0).apply {
+            translationX = OFFSET.toFloat()
+            translationY = OFFSET.toFloat()
+        }
+        layOut(container)
+
+        // Layout keeps the child inside the frame; the translation carries it
+        // past the frame's right edge, where the bounded alpha layer used to
+        // cut it off.
+        assertEquals(OFFSET.toFloat(), child.translationX)
+        assertEquals(OFFSET.toFloat(), child.translationY)
+        assertEquals(FRAME, child.right)
+        assertEquals((FRAME + OFFSET).toFloat(), child.right + child.translationX)
+    }
+}
