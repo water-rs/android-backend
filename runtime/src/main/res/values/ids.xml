@@ -9,4 +9,5 @@
     <item name="wui_dynamic_range" type="id" />
     <item name="wui_spring_animation" type="id" />
     <item name="wui_transform_spring_animations" type="id" />
+    <item name="wui_folded_transform" type="id" />
 </resources>

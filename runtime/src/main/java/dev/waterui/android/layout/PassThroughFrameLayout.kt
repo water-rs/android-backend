@@ -1,6 +1,7 @@
 package dev.waterui.android.layout
 
 import android.content.Context
+import android.graphics.Canvas
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -166,6 +167,21 @@ open class PassThroughFrameLayout @JvmOverloads constructor(
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean = gestures.dispatch(ev)
 
     private fun dispatchToChildren(ev: MotionEvent): Boolean = super.dispatchTouchEvent(ev)
+
+    private val groupAlpha = GroupAlphaDraw()
+
+    override fun hasOverlappingRendering(): Boolean = false
+
+    /** Alpha is composited manually in [dispatchDraw]; the framework must not. */
+    override fun onSetAlpha(alpha: Int): Boolean = true
+
+    override fun dispatchDraw(canvas: Canvas) {
+        groupAlpha.dispatchDraw(this, canvas, ::drawChildren)
+    }
+
+    private fun drawChildren(canvas: Canvas) {
+        super.dispatchDraw(canvas)
+    }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         return false

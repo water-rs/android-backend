@@ -1,13 +1,13 @@
 package dev.waterui.android.components
 
 import android.view.View
-import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.LifecycleType
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
+import dev.waterui.android.runtime.inflateAnyView
 
 private val metadataLifecycleTypeId: WuiTypeId by lazy {
     NativeBindings.waterui_metadata_lifecycle_hook_id().toTypeId()
@@ -38,34 +38,36 @@ private val metadataLifecycleRenderer = WuiRenderer { context, node, env, regist
     val metadata = NativeBindings.waterui_force_as_metadata_lifecycle_hook(node.rawPtr)
     val lifecycle = LifecycleType.fromInt(metadata.lifecycleType)
     val handler = LifecycleHandler(metadata.handlerPtr, env.raw())
-    val container = PassThroughFrameLayout(context)
-        .attachMetadataContent(context, metadata.contentPtr, env, registry)
+    // A lifecycle hook is behavior, not geometry: it folds onto the content
+    // view — the attach listener and the disposal live on the child itself,
+    // so no wrapper ViewGroup is claimed.
+    val child = inflateAnyView(context, metadata.contentPtr, env, registry)
 
     val listener = object : View.OnAttachStateChangeListener {
         override fun onViewAttachedToWindow(view: View) {
             if (lifecycle == LifecycleType.APPEAR) {
-                container.removeOnAttachStateChangeListener(this)
+                view.removeOnAttachStateChangeListener(this)
                 handler.call()
             }
         }
 
         override fun onViewDetachedFromWindow(view: View) {
             if (lifecycle == LifecycleType.DISAPPEAR) {
-                container.removeOnAttachStateChangeListener(this)
+                view.removeOnAttachStateChangeListener(this)
                 handler.call()
             }
         }
     }
-    container.addOnAttachStateChangeListener(listener)
-    container.disposeWith {
-        container.removeOnAttachStateChangeListener(listener)
+    child.addOnAttachStateChangeListener(listener)
+    child.disposeWith {
+        child.removeOnAttachStateChangeListener(listener)
         if (handler.isPending && lifecycle == LifecycleType.DISAPPEAR) {
             handler.call()
         } else {
             handler.drop()
         }
     }
-    container
+    child
 }
 
 internal fun RegistryBuilder.registerWuiLifecycleHook() {

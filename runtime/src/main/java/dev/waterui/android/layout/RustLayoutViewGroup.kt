@@ -2,6 +2,7 @@ package dev.waterui.android.layout
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Canvas
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -333,6 +334,21 @@ class RustLayoutViewGroup(
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean = gestures.dispatch(ev)
+
+    private val groupAlpha = GroupAlphaDraw()
+
+    override fun hasOverlappingRendering(): Boolean = false
+
+    /** Alpha is composited manually in [dispatchDraw]; the framework must not. */
+    override fun onSetAlpha(alpha: Int): Boolean = true
+
+    override fun dispatchDraw(canvas: Canvas) {
+        groupAlpha.dispatchDraw(this, canvas, ::drawChildren)
+    }
+
+    private fun drawChildren(canvas: Canvas) {
+        super.dispatchDraw(canvas)
+    }
 
     private fun isPointInView(view: View, x: Float, y: Float): Boolean {
         return x >= view.left && x < view.right && y >= view.top && y < view.bottom

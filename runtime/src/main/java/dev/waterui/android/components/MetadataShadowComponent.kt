@@ -25,6 +25,7 @@ import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.attachTo
 import dev.waterui.android.runtime.dp
+import dev.waterui.android.runtime.inflateAnyView
 import dev.waterui.android.runtime.toColorInt
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -49,7 +50,6 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
     val resolvedPtr = NativeBindings.waterui_resolve_color(metadata.colorPtr, env.raw())
     NativeBindings.waterui_drop_color(metadata.colorPtr)
 
-    val container = PassThroughFrameLayout(context)
     val density = context.resources.displayMetrics.density
 
     // The elevation shadow follows the view outline; the default provider is
@@ -58,9 +58,17 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
     // commands) pair a clip shape carries, resolved by the shared builder.
     // `clipToOutline` stays off — the outline shapes the shadow only, children
     // may still draw outside it.
+    //
+    // On API ≥ 30 the shadow is pure view state — elevation, an outline
+    // provider, the shadow colors — so `.shadow` folds onto the content view
+    // and claims no wrapper. Before 30 `Outline` takes only convex paths, so
+    // the shadow is painted by an underlay sibling inflated past the
+    // content's bounds on a software layer (`Paint.setShadowLayer` needs it),
+    // and that sibling requires the wrapper.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        container.elevation = metadata.radius.dp(context)
-        container.outlineProvider = object : ViewOutlineProvider() {
+        val child = inflateAnyView(context, metadata.contentPtr, env, registry)
+        child.elevation = metadata.radius.dp(context)
+        child.outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) {
                 if (view.width == 0 || view.height == 0) return
                 outline.setPath(
@@ -74,21 +82,26 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
                 )
             }
         }
-    }
-
-    val shadowDrawable = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-        // Outlines are convex-only before API 30 (`setConvexPath` throws
-        // `IllegalArgumentException: path must be convex` on a concave
-        // silhouette), so the shadow is painted directly: an underlay sibling
-        // inflated past the content's bounds by the shadow's reach, on a
-        // software layer so `Paint.setShadowLayer` blurs, hosting a drawable
-        // that draws the silhouette path. Every WaterUI container leaves
-        // `clipChildren` unset, so the inflated underlay is not clipped.
+        WuiComputed.colorFromComputed(resolvedPtr, env).also { color ->
+            color.observe { resolvedColor ->
+                val shadowColor = resolvedColor.toColorInt()
+                child.outlineAmbientShadowColor = shadowColor
+                child.outlineSpotShadowColor = shadowColor
+            }
+            color.attachTo(child)
+        }
+        child
+    } else {
+        val container = PassThroughFrameLayout(context)
+        // `setConvexPath` throws `IllegalArgumentException: path must be
+        // convex` on a concave silhouette before API 30, so the shadow is
+        // painted directly. Every WaterUI container leaves `clipChildren`
+        // unset, so the inflated underlay is not clipped.
         val blurPx = metadata.radius.dp(context)
         val dxPx = metadata.offsetX.dp(context)
         val dyPx = metadata.offsetY.dp(context)
         val extent = (ceil(blurPx * 3f) + ceil(max(abs(dxPx), abs(dyPx))) + 1f).toInt()
-        SilhouetteShadowDrawable(
+        val shadowDrawable = SilhouetteShadowDrawable(
             metadata.silhouetteKind,
             metadata.silhouetteCommands,
             extent.toFloat(),
@@ -107,25 +120,23 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
             lp.setMargins(-extent, -extent, -extent, -extent)
             container.addView(underlay, 0, lp)
         }
-    } else {
-        null
-    }
 
-    container.attachMetadataContent(context, metadata.contentPtr, env, registry)
+        container.attachMetadataContent(context, metadata.contentPtr, env, registry)
 
-    WuiComputed.colorFromComputed(resolvedPtr, env).also { color ->
-        color.observe { resolvedColor ->
-            val shadowColor = resolvedColor.toColorInt()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                container.outlineAmbientShadowColor = shadowColor
-                container.outlineSpotShadowColor = shadowColor
+        WuiComputed.colorFromComputed(resolvedPtr, env).also { color ->
+            color.observe { resolvedColor ->
+                val shadowColor = resolvedColor.toColorInt()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    container.outlineAmbientShadowColor = shadowColor
+                    container.outlineSpotShadowColor = shadowColor
+                }
+                shadowDrawable.shadowColor = shadowColor
             }
-            shadowDrawable?.shadowColor = shadowColor
+            color.attachTo(container)
         }
-        color.attachTo(container)
-    }
 
-    container
+        container
+    }
 }
 
 /**
