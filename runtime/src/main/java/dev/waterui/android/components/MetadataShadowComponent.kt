@@ -148,22 +148,45 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
 
 /**
  * The view whose elevation/outline/shadow-color slots this shadow owns.
- * The child keeps them when unclaimed — folded transforms don't conflict
- * (the outline and its shadow move with the view, matching an outer shadow
- * over transformed content) — while a child already shadow-owned is wrapped
- * in a [PassThroughFrameLayout] so a second `.shadow` casts its own instead
- * of overwriting the inner slots.
+ *
+ * A `.shadow` is the *outer* effect: it evaluates the silhouette in the
+ * frame the modifier occupies, so folding it onto the child is only valid
+ * while the child carries no inner effect that would transform or fade that
+ * shadow — no folded or native transform (`wui_folded_transform`, a set
+ * rotation/scale/translation), no owned alpha (`wui_opacity_host`, `alpha`),
+ * and no shadow state of its own (a prior `.shadow`'s tag, its own
+ * elevation/Z, or a custom outline provider the assignment would
+ * overwrite). Any of those earns a [PassThroughFrameLayout] wrapper whose
+ * slots the outer shadow claims instead.
  */
-internal fun shadowHostFor(context: Context, child: View): View =
-    if (child.getTag(R.id.wui_shadow_host) == null) {
-        child.setTag(R.id.wui_shadow_host, true)
-        child
+internal fun shadowHostFor(context: Context, child: View): View {
+    val owned = child.getTag(R.id.wui_shadow_host) != null ||
+        child.getTag(R.id.wui_opacity_host) != null ||
+        child.getTag(R.id.wui_folded_transform) != null ||
+        child.alpha != 1f ||
+        child.elevation != 0f ||
+        child.z != 0f ||
+        child.translationZ != 0f ||
+        child.rotation != 0f ||
+        child.rotationX != 0f ||
+        child.rotationY != 0f ||
+        child.scaleX != 1f ||
+        child.scaleY != 1f ||
+        child.translationX != 0f ||
+        child.translationY != 0f ||
+        (
+            child.outlineProvider != null &&
+                child.outlineProvider != ViewOutlineProvider.BACKGROUND &&
+                child.outlineProvider != ViewOutlineProvider.BOUNDS
+            )
+    val host = if (owned) {
+        PassThroughFrameLayout(context).apply { addView(child) }
     } else {
-        PassThroughFrameLayout(context).apply {
-            addView(child)
-            setTag(R.id.wui_shadow_host, true)
-        }
+        child
     }
+    host.setTag(R.id.wui_shadow_host, true)
+    return host
+}
 
 /**
  * Draws a shadow for the silhouette on API < 30, where `Outline` cannot take

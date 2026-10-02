@@ -38,17 +38,16 @@ internal class OpacityLayout(context: Context) : PassThroughFrameLayout(context)
  *
  * A view's alpha is one channel, so a modifier may fold only onto a child
  * whose alpha is unowned: a child already claimed by an inner `.opacity`
- * ([R.id.wui_opacity_host]), by a border's foreground drawable (a
- * `ViewGroup.foreground` is drawn by [View.draw] after `dispatchDraw`, so it
- * sits outside the [GroupAlphaDraw] layer and would escape the fade), or by
- * an elevation shadow ([R.id.wui_shadow_host], which the parent render node
- * projects outside the subtree's compositing) is wrapped instead — the new
- * modifier owns the wrapper's alpha and the effects compose through the
- * hierarchy (`0.5 * 0.5 = 0.25`), static and animated alike.
+ * ([R.id.wui_opacity_host]) or by an elevation shadow
+ * ([R.id.wui_shadow_host], which the parent render node projects outside
+ * the subtree's compositing) is wrapped instead — the new modifier owns the
+ * wrapper's alpha and the effects compose through the hierarchy
+ * (`0.5 * 0.5 = 0.25`), static and animated alike. A foreground drawable or
+ * a background is no ownership conflict: [GroupAlphaDraw] wraps the host's
+ * complete draw, so everything the view paints fades with the group.
  */
 internal fun opacityHostFor(context: Context, child: View): View {
     val owned = child.getTag(R.id.wui_opacity_host) != null ||
-        child.foreground != null ||
         child.getTag(R.id.wui_shadow_host) != null
     val host = when {
         owned -> OpacityLayout(context).apply { addView(child) }

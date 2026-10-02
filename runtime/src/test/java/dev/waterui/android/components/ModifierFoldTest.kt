@@ -73,19 +73,25 @@ class ModifierFoldTest {
     fun opacityWrapsAChildWhoseAlphaIsOwned() {
         val context = Robolectric.buildActivity(Activity::class.java).get()
 
-        // `.border().opacity()`: the border's foreground is drawn by the
-        // child's View.draw after dispatchDraw — outside the group-alpha
-        // layer — so folding the fade onto that child would leave the border
-        // undimmed. The opacity owns a wrapper's alpha instead.
-        val bordered = PassThroughFrameLayout(context)
-        bordered.foreground = ColorDrawable(Color.BLACK)
-        assertNotSame(bordered, opacityHostFor(context, bordered))
-
         // `.shadow().opacity()`: an elevation shadow is projected by the
-        // parent render node outside the subtree's compositing, so it
-        // escapes the fade the same way.
+        // parent render node outside the subtree's compositing, so folding
+        // the fade onto the caster would leave the shadow undimmed. The
+        // opacity owns a wrapper's alpha instead.
         val shadowed = shadowHostFor(context, View(context))
         assertNotSame(shadowed, opacityHostFor(context, shadowed))
+    }
+
+    @Test
+    fun opacityFoldsOntoAChildPaintingItsOwnContent() {
+        val context = Robolectric.buildActivity(Activity::class.java).get()
+
+        // `.border().opacity()`: the border's foreground drawable and a
+        // subclass's post-children paint ride *inside* the group-alpha layer
+        // now that compositing wraps the complete draw — so the fade folds
+        // onto the child and dims everything it paints.
+        val bordered = PassThroughFrameLayout(context)
+        bordered.foreground = ColorDrawable(Color.BLACK)
+        assertSame(bordered, opacityHostFor(context, bordered))
     }
 
     @Test
@@ -132,5 +138,45 @@ class ModifierFoldTest {
         val outer = shadowHostFor(context, inner)
         assertNotSame(inner, outer)
         assertSame(inner, (outer as ViewGroup).getChildAt(0))
+    }
+
+    @Test
+    fun shadowWrapsAChildCarryingInnerEffects() {
+        val context = Robolectric.buildActivity(Activity::class.java).get()
+
+        // `.offset(...).shadow(...)`: the shadow evaluates its silhouette in
+        // the frame the modifier occupies — folding it onto the transformed
+        // child would let the inner transform move and shape the shadow.
+        val transformed = PassThroughFrameLayout(context)
+        FoldedTransform.on(transformed).addOffset()
+        val shadowOverTransform = shadowHostFor(context, transformed)
+        assertNotSame(transformed, shadowOverTransform)
+        assertSame(transformed, (shadowOverTransform as ViewGroup).getChildAt(0))
+
+        // `.opacity(...).shadow(...)`: folding the shadow onto the faded
+        // child would make the inner alpha fade the outer shadow.
+        val opacityOwned = opacityHostFor(context, View(context))
+        assertNotSame(opacityOwned, shadowHostFor(context, opacityOwned))
+
+        // A child already carrying native elevation keeps it — folding the
+        // metadata shadow on top would overwrite those slots.
+        val elevated = View(context).apply { elevation = 8f }
+        assertNotSame(elevated, shadowHostFor(context, elevated))
+    }
+
+    @Test
+    fun shadowStillFoldsOntoAnUnownedChild() {
+        val context = Robolectric.buildActivity(Activity::class.java).get()
+
+        // `.border().shadow()` stays folded: the silhouette the metadata
+        // carries is evaluated in the child's frame and the foreground
+        // border does not transform or fade it — the optimization holds
+        // where order is equivalent.
+        val bordered = PassThroughFrameLayout(context)
+        bordered.foreground = ColorDrawable(Color.BLACK)
+        assertSame(bordered, shadowHostFor(context, bordered))
+
+        val clean = View(context)
+        assertSame(clean, shadowHostFor(context, clean))
     }
 }
