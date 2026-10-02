@@ -152,5 +152,13 @@ internal class ViewEffectView(
 }
 
 internal fun RegistryBuilder.registerWuiViewEffect() {
-    register({ viewEffectTypeId }, viewEffectRenderer)
+    // The view-effect surface exists only when the package links
+    // `waterui-ffi/gpu`: without it the export is absent and no such view can
+    // reach the registry, so registration is skipped.
+    val typeId = try {
+        viewEffectTypeId
+    } catch (_: UnsatisfiedLinkError) {
+        return
+    }
+    register({ typeId }, viewEffectRenderer)
 }

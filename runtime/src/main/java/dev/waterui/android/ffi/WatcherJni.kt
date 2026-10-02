@@ -23,8 +23,11 @@ object WatcherJni {
     @JvmStatic external fun initializeAndroidContext(activity: Activity): Long
     @JvmStatic external fun releaseAndroidContext(owner: Long)
     @JvmStatic external fun init(): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuRuntimeCreate(callback: GpuRuntimeReadyCallback)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun envInstallGpuRuntime(envPtr: Long, runtimePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun dropGpuRuntime(runtimePtr: Long)
 
     // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
@@ -393,7 +396,9 @@ object WatcherJni {
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun metadataAppliedFilterId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedColorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
@@ -529,7 +534,9 @@ object WatcherJni {
 
     // ========== GpuSurface Functions ==========
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
 
     // ========== Picture Functions ==========
@@ -554,6 +561,7 @@ object WatcherJni {
     @JvmStatic external fun androidVideoSurfaceHostDrop(bridgePtr: Long)
     // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostSurfaceDestroyed(bridgePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceCreate(
         owner: android.view.View,
         rendererPtr: Long,
@@ -561,13 +569,17 @@ object WatcherJni {
         pictureInPictureHostId: Long,
         wuiEnvPtr: Long
     ): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceMeasure(
         statePtr: Long,
         width: Float,
         height: Float
     ): ViewDimensionsStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfacePriority(statePtr: Long): Int
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceIsReady(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceAttach(
         statePtr: Long,
         surface: android.view.Surface,
@@ -575,8 +587,10 @@ object WatcherJni {
         height: Int,
         prefersHdr: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceDetach(statePtr: Long)
     @Suppress("LongParameterList") // Signature mirrors the allocation-free native GPU input ABI.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceSetInput(
         statePtr: Long,
         hasPosition: Boolean,
@@ -594,14 +608,17 @@ object WatcherJni {
         panOffsetY: Float,
         doubleTap: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceRender(
         statePtr: Long,
         width: Int,
         height: Int,
         scale: Float
     ): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceWantsInputEvents(statePtr: Long): Boolean
     @Suppress("LongParameterList") // Signature mirrors the flat native surface-input carrier.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceSendInputEvent(
         statePtr: Long,
         kind: Int,
@@ -621,10 +638,14 @@ object WatcherJni {
         isRepeat: Boolean,
         caret: Long
     ): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceImeCaret(statePtr: Long): FloatArray?
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceAccessibilityLabel(statePtr: Long): String
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceAccessibilityValue(statePtr: Long): String
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 
     // ========== View-capture Functions (AppliedFilter / ViewEffect) ==========
@@ -635,14 +656,17 @@ object WatcherJni {
     // [gpuCaptureFenceOnComplete]'s `completion`, which Rust runs on its GPU
     // completion thread.
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun forceAsMetadataAppliedFilter(
         viewPtr: Long
     ): dev.waterui.android.runtime.AppliedFilterStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterCreate(
         owner: android.view.View,
         filterPtr: Long,
         wuiEnvPtr: Long
     ): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterAttach(
         statePtr: Long,
         surface: android.view.Surface,
@@ -650,21 +674,29 @@ object WatcherJni {
         inputHeight: Int,
         prefersHdr: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterDetach(statePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterSetup(statePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterIsReady(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterResolveOutputSize(
         statePtr: Long,
         inputWidth: Int,
         inputHeight: Int
     ): IntArray
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterPrepareCapture(statePtr: Long, width: Int, height: Int)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterCaptureFormat(statePtr: Long): Int
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterSetCaptureHardwareBuffer(
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long
     @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterCompositeGpuSurface(
         statePtr: Long,
         surfaceStatePtr: Long,
@@ -674,13 +706,17 @@ object WatcherJni {
         height: Int,
         scale: Float
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterRender(statePtr: Long, width: Int, height: Int): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterDrop(statePtr: Long)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun forceAsViewEffect(
         viewPtr: Long
     ): dev.waterui.android.runtime.ViewEffectStruct
     @Suppress("LongParameterList") // The output-size enum crosses the ABI flattened.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectCreate(
         owner: android.view.View,
         effectPtr: Long,
@@ -690,6 +726,7 @@ object WatcherJni {
         outputScale: Float,
         wuiEnvPtr: Long
     ): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectAttach(
         statePtr: Long,
         surface: android.view.Surface,
@@ -697,13 +734,17 @@ object WatcherJni {
         inputHeight: Int,
         prefersHdr: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectDetach(statePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectIsReady(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectSetInputHardwareBuffer(
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long
     @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectCompositeGpuSurface(
         statePtr: Long,
         surfaceStatePtr: Long,
@@ -713,8 +754,11 @@ object WatcherJni {
         height: Int,
         scale: Float
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectRender(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectDrop(statePtr: Long)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuCaptureFenceOnComplete(fencePtr: Long, completion: Runnable)
 }

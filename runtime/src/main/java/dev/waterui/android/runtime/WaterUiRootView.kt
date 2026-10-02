@@ -29,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.view.isEmpty
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import dev.waterui.android.components.WebViewFactory
+import dev.waterui.android.components.gpuSurfaceAvailable
 import dev.waterui.android.components.webViewAvailable
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
@@ -204,21 +205,34 @@ class WaterUiRootView @JvmOverloads constructor(
         // for a device before its first view is inflated. Deferring that cost needs
         // the FFI to install a runtime handle whose device is created on first use;
         // it cannot be deferred from here without breaking the contract above.
-        NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
-            mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
+        //
+        // A package built without the ffi `gpu` feature exports none of the
+        // `gpuRuntime*`/`gpuSurface*` entry points and can never produce a
+        // `GpuSurface`, so the environment is complete without one — the same
+        // gate the webview controller install follows.
+        if (gpuSurfaceAvailable) {
+            NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
+                mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
+            }
+        } else {
+            finishGpuRuntimeInitialization(0L)
         }
     }
 
     private fun finishGpuRuntimeInitialization(runtimePtr: Long) {
         if (closed) {
-            NativeBindings.waterui_drop_gpu_runtime(runtimePtr)
+            if (runtimePtr != 0L) {
+                NativeBindings.waterui_drop_gpu_runtime(runtimePtr)
+            }
             return
         }
 
         val initEnv = checkNotNull(pendingEnvironment) {
             "GPU runtime completed without a pending WaterUI environment"
         }
-        NativeBindings.waterui_env_install_gpu_runtime(initEnv.raw(), runtimePtr)
+        if (runtimePtr != 0L) {
+            NativeBindings.waterui_env_install_gpu_runtime(initEnv.raw(), runtimePtr)
+        }
         pendingEnvironment = null
 
         val app = NativeBindings.waterui_app(initEnv.takeRaw())
