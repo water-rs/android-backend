@@ -24,6 +24,13 @@ import kotlin.math.sin
  * outside an offset lands its rotated offset in T′ = R·d, preserving the
  * orbit), while a scale outside a rotation is a shear and is refused, in
  * which case the caller keeps one wrapper layout for that op.
+ *
+ * The legs are five independent channels, so a recompose applies only the
+ * channels that changed since the last apply: a no-op recompute (a layout
+ * pass that reproduces the same values) touches nothing, and a non-animated
+ * update snaps its own channels while a leg still animating another channel
+ * — a running rotation, say — keeps animating instead of being snapped to
+ * its target.
  */
 internal class FoldedTransform private constructor(private val view: View) {
 
@@ -49,6 +56,29 @@ internal class FoldedTransform private constructor(private val view: View) {
     private val ops = mutableListOf<Op>()
     private var hasRotation = false
 
+    /** Channels the last apply emitted, for the changed-only recompute. */
+    private var lastApplied: ViewTransform? = null
+
+    /**
+     * The channels the in-flight [ViewPropertyAnimator] owns and the spec it
+     * was launched with. A View's VPA is a single animator, so when a
+     * non-animated update supersedes one of its channels the animator must
+     * be cancelled — the other channels are relaunched from their current
+     * values with the time remaining, which keeps their legs animating to
+     * the same targets instead of freezing or snapping.
+     */
+    private class VpaLegs(
+        val channels: Set<TransformChannel>,
+        val animation: WuiAnimation.Bezier,
+        val startedAtNanos: Long,
+        val durationMs: Long
+    ) {
+        fun elapsedMs(): Long = (System.nanoTime() - startedAtNanos) / 1_000_000
+        fun expired(): Boolean = elapsedMs() >= durationMs
+    }
+
+    private var vpaLegs: VpaLegs? = null
+
     fun addOffset(): OffsetOp = OffsetOp().also(ops::add)
 
     fun addRotation(anchorX: Float, anchorY: Float): RotationOp =
@@ -67,8 +97,24 @@ internal class FoldedTransform private constructor(private val view: View) {
         return ScaleOp(anchorX, anchorY).also(ops::add)
     }
 
-    /** Recomputes the composed transform and applies it through [animation]. */
+    /** Recomputes the composed transform and applies what changed through [animation]. */
     fun recompose(animation: WuiAnimation) {
+        val composed = compose()
+        val changed = lastApplied?.changedChannels(composed) ?: TransformChannel.ALL
+        if (changed.isEmpty()) return
+        lastApplied = composed
+        if (animation == WuiAnimation.None) {
+            supersede(changed, composed)
+            return
+        }
+        view.applyRustTransform(animation, composed)
+        vpaLegs = (animation as? WuiAnimation.Bezier)?.let {
+            VpaLegs(TransformChannel.ALL, it, System.nanoTime(), it.durationMillis)
+        }
+    }
+
+    /** The composed affine as a [ViewTransform] over the view's current size. */
+    private fun compose(): ViewTransform {
         var tx = 0f
         var ty = 0f
         var rotation = 0f
@@ -106,16 +152,50 @@ internal class FoldedTransform private constructor(private val view: View) {
                 }
             }
         }
-        view.applyRustTransform(
-            animation,
-            ViewTransform(
-                scaleX = scaleX,
-                scaleY = scaleY,
-                rotation = rotation,
-                translationX = tx,
-                translationY = ty
-            )
+        return ViewTransform(
+            scaleX = scaleX,
+            scaleY = scaleY,
+            rotation = rotation,
+            translationX = tx,
+            translationY = ty
         )
+    }
+
+    /**
+     * A non-animated update supersedes [changed] only: their animators are
+     * cancelled and the values snap, while every other channel keeps its
+     * running leg to its existing target.
+     */
+    private fun supersede(changed: Set<TransformChannel>, composed: ViewTransform) {
+        // Spring legs are per-channel — the superseded ones cancel, the rest
+        // keep running.
+        view.transformSpringAnimations().forEach { (channel, spring) ->
+            if (channel in changed) spring.cancel()
+        }
+        // The VPA is one animator: a superseded channel takes it down and the
+        // still-unfinished others relaunch from their current values with
+        // the time they had left.
+        vpaLegs?.let { legs ->
+            if (!legs.expired() && legs.channels.any(changed::contains)) {
+                view.animate().cancel()
+                vpaLegs = null
+                val keep = legs.channels - changed
+                val remainingMs = legs.durationMs - legs.elapsedMs()
+                if (keep.isNotEmpty() && remainingMs > 0) {
+                    val animator = view.animate()
+                        .setDuration(remainingMs)
+                        .setInterpolator(legs.animation.toInterpolator())
+                    keep.forEach { channel ->
+                        composed.channelValue(channel)?.let {
+                            animator.setChannel(channel, it)
+                        }
+                    }
+                    animator.start()
+                    vpaLegs = VpaLegs(keep, legs.animation, System.nanoTime(), remainingMs)
+                }
+            }
+        }
+        view.applyTransformChannels(changed, composed)
     }
 
     companion object {
