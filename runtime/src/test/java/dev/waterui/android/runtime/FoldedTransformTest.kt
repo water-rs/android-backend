@@ -251,6 +251,64 @@ class FoldedTransformTest {
     }
 
     @Test
+    fun cancellingTwoChannelSpringsMutatesNoMapDuringCallbacks() {
+        // DynamicAnimation.cancel() dispatches end listeners synchronously
+        // and each spring's listener removes its own map entry, so retiring
+        // both channels of one op must not iterate the map as it mutates.
+        val view = attachedView()
+        val fold = FoldedTransform.on(view)
+        val offset = fold.addOffset()
+        offset.x = 10f
+        offset.y = 20f
+        fold.recompose(offset, WuiAnimation.Spring(stiffness = 1f, damping = 1f))
+        val springX = checkNotNull(offset.springs[0])
+        val springY = checkNotNull(offset.springs[1])
+        assertTrue(springX.isRunning)
+        assertTrue(springY.isRunning)
+
+        // A non-animated update cancels both legs through the real path.
+        fold.recompose(offset, WuiAnimation.None)
+        assertTrue(offset.springs.isEmpty())
+        assertFalse(springX.isRunning)
+        assertFalse(springY.isRunning)
+        assertEquals(10f, view.translationX, EPS)
+        assertEquals(20f, view.translationY, EPS)
+
+        // And the same pair through the animated-supersede path.
+        offset.x = 30f
+        fold.recompose(offset, WuiAnimation.Spring(stiffness = 1f, damping = 1f))
+        assertEquals(2, offset.springs.size)
+        fold.recompose(offset, bezier())
+        assertTrue(offset.springs.isEmpty())
+        assertNotNull(offset.bezier)
+    }
+
+    @Test
+    fun aSpringRetargetUpdatesTheLiveForceSpec() {
+        // The running spring must absorb the new stiffness/damping — the
+        // force is read each frame — while animateToFinalPosition keeps the
+        // leg's velocity instead of restarting it.
+        val view = attachedView()
+        val fold = FoldedTransform.on(view)
+        val rotation = fold.addRotation(0f, 0f)
+        rotation.degrees = 90f
+        fold.recompose(rotation, WuiAnimation.Spring(stiffness = 200f, damping = 20f))
+        val spring = checkNotNull(rotation.springs[0])
+        assertTrue(spring.isRunning)
+
+        rotation.degrees = 45f
+        fold.recompose(rotation, WuiAnimation.Spring(stiffness = 400f, damping = 40f))
+
+        assertSame(spring, rotation.springs[0])
+        assertTrue(spring.isRunning)
+        assertEquals(400f, spring.spring.stiffness, EPS)
+        // 40 / (2 · √400) = 1
+        assertEquals(1f, spring.spring.dampingRatio, EPS)
+        // A live retarget never snaps the interpolated value.
+        assertEquals(0f, rotation.channelValue(0), EPS)
+    }
+
+    @Test
     fun detachingTheViewRetiresItsAnimationLegs() {
         val activity = Robolectric.buildActivity(android.app.Activity::class.java)
             .setup()
@@ -265,15 +323,20 @@ class FoldedTransformTest {
         rotation.degrees = 90f
         fold.recompose(rotation, bezier())
         val animator = checkNotNull(rotation.bezier)
+        animator.setCurrentFraction(0.5f)
+        assertEquals(45f, view.rotation, EPS)
 
         parent.removeView(view)
 
         assertFalse(animator.isRunning)
         assertNull(rotation.bezier)
-        // Detach retires legs at their targets so no animator holds the view
-        // past its window — and reattach shows the final state, not a
-        // mid-flight fossil.
         assertEquals(90f, rotation.channelValue(0), EPS)
+        // Retiring the legs leaves the native properties on their targets —
+        // reattach shows the final state, not a mid-flight fossil, without
+        // waiting for a new layout to arrive.
+        assertEquals(90f, view.rotation, EPS)
+        parent.addView(view, ViewGroup.LayoutParams(SIZE, SIZE))
+        assertEquals(90f, view.rotation, EPS)
     }
 
     private fun attachedView(): View {

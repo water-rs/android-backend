@@ -52,8 +52,13 @@ internal class FoldedTransform private constructor(private val view: View) {
         internal fun cancelAnimations() {
             bezier?.cancel()
             bezier = null
-            springs.values.forEach(SpringAnimation::cancel)
+            // DynamicAnimation.cancel() dispatches end listeners
+            // synchronously, and a leg's end listener removes its own map
+            // entry — so the map must relinquish the legs before cancel
+            // runs, or the second removal mutates the map mid-iteration.
+            val legs = springs.values.toList()
             springs.clear()
+            legs.forEach(SpringAnimation::cancel)
         }
 
         /** Snap every channel's current value to its renderer-written target. */
@@ -221,6 +226,11 @@ internal class FoldedTransform private constructor(private val view: View) {
             val target = op.channelTarget(i)
             val running = op.springs[i]
             if (running != null) {
+                // Retarget in place: apply the new spec to the live force —
+                // the running spring reads it each frame — and
+                // animateToFinalPosition keeps the current velocity.
+                running.spring.stiffness = animation.stiffness
+                running.spring.dampingRatio = dampingRatio
                 running.animateToFinalPosition(target)
                 continue
             }
@@ -301,6 +311,9 @@ internal class FoldedTransform private constructor(private val view: View) {
             it.snapToTarget()
             it.cancelAnimations()
         }
+        // Retired ops own their targets; leave the native properties
+        // reflecting them so the detached view draws at its final state.
+        applyComposed()
     }
 
     companion object {

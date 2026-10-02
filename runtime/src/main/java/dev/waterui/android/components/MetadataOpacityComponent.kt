@@ -32,9 +32,9 @@ internal class OpacityLayout(context: Context) : PassThroughFrameLayout(context)
 /**
  * `.opacity` is a paint-only modifier: it folds into the child view's alpha.
  * WaterUI's own containers (PassThroughFrameLayout, RustLayoutViewGroup)
- * composite the alpha over their subtree's drawn bounds in dispatchDraw; a
- * leaf view's alpha is exact on its own draws. Foreign ViewGroups keep a
- * wrapper so the group composite still holds.
+ * composite the alpha over their subtree's complete draw; a leaf view's
+ * alpha is exact on its own draws. Foreign ViewGroups keep a wrapper so the
+ * group composite still holds.
  *
  * A view's alpha is one channel, so a modifier may fold only onto a child
  * whose alpha is unowned: a child already claimed by an inner `.opacity`
