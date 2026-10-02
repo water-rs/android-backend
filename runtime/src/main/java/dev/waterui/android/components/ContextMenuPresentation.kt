@@ -23,6 +23,7 @@ import androidx.core.view.size
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.WuiEnvironment
 import java.io.Closeable
 import kotlin.math.roundToInt
 import com.google.android.material.R as MaterialR
@@ -37,8 +38,8 @@ internal interface DismissSignal {
 }
 
 /** A `WuiComputed<i32>` owned for the lifetime of one context menu. */
-internal class WuiDismissRequests(ptr: Long) : DismissSignal, Closeable {
-    private val computed = WuiComputed.int(ptr)
+internal class WuiDismissRequests(ptr: Long, env: WuiEnvironment) : DismissSignal, Closeable {
+    private val computed = WuiComputed.int(ptr, env)
 
     override fun watch(onChange: () -> Unit) {
         computed.observe { onChange() }

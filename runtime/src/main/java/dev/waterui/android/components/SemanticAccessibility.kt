@@ -17,7 +17,7 @@ internal fun bindSemanticAccessibilityLabel(
     env: WuiEnvironment,
     onValue: (CharSequence) -> Unit
 ): Closeable {
-    val label = WuiComputed.styledString(labelPtr)
+    val label = WuiComputed.styledString(labelPtr, env)
     var styledBinding: Closeable? = null
     label.observe { styled ->
         styledBinding?.close()

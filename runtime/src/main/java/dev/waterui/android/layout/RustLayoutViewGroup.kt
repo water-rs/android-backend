@@ -2,6 +2,7 @@ package dev.waterui.android.layout
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Canvas
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -333,6 +334,22 @@ class RustLayoutViewGroup(
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean = gestures.dispatch(ev)
+
+    private val groupAlpha = GroupAlphaDraw()
+
+    override fun hasOverlappingRendering(): Boolean = false
+
+    /** Alpha is composited manually in [draw]; the framework must not. */
+    override fun onSetAlpha(alpha: Int): Boolean = true
+
+    /**
+     * The group alpha must cover the complete draw — background, onDraw,
+     * children and anything a subclass paints in dispatchDraw, decorations,
+     * foreground — so the compositing layer wraps [draw] itself.
+     */
+    override fun draw(canvas: Canvas) {
+        groupAlpha.draw(this, canvas) { super.draw(it) }
+    }
 
     private fun isPointInView(view: View, x: Float, y: Float): Boolean {
         return x >= view.left && x < view.right && y >= view.top && y < view.bottom

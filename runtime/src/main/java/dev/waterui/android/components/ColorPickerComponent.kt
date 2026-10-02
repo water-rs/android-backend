@@ -42,7 +42,7 @@ private data class EditableColor(
 
 private val colorPickerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_color_picker(node.rawPtr)
-    val binding = WuiBinding.color(struct.valuePtr)
+    val binding = WuiBinding.color(struct.valuePtr, env)
 
     val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL

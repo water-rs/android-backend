@@ -211,9 +211,9 @@ private val scrollRenderer = WuiRenderer { context, node, env, registry ->
         "WaterUI ScrollView controller pointers must be either all null or all non-null"
     }
     if (controlled) {
-        val targetX = WuiComputed.float(struct.targetXPtr)
-        val targetY = WuiComputed.float(struct.targetYPtr)
-        val generation = WuiComputed.int(struct.scrollGenerationPtr)
+        val targetX = WuiComputed.float(struct.targetXPtr, env)
+        val targetY = WuiComputed.float(struct.targetYPtr, env)
+        val generation = WuiComputed.int(struct.scrollGenerationPtr, env)
         var x = 0f
         var y = 0f
         targetX.observe { x = it }

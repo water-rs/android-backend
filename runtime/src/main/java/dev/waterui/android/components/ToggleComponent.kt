@@ -28,7 +28,7 @@ private const val TOGGLE_STYLE_CHECKBOX = 2
 // read as visibly out of date next to any Compose screen.
 private val toggleRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_toggle(node.rawPtr)
-    val binding = WuiBinding.bool(struct.bindingPtr)
+    val binding = WuiBinding.bool(struct.bindingPtr, env)
     val control: CompoundButton = when (struct.style) {
         TOGGLE_STYLE_AUTOMATIC,
         TOGGLE_STYLE_SWITCH -> MaterialSwitch(context)

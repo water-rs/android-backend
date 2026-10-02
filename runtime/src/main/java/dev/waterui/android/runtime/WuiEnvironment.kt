@@ -1,5 +1,8 @@
 package dev.waterui.android.runtime
 
+import dev.waterui.android.ffi.WatcherJni
+import dev.waterui.android.reactive.WatcherRegistry
+
 /**
  * Android counterpart to the WaterUI environment handle. Responsible for owning the native pointer.
  */
@@ -19,6 +22,19 @@ class WuiEnvironment(
      * through the theme bridge in sp; zero means the root never stamped it.
      */
     var pxPerSp: Float = 0f
+
+    /**
+     * Watcher registry owned by this runtime. Native code reaches it through
+     * one global ref held in the watcher context, never by a static call.
+     */
+    val watcherRegistry = WatcherRegistry()
+
+    /**
+     * Native handle of this runtime's watcher context: JavaVM, the cached
+     * value-class constructors and [watcherRegistry]'s method ids. Passed as
+     * `contextPtr` to every `WatcherJni.create*Watcher` call.
+     */
+    val watcherContextPtr: Long = WatcherJni.initWatcherContext(watcherRegistry)
 
     companion object {
         fun create(fontTable: WaterUiFontTable): WuiEnvironment {
@@ -43,6 +59,9 @@ class WuiEnvironment(
 
     override fun release(ptr: Long) {
         NativeBindings.waterui_env_drop(ptr)
+        // env_drop runs watcher unregistration through the context, so the
+        // context must outlive it.
+        WatcherJni.dropWatcherContext(watcherContextPtr)
     }
 }
 

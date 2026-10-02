@@ -28,7 +28,7 @@ private const val PROGRESS_STYLE_LOADING = 2
 
 private val progressRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_progress(node.rawPtr)
-    val computed = WuiComputed.double(struct.valuePtr)
+    val computed = WuiComputed.double(struct.valuePtr, env)
 
     val isLinear = when (struct.style) {
         PROGRESS_STYLE_LINEAR -> true

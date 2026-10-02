@@ -178,8 +178,8 @@ private sealed interface ReactiveMenuNode : Closeable {
         env: WuiEnvironment
     ) : ReactiveMenuNode {
         private val label = ReactiveStyledText(labelPtr, env)
-        private val disabled = disabledPtr.takeIf { it != 0L }?.let { WuiComputed.bool(it) }
-        private val selected = selectedPtr.takeIf { it != 0L }?.let { WuiComputed.bool(it) }
+        private val disabled = disabledPtr.takeIf { it != 0L }?.let { WuiComputed.bool(it, env) }
+        private val selected = selectedPtr.takeIf { it != 0L }?.let { WuiComputed.bool(it, env) }
         private var isDisabled = false
         private var isSelected = false
         private var item: MenuItem? = null
@@ -550,7 +550,7 @@ private val metadataContextMenuRenderer = WuiRenderer { context, node, env, regi
     val child = inflateAnyView(context, metadata.contentPtr, env, registry)
     val dismissRequests = metadata.dismissRequestsPtr
         .takeIf { it != 0L }
-        ?.let(::WuiDismissRequests)
+        ?.let { WuiDismissRequests(it, env) }
 
     PassThroughFrameLayout(context).apply {
         consumesTouches = true

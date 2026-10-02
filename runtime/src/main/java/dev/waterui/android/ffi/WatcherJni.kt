@@ -5,6 +5,7 @@ import android.content.Context
 import android.webkit.WebView
 import dev.waterui.android.components.WebViewFactory
 import dev.waterui.android.reactive.WatcherCallback
+import dev.waterui.android.reactive.WatcherRegistry
 import dev.waterui.android.runtime.*
 
 /**
@@ -266,30 +267,30 @@ object WatcherJni {
 
     // ========== Watcher Creation ==========
 
-    @JvmStatic external fun createBoolWatcher(callback: WatcherCallback<Boolean>): WatcherStruct
-    @JvmStatic external fun createIntWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createIdWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createIdVecWatcher(callback: WatcherCallback<IntArray>): WatcherStruct
-    @JvmStatic external fun createCursorStyleWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createColorSchemeWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createHorizontalAlignmentWatcher(
-        callback: WatcherCallback<Int>
-    ): WatcherStruct
-    @JvmStatic external fun createDoubleWatcher(callback: WatcherCallback<Double>): WatcherStruct
-    @JvmStatic external fun createFloatWatcher(callback: WatcherCallback<Float>): WatcherStruct
-    @JvmStatic external fun createStringWatcher(callback: WatcherCallback<String>): WatcherStruct
-    @JvmStatic external fun createSecureWatcher(callback: WatcherCallback<String>): WatcherStruct
-    @JvmStatic external fun createStyledStrPlainWatcher(
-        callback: WatcherCallback<String>
-    ): WatcherStruct
-    @JvmStatic external fun createAnyViewWatcher(callback: WatcherCallback<Long>): WatcherStruct
-    @JvmStatic external fun createStyledStrWatcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
-    @JvmStatic external fun createResolvedColorWatcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
-    @JvmStatic external fun createResolvedFontWatcher(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
-    @JvmStatic external fun createBitmapWatcher(callback: WatcherCallback<BitmapStruct>): WatcherStruct
-    @JvmStatic external fun createColorWatcher(callback: WatcherCallback<Long>): WatcherStruct
-    @JvmStatic external fun createDateTimeWatcher(callback: WatcherCallback<DateTimeStruct>): WatcherStruct
-    @JvmStatic external fun createDateVecWatcher(callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
+    /** The per-runtime JNI context every create*Watcher call takes as `contextPtr`; freed by [dropWatcherContext]. */
+    @JvmStatic external fun initWatcherContext(registry: WatcherRegistry): Long
+    @JvmStatic external fun dropWatcherContext(contextPtr: Long)
+
+    @JvmStatic external fun createBoolWatcher(contextPtr: Long, callback: WatcherCallback<Boolean>): WatcherStruct
+    @JvmStatic external fun createIntWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createIdWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createIdVecWatcher(contextPtr: Long, callback: WatcherCallback<IntArray>): WatcherStruct
+    @JvmStatic external fun createCursorStyleWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createColorSchemeWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createHorizontalAlignmentWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createDoubleWatcher(contextPtr: Long, callback: WatcherCallback<Double>): WatcherStruct
+    @JvmStatic external fun createFloatWatcher(contextPtr: Long, callback: WatcherCallback<Float>): WatcherStruct
+    @JvmStatic external fun createStringWatcher(contextPtr: Long, callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createSecureWatcher(contextPtr: Long, callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createStyledStrPlainWatcher(contextPtr: Long, callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createAnyViewWatcher(contextPtr: Long, callback: WatcherCallback<Long>): WatcherStruct
+    @JvmStatic external fun createStyledStrWatcher(contextPtr: Long, callback: WatcherCallback<StyledStrStruct>): WatcherStruct
+    @JvmStatic external fun createResolvedColorWatcher(contextPtr: Long, callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
+    @JvmStatic external fun createResolvedFontWatcher(contextPtr: Long, callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
+    @JvmStatic external fun createBitmapWatcher(contextPtr: Long, callback: WatcherCallback<BitmapStruct>): WatcherStruct
+    @JvmStatic external fun createColorWatcher(contextPtr: Long, callback: WatcherCallback<Long>): WatcherStruct
+    @JvmStatic external fun createDateTimeWatcher(contextPtr: Long, callback: WatcherCallback<DateTimeStruct>): WatcherStruct
+    @JvmStatic external fun createDateVecWatcher(contextPtr: Long, callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
 
     // ========== Watch Binding ==========
 

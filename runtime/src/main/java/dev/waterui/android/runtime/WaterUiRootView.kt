@@ -194,7 +194,7 @@ class WaterUiRootView @JvmOverloads constructor(
         if (webViewAvailable) {
             NativeBindings.waterui_env_install_webview_controller(
                 initEnv.raw(),
-                WebViewFactory(context)
+                WebViewFactory(context, initEnv)
             )
         }
 
@@ -239,7 +239,7 @@ class WaterUiRootView @JvmOverloads constructor(
         val renderEnv = WuiEnvironment(app.takeEnvironment(), initEnv.fontTable)
         renderEnv.pxPerSp = context.pxPerSp()
         environment = renderEnv
-        bindWindowBackground(app.takeBackground())
+        bindWindowBackground(app.takeBackground(), renderEnv)
         val child = inflateAnyView(context, app.takeContent(), renderEnv, registry)
         addView(
             child,
@@ -356,10 +356,10 @@ class WaterUiRootView @JvmOverloads constructor(
      * the activity window's background drawable both take it, so a translucent
      * colour reaches the window surface instead of stopping at the view.
      */
-    private fun bindWindowBackground(backgroundPtr: Long) {
+    private fun bindWindowBackground(backgroundPtr: Long, env: WuiEnvironment) {
         val window = context.requireActivity().window
             ?: error("WaterUiRootView requires a host activity with a window")
-        backgroundTheme = WuiComputed.colorFromComputed(backgroundPtr).also { computed ->
+        backgroundTheme = WuiComputed.colorFromComputed(backgroundPtr, env).also { computed ->
             computed.observe { color ->
                 val argb = color.toColorInt()
                 setBackgroundColor(argb)

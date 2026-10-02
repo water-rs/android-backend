@@ -22,8 +22,8 @@ private val textTypeId: WuiTypeId by lazy {
 
 private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
-    val computed = WuiComputed.styledString(struct.contentPtr)
-    val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr)
+    val computed = WuiComputed.styledString(struct.contentPtr, env)
+    val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr, env)
     val textView = WuiTextView(context)
     if (struct.lineLimit > 0) {
         // TextConfig::line_limit: cap the laid-out lines and truncate the last

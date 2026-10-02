@@ -22,7 +22,7 @@ private val secureFieldTypeId: WuiTypeId by lazy { NativeBindings.waterui_secure
 
 private val secureFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_secure_field(node.rawPtr)
-    val binding = WuiBinding.secure(struct.valuePtr)
+    val binding = WuiBinding.secure(struct.valuePtr, env)
 
     val container = AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 

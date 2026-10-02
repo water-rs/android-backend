@@ -10,6 +10,7 @@ import dev.waterui.android.runtime.BitmapStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.PictureStruct
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
@@ -18,8 +19,8 @@ import kotlin.math.roundToInt
 
 private val pictureTypeId: WuiTypeId by lazy { NativeBindings.waterui_picture_id().toTypeId() }
 
-private val pictureRenderer = WuiRenderer { context, node, _, _ ->
-    PictureView(context, NativeBindings.waterui_force_as_picture(node.rawPtr))
+private val pictureRenderer = WuiRenderer { context, node, env, _ ->
+    PictureView(context, NativeBindings.waterui_force_as_picture(node.rawPtr), env)
 }
 
 /**
@@ -30,7 +31,7 @@ private val pictureRenderer = WuiRenderer { context, node, _, _ ->
 // The picture this view shows is a native handle it takes ownership of, so it
 // has no meaningful context-only constructor and is never inflated from XML.
 @SuppressLint("ViewConstructor")
-private class PictureView(context: Context, picture: PictureStruct) :
+private class PictureView(context: Context, picture: PictureStruct, private val env: WuiEnvironment) :
     AppCompatImageView(context) {
     private val widthPx = picture.width.dp(context).roundToInt().coerceAtLeast(1)
     private val heightPx = picture.height.dp(context).roundToInt().coerceAtLeast(1)
@@ -53,7 +54,8 @@ private class PictureView(context: Context, picture: PictureStruct) :
         }
         val density = context.resources.displayMetrics.density
         val bitmaps = WuiComputed.bitmapFromComputed(
-            NativeBindings.waterui_picture_bitmap(picture.picturePtr, density)
+            NativeBindings.waterui_picture_bitmap(picture.picturePtr, density),
+            env
         )
         bitmaps.observe(::show)
         disposeWith(bitmaps)

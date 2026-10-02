@@ -28,6 +28,7 @@ import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
@@ -126,7 +127,7 @@ private class WebViewHostView(
  * application context silently disables all four.
  */
 @Keep
-class WebViewFactory(private val context: Context) {
+class WebViewFactory(private val context: Context, private val env: WuiEnvironment) {
     init {
         if (context.findActivity() == null) {
             Log.w(
@@ -137,7 +138,7 @@ class WebViewFactory(private val context: Context) {
         }
     }
 
-    fun create(assetServer: Long): WebViewWrapper = WebViewWrapper(context, assetServer)
+    fun create(assetServer: Long): WebViewWrapper = WebViewWrapper(context, assetServer, env)
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -201,7 +202,8 @@ class NativeWebViewEventCallback(
 @SuppressLint("SetJavaScriptEnabled")
 class WebViewWrapper(
     context: Context,
-    assetServer: Long
+    assetServer: Long,
+    private val env: WuiEnvironment
 ) {
     private val cookieManager = CookieManager.getInstance()
     private val webView = WebView(context)
@@ -434,7 +436,7 @@ class WebViewWrapper(
 
     fun setRedirectsEnabled(computedPtr: Long) {
         redirectPolicy?.close()
-        redirectPolicy = WuiComputed.bool(computedPtr).also { policy ->
+        redirectPolicy = WuiComputed.bool(computedPtr, env).also { policy ->
             policy.observe { redirectsEnabled = it }
         }
     }
