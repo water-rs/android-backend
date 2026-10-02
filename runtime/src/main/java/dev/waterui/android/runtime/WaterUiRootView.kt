@@ -3,6 +3,7 @@ package dev.waterui.android.runtime
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import androidx.core.graphics.drawable.toDrawable
 import android.view.GestureDetector
 import android.view.MotionEvent
 import dev.waterui.android.ffi.InspectorJni
@@ -28,6 +29,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.view.isEmpty
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import dev.waterui.android.components.WebViewFactory
+import dev.waterui.android.components.gpuSurfaceAvailable
 import dev.waterui.android.components.webViewAvailable
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
@@ -203,28 +205,41 @@ class WaterUiRootView @JvmOverloads constructor(
         // for a device before its first view is inflated. Deferring that cost needs
         // the FFI to install a runtime handle whose device is created on first use;
         // it cannot be deferred from here without breaking the contract above.
-        NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
-            mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
+        //
+        // A package built without the ffi `gpu` feature exports none of the
+        // `gpuRuntime*`/`gpuSurface*` entry points and can never produce a
+        // `GpuSurface`, so the environment is complete without one — the same
+        // gate the webview controller install follows.
+        if (gpuSurfaceAvailable) {
+            NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
+                mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
+            }
+        } else {
+            finishGpuRuntimeInitialization(0L)
         }
     }
 
     private fun finishGpuRuntimeInitialization(runtimePtr: Long) {
         if (closed) {
-            NativeBindings.waterui_drop_gpu_runtime(runtimePtr)
+            if (runtimePtr != 0L) {
+                NativeBindings.waterui_drop_gpu_runtime(runtimePtr)
+            }
             return
         }
 
         val initEnv = checkNotNull(pendingEnvironment) {
             "GPU runtime completed without a pending WaterUI environment"
         }
-        NativeBindings.waterui_env_install_gpu_runtime(initEnv.raw(), runtimePtr)
+        if (runtimePtr != 0L) {
+            NativeBindings.waterui_env_install_gpu_runtime(initEnv.raw(), runtimePtr)
+        }
         pendingEnvironment = null
 
         val app = NativeBindings.waterui_app(initEnv.takeRaw())
         val renderEnv = WuiEnvironment(app.takeEnvironment(), initEnv.fontTable)
         renderEnv.pxPerSp = context.pxPerSp()
         environment = renderEnv
-        bindBackgroundTheme(renderEnv)
+        bindWindowBackground(app.takeBackground())
         val child = inflateAnyView(context, app.takeContent(), renderEnv, registry)
         addView(
             child,
@@ -332,9 +347,24 @@ class WaterUiRootView @JvmOverloads constructor(
         }
     }
 
-    private fun bindBackgroundTheme(env: WuiEnvironment) {
-        backgroundTheme = ThemeBridge.background(env).also { computed ->
-            computed.observe { color -> setBackgroundColor(color.toColorInt()) }
+    /**
+     * Paints the window's reactive background (water-rs/waterui#1308).
+     *
+     * The framework resolves it to one colour signal — the theme background
+     * for an opaque window, the declared colour otherwise — that follows both
+     * a change of the background and a change of its colour. The root view and
+     * the activity window's background drawable both take it, so a translucent
+     * colour reaches the window surface instead of stopping at the view.
+     */
+    private fun bindWindowBackground(backgroundPtr: Long) {
+        val window = context.requireActivity().window
+            ?: error("WaterUiRootView requires a host activity with a window")
+        backgroundTheme = WuiComputed.colorFromComputed(backgroundPtr).also { computed ->
+            computed.observe { color ->
+                val argb = color.toColorInt()
+                setBackgroundColor(argb)
+                window.setBackgroundDrawable(argb.toDrawable())
+            }
         }
     }
 
