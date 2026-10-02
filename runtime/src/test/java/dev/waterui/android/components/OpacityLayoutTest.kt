@@ -8,7 +8,9 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
+import dev.waterui.android.layout.GroupAlphaDraw
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -165,5 +167,34 @@ class OpacityLayoutTest {
         // draws; the group layer dims it to ~half intensity, not opaque white.
         val pixel = bitmap.getPixel(FRAME / 2, FRAME / 2)
         assertTrue(Color.red(pixel) in 96..176)
+    }
+
+    /**
+     * A shadow caster's drawn extent is not its bounds — HWUI's
+     * RenderProperties.getClipDamageToBounds() gives up bounding Z>0 damage
+     * entirely — so a subtree holding one must not get a tightly-bounded
+     * group layer: the saveLayer bounds would cut the shadow at the union
+     * edges.
+     */
+    @Test
+    fun shadowCasterInSubtreeRequestsUnboundedGroupLayer() {
+        val context = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val container = OpacityLayout(context).apply { alpha = 0.5f }
+        val caster = View(context).apply {
+            elevation = 8f
+            outlineProvider = ViewOutlineProvider.BOUNDS
+        }
+        container.addView(caster, FrameLayout.LayoutParams(FRAME, FRAME))
+        layOut(container)
+
+        val helper = GroupAlphaDraw()
+        helper.dispatchDraw(container, Canvas()) {}
+        assertTrue(helper.subtreeCastsShadow)
+
+        val flat = OpacityLayout(context).apply { alpha = 0.5f }
+        flat.addView(View(context), FrameLayout.LayoutParams(FRAME, FRAME))
+        layOut(flat)
+        helper.dispatchDraw(flat, Canvas()) {}
+        assertFalse(helper.subtreeCastsShadow)
     }
 }
