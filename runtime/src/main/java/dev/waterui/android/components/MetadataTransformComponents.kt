@@ -68,7 +68,7 @@ private val metadataScaleRenderer = WuiRenderer { context, node, env, registry -
         fun apply(animation: WuiAnimation) {
             foldedOp.x = scaleX
             foldedOp.y = scaleY
-            FoldedTransform.on(child).recompose(animation)
+            FoldedTransform.on(child).recompose(foldedOp, animation)
         }
         child.bindFloat(metadata.scaleXPtr, env) { value, animation ->
             scaleX = value
@@ -107,7 +107,7 @@ private val metadataRotationRenderer = WuiRenderer { context, node, env, registr
     val op = fold.addRotation(metadata.anchorX, metadata.anchorY)
     child.bindFloat(metadata.anglePtr, env) { angle, animation ->
         op.degrees = angle
-        fold.recompose(animation)
+        fold.recompose(op, animation)
     }
     child
 }
@@ -122,7 +122,7 @@ private val metadataOffsetRenderer = WuiRenderer { context, node, env, registry 
     fun apply(animation: WuiAnimation) {
         op.x = offsetX.dp(context)
         op.y = offsetY.dp(context)
-        fold.recompose(animation)
+        fold.recompose(op, animation)
     }
     child.bindFloat(metadata.offsetXPtr, env) { value, animation ->
         offsetX = value

@@ -17,64 +17,15 @@ internal data class ViewTransform(
 )
 
 /**
- * The five animatable property channels a folded transform is made of. The
- * legs are independent — a channel may be snapped, animated or left running
- * on its own animator while the others are untouched.
+ * The five animatable property channels a view transform is made of; the
+ * spring legs keep one animator per channel so each can be superseded alone.
  */
 internal enum class TransformChannel {
-    SCALE_X, SCALE_Y, ROTATION, TRANSLATION_X, TRANSLATION_Y;
-
-    companion object {
-        val ALL: Set<TransformChannel> = entries.toSet()
-    }
+    SCALE_X, SCALE_Y, ROTATION, TRANSLATION_X, TRANSLATION_Y
 }
-
-internal fun ViewTransform.channelValue(channel: TransformChannel): Float? =
-    when (channel) {
-        TransformChannel.SCALE_X -> scaleX
-        TransformChannel.SCALE_Y -> scaleY
-        TransformChannel.ROTATION -> rotation
-        TransformChannel.TRANSLATION_X -> translationX
-        TransformChannel.TRANSLATION_Y -> translationY
-    }
-
-/** The channels whose composed value differs between this transform and [next]. */
-internal fun ViewTransform.changedChannels(next: ViewTransform): Set<TransformChannel> =
-    TransformChannel.ALL.filterTo(mutableSetOf()) {
-        channelValue(it) != next.channelValue(it)
-    }
 
 internal fun WuiAnimation.Bezier.toInterpolator(): PathInterpolator =
     PathInterpolator(x1, y1, x2, y2)
-
-internal fun ViewPropertyAnimator.setChannel(
-    channel: TransformChannel,
-    value: Float
-): ViewPropertyAnimator = when (channel) {
-    TransformChannel.SCALE_X -> scaleX(value)
-    TransformChannel.SCALE_Y -> scaleY(value)
-    TransformChannel.ROTATION -> rotation(value)
-    TransformChannel.TRANSLATION_X -> translationX(value)
-    TransformChannel.TRANSLATION_Y -> translationY(value)
-}
-
-/** Sets only [channels] of [transform] on the view, leaving the rest alone. */
-internal fun View.applyTransformChannels(
-    channels: Set<TransformChannel>,
-    transform: ViewTransform
-) {
-    channels.forEach { channel ->
-        when (channel) {
-            TransformChannel.SCALE_X -> transform.scaleX?.let { scaleX = it }
-            TransformChannel.SCALE_Y -> transform.scaleY?.let { scaleY = it }
-            TransformChannel.ROTATION -> transform.rotation?.let { rotation = it }
-            TransformChannel.TRANSLATION_X ->
-                transform.translationX?.let { translationX = it }
-            TransformChannel.TRANSLATION_Y ->
-                transform.translationY?.let { translationY = it }
-        }
-    }
-}
 
 /** The channel each spring drives, so a superseded leg can cancel alone. */
 internal fun View.transformSpringAnimations(): Map<TransformChannel, SpringAnimation> =
