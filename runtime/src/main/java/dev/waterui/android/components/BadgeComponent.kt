@@ -4,6 +4,7 @@ import com.google.android.material.badge.BadgeDrawable
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
@@ -30,6 +31,9 @@ private val badgeRenderer = WuiRenderer { context, node, env, registry ->
     // directly instead — the drawable lives in the container's overlay and
     // re-anchors on every layout pass, which is all the util does.
     container.overlay.add(indicator)
+    // The overlay indicator may draw past the container's rect; the tag
+    // tells GroupAlphaDraw the subtree's drawn extent is not its bounds.
+    container.setTag(R.id.wui_overlay_content, true)
     anchor.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
         indicator.updateBadgeCoordinates(view, container)
     }

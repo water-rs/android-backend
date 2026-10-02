@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import dev.waterui.android.layout.GroupAlphaDraw
+import dev.waterui.android.layout.PassThroughFrameLayout
+import dev.waterui.android.runtime.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -174,10 +176,10 @@ class OpacityLayoutTest {
      * RenderProperties.getClipDamageToBounds() gives up bounding Z>0 damage
      * entirely — so a subtree holding one must not get a tightly-bounded
      * group layer: the saveLayer bounds would cut the shadow at the union
-     * edges.
+     * edges. A populated view overlay overhangs the same way.
      */
     @Test
-    fun shadowCasterInSubtreeRequestsUnboundedGroupLayer() {
+    fun contentDrawnOutsideBoundsRequestsUnboundedGroupLayer() {
         val context = Robolectric.buildActivity(Activity::class.java).setup().get()
         val container = OpacityLayout(context).apply { alpha = 0.5f }
         val caster = View(context).apply {
@@ -188,13 +190,70 @@ class OpacityLayoutTest {
         layOut(container)
 
         val helper = GroupAlphaDraw()
-        helper.dispatchDraw(container, Canvas()) {}
-        assertTrue(helper.subtreeCastsShadow)
+        helper.draw(container, Canvas()) {}
+        assertTrue(helper.subtreeDrawsOutsideBounds)
+
+        // A runtime view the Badge renderer tagged when it populated the
+        // view's overlay — overlay content is not enumerable publicly.
+        val overlaid = OpacityLayout(context).apply { alpha = 0.5f }
+        val bearer = PassThroughFrameLayout(context)
+        bearer.setTag(R.id.wui_overlay_content, true)
+        overlaid.addView(bearer, FrameLayout.LayoutParams(FRAME, FRAME))
+        layOut(overlaid)
+        helper.draw(overlaid, Canvas()) {}
+        assertTrue(helper.subtreeDrawsOutsideBounds)
+
+        // A view class outside the runtime's control may carry an
+        // unenumerable overlay or paint past its rect — conservative.
+        val foreign = OpacityLayout(context).apply { alpha = 0.5f }
+        foreign.addView(View(context), FrameLayout.LayoutParams(FRAME, FRAME))
+        layOut(foreign)
+        helper.draw(foreign, Canvas()) {}
+        assertTrue(helper.subtreeDrawsOutsideBounds)
 
         val flat = OpacityLayout(context).apply { alpha = 0.5f }
-        flat.addView(View(context), FrameLayout.LayoutParams(FRAME, FRAME))
+        flat.addView(PassThroughFrameLayout(context), FrameLayout.LayoutParams(FRAME, FRAME))
         layOut(flat)
-        helper.dispatchDraw(flat, Canvas()) {}
-        assertFalse(helper.subtreeCastsShadow)
+        helper.draw(flat, Canvas()) {}
+        assertFalse(helper.subtreeDrawsOutsideBounds)
+    }
+
+    /**
+     * `.offset().border().opacity(0.5)` puts a [PassThroughFrameLayout]
+     * subclass as the alpha host whose `dispatchDraw` paints the stroke
+     * *after* super.dispatchDraw returns — outside any layer that only wraps
+     * children. Compositing wraps the complete draw, so the host's own paint
+     * (background and dispatchDraw additions alike) dims with the group.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun hostOwnPaintIsDimmedByGroupAlpha() {
+        val context = Robolectric.buildActivity(Activity::class.java).setup().get()
+
+        class StrokePainting(context: Context) : PassThroughFrameLayout(context) {
+            override fun dispatchDraw(canvas: Canvas) {
+                super.dispatchDraw(canvas)
+                canvas.drawColor(Color.RED)
+            }
+        }
+
+        // The painted view is itself the alpha host — as BorderLayout is —
+        // so its dispatchDraw stroke is its *own* paint, not a child's.
+        val stroked = StrokePainting(context).apply {
+            alpha = 0.5f
+            setBackgroundColor(Color.BLACK)
+        }
+        layOut(stroked)
+
+        val bitmap = Bitmap.createBitmap(FRAME, FRAME, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+        stroked.draw(canvas)
+
+        // Red stroke over black, faded to half intensity on white:
+        // ~(255, 128, 128), not opaque (255, 0, 0).
+        val pixel = bitmap.getPixel(FRAME / 2, FRAME / 2)
+        assertTrue(Color.red(pixel) > 220)
+        assertTrue(Color.green(pixel) in 96..176)
     }
 }

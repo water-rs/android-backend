@@ -339,15 +339,16 @@ class RustLayoutViewGroup(
 
     override fun hasOverlappingRendering(): Boolean = false
 
-    /** Alpha is composited manually in [dispatchDraw]; the framework must not. */
+    /** Alpha is composited manually in [draw]; the framework must not. */
     override fun onSetAlpha(alpha: Int): Boolean = true
 
-    override fun dispatchDraw(canvas: Canvas) {
-        groupAlpha.dispatchDraw(this, canvas, ::drawChildren)
-    }
-
-    private fun drawChildren(canvas: Canvas) {
-        super.dispatchDraw(canvas)
+    /**
+     * The group alpha must cover the complete draw — background, onDraw,
+     * children and anything a subclass paints in dispatchDraw, decorations,
+     * foreground — so the compositing layer wraps [draw] itself.
+     */
+    override fun draw(canvas: Canvas) {
+        groupAlpha.draw(this, canvas) { super.draw(it) }
     }
 
     private fun isPointInView(view: View, x: Float, y: Float): Boolean {

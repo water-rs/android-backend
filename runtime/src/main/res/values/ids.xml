@@ -12,4 +12,5 @@
     <item name="wui_folded_transform" type="id" />
     <item name="wui_opacity_host" type="id" />
     <item name="wui_shadow_host" type="id" />
+    <item name="wui_overlay_content" type="id" />
 </resources>
