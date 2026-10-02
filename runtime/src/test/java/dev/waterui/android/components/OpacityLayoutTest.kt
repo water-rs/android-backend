@@ -5,12 +5,14 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -130,5 +132,38 @@ class OpacityLayoutTest {
         assertNotEquals(background, singleCoverage)
         assertEquals(singleCoverage, overlap)
         assertEquals(singleCoverage, secondChildOnly)
+    }
+
+    /**
+     * `.border().opacity(0.5)` must dim the border with the content: the
+     * border rides the child's foreground, which `View.draw` renders after
+     * `dispatchDraw` — outside the group-alpha layer — so the ownership rule
+     * wraps the child and the wrapper's layer covers it. This pins the draw
+     * fact the wrap relies on: a foreground inside the subtree is dimmed by
+     * the group alpha.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun childForegroundInsideTheSubtreeIsDimmedByGroupAlpha() {
+        val context = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val container = OpacityLayout(context).apply { alpha = 0.5f }
+        container.addView(
+            View(context).apply {
+                setBackgroundColor(Color.BLACK)
+                foreground = ColorDrawable(Color.WHITE)
+            },
+            FrameLayout.LayoutParams(FRAME, FRAME)
+        )
+        layOut(container)
+
+        val bitmap = Bitmap.createBitmap(FRAME + 16, FRAME + 16, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.BLACK)
+        container.draw(canvas)
+
+        // The white foreground over the black view composites as the subtree's
+        // draws; the group layer dims it to ~half intensity, not opaque white.
+        val pixel = bitmap.getPixel(FRAME / 2, FRAME / 2)
+        assertTrue(Color.red(pixel) in 96..176)
     }
 }

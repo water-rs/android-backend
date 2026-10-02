@@ -1,5 +1,6 @@
 package dev.waterui.android.components
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -19,6 +20,7 @@ import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.PathCommandStruct
+import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ShapeKindStruct
 import dev.waterui.android.runtime.WuiRenderer
@@ -61,14 +63,19 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
     //
     // On API ≥ 30 the shadow is pure view state — elevation, an outline
     // provider, the shadow colors — so `.shadow` folds onto the content view
-    // and claims no wrapper. Before 30 `Outline` takes only convex paths, so
-    // the shadow is painted by an underlay sibling inflated past the
-    // content's bounds on a software layer (`Paint.setShadowLayer` needs it),
-    // and that sibling requires the wrapper.
+    // and claims no wrapper. Those three slots are single-owner: a second
+    // `.shadow` on the same view would overwrite the first instead of
+    // doubling it, so a child already claimed by an inner `.shadow`
+    // ([R.id.wui_shadow_host]) is wrapped and the outer shadow claims the
+    // wrapper's slots. Before 30 `Outline` takes only convex paths, so the
+    // shadow is painted by an underlay sibling inflated past the content's
+    // bounds on a software layer (`Paint.setShadowLayer` needs it), and that
+    // sibling requires the wrapper.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         val child = inflateAnyView(context, metadata.contentPtr, env, registry)
-        child.elevation = metadata.radius.dp(context)
-        child.outlineProvider = object : ViewOutlineProvider() {
+        val host = shadowHostFor(context, child)
+        host.elevation = metadata.radius.dp(context)
+        host.outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) {
                 if (view.width == 0 || view.height == 0) return
                 outline.setPath(
@@ -85,12 +92,12 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
         WuiComputed.colorFromComputed(resolvedPtr, env).also { color ->
             color.observe { resolvedColor ->
                 val shadowColor = resolvedColor.toColorInt()
-                child.outlineAmbientShadowColor = shadowColor
-                child.outlineSpotShadowColor = shadowColor
+                host.outlineAmbientShadowColor = shadowColor
+                host.outlineSpotShadowColor = shadowColor
             }
-            color.attachTo(child)
+            color.attachTo(host)
         }
-        child
+        host
     } else {
         val container = PassThroughFrameLayout(context)
         // `setConvexPath` throws `IllegalArgumentException: path must be
@@ -138,6 +145,25 @@ private val metadataShadowRenderer = WuiRenderer { context, node, env, registry 
         container
     }
 }
+
+/**
+ * The view whose elevation/outline/shadow-color slots this shadow owns.
+ * The child keeps them when unclaimed — folded transforms don't conflict
+ * (the outline and its shadow move with the view, matching an outer shadow
+ * over transformed content) — while a child already shadow-owned is wrapped
+ * in a [PassThroughFrameLayout] so a second `.shadow` casts its own instead
+ * of overwriting the inner slots.
+ */
+internal fun shadowHostFor(context: Context, child: View): View =
+    if (child.getTag(R.id.wui_shadow_host) == null) {
+        child.setTag(R.id.wui_shadow_host, true)
+        child
+    } else {
+        PassThroughFrameLayout(context).apply {
+            addView(child)
+            setTag(R.id.wui_shadow_host, true)
+        }
+    }
 
 /**
  * Draws a shadow for the silhouette on API < 30, where `Outline` cannot take

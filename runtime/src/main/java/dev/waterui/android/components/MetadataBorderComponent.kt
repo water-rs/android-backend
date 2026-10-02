@@ -11,6 +11,7 @@ import android.view.View
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
+import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
@@ -161,6 +162,34 @@ private class BorderLayout(
     }
 }
 
+/**
+ * The view that carries this border's stroke for [child]. `.border` draws on
+ * the frame the modifier occupies in order — an inner `.offset`/`.rotation`
+ * that folded onto the child moves the child's draws inside that frame, so
+ * folding the stroke onto the same view would translate or rotate the border
+ * with them; a child already carrying a foreground (another border, a
+ * component's own foreground) or an inner `.opacity` (whose fade must not
+ * dim this border) keeps a [BorderLayout] wrapper so the effect order holds.
+ */
+internal fun borderHostFor(
+    context: Context,
+    child: View,
+    width: Float,
+    cornerRadius: Float,
+    edges: Int
+): View {
+    val orderConflicts = child.getTag(R.id.wui_folded_transform) != null ||
+        child.getTag(R.id.wui_opacity_host) != null
+    return if (child.foreground == null && !orderConflicts) {
+        BorderDrawable(context, width, cornerRadius, edges).also {
+            child.foreground = it
+        }
+        child
+    } else {
+        BorderLayout(context, width, cornerRadius, edges).apply { addView(child) }
+    }
+}
+
 private val metadataBorderRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_border(node.rawPtr)
     val resolvedPtr = NativeBindings.waterui_resolve_color(metadata.colorPtr, env.raw())
@@ -169,21 +198,21 @@ private val metadataBorderRenderer = WuiRenderer { context, node, env, registry 
     val child = inflateAnyView(context, metadata.contentPtr, env, registry)
     val color = WuiComputed.colorFromComputed(resolvedPtr, env)
 
-    // `.border` folds into the child's foreground drawable; a child already
-    // carrying one keeps a wrapper so the two draw instead of clobbering.
-    if (child.foreground == null) {
-        val drawable = BorderDrawable(context, metadata.width, metadata.cornerRadius, metadata.edges)
-        child.foreground = drawable
-        color.observe { resolved -> drawable.setBorderColor(resolved.toColorInt()) }
-        child.disposeWith(color)
-        child
-    } else {
-        val container = BorderLayout(context, metadata.width, metadata.cornerRadius, metadata.edges)
-        container.addView(child)
-        color.observe { resolved -> container.setBorderColor(resolved.toColorInt()) }
-        container.disposeWith(color)
-        container
+    val host = borderHostFor(
+        context, child, metadata.width, metadata.cornerRadius, metadata.edges
+    )
+    when (host) {
+        child -> {
+            val drawable = child.foreground as BorderDrawable
+            color.observe { resolved -> drawable.setBorderColor(resolved.toColorInt()) }
+        }
+        else -> {
+            val container = host as BorderLayout
+            color.observe { resolved -> container.setBorderColor(resolved.toColorInt()) }
+        }
     }
+    host.disposeWith(color)
+    host
 }
 
 internal fun RegistryBuilder.registerWuiBorder() {

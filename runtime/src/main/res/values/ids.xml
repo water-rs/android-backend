@@ -10,4 +10,6 @@
     <item name="wui_spring_animation" type="id" />
     <item name="wui_transform_spring_animations" type="id" />
     <item name="wui_folded_transform" type="id" />
+    <item name="wui_opacity_host" type="id" />
+    <item name="wui_shadow_host" type="id" />
 </resources>
