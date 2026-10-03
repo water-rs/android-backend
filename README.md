@@ -11,8 +11,6 @@ renders that tree.
   from the repository root with `./gradlew -p backends/android …`.
 - `runtime/` – Android library that ships the JNI bridge, Kotlin runtime
   wrappers, and the production Android View renderer set.
-  - `src/main/cpp/waterui_jni.cpp` – translates between the C ABI from
-    `waterui.h` and JVM-friendly types (`String`, Kotlin data classes, etc.).
   - `src/main/java/dev/waterui/android/runtime/` – Kotlin wrappers (`WuiAnyView`,
     `WuiEnvironment`, layout structs) plus the render registry and entry points.
   - `src/main/java/dev/waterui/android/components/` – View-based renderers for
@@ -98,8 +96,8 @@ See `IMPLEMENTATION_STATUS.md` for the remaining platform gaps.
    `ffi/src/views.rs`, update `ffi/Cargo.toml`, and run `cargo run -p waterui-ffi`
    to regenerate `ffi/waterui.h`. The exported struct should match the data the
    Android renderer needs (labels, bindings, ranges, etc.).
-3. **Extend the JNI bridge** – in `backends/android/runtime/src/main/cpp/waterui_jni.cpp`
-   add functions that mirror the new FFI symbols (e.g. `waterui_picker_id`,
+3. **Extend the JNI bridge** – in waterui's `ffi/src/jni` add functions that
+   mirror the new FFI symbols (e.g. `waterui_picker_id`,
    `waterui_force_as_picker`). Regenerate/commit the corresponding Kotlin data
    class and type identifiers inside `NativeBindings.kt`.
 4. **Add Kotlin interoperability helpers** – if the Picker uses new pointer types
