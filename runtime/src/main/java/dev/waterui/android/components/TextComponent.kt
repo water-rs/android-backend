@@ -2,7 +2,6 @@ package dev.waterui.android.components
 
 import android.view.Gravity
 import android.view.View
-import android.widget.TextView
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
@@ -23,9 +22,9 @@ private val textTypeId: WuiTypeId by lazy {
 
 private val textRenderer = WuiRenderer { context, node, env, _ ->
     val struct = NativeBindings.waterui_force_as_text(node.rawPtr)
-    val computed = WuiComputed.styledString(struct.contentPtr)
-    val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr)
-    val textView = TextView(context)
+    val computed = WuiComputed.styledString(struct.contentPtr, env)
+    val paragraphAlignment = WuiComputed.horizontalAlignment(struct.paragraphAlignmentPtr, env)
+    val textView = WuiTextView(context)
     if (struct.lineLimit > 0) {
         // TextConfig::line_limit: cap the laid-out lines and truncate the last
         // visible one with an ellipsis, the SwiftUI/Material label baseline.
@@ -38,7 +37,10 @@ private val textRenderer = WuiRenderer { context, node, env, _ ->
     }
     foreground.attachTo(textView)
     val bodyFont = ThemeBridge.bodyFont(env)
-    bodyFont.observe(textView::applyResolvedFont)
+    // The content is a styled string whose chunks carry their own
+    // line-height spans; a view-level pin would clamp larger runs to the
+    // body line box.
+    bodyFont.observe { font -> textView.applyResolvedFont(font, env.fontTable, applyLineHeight = false) }
     bodyFont.attachTo(textView)
     paragraphAlignment.observe { alignment ->
         when (alignment) {

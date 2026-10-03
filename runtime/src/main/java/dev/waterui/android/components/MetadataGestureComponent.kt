@@ -322,29 +322,95 @@ private fun compositeTouchHandler(vararg handlers: GestureTouchHandler): Gesture
         }
     }
 
+private const val POINTER_BUTTON_PRIMARY = 1
+private const val POINTER_BUTTON_SECONDARY = 2
+private const val POINTER_BUTTON_MIDDLE = 4
+private const val POINTER_BUTTON_BACK = 8
+private const val POINTER_BUTTON_FORWARD = 16
+
+/// The `WATERUI_POINTER_BUTTON_*` bit of the button that opened this event's
+/// sequence. `MotionEvent.getButtonState()` reports
+/// `BUTTON_PRIMARY`/`BUTTON_SECONDARY`/`BUTTON_TERTIARY` (middle)/
+/// `BUTTON_BACK`/`BUTTON_FORWARD` for `SOURCE_MOUSE` input (ChromeOS, desktop
+/// mode, DeX); `getActionButton()` names the button of an
+/// `ACTION_BUTTON_PRESS`. A finger or a stylus contact with no barrel button
+/// is primary — `buttonState` is zero at its `ACTION_DOWN`.
+private fun pointerButtonMaskBit(event: MotionEvent): Int {
+    val pressed = when (event.actionMasked) {
+        MotionEvent.ACTION_BUTTON_PRESS -> event.actionButton
+        else -> event.buttonState
+    }
+    return when {
+        pressed and MotionEvent.BUTTON_SECONDARY != 0 -> POINTER_BUTTON_SECONDARY
+        pressed and MotionEvent.BUTTON_STYLUS_PRIMARY != 0 -> POINTER_BUTTON_SECONDARY
+        pressed and MotionEvent.BUTTON_TERTIARY != 0 -> POINTER_BUTTON_MIDDLE
+        pressed and MotionEvent.BUTTON_BACK != 0 -> POINTER_BUTTON_BACK
+        pressed and MotionEvent.BUTTON_FORWARD != 0 -> POINTER_BUTTON_FORWARD
+        else -> POINTER_BUTTON_PRIMARY
+    }
+}
+
+/// Feeds [delegate] only the sequences whose pressing button the gesture's
+/// `buttons` mask accepts: a sequence is one button, so the button of the
+/// opening `ACTION_DOWN` (or `ACTION_BUTTON_PRESS`) fixes it, and a press of
+/// another button mid-sequence does not join it.
+private class ButtonFilteredTouchHandler(
+    private val acceptedButtons: Int,
+    private val delegate: GestureTouchHandler
+) : GestureTouchHandler {
+    private var isTracking = false
+
+    override fun onTouch(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_BUTTON_PRESS ->
+                if (!isTracking) {
+                    isTracking = acceptedButtons and pointerButtonMaskBit(event) != 0
+                }
+        }
+        if (!isTracking) {
+            return
+        }
+        delegate.onTouch(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP ||
+            event.actionMasked == MotionEvent.ACTION_CANCEL
+        ) {
+            isTracking = false
+        }
+    }
+}
+
 private fun buildGestureTouchHandler(
     context: Context,
     gestureTree: GestureTree,
     onRecognized: () -> Unit
-): GestureTouchHandler =
-    when (gestureTree.type) {
-        GestureType.TAP -> TapGestureTouchHandler(
-            context = context,
-            requiredTapCount = gestureTree.data.tapCount.also {
-                require(it > 0) { "tap gesture count must be positive" }
-            },
-            onRecognized = onRecognized
+): GestureTouchHandler {
+    return when (gestureTree.type) {
+        GestureType.TAP -> ButtonFilteredTouchHandler(
+            acceptedButtons = gestureTree.data.buttons,
+            delegate = TapGestureTouchHandler(
+                context = context,
+                requiredTapCount = gestureTree.data.tapCount.also {
+                    require(it > 0) { "tap gesture count must be positive" }
+                },
+                onRecognized = onRecognized
+            )
         )
 
-        GestureType.LONG_PRESS -> LongPressGestureTouchHandler(
-            context = context,
-            durationMs = gestureTree.data.longPressDuration,
-            onRecognized = onRecognized
+        GestureType.LONG_PRESS -> ButtonFilteredTouchHandler(
+            acceptedButtons = gestureTree.data.buttons,
+            delegate = LongPressGestureTouchHandler(
+                context = context,
+                durationMs = gestureTree.data.longPressDuration,
+                onRecognized = onRecognized
+            )
         )
 
-        GestureType.DRAG -> DragGestureTouchHandler(
-            minDistance = gestureTree.data.dragMinDistance,
-            onRecognized = onRecognized
+        GestureType.DRAG -> ButtonFilteredTouchHandler(
+            acceptedButtons = gestureTree.data.buttons,
+            delegate = DragGestureTouchHandler(
+                minDistance = gestureTree.data.dragMinDistance,
+                onRecognized = onRecognized
+            )
         )
 
         GestureType.MAGNIFICATION -> ScaleGestureTouchHandler(context, onRecognized)
@@ -410,6 +476,7 @@ private fun buildGestureTouchHandler(
             }
         }
     }
+}
 
 private val metadataGestureRenderer = WuiRenderer { context, node, env, registry ->
     val gestureMetadata = NativeBindings.waterui_force_as_metadata_gesture(node.rawPtr)

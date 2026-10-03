@@ -12,7 +12,7 @@ private val metadataEnvTypeId: WuiTypeId by lazy { NativeBindings.waterui_metada
 
 private val metadataEnvRenderer = WuiRenderer { context, node, env, registry ->
     val metadata = NativeBindings.waterui_force_as_metadata_env(node.rawPtr)
-    val newEnv = WuiEnvironment(metadata.envPtr).also { it.pxPerSp = env.pxPerSp }
+    val newEnv = WuiEnvironment(metadata.envPtr, env.fontTable).also { it.pxPerSp = env.pxPerSp }
     val container = PassThroughFrameLayout(context)
         .attachMetadataContent(context, metadata.contentPtr, newEnv, registry)
     container.disposeWith(newEnv)

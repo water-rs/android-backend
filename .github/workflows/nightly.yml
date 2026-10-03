@@ -36,6 +36,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
   AVD_API_LEVEL: "35"
   AVD_ARCH: x86_64
   AVD_TARGET: google_apis
@@ -58,6 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - name: Checkout android-backend
+        uses: actions/checkout@v4
+
       - name: Checkout waterui (dev)
         uses: actions/checkout@v4
         with:
@@ -65,11 +71,6 @@ jobs:
           ref: dev
           path: waterui
           submodules: recursive
-
-      - name: Overlay android-backend
-        uses: actions/checkout@v4
-        with:
-          path: waterui/backends/android
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -89,6 +90,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default `tools platform-tools` names the legacy
+          # `tools` package, which Google has removed from the SDK
+          # repository manifest — install only platform-tools (adb); the
+          # workflows fetch platforms, build-tools, NDK, emulator and
+          # system images explicitly below.
+          packages: 'platform-tools'
 
       # The generated app and this module both compile against compileSdk 37,
       # and the instrumentation build packages the staged .so through the NDK
@@ -99,7 +107,7 @@ jobs:
           # compileSdk is the source of truth; since API 37 the platform
           # package carries a minor suffix (platforms;android-37.0), so resolve
           # the newest package matching the declared major level.
-          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          compile_sdk="$(sed -n 's/.*compileSdk = \([0-9][0-9]*\).*/\1/p' runtime/build.gradle.kts)"
           platform_pkg="$(sdkmanager --list | grep -oE "platforms;android-${compile_sdk}(\.[0-9]+)?" | sort -Vu | tail -1)"
           if [ -z "$platform_pkg" ]; then
             echo "::error::No installable SDK platform for compileSdk ${compile_sdk}"
@@ -108,23 +116,63 @@ jobs:
           sdkmanager --install "$platform_pkg"
           latest_bt="$(sdkmanager --list | awk -F'|' '{id=$1; gsub(/ /,"",id); if (id ~ /^build-tools;[0-9.]+$/) print id}' | sort -Vu | tail -1)"
           sdkmanager --install "$latest_bt"
-          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' waterui/backends/android/runtime/build.gradle.kts)"
+          ndk_version="$(sed -n 's/.*ndkVersion = "\(.*\)"/\1/p' runtime/build.gradle.kts)"
           sdkmanager --install "ndk;${ndk_version}"
 
       - name: Install the Android Rust targets
-        run: rustup target add $(python3 waterui/backends/android/scripts/ci/e2e.py rust-target all)
+        run: python3 scripts/ci/e2e.py rust-target all | xargs rustup target add
 
-      # Building the workspace's CLI for the Linux host links native libraries
+      # The example build's host-side build scripts link native libraries
       # (libva through waterkit-codec, fonts, EGL, …); the script reuses the
       # package list the waterui checkout maintains rather than drifting a copy.
       - name: Install Linux native dependencies
-        run: python3 waterui/backends/android/scripts/ci/install_linux_deps.py waterui
+        run: python3 scripts/ci/install_linux_deps.py waterui
 
-      - name: Build water CLI
-        run: cargo build --manifest-path waterui/cli/Cargo.toml --bin water
+      # `water` ships from water-rs/cli now — install the `dev` head rather
+      # than building a workspace member. The binary rides its own
+      # actions/cache entry keyed on the resolved cli commit: a hit skips
+      # the compile entirely, a `dev` move misses and rebuilds.
+      - name: Resolve the water-rs/cli dev commit
+        id: cli-rev
+        run: echo "rev=$(git ls-remote https://github.com/water-rs/cli refs/heads/dev | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the water binary
+        id: water-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/water
+            ~/.cargo/bin/water.exe
+          key: water-cli-${{ runner.os }}-${{ steps.cli-rev.outputs.rev }}
+
+      # `serialport` (the cli's default `esp32` feature) builds `libudev-sys`,
+      # whose build script needs `libudev` via pkg-config — absent from the
+      # ubuntu-latest image. Keep default features so CI builds what a user's
+      # `cargo install waterui-cli` produces.
+      - name: Install libudev for the CLI's serialport dependency
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
+      - name: Install the water CLI
+        if: steps.water-cache.outputs.cache-hit != 'true'
+        run: |
+          rm -f "$HOME/.cargo/bin/water" "$HOME/.cargo/bin/water.exe"
+          cargo install --locked \
+            --git https://github.com/water-rs/cli --branch dev \
+            waterui-cli
+
+      # e2e.py pin-backend rewrites the example's Water.toml through tomlkit.
+      - name: Install tomlkit for manifest edits
+        run: python3 -m pip install tomlkit==0.13.3
+
+      # `water package` resolves the runtime from the JitPack coordinate the
+      # pinned framework revision declares unless the manifest names a local
+      # checkout — the instrumentation leg builds the fixture outside
+      # run-shard, so the pin has to be written here explicitly.
+      - name: Point the gesture fixture at this checkout
+        run: python3 scripts/ci/e2e.py pin-backend waterui/examples/gesture
 
       - name: Build the gesture fixture's native library
-        run: waterui/target/debug/water package --platform android --backend android --arch x86-64 --path waterui/examples/gesture
+        run: water package --platform android --backend android --arch x86-64 --debug --path waterui/examples/gesture
 
       # Playground examples keep their generated backend under the CLI's
       # build cache, so locate the staged ABI directory rather than assuming a
@@ -136,10 +184,17 @@ jobs:
             echo "::error::water package produced no x86_64 jniLibs directory"
             exit 1
           fi
-          dest="waterui/backends/android/runtime/src/androidTest/jniLibs/x86_64"
+          dest="runtime/src/androidTest/jniLibs/x86_64"
           mkdir -p "$dest"
           cp "$abi_dir"/*.so "$dest/"
           ls -la "$dest"
+
+      # Host-side guard for the waterui#834 failure mode: a Kotlin
+      # `external fun` whose `Java_*` export went missing detonates
+      # on-device as UnsatisfiedLinkError, so diff the staged .so's
+      # exports against the declarations before spending emulator time.
+      - name: Check JNI symbol coverage
+        run: python3 scripts/ci/check_jni_symbols.py runtime/src/androidTest/jniLibs/x86_64/libwaterui_app.so runtime/src/main/java
 
       - name: Cache AVD
         id: avd-cache
@@ -182,7 +237,11 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # Each `script:` line runs through a fresh `/usr/bin/sh -c`, so this
           # stays a single line — a `cd` on its own line would be forgotten.
-          script: cd waterui/backends/android && ./gradlew --no-daemon :runtime:connectedDebugAndroidTest
+          # `guard-anr` dismisses foreign-package ANR dialogs (usually the
+          # launcher) that would otherwise hold window focus and make Espresso
+          # time out waiting for a focused root — the flake that red-lit two
+          # instrumentation legs in a row.
+          script: python3 scripts/ci/e2e.py guard-anr --duration-s 1500 --protect dev.waterui.android.runtime.test & GUARD=$!; ./gradlew --no-daemon :runtime:connectedDebugAndroidTest; RC=$?; kill $GUARD 2>/dev/null; exit $RC
 
       - name: Upload instrumentation reports
         if: always()
@@ -190,9 +249,37 @@ jobs:
         with:
           name: android-instrumentation-reports
           path: |
-            waterui/backends/android/runtime/build/reports/androidTests/
-            waterui/backends/android/runtime/build/outputs/androidTest-results/
+            runtime/build/reports/androidTests/
+            runtime/build/outputs/androidTest-results/
           if-no-files-found: ignore
+
+  # Merge every shard's per-example metrics into nightly-metrics.json and a
+  # step summary — the numbers are the point of the run, so this renders even
+  # when examples fail.
+  metrics:
+    name: Metrics summary
+    needs: [e2e]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android-e2e-artifacts-shard-*
+          path: /tmp/nightly-artifacts
+          merge-multiple: false
+
+      - name: Aggregate metrics
+        run: python3 scripts/ci/aggregate_metrics.py --artifacts-root /tmp/nightly-artifacts --out nightly-metrics.json
+
+      - name: Upload merged metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-metrics
+          path: nightly-metrics.json
 
   # One issue per broken nightly, updated in place while it stays red, so a
   # failure that nobody was watching is on the board by morning.

@@ -65,6 +65,7 @@ import dev.waterui.android.runtime.NavigationStackStruct
 import dev.waterui.android.runtime.NavigationViewStruct
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ReactiveColorSignal
+import dev.waterui.android.runtime.rendersNothing
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ResolvedColorStruct
@@ -325,7 +326,7 @@ private class NavigationDestinationState(
     private val popPtr: Long,
     private val env: WuiEnvironment
 ) : Closeable {
-    private val popEnabled = WuiComputed.bool(popEnabledPtr)
+    private val popEnabled = WuiComputed.bool(popEnabledPtr, env)
     private var enabled = true
 
     init {
@@ -427,19 +428,19 @@ private fun buildBarSpec(
         )
     }
 
-    val searchBinding = bar.search?.textPtr?.takeIf { it != 0L }?.let { WuiBinding.str(it) }
+    val searchBinding = bar.search?.textPtr?.takeIf { it != 0L }?.let { WuiBinding.str(it, env) }
     val searchPrompt = bar.search?.promptPtr?.takeIf { it != 0L }?.let { promptPtr ->
-        WuiComputed.styledString(promptPtr)
+        WuiComputed.styledString(promptPtr, env)
     }
 
     val colorSignal = if (bar.colorPtr == 0L) {
         ThemeBridge.surface(env)
     } else {
-        WuiComputed.colorFromComputed(bar.colorPtr)
+        WuiComputed.colorFromComputed(bar.colorPtr, env)
     }
 
     val hiddenComputed = bar.hiddenPtr.takeIf { it != 0L }?.let {
-        WuiComputed.bool(it)
+        WuiComputed.bool(it, env)
     }
 
     return NavigationBarSpec(
@@ -768,29 +769,6 @@ private class NavigationBarView(
             group.getChildAt(index).semanticTextView()?.let { return it }
         }
         return null
-    }
-
-    /// Whether this view tree carries nothing the bar could show.
-    ///
-    /// A bar's title and subtitle are always views, so a page that declares no
-    /// subtitle still sends one: WaterUI's empty view, inside whatever scopes
-    /// the tree wrapped around it. That is "no subtitle", not a subtitle the
-    /// bar failed to read, and the two have to be told apart because only the
-    /// second one is a bug.
-    private fun View.rendersNothing(): Boolean {
-        if (this is WuiEmptyView) {
-            return true
-        }
-        val group = this as? ViewGroup ?: return false
-        if (group.isEmpty()) {
-            return false
-        }
-        for (index in 0 until group.childCount) {
-            if (!group.getChildAt(index).rendersNothing()) {
-                return false
-            }
-        }
-        return true
     }
 
     private fun addToolbarView(target: Toolbar, view: View, gravity: Int) {
@@ -1636,9 +1614,16 @@ private fun View.makeTabIconDecorative() {
 }
 
 /// Finds Material's single image slot without depending on a private resource id.
-private fun View.requireTabIconAnchor(): ImageView {
+///
+/// `attached` is the WaterUI icon view a previous `attachIcons` pass may have
+/// already reparented into this item — it must not be counted as Material's
+/// slot or the second pass trips the single-slot check (#114).
+private fun View.requireTabIconAnchor(attached: View?): ImageView {
     var anchor: ImageView? = null
     fun visit(view: View) {
+        if (view === attached) {
+            return
+        }
         if (view is ImageView) {
             check(anchor == null) { "Material navigation item has more than one image slot" }
             anchor = view
@@ -1829,7 +1814,7 @@ private class AdaptiveTabsView(
             val item = checkNotNull(bar.findViewById<View>(entry.id)) {
                 "Material navigation item ${entry.id} was not created"
             }
-            val anchor = item.requireTabIconAnchor()
+            val anchor = item.requireTabIconAnchor(icon.view)
             val innerContainer = checkNotNull(anchor.parent as? ViewGroup) {
                 "Material navigation item ${entry.id} image slot has no container"
             }
@@ -1948,7 +1933,7 @@ private const val SPLIT_DESTINATION_CACHE_CAPACITY = 8
 
 private val tabsRenderer = WuiRenderer { context, node, env, registry ->
     val struct: TabsStruct = NativeBindings.waterui_force_as_tabs(node.rawPtr)
-    val selection = WuiBinding.id(struct.selectionPtr)
+    val selection = WuiBinding.id(struct.selectionPtr, env)
     val entries = struct.tabs.map { tab ->
         val label = inflateAnyView(context, tab.labelPtr, env, registry)
         val title = tabLabelText(label)
@@ -1965,9 +1950,9 @@ private val tabsRenderer = WuiRenderer { context, node, env, registry ->
             tab = tab,
             screen = screen,
             badge = tab.badgePtr.takeIf { it != 0L }?.let { badgePtr ->
-                WuiComputed.int(badgePtr)
+                WuiComputed.int(badgePtr, env)
             },
-            enabled = WuiComputed.bool(tab.enabledPtr)
+            enabled = WuiComputed.bool(tab.enabledPtr, env)
         )
     }
     AdaptiveTabsView(context, entries, selection, struct.style, env, registry).apply {
@@ -2532,11 +2517,11 @@ private val splitNavigationContainerRenderer = WuiRenderer { context, node, env,
     // to `Option<Id>`). Reading it through the `Id` accessors punned the binding
     // to `WuiBinding<Id>`, and clearing the selection then tried to build an
     // `Id` out of 0 — which is a `NonZeroI32` — and killed the process.
-    val primarySelection = WuiBinding.int(struct.primarySelectionPtr)
+    val primarySelection = WuiBinding.int(struct.primarySelectionPtr, env)
     val secondarySelection = struct.secondarySelectionPtr.takeIf { it != 0L }?.let { ptr ->
-        WuiBinding.int(ptr)
+        WuiBinding.int(ptr, env)
     }
-    val columnVisibility = WuiComputed.int(struct.columnVisibilityPtr)
+    val columnVisibility = WuiComputed.int(struct.columnVisibilityPtr, env)
 
     val splitSpec = SplitNavigationSpec(
         sidebarView = sidebar,

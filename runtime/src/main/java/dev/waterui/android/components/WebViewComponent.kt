@@ -15,6 +15,7 @@ import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.annotation.Keep
@@ -27,6 +28,7 @@ import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.R
 import dev.waterui.android.runtime.RegistryBuilder
+import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
@@ -38,6 +40,22 @@ import org.json.JSONObject
 private val LOG_TAG = WaterUiWebViewClient.LOG_TAG
 
 private val webViewTypeId: WuiTypeId by lazy { NativeBindings.waterui_web_view_id().toTypeId() }
+
+/**
+ * The webview bridge exists only when the package links `waterui-ffi/webview`;
+ * without it the exports are absent and every `WatcherJni` webview entry point
+ * throws `UnsatisfiedLinkError`. Registry and environment-install paths must
+ * consult this probe first — the same contract `AndroidVideoSurfaceHost`
+ * follows for `video`.
+ */
+internal val webViewAvailable: Boolean by lazy {
+    try {
+        webViewTypeId
+        true
+    } catch (_: UnsatisfiedLinkError) {
+        false
+    }
+}
 
 private val webViewRenderer = WuiRenderer { context, node, _, _ ->
     val struct = NativeBindings.waterui_force_as_web_view(node.rawPtr)
@@ -109,7 +127,7 @@ private class WebViewHostView(
  * application context silently disables all four.
  */
 @Keep
-class WebViewFactory(private val context: Context) {
+class WebViewFactory(private val context: Context, private val env: WuiEnvironment) {
     init {
         if (context.findActivity() == null) {
             Log.w(
@@ -120,7 +138,7 @@ class WebViewFactory(private val context: Context) {
         }
     }
 
-    fun create(): WebViewWrapper = WebViewWrapper(context)
+    fun create(assetServer: Long): WebViewWrapper = WebViewWrapper(context, assetServer, env)
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -167,6 +185,7 @@ class NativeWebViewEventCallback(
         )
     }
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeOnEvent(
         nativePtr: Long,
         eventType: Int,
@@ -182,10 +201,19 @@ class NativeWebViewEventCallback(
 @Keep
 @SuppressLint("SetJavaScriptEnabled")
 class WebViewWrapper(
-    context: Context
+    context: Context,
+    assetServer: Long,
+    private val env: WuiEnvironment
 ) {
     private val cookieManager = CookieManager.getInstance()
     private val webView = WebView(context)
+
+    /**
+     * The `WuiAssetServer` pointer `create` was handed, live until `release`
+     * frees it through `nativeFreeAssetServer` once `WebView.destroy` has
+     * stopped request interception. Zero means this view serves no assets.
+     */
+    private var assetServerPtr = assetServer
     private val transportScript = context.readRawText(R.raw.waterui_webview_transport)
         .replace(BRIDGE_OBJECT_TOKEN, BRIDGE_OBJECT)
     private val asyncCallTemplate = context.readRawText(R.raw.waterui_webview_async_call)
@@ -239,6 +267,26 @@ class WebViewWrapper(
             }
         }
         webView.webViewClient = object : WaterUiWebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                val server = assetServerPtr
+                val url = request.url
+                if (server == 0L || url.scheme != "https" || url.host != ASSET_HTTPS_HOST) {
+                    return null
+                }
+                // Runs on a WebView worker thread — `nativeAssetRespond` is the
+                // direct JNI entry point that exists precisely for that.
+                val response = nativeAssetRespond(
+                    server,
+                    request.method,
+                    url.encodedPath ?: "/",
+                    url.encodedQuery
+                )
+                return response.toWebResourceResponse()
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView,
                 request: WebResourceRequest
@@ -388,7 +436,7 @@ class WebViewWrapper(
 
     fun setRedirectsEnabled(computedPtr: Long) {
         redirectPolicy?.close()
-        redirectPolicy = WuiComputed.bool(computedPtr).also { policy ->
+        redirectPolicy = WuiComputed.bool(computedPtr, env).also { policy ->
             policy.observe { redirectsEnabled = it }
         }
     }
@@ -603,6 +651,10 @@ class WebViewWrapper(
         webView.webViewClient = WaterUiWebViewClient()
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.destroy()
+        // `destroy` has stopped interception, so no `nativeAssetRespond` call
+        // can still be in flight on a WebView worker thread.
+        nativeFreeAssetServer(assetServerPtr)
+        assetServerPtr = 0L
     }
 
     // =========================================================================
@@ -945,6 +997,7 @@ class WebViewWrapper(
         ?.trim()
         ?.takeIf(String::isNotEmpty)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeCompleteJsResult(
         callbackData: Long,
         callbackFn: Long,
@@ -952,15 +1005,29 @@ class WebViewWrapper(
         result: String
     )
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeCompleteCookies(
         callbackData: Long,
         callbackFn: Long,
         result: String
     )
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeOnBridgeMessage(nativePtr: Long, envelope: String)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     private external fun nativeBridgeScript(): String
+
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
+    private external fun nativeAssetRespond(
+        serverPtr: Long,
+        method: String,
+        path: String,
+        query: String?
+    ): AssetResponse
+
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
+    private external fun nativeFreeAssetServer(serverPtr: Long)
 
     companion object {
         private const val BRIDGE_OBJECT = "__wateruiBridge"
@@ -991,6 +1058,12 @@ class WebViewWrapper(
 
         private const val COOKIE_DOMAIN_ATTRIBUTE = "domain="
 
+        /**
+         * The reserved `.localhost` host the asset origin answers on — RFC 6761
+         * keeps a missed interception from ever resolving off-box.
+         */
+        private const val ASSET_HTTPS_HOST = "waterui.localhost"
+
         private const val EVENT_WILL_NAVIGATE = 1
         private const val EVENT_LOADING = 2
         private const val EVENT_LOADED = 3
@@ -1007,6 +1080,59 @@ class WebViewWrapper(
 private fun Context.readRawText(@RawRes resource: Int): String =
     resources.openRawResource(resource).bufferedReader().use { it.readText() }
 
+/**
+ * One asset-origin reply `nativeAssetRespond` returns.
+ *
+ * Rust `new_object`s this class by name — the constructor signature is part of
+ * the JNI contract, and `headers` is the newline-joined `Name: value` block
+ * `WuiAssetResponse` produces on the C side.
+ */
+@Keep
+class AssetResponse(
+    val status: Int,
+    val headers: String,
+    val body: ByteArray
+) {
+    fun toWebResourceResponse(): WebResourceResponse {
+        val headerMap = linkedMapOf<String, String>()
+        var mimeType = "application/octet-stream"
+        for (line in headers.lineSequence()) {
+            val colon = line.indexOf(':')
+            if (colon <= 0) continue
+            val name = line.substring(0, colon).trim()
+            val value = line.substring(colon + 1).trim()
+            if (name.equals("content-type", ignoreCase = true)) {
+                mimeType = value.substringBefore(';').trim().ifEmpty { mimeType }
+            }
+            headerMap[name] = value
+        }
+        return WebResourceResponse(
+            mimeType,
+            "utf-8",
+            status,
+            assetReasonPhrase(status),
+            headerMap,
+            body.inputStream()
+        )
+    }
+}
+
+/** The reason phrase `WebResourceResponse` insists on, for the statuses an asset origin can emit. */
+private fun assetReasonPhrase(status: Int): String = when (status) {
+    200 -> "OK"
+    204 -> "No Content"
+    400 -> "Bad Request"
+    403 -> "Forbidden"
+    404 -> "Not Found"
+    405 -> "Method Not Allowed"
+    416 -> "Range Not Satisfiable"
+    500 -> "Internal Server Error"
+    else -> "Status $status"
+}
+
 internal fun RegistryBuilder.registerWuiWebView() {
+    // Without the ffi `webview` feature no such view can reach the registry,
+    // so registration is skipped entirely.
+    if (!webViewAvailable) return
     register({ webViewTypeId }, webViewRenderer)
 }

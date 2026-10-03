@@ -1,7 +1,9 @@
 package dev.waterui.android.runtime
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import androidx.core.graphics.drawable.toDrawable
 import android.view.GestureDetector
 import android.view.MotionEvent
 import dev.waterui.android.ffi.InspectorJni
@@ -10,11 +12,13 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatTextView
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import androidx.core.view.ViewCompat
@@ -25,8 +29,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.view.isEmpty
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import dev.waterui.android.components.WebViewFactory
+import dev.waterui.android.components.gpuSurfaceAvailable
+import dev.waterui.android.components.webViewAvailable
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
+
+private const val ROOT_VIEW_LOG_TAG = "WaterUI.RootView"
 
 /** Hosts one Rust-driven WaterUI view tree and owns its native environment. */
 class WaterUiRootView @JvmOverloads constructor(
@@ -39,7 +47,6 @@ class WaterUiRootView @JvmOverloads constructor(
     private var backgroundTheme: WuiComputed<ResolvedColorStruct>? = null
     private var materialTheme: MaterialThemeSignals? = null
     private var rootThemeController: RootThemeController? = null
-    private var safeAreaSignal: ReactiveEdgeInsetsSignal? = null
     /// The last safe area the window dispatched. The content is built long
     /// after the first dispatch arrives, so it is replayed once there is
     /// something to hand it to.
@@ -48,6 +55,7 @@ class WaterUiRootView @JvmOverloads constructor(
     /// release build; see [installInspectGesture].
     private var inspectGesture: GestureDetector? = null
     private var lifecycle: Lifecycle? = null
+    private var runtimeOwner: WaterUiRuntimeOwner? = null
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
@@ -56,12 +64,22 @@ class WaterUiRootView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Mounts a WaterUI root against an explicit runtime owner, for hosts that
+     * bootstrap the runtime themselves through [WaterUiEmbedding] instead of
+     * implementing [WaterUiRuntimeOwner] on their `Application`.
+     */
+    constructor(baseContext: Context, owner: WaterUiRuntimeOwner) : this(baseContext) {
+        runtimeOwner = owner
+    }
+
     init {
         clipChildren = false
         clipToPadding = false
         requireNotNull(context.findWaterUiContext()) {
             "WaterUiRootView is missing its WaterUiContext"
         }.setRootEnvironmentConsumer(::captureRootEnvironment)
+        requestWideGamutColorMode()
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, windowInsets ->
             applySafeArea(windowInsets.waterUiSafeArea())
             windowInsets
@@ -97,10 +115,16 @@ class WaterUiRootView @JvmOverloads constructor(
             check(isEmpty()) { "uninitialized WaterUiRootView has an existing child" }
             beginRenderRoot()
         }
+        // requestApplyInsets before attach can be dropped; re-ask now that a
+        // dispatch is guaranteed to land.
+        ViewCompat.requestApplyInsets(this)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // A move to another display re-reports the gamut the window is on, so
+        // the color mode tracks the configuration alongside locale and theme.
+        requestWideGamutColorMode()
         pendingEnvironment?.let { installSystemLocale(it, newConfig) }
         environment?.let { installSystemLocale(it, newConfig) }
         materialTheme?.update(
@@ -144,8 +168,6 @@ class WaterUiRootView @JvmOverloads constructor(
         disposeAndRemoveAllViews()
         rootThemeController?.close()
         rootThemeController = null
-        safeAreaSignal?.close()
-        safeAreaSignal = null
         backgroundTheme?.close()
         backgroundTheme = null
         materialTheme?.close()
@@ -157,27 +179,24 @@ class WaterUiRootView @JvmOverloads constructor(
     }
 
     private fun beginRenderRoot() {
-        val runtimeOwner = context.applicationContext as? WaterUiRuntimeOwner
+        val owner = runtimeOwner
+            ?: context.applicationContext as? WaterUiRuntimeOwner
             ?: error("WaterUiRootView requires a WaterUiRuntimeOwner Application")
-        val initEnv = runtimeOwner.createWaterUiEnvironment()
+        val initEnv = owner.createWaterUiEnvironment()
         pendingEnvironment = initEnv
         installSystemLocale(initEnv, context.resources.configuration)
-        safeAreaSignal = ReactiveEdgeInsetsSignal(
-            pendingSafeArea,
-            context.resources.displayMetrics.density
-        ).also { signal ->
-            NativeBindings.waterui_env_install_safe_area(initEnv.raw(), signal.takeComputed())
-        }
         materialTheme = MaterialThemeSignals.install(
             env = initEnv,
             palette = MaterialThemePalette.from(context),
             typography = MaterialTypographyPalette.from(context),
             colorScheme = systemColorScheme(context.resources.configuration)
         )
-        NativeBindings.waterui_env_install_webview_controller(
-            initEnv.raw(),
-            WebViewFactory(context)
-        )
+        if (webViewAvailable) {
+            NativeBindings.waterui_env_install_webview_controller(
+                initEnv.raw(),
+                WebViewFactory(context, initEnv)
+            )
+        }
 
         // The environment handed to `waterui_app` must already own the GPU runtime:
         // any `GpuSurface` in the tree resolves it out of the environment while the
@@ -186,28 +205,41 @@ class WaterUiRootView @JvmOverloads constructor(
         // for a device before its first view is inflated. Deferring that cost needs
         // the FFI to install a runtime handle whose device is created on first use;
         // it cannot be deferred from here without breaking the contract above.
-        NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
-            mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
+        //
+        // A package built without the ffi `gpu` feature exports none of the
+        // `gpuRuntime*`/`gpuSurface*` entry points and can never produce a
+        // `GpuSurface`, so the environment is complete without one — the same
+        // gate the webview controller install follows.
+        if (gpuSurfaceAvailable) {
+            NativeBindings.waterui_gpu_runtime_create { runtimePtr ->
+                mainHandler.post { finishGpuRuntimeInitialization(runtimePtr) }
+            }
+        } else {
+            finishGpuRuntimeInitialization(0L)
         }
     }
 
     private fun finishGpuRuntimeInitialization(runtimePtr: Long) {
         if (closed) {
-            NativeBindings.waterui_drop_gpu_runtime(runtimePtr)
+            if (runtimePtr != 0L) {
+                NativeBindings.waterui_drop_gpu_runtime(runtimePtr)
+            }
             return
         }
 
         val initEnv = checkNotNull(pendingEnvironment) {
             "GPU runtime completed without a pending WaterUI environment"
         }
-        NativeBindings.waterui_env_install_gpu_runtime(initEnv.raw(), runtimePtr)
+        if (runtimePtr != 0L) {
+            NativeBindings.waterui_env_install_gpu_runtime(initEnv.raw(), runtimePtr)
+        }
         pendingEnvironment = null
 
         val app = NativeBindings.waterui_app(initEnv.takeRaw())
-        val renderEnv = WuiEnvironment(app.takeEnvironment())
+        val renderEnv = WuiEnvironment(app.takeEnvironment(), initEnv.fontTable)
         renderEnv.pxPerSp = context.pxPerSp()
         environment = renderEnv
-        bindBackgroundTheme(renderEnv)
+        bindWindowBackground(app.takeBackground(), renderEnv)
         val child = inflateAnyView(context, app.takeContent(), renderEnv, registry)
         addView(
             child,
@@ -260,39 +292,49 @@ class WaterUiRootView @JvmOverloads constructor(
         return super.onInterceptTouchEvent(event)
     }
 
-    /// Decides where the window's safe area is spent, and publishes what is
-    /// left for the layers WaterUI lays out itself.
+    /// Hands the window's safe area to the content.
     ///
-    /// Content that owns chrome takes the whole window: padding the root is
-    /// what kept a tab bar's background from reaching under the gesture bar,
-    /// because everything WaterUI drew lived inside the padding and the strip
-    /// the system reserves showed the window background instead of the bar. The
-    /// bar takes that edge itself — see [WuiSafeAreaManaging] — and the
-    /// published insets let the window's own overlay layers, which are siblings
-    /// of the content rather than children of any chrome, do the same.
-    ///
-    /// Ordinary content has nothing to reach the edges with, so the root insets
-    /// it exactly as before and publishes nothing: the overlays are inside that
-    /// padding already, and insetting them again would double it.
+    /// The content takes the whole window and lays itself out against the
+    /// insets: the window's overlay stack and every stack below it place their
+    /// children inside the safe area and extend the scroll surfaces and chrome
+    /// containers that touch its edges (see [WuiSafeAreaManaging]), so the
+    /// insets are applied natively and no layer pads itself again.
     private fun applySafeArea(safeArea: Insets) {
         pendingSafeArea = safeArea
-        val child = getChildAt(0)
-        if (child == null) {
-            safeAreaSignal?.setValue(Insets.NONE)
+        setPadding(0, 0, 0, 0)
+        val child = getChildAt(0) ?: return
+        applyRemainingInsets(child, safeArea)
+    }
+
+    /**
+     * Opts the window into extended-range colors where the display supports them.
+     *
+     * `Window.setColorMode` is what tells SurfaceFlinger this window's surface
+     * carries colors outside sRGB: without it the surface is allocated sRGB and
+     * the extended-range values `Paint` already carries (`Color.pack` into
+     * `LINEAR_EXTENDED_SRGB`, see PackedColorDrawing) clip at composition. The
+     * request runs at view construction, before the window's first attach
+     * commits its attributes, so the common `setContentView` flow never pays
+     * the surface recreation a later request would cost. `isScreenWideColorGamut`
+     * reports the gamut of the display this context is on, so a move between
+     * displays is picked up through `onConfigurationChanged`.
+     */
+    private fun requestWideGamutColorMode() {
+        if (!resources.configuration.isScreenWideColorGamut) {
             return
         }
-        when (val primary = resolvePrimaryContent(child)) {
-            is WuiSafeAreaManaging -> {
-                setPadding(0, 0, 0, 0)
-                safeAreaSignal?.setValue(safeArea)
-                primary.applySafeArea(safeArea)
-            }
-
-            else -> {
-                setPadding(safeArea.left, safeArea.top, safeArea.right, safeArea.bottom)
-                safeAreaSignal?.setValue(Insets.NONE)
-            }
+        val window = context.requireActivity().window
+        if (window == null) {
+            // A request that never reaches the window leaves a wide-gamut
+            // display compositing the app in sRGB while the content already
+            // draws extended range — an error, not a mode to fall back from.
+            Log.e(
+                ROOT_VIEW_LOG_TAG,
+                "Cannot request the wide-gamut color mode: the host activity has no window"
+            )
+            error("WaterUiRootView requires a host activity with a window")
         }
+        window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
     }
 
     private fun captureRootEnvironment(env: WuiEnvironment) {
@@ -305,9 +347,24 @@ class WaterUiRootView @JvmOverloads constructor(
         }
     }
 
-    private fun bindBackgroundTheme(env: WuiEnvironment) {
-        backgroundTheme = ThemeBridge.background(env).also { computed ->
-            computed.observe { color -> setBackgroundColor(color.toColorInt()) }
+    /**
+     * Paints the window's reactive background (water-rs/waterui#1308).
+     *
+     * The framework resolves it to one colour signal — the theme background
+     * for an opaque window, the declared colour otherwise — that follows both
+     * a change of the background and a change of its colour. The root view and
+     * the activity window's background drawable both take it, so a translucent
+     * colour reaches the window surface instead of stopping at the view.
+     */
+    private fun bindWindowBackground(backgroundPtr: Long, env: WuiEnvironment) {
+        val window = context.requireActivity().window
+            ?: error("WaterUiRootView requires a host activity with a window")
+        backgroundTheme = WuiComputed.colorFromComputed(backgroundPtr, env).also { computed ->
+            computed.observe { color ->
+                val argb = color.toColorInt()
+                setBackgroundColor(argb)
+                window.setBackgroundDrawable(argb.toDrawable())
+            }
         }
     }
 
@@ -336,7 +393,11 @@ private fun createMaterialContext(base: Context): Context {
         base,
         com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar
     )
-    return WaterUiContext(DynamicColors.wrapContextIfAvailable(themed))
+    // Material You is canonical MD3, but its wallpaper-seeded palette makes
+    // screenshot goldens nondeterministic; tests opt out through
+    // `waterui.env.WATERUI_DISABLE_DYNAMIC_COLORS`.
+    val dynamic = System.getenv("WATERUI_DISABLE_DYNAMIC_COLORS") == null
+    return WaterUiContext(if (dynamic) DynamicColors.wrapContextIfAvailable(themed) else themed)
 }
 
 private fun systemColorScheme(configuration: Configuration): ColorScheme =
@@ -360,7 +421,9 @@ private data class MaterialThemePalette(
     val tertiary: Int,
     val tertiaryContainer: Int,
     val selectionContainer: Int,
-    val selectionForeground: Int
+    val selectionForeground: Int,
+    val error: Int,
+    val errorForeground: Int
 ) {
     operator fun get(slot: ColorSlot): Int = when (slot) {
         ColorSlot.Background -> background
@@ -376,6 +439,8 @@ private data class MaterialThemePalette(
         ColorSlot.TertiaryContainer -> tertiaryContainer
         ColorSlot.SelectionContainer -> selectionContainer
         ColorSlot.SelectionForeground -> selectionForeground
+        ColorSlot.Error -> error
+        ColorSlot.ErrorForeground -> errorForeground
     }
 
     companion object {
@@ -429,6 +494,16 @@ private data class MaterialThemePalette(
                 context,
                 com.google.android.material.R.attr.colorOnSecondaryContainer,
                 "colorOnSecondaryContainer"
+            ),
+            error = resolve(
+                context,
+                androidx.appcompat.R.attr.colorError,
+                "colorError"
+            ),
+            errorForeground = resolve(
+                context,
+                com.google.android.material.R.attr.colorOnError,
+                "colorOnError"
             )
         )
 
@@ -477,23 +552,23 @@ private data class MaterialTypographyPalette(
             ),
             headline = resolve(
                 context,
-                com.google.android.material.R.attr.textAppearanceTitleLarge,
-                "textAppearanceTitleLarge"
-            ),
-            subheadline = resolve(
-                context,
                 com.google.android.material.R.attr.textAppearanceTitleMedium,
                 "textAppearanceTitleMedium"
             ),
-            caption = resolve(
+            subheadline = resolve(
                 context,
-                com.google.android.material.R.attr.textAppearanceBodySmall,
-                "textAppearanceBodySmall"
+                com.google.android.material.R.attr.textAppearanceTitleSmall,
+                "textAppearanceTitleSmall"
             ),
-            footnote = resolve(
+            caption = resolve(
                 context,
                 com.google.android.material.R.attr.textAppearanceLabelSmall,
                 "textAppearanceLabelSmall"
+            ),
+            footnote = resolve(
+                context,
+                com.google.android.material.R.attr.textAppearanceBodySmall,
+                "textAppearanceBodySmall"
             )
         )
 
@@ -503,18 +578,40 @@ private data class MaterialTypographyPalette(
             attributes.recycle()
             check(appearance != 0) { "WaterUI Material theme is missing $name" }
 
-            val textView = TextView(context)
+            // AppCompatTextView so the app-namespace `lineHeight` in M3 text
+            // appearances resolves on API <28 as well (the framework reads
+            // only `android:lineHeight` there).
+            val textView = AppCompatTextView(context)
             textView.setTextAppearance(appearance)
             val typeface = requireNotNull(textView.typeface) {
                 "WaterUI Material theme $name did not resolve a typeface"
             }
             // Theme font sizes travel in sp so the whole UI follows the
             // user's font-scale setting, mirroring Compose's sp typography.
+            val sizeSp = textView.textSize / context.pxPerSp()
+            // `setTextAppearance` does not apply the typescale's `lineHeight`
+            // through to `TextView.getLineHeight` (that still reports the
+            // face's natural metrics), so read the attribute straight out of
+            // the appearance. The M3 styles set both the appcompat and the
+            // framework spellings; the appcompat one resolves on every API.
+            val lineHeightAttrs = context.obtainStyledAttributes(
+                appearance,
+                intArrayOf(androidx.appcompat.R.attr.lineHeight)
+            )
+            val lineHeightPx =
+                lineHeightAttrs.getDimensionPixelSize(0, textView.lineHeight)
+            lineHeightAttrs.recycle()
             return ResolvedFontStruct(
-                size = textView.textSize / context.pxPerSp(),
+                size = sizeSp,
                 weight = typeface.toWaterUiFontWeight(),
                 family = null,
-                design = ResolvedFontStruct.FONT_DESIGN_DEFAULT
+                design = ResolvedFontStruct.FONT_DESIGN_DEFAULT,
+                // Material text appearances carry the M3 typescale's absolute
+                // line height; report it in sp like the text size above.
+                lineHeight = lineHeightPx / context.pxPerSp(),
+                // `TextView.letterSpacing` is an em fraction; WaterUI's
+                // `letter_spacing` is an absolute point value.
+                letterSpacing = textView.letterSpacing * sizeSp
             )
         }
     }

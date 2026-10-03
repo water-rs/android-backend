@@ -1,7 +1,13 @@
 plugins {
     id("com.android.library")
     id("dev.detekt") version "2.0.0-alpha.6"
+    id("maven-publish")
 }
+
+group = providers.gradleProperty("group").orElse("dev.waterui.android").get()
+version = providers.gradleProperty("version")
+    .orElse(provider { rootProject.file("version.txt").readText().trim() })
+    .get()
 
 android {
     namespace = "dev.waterui.android.runtime"
@@ -26,6 +32,12 @@ android {
         }
     }
 
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
+
     lint {
         targetSdk = 37
         abortOnError = true
@@ -43,6 +55,18 @@ android {
             // Robolectric needs the merged resources of this library and its
             // dependencies to inflate real Material views in a JVM test.
             isIncludeAndroidResources = true
+        }
+    }
+}
+
+publishing {
+    publications {
+        register<MavenPublication>("release") {
+            artifactId = "runtime"
+
+            afterEvaluate {
+                from(components["release"])
+            }
         }
     }
 }
@@ -97,17 +121,17 @@ tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.dynamicanimation:dynamicanimation:1.1.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.3.0")
     implementation("androidx.activity:activity:1.13.0")
-    implementation("androidx.fragment:fragment:1.9.0")
+    implementation("androidx.fragment:fragment:1.9.1")
     implementation("androidx.window:window:1.5.1")
     implementation("androidx.window:window-core-android:1.5.1")
     implementation("androidx.slidingpanelayout:slidingpanelayout:1.2.0")
     implementation("androidx.lifecycle:lifecycle-runtime:2.11.0")
-    implementation("androidx.webkit:webkit:1.17.0")
+    implementation("androidx.webkit:webkit:1.17.1")
     implementation("com.google.android.material:material:1.14.0")
     implementation("me.zhanghai.android.fastscroll:library:1.3.0")
     testImplementation("junit:junit:4.13.2")

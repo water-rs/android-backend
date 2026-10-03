@@ -5,6 +5,7 @@ import android.content.Context
 import android.webkit.WebView
 import dev.waterui.android.components.WebViewFactory
 import dev.waterui.android.reactive.WatcherCallback
+import dev.waterui.android.reactive.WatcherRegistry
 import dev.waterui.android.runtime.*
 
 /**
@@ -23,15 +24,22 @@ object WatcherJni {
     @JvmStatic external fun initializeAndroidContext(activity: Activity): Long
     @JvmStatic external fun releaseAndroidContext(owner: Long)
     @JvmStatic external fun init(): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuRuntimeCreate(callback: GpuRuntimeReadyCallback)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun envInstallGpuRuntime(envPtr: Long, runtimePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun dropGpuRuntime(runtimePtr: Long)
+
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
+    @JvmStatic external fun simulateGpuDeviceLoss(envPtr: Long)
     @JvmStatic external fun app(envPtr: Long): dev.waterui.android.runtime.AppStruct
     @JvmStatic external fun viewBody(viewPtr: Long, envPtr: Long): Long
     @JvmStatic external fun viewId(viewPtr: Long): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun viewStretchAxis(viewPtr: Long): Int
     @JvmStatic external fun cloneEnv(envPtr: Long): Long
     @JvmStatic external fun dropEnv(envPtr: Long)
+    @JvmStatic external fun dropValueFormatter(formatterPtr: Long)
     @JvmStatic external fun envInstallLocaleTag(envPtr: Long, localeTag: String)
     // ========== Force-As Functions ==========
 
@@ -43,6 +51,9 @@ object WatcherJni {
     @JvmStatic external fun forceAsSlider(viewPtr: Long): SliderStruct
     @JvmStatic external fun forceAsStepper(viewPtr: Long): StepperStruct
     @JvmStatic external fun forceAsProgress(viewPtr: Long): ProgressStruct
+    // jni-optional: exported only by waterui-ffi builds carrying the badge
+    // surface; registerWuiBadge tolerates the absence.
+    @JvmStatic external fun forceAsBadge(viewPtr: Long): dev.waterui.android.runtime.BadgeStruct
     @JvmStatic external fun forceAsScrollView(viewPtr: Long): ScrollStruct
     @JvmStatic external fun forceAsColorPicker(viewPtr: Long): ColorPickerStruct
     @JvmStatic external fun forceAsPicker(viewPtr: Long): PickerStruct
@@ -58,6 +69,7 @@ object WatcherJni {
     @JvmStatic external fun forceAsResolvedShape(viewPtr: Long): ResolvedShapeStruct
     @JvmStatic external fun forceAsDynamic(viewPtr: Long): dev.waterui.android.runtime.DynamicStruct
     @JvmStatic external fun forceAsMetadataEnv(viewPtr: Long): MetadataEnvStruct
+    @JvmStatic external fun forceAsMetadataLayoutPriority(viewPtr: Long): MetadataLayoutPriorityStruct
     @JvmStatic external fun forceAsMetadataNavigationTransitionSource(
         viewPtr: Long
     ): MetadataNavigationTransitionStruct
@@ -89,10 +101,61 @@ object WatcherJni {
     @JvmStatic external fun forceAsMetadataFocused(viewPtr: Long): MetadataFocusedStruct
     @JvmStatic external fun forceAsMetadataIgnoreSafeArea(viewPtr: Long): MetadataIgnoreSafeAreaStruct
     @JvmStatic external fun forceAsMetadataRetain(viewPtr: Long): MetadataRetainStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun forceAsWebView(viewPtr: Long): WebViewStruct
     @JvmStatic external fun forceAsMenu(viewPtr: Long): MenuStruct
     @JvmStatic external fun forceAsMenuItem(viewPtr: Long): MenuItemStruct
     @JvmStatic external fun forceAsMetadataContextMenu(viewPtr: Long): MetadataContextMenuStruct
+    @JvmStatic external fun forceAsMetadataAnchoredOverlay(viewPtr: Long): MetadataAnchoredOverlayStruct
+    @JvmStatic external fun forceAsMetadataDraggable(viewPtr: Long): MetadataDraggableStruct
+    @JvmStatic external fun forceAsMetadataDropDestination(viewPtr: Long): MetadataDropDestinationStruct
+
+    // ========== Drag and Drop ==========
+
+    /** Reads the payload a drag starting now carries; release with dropDragPayload. */
+    @JvmStatic external fun draggablePayload(draggablePtr: Long): Long
+    /** The WuiTransferKind ordinal of a payload (0 = text, 1 = URL, 2 = files, 3 = in-process). */
+    @JvmStatic external fun dragPayloadKind(payloadPtr: Long): Int
+    @JvmStatic external fun dragPayloadText(payloadPtr: Long): String
+    @JvmStatic external fun dragPayloadUrl(payloadPtr: Long): String
+    @JvmStatic external fun dragPayloadFiles(payloadPtr: Long): Array<String>
+    @JvmStatic external fun dragPayloadFromText(text: String): Long
+    @JvmStatic external fun dragPayloadFromUrl(url: String): Long
+    @JvmStatic external fun dragPayloadFromFiles(uris: Array<String>): Long
+    @JvmStatic external fun dropDragPayload(payloadPtr: Long)
+    @JvmStatic external fun dropDraggable(draggablePtr: Long)
+    /**
+     * Computes an anchored overlay's frame in window space — the shared
+     * placement contract — so `PopupWindow` is positioned by WaterUI's own
+     * placement function rather than a re-implementation. `envPtr` is the
+     * renderer's `WuiEnv` pointer; `0` computes left-to-right.
+     */
+    @Suppress("LongParameterList") // The placement geometry crosses the ABI flattened.
+    @JvmStatic external fun anchoredOverlayPlace(
+        envPtr: Long,
+        anchorX: Float,
+        anchorY: Float,
+        anchorW: Float,
+        anchorH: Float,
+        windowW: Float,
+        windowH: Float,
+        overlayW: Float,
+        overlayH: Float,
+        edge: Int,
+        alignment: Int,
+        gap: Float,
+        flip: Boolean,
+        clampTag: Int,
+        clampMargin: Float
+    ): dev.waterui.android.runtime.AnchoredOverlayPlacementStruct
+
+    /** Whether a drop destination accepts a payload; gates highlighting and delivery. */
+    @JvmStatic external fun dropDestinationAccepts(destinationPtr: Long, payloadPtr: Long): Boolean
+    /** Delivers an accepted payload; the handle stays owned by the caller. */
+    @JvmStatic external fun dropDestinationOnDrop(destinationPtr: Long, envPtr: Long, payloadPtr: Long)
+    @JvmStatic external fun dropDestinationOnEnter(destinationPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropDestinationOnExit(destinationPtr: Long, envPtr: Long)
+    @JvmStatic external fun dropDropDestination(destinationPtr: Long)
 
     // ========== Drop Functions ==========
 
@@ -104,11 +167,14 @@ object WatcherJni {
     @JvmStatic external fun dropSharedAction(actionPtr: Long)
     @JvmStatic external fun dropTabContent(contentPtr: Long)
     @JvmStatic external fun dropDynamic(dynamicPtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun dropWebView(webviewPtr: Long)
     @JvmStatic external fun dropColor(colorPtr: Long)
     @JvmStatic external fun dropFont(fontPtr: Long)
     @JvmStatic external fun colorFromLinearRgbaHeadroom(red: Float, green: Float, blue: Float, alpha: Float, headroom: Float): Long
     @JvmStatic external fun resolveColor(colorPtr: Long, envPtr: Long): Long
+    // jni-optional: same availability window as the badge surface.
+    @JvmStatic external fun resolveComputedColor(computedColorPtr: Long, envPtr: Long): Long
     @JvmStatic external fun resolveFont(fontPtr: Long, envPtr: Long): Long
     @JvmStatic external fun dropWatcherGuard(guardPtr: Long)
     @JvmStatic external fun getAnimationKindDurationPacked(metadataPtr: Long): Long
@@ -129,21 +195,27 @@ object WatcherJni {
     @JvmStatic external fun readBindingBool(bindingPtr: Long): Boolean
     @JvmStatic external fun readBindingInt(bindingPtr: Long): Int
     @JvmStatic external fun readBindingId(bindingPtr: Long): Int
+    @JvmStatic external fun readBindingIdVec(bindingPtr: Long): IntArray
     @JvmStatic external fun readBindingDouble(bindingPtr: Long): Double
     @JvmStatic external fun readBindingStr(bindingPtr: Long): String
     @JvmStatic external fun readBindingStyledStrPlain(bindingPtr: Long): String
     @JvmStatic external fun readBindingSecure(bindingPtr: Long): String
+    @JvmStatic external fun readBindingAnchorEdge(bindingPtr: Long): Int
     @JvmStatic external fun setBindingBool(bindingPtr: Long, value: Boolean)
     @JvmStatic external fun setBindingInt(bindingPtr: Long, value: Int)
     @JvmStatic external fun setBindingId(bindingPtr: Long, value: Int)
+    @JvmStatic external fun setBindingIdVec(bindingPtr: Long, value: IntArray)
     @JvmStatic external fun setBindingDouble(bindingPtr: Long, value: Double)
     @JvmStatic external fun setBindingStr(bindingPtr: Long, value: String)
     @JvmStatic external fun setBindingStyledStrPlain(bindingPtr: Long, value: String)
     @JvmStatic external fun setBindingSecure(bindingPtr: Long, value: String)
+    @JvmStatic external fun setBindingAnchorEdge(bindingPtr: Long, value: Int)
     @JvmStatic external fun dropBindingSecure(bindingPtr: Long)
+    @JvmStatic external fun dropBindingAnchorEdge(bindingPtr: Long)
     @JvmStatic external fun dropBindingBool(bindingPtr: Long)
     @JvmStatic external fun dropBindingInt(bindingPtr: Long)
     @JvmStatic external fun dropBindingId(bindingPtr: Long)
+    @JvmStatic external fun dropBindingIdVec(bindingPtr: Long)
     @JvmStatic external fun dropBindingDouble(bindingPtr: Long)
     @JvmStatic external fun dropBindingStr(bindingPtr: Long)
     @JvmStatic external fun dropBindingStyledStr(bindingPtr: Long)
@@ -195,35 +267,37 @@ object WatcherJni {
 
     // ========== Watcher Creation ==========
 
-    @JvmStatic external fun createBoolWatcher(callback: WatcherCallback<Boolean>): WatcherStruct
-    @JvmStatic external fun createIntWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createIdWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createCursorStyleWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createColorSchemeWatcher(callback: WatcherCallback<Int>): WatcherStruct
-    @JvmStatic external fun createHorizontalAlignmentWatcher(
-        callback: WatcherCallback<Int>
-    ): WatcherStruct
-    @JvmStatic external fun createDoubleWatcher(callback: WatcherCallback<Double>): WatcherStruct
-    @JvmStatic external fun createFloatWatcher(callback: WatcherCallback<Float>): WatcherStruct
-    @JvmStatic external fun createStringWatcher(callback: WatcherCallback<String>): WatcherStruct
-    @JvmStatic external fun createSecureWatcher(callback: WatcherCallback<String>): WatcherStruct
-    @JvmStatic external fun createStyledStrPlainWatcher(
-        callback: WatcherCallback<String>
-    ): WatcherStruct
-    @JvmStatic external fun createAnyViewWatcher(callback: WatcherCallback<Long>): WatcherStruct
-    @JvmStatic external fun createStyledStrWatcher(callback: WatcherCallback<StyledStrStruct>): WatcherStruct
-    @JvmStatic external fun createResolvedColorWatcher(callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
-    @JvmStatic external fun createResolvedFontWatcher(callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
-    @JvmStatic external fun createBitmapWatcher(callback: WatcherCallback<BitmapStruct>): WatcherStruct
-    @JvmStatic external fun createColorWatcher(callback: WatcherCallback<Long>): WatcherStruct
-    @JvmStatic external fun createDateTimeWatcher(callback: WatcherCallback<DateTimeStruct>): WatcherStruct
-    @JvmStatic external fun createDateVecWatcher(callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
+    /** The per-runtime JNI context every create*Watcher call takes as `contextPtr`; freed by [dropWatcherContext]. */
+    @JvmStatic external fun initWatcherContext(registry: WatcherRegistry): Long
+    @JvmStatic external fun dropWatcherContext(contextPtr: Long)
+
+    @JvmStatic external fun createBoolWatcher(contextPtr: Long, callback: WatcherCallback<Boolean>): WatcherStruct
+    @JvmStatic external fun createIntWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createIdWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createIdVecWatcher(contextPtr: Long, callback: WatcherCallback<IntArray>): WatcherStruct
+    @JvmStatic external fun createCursorStyleWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createColorSchemeWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createHorizontalAlignmentWatcher(contextPtr: Long, callback: WatcherCallback<Int>): WatcherStruct
+    @JvmStatic external fun createDoubleWatcher(contextPtr: Long, callback: WatcherCallback<Double>): WatcherStruct
+    @JvmStatic external fun createFloatWatcher(contextPtr: Long, callback: WatcherCallback<Float>): WatcherStruct
+    @JvmStatic external fun createStringWatcher(contextPtr: Long, callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createSecureWatcher(contextPtr: Long, callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createStyledStrPlainWatcher(contextPtr: Long, callback: WatcherCallback<String>): WatcherStruct
+    @JvmStatic external fun createAnyViewWatcher(contextPtr: Long, callback: WatcherCallback<Long>): WatcherStruct
+    @JvmStatic external fun createStyledStrWatcher(contextPtr: Long, callback: WatcherCallback<StyledStrStruct>): WatcherStruct
+    @JvmStatic external fun createResolvedColorWatcher(contextPtr: Long, callback: WatcherCallback<ResolvedColorStruct>): WatcherStruct
+    @JvmStatic external fun createResolvedFontWatcher(contextPtr: Long, callback: WatcherCallback<ResolvedFontStruct>): WatcherStruct
+    @JvmStatic external fun createBitmapWatcher(contextPtr: Long, callback: WatcherCallback<BitmapStruct>): WatcherStruct
+    @JvmStatic external fun createColorWatcher(contextPtr: Long, callback: WatcherCallback<Long>): WatcherStruct
+    @JvmStatic external fun createDateTimeWatcher(contextPtr: Long, callback: WatcherCallback<DateTimeStruct>): WatcherStruct
+    @JvmStatic external fun createDateVecWatcher(contextPtr: Long, callback: WatcherCallback<Array<DateStruct>>): WatcherStruct
 
     // ========== Watch Binding ==========
 
     @JvmStatic external fun watchBindingBool(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingInt(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingId(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingIdVec(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDouble(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingStr(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingSecure(bindingPtr: Long, watcher: WatcherStruct): Long
@@ -231,6 +305,7 @@ object WatcherJni {
     @JvmStatic external fun watchBindingColor(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateTime(bindingPtr: Long, watcher: WatcherStruct): Long
     @JvmStatic external fun watchBindingDateVec(bindingPtr: Long, watcher: WatcherStruct): Long
+    @JvmStatic external fun watchBindingAnchorEdge(bindingPtr: Long, watcher: WatcherStruct): Long
 
     // ========== Watch Computed ==========
 
@@ -261,25 +336,20 @@ object WatcherJni {
     @JvmStatic external fun reactiveColorSchemeStateToComputed(statePtr: Long): Long
     @JvmStatic external fun reactiveColorSchemeStateSet(statePtr: Long, scheme: Int)
     @JvmStatic external fun dropReactiveColorSchemeState(statePtr: Long)
-    @JvmStatic external fun createReactiveEdgeInsetsState(
-        top: Float,
-        bottom: Float,
-        leading: Float,
-        trailing: Float
+    @JvmStatic external fun createReactiveFontState(
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
     ): Long
-    @JvmStatic external fun reactiveEdgeInsetsStateToComputed(statePtr: Long): Long
-    @JvmStatic external fun reactiveEdgeInsetsStateSet(
-        statePtr: Long,
-        top: Float,
-        bottom: Float,
-        leading: Float,
-        trailing: Float
-    )
-    @JvmStatic external fun dropReactiveEdgeInsetsState(statePtr: Long)
-    @JvmStatic external fun envInstallSafeArea(envPtr: Long, signalPtr: Long)
-    @JvmStatic external fun createReactiveFontState(size: Float, weight: Int): Long
     @JvmStatic external fun reactiveFontStateToComputed(statePtr: Long): Long
-    @JvmStatic external fun reactiveFontStateSet(statePtr: Long, size: Float, weight: Int)
+    @JvmStatic external fun reactiveFontStateSet(
+        statePtr: Long,
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    )
     @JvmStatic external fun dropReactiveFontState(statePtr: Long)
 
     // ========== Theme Functions ==========
@@ -304,7 +374,8 @@ object WatcherJni {
 
     @JvmStatic external fun layoutMeasure(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): ViewDimensionsStruct
     @JvmStatic external fun layoutSizeThatFits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct
-    @JvmStatic external fun layoutPlace(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct>
+    @JvmStatic external fun layoutPlaceSubviews(layoutPtr: Long, bounds: RectStruct, proposal: ProposalStruct, subviews: Array<SubViewStruct>): Array<SubviewPlacementStruct>
+    @JvmStatic external fun layoutStretchAxis(layoutPtr: Long, children: IntArray): Int
     @JvmStatic external fun layoutLazyStackAxis(layoutPtr: Long): Int
     @JvmStatic external fun layoutLazyStackSpacing(layoutPtr: Long): Float
     @JvmStatic external fun layoutLazyStackHorizontalAlignment(layoutPtr: Long): Int
@@ -321,10 +392,14 @@ object WatcherJni {
     @JvmStatic external fun textFieldId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun stepperId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun progressId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional
+    @JvmStatic external fun badgeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun dynamicId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun scrollViewId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun spacerId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun metadataAppliedFilterId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun resolvedColorId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun colorId(): dev.waterui.android.runtime.TypeIdStruct
@@ -367,6 +442,7 @@ object WatcherJni {
     @JvmStatic external fun metadataFocusedId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataIgnoreSafeAreaId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataRetainId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataLayoutPriorityId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataStandardDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun metadataHighDynamicRangeId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun forceAsMetadataStandardDynamicRange(
@@ -376,8 +452,12 @@ object WatcherJni {
         viewPtr: Long
     ): dev.waterui.android.runtime.MetadataDynamicRangeStruct
     @JvmStatic external fun metadataContextMenuId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataAnchoredOverlayId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataDraggableId(): dev.waterui.android.runtime.TypeIdStruct
+    @JvmStatic external fun metadataDropDestinationId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuId(): dev.waterui.android.runtime.TypeIdStruct
     @JvmStatic external fun menuItemId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun webViewId(): dev.waterui.android.runtime.TypeIdStruct
 
     // ========== Navigation Type IDs ==========
@@ -425,12 +505,15 @@ object WatcherJni {
     @JvmStatic external fun navigationCompleteNativePop(envPtr: Long, count: Int)
     @JvmStatic external fun navigationTransitionCompleted(envPtr: Long, id: Long): Boolean
     @JvmStatic external fun navigationTransitionCancelled(envPtr: Long, id: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun envInstallWebViewController(envPtr: Long, factory: WebViewFactory)
     @JvmStatic external fun envHasNavigationController(envPtr: Long): Boolean
 
     // ========== WebView Native Access ==========
 
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun webviewNativeHandle(webviewPtr: Long): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `webview` feature
     @JvmStatic external fun webviewNativeView(handlePtr: Long): WebView
 
     // ========== OnEvent Handler Functions ==========
@@ -452,7 +535,9 @@ object WatcherJni {
 
     // ========== GpuSurface Functions ==========
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun forceAsGpuSurface(viewPtr: Long): dev.waterui.android.runtime.GpuSurfaceStruct
 
     // ========== Picture Functions ==========
@@ -461,16 +546,23 @@ object WatcherJni {
     @JvmStatic external fun forceAsPicture(viewPtr: Long): dev.waterui.android.runtime.PictureStruct
     @JvmStatic external fun pictureBitmap(picturePtr: Long, scale: Float): Long
     @JvmStatic external fun dropPicture(picturePtr: Long)
+    // jni-optional: exported only when the packaged app enables waterui-ffi's
+    // `video` feature; registerWuiAndroidVideoSurfaceHost tolerates the absence.
     @JvmStatic external fun androidVideoSurfaceHostId(): dev.waterui.android.runtime.TypeIdStruct
+    // jni-optional
     @JvmStatic external fun forceAsAndroidVideoSurfaceHost(
         viewPtr: Long
     ): dev.waterui.android.runtime.AndroidVideoSurfaceHostStruct
+    // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostAttach(
         bridgePtr: Long,
         host: android.view.View
     )
+    // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostDrop(bridgePtr: Long)
+    // jni-optional
     @JvmStatic external fun androidVideoSurfaceHostSurfaceDestroyed(bridgePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceCreate(
         owner: android.view.View,
         rendererPtr: Long,
@@ -478,13 +570,17 @@ object WatcherJni {
         pictureInPictureHostId: Long,
         wuiEnvPtr: Long
     ): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceMeasure(
         statePtr: Long,
         width: Float,
         height: Float
     ): ViewDimensionsStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfacePriority(statePtr: Long): Int
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceIsReady(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceAttach(
         statePtr: Long,
         surface: android.view.Surface,
@@ -492,8 +588,10 @@ object WatcherJni {
         height: Int,
         prefersHdr: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceDetach(statePtr: Long)
     @Suppress("LongParameterList") // Signature mirrors the allocation-free native GPU input ABI.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceSetInput(
         statePtr: Long,
         hasPosition: Boolean,
@@ -511,14 +609,17 @@ object WatcherJni {
         panOffsetY: Float,
         doubleTap: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceRender(
         statePtr: Long,
         width: Int,
         height: Int,
         scale: Float
     ): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceWantsInputEvents(statePtr: Long): Boolean
     @Suppress("LongParameterList") // Signature mirrors the flat native surface-input carrier.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceSendInputEvent(
         statePtr: Long,
         kind: Int,
@@ -538,10 +639,14 @@ object WatcherJni {
         isRepeat: Boolean,
         caret: Long
     ): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceImeCaret(statePtr: Long): FloatArray?
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceAccessibilityLabel(statePtr: Long): String
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceAccessibilityValue(statePtr: Long): String
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuSurfaceDrop(statePtr: Long)
 
     // ========== View-capture Functions (AppliedFilter / ViewEffect) ==========
@@ -552,14 +657,17 @@ object WatcherJni {
     // [gpuCaptureFenceOnComplete]'s `completion`, which Rust runs on its GPU
     // completion thread.
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun forceAsMetadataAppliedFilter(
         viewPtr: Long
     ): dev.waterui.android.runtime.AppliedFilterStruct
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterCreate(
         owner: android.view.View,
         filterPtr: Long,
         wuiEnvPtr: Long
     ): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterAttach(
         statePtr: Long,
         surface: android.view.Surface,
@@ -567,21 +675,29 @@ object WatcherJni {
         inputHeight: Int,
         prefersHdr: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterDetach(statePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterSetup(statePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterIsReady(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterResolveOutputSize(
         statePtr: Long,
         inputWidth: Int,
         inputHeight: Int
     ): IntArray
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterPrepareCapture(statePtr: Long, width: Int, height: Int)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterCaptureFormat(statePtr: Long): Int
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterSetCaptureHardwareBuffer(
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long
     @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterCompositeGpuSurface(
         statePtr: Long,
         surfaceStatePtr: Long,
@@ -591,13 +707,17 @@ object WatcherJni {
         height: Int,
         scale: Float
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterRender(statePtr: Long, width: Int, height: Int): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun appliedFilterDrop(statePtr: Long)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun forceAsViewEffect(
         viewPtr: Long
     ): dev.waterui.android.runtime.ViewEffectStruct
     @Suppress("LongParameterList") // The output-size enum crosses the ABI flattened.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectCreate(
         owner: android.view.View,
         effectPtr: Long,
@@ -607,6 +727,7 @@ object WatcherJni {
         outputScale: Float,
         wuiEnvPtr: Long
     ): Long
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectAttach(
         statePtr: Long,
         surface: android.view.Surface,
@@ -614,13 +735,17 @@ object WatcherJni {
         inputHeight: Int,
         prefersHdr: Boolean
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectDetach(statePtr: Long)
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectIsReady(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectSetInputHardwareBuffer(
         statePtr: Long,
         hardwareBuffer: android.hardware.HardwareBuffer
     ): Long
     @Suppress("LongParameterList") // A destination rectangle crosses the ABI flattened.
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectCompositeGpuSurface(
         statePtr: Long,
         surfaceStatePtr: Long,
@@ -630,8 +755,11 @@ object WatcherJni {
         height: Int,
         scale: Float
     )
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectRender(statePtr: Long): Boolean
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun viewEffectDrop(statePtr: Long)
 
+    // jni-optional: exported only when the app enables waterui-ffi's `gpu` feature
     @JvmStatic external fun gpuCaptureFenceOnComplete(fencePtr: Long, completion: Runnable)
 }

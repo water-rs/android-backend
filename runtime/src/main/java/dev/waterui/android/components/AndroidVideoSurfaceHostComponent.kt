@@ -14,11 +14,9 @@ import androidx.core.view.isEmpty
 import dev.waterui.android.layout.PassThroughFrameLayout
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
-import dev.waterui.android.runtime.TAG_STRETCH_AXIS
 import dev.waterui.android.runtime.WuiRenderer
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWith
-import dev.waterui.android.runtime.getWuiStretchAxis
 import dev.waterui.android.runtime.inflateAnyView
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -40,7 +38,6 @@ private val androidVideoSurfaceHostRenderer = WuiRenderer { context, node, env, 
     val content = inflateAnyView(context, host.contentPtr, env, registry)
     AndroidVideoSurfaceHost(context, host.bridgePtr).apply {
         attachContent(content)
-        setTag(TAG_STRETCH_AXIS, content.getWuiStretchAxis())
     }
 }
 
@@ -227,5 +224,13 @@ private class AndroidVideoSurfaceHost(
 }
 
 internal fun RegistryBuilder.registerWuiAndroidVideoSurfaceHost() {
-    register({ androidVideoSurfaceHostTypeId }, androidVideoSurfaceHostRenderer)
+    // The surface host exists only when the package links the self-drawn
+    // player (`waterui-ffi/video`): without it the export is absent and no
+    // such view can reach the registry, so registration is skipped.
+    val typeId = try {
+        androidVideoSurfaceHostTypeId
+    } catch (_: UnsatisfiedLinkError) {
+        return
+    }
+    register({ typeId }, androidVideoSurfaceHostRenderer)
 }

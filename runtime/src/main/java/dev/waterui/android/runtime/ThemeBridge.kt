@@ -88,7 +88,9 @@ class ReactiveFontSignal(initial: ResolvedFontStruct) : Closeable {
         }
         statePtr = NativeBindings.waterui_create_reactive_font_state(
             initial.size,
-            initial.weight
+            initial.weight,
+            initial.lineHeight,
+            initial.letterSpacing
         )
     }
 
@@ -102,7 +104,13 @@ class ReactiveFontSignal(initial: ResolvedFontStruct) : Closeable {
         check(font.family == null) {
             "Android platform theme font signals must use the system font family"
         }
-        NativeBindings.waterui_reactive_font_state_set(requireState(), font.size, font.weight)
+        NativeBindings.waterui_reactive_font_state_set(
+            requireState(),
+            font.size,
+            font.weight,
+            font.lineHeight,
+            font.letterSpacing
+        )
     }
 
     override fun close() {
@@ -133,7 +141,9 @@ enum class ColorSlot(val value: Int) {
     Tertiary(9),
     TertiaryContainer(10),
     SelectionContainer(11),
-    SelectionForeground(12)
+    SelectionForeground(12),
+    Error(13),
+    ErrorForeground(14)
 }
 
 /**
@@ -186,7 +196,7 @@ object ThemeBridge {
     fun colorScheme(env: WuiEnvironment): WuiComputed<Int> {
         val ptr = NativeBindings.waterui_theme_color_scheme(env.raw())
         check(ptr != 0L) { "WaterUI environment has no color-scheme signal" }
-        return WuiComputed.colorScheme(ptr)
+        return WuiComputed.colorScheme(ptr, env)
     }
 
     // ========== Slot-based Color API ==========
@@ -203,7 +213,7 @@ object ThemeBridge {
      */
     fun color(env: WuiEnvironment, slot: ColorSlot): WuiComputed<ResolvedColorStruct> {
         val ptr = NativeBindings.waterui_theme_color(env.raw(), slot.value)
-        return WuiComputed.colorFromComputed(ptr)
+        return WuiComputed.colorFromComputed(ptr, env)
     }
 
     // ========== Slot-based Font API ==========
@@ -220,7 +230,7 @@ object ThemeBridge {
      */
     fun font(env: WuiEnvironment, slot: FontSlot): WuiComputed<ResolvedFontStruct> {
         val ptr = NativeBindings.waterui_theme_font(env.raw(), slot.value)
-        return WuiComputed.fontFromComputed(ptr)
+        return WuiComputed.fontFromComputed(ptr, env)
     }
 
     // ========== Convenience accessors (use slot-based API internally) ==========
@@ -263,6 +273,12 @@ object ThemeBridge {
 
     fun selectionForeground(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
         color(env, ColorSlot.SelectionForeground)
+
+    fun error(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
+        color(env, ColorSlot.Error)
+
+    fun errorForeground(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
+        color(env, ColorSlot.ErrorForeground)
 
     // Non-body slots are consumed on the Rust side through styled text and
     // arrive here already resolved; only the body slot needs a direct

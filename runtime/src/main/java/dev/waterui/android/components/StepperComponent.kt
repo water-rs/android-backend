@@ -6,6 +6,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonGroup
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.NativeBindings
@@ -29,15 +30,15 @@ private val stepperTypeId: WuiTypeId by lazy { NativeBindings.waterui_stepper_id
 // Widget.Material3 colors, typography, and touch targets.
 private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_stepper(node.rawPtr)
-    val binding = WuiBinding.int(struct.bindingPtr)
-    val stepComputed = WuiComputed.int(struct.stepPtr)
+    val binding = WuiBinding.int(struct.bindingPtr, env)
+    val stepComputed = WuiComputed.int(struct.stepPtr, env)
     val rangeStart = struct.rangeStart
     val rangeEnd = struct.rangeEnd
     require(rangeStart <= rangeEnd) { "stepper range must not be empty" }
 
     val spacingPx = 8f.dp(context).toInt()
 
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
@@ -55,7 +56,9 @@ private val stepperRenderer = WuiRenderer { context, node, env, registry ->
     if (struct.valueFormatterPtr != 0L) {
         val valueView = TextView(context)
         val bodyFont = ThemeBridge.bodyFont(env)
-        bodyFont.observe(valueView::applyResolvedFont)
+        // The formatter emits a styled string; its chunks carry their own
+        // line-height spans, so the view-level pin would clamp them.
+        bodyFont.observe { font -> valueView.applyResolvedFont(font, env.fontTable, applyLineHeight = false) }
         bodyFont.attachTo(valueView)
         val value = ReactiveStyledText(struct.valueFormatterPtr, env)
         value.attach { styled -> valueView.text = styled }

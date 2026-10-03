@@ -2,6 +2,10 @@ package dev.waterui.android.runtime
 
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.isEmpty
+import dev.waterui.android.components.WuiEmptyView
+import dev.waterui.android.layout.RustLayoutViewGroup
 
 /**
  * Tag key for storing stretch axis on inflated views.
@@ -88,11 +92,76 @@ fun inflateAnyView(
 }
 
 /**
- * Gets the stretch axis stored on a view during inflation.
+ * The stretch axis this view reports to a WaterUI parent, answered live.
+ *
+ * A view carrying [WuiLiveSlotTraits] — a transparent wrapper forwarding to
+ * its content, or a `RustLayoutViewGroup` recomputing over its current
+ * children — is asked every time, so the answer can never go stale the way a
+ * tag copied at attach time does. Anything else answers with the tag inflation
+ * stamped on it.
  */
 fun View.getWuiStretchAxis(): StretchAxis {
-    return getTag(TAG_STRETCH_AXIS) as? StretchAxis
+    return (this as? WuiLiveSlotTraits)?.resolveWuiStretchAxis()
+        ?: getTag(TAG_STRETCH_AXIS) as? StretchAxis
         ?: error("WaterUI view ${javaClass.name} is missing a valid stretch-axis tag")
 }
 
-fun View.getWuiLayoutPriority(): Int = getTag(TAG_LAYOUT_PRIORITY) as? Int ?: 0
+/**
+ * The layout priority this view reports to a WaterUI parent.
+ *
+ * An explicit tag — stamped by `layoutPriority` metadata or a view with an
+ * intrinsic priority such as `Spacer` — always wins; only without one does
+ * the live answer matter, so an explicit override can never be shadowed by a
+ * stale copy or by the content behind a wrapper.
+ */
+fun View.getWuiLayoutPriority(): Int {
+    return getTag(TAG_LAYOUT_PRIORITY) as? Int
+        ?: (this as? WuiLiveSlotTraits)?.resolveWuiLayoutPriority()
+        ?: 0
+}
+
+/**
+ * Whether this view carries a WaterUI slot identity — a live slot-traits
+ * implementation, a Rust layout it can measure, or the stretch tag inflation
+ * stamps.
+ *
+ * This is what a transparent wrapper looks for when it picks the child whose
+ * slot it stands in: exactly the children that participate in the WaterUI
+ * layout contract. Auxiliary views a host adds for itself — media or capture
+ * surfaces — carry no identity and are never the content.
+ */
+internal fun View.hasWuiSlotIdentity(): Boolean {
+    return this is WuiLiveSlotTraits || this is WuiMeasurableLayout ||
+        getTag(TAG_STRETCH_AXIS) != null
+}
+
+/**
+ * Whether this view is WaterUI's empty view `()`, possibly under
+ * layout-transparent wrappers or hosted by a `Dynamic`.
+ *
+ * This is a semantic answer, not a measured size: a `Color` or `Spacer`
+ * squeezed to zero still renders and still answers false, and so does a
+ * `RustLayoutViewGroup` (a frame or nested stack explicitly claims its
+ * slot — e.g. `().size(w, h)`). Transparent hosts forward the child's
+ * answer. A stack treats a view answering true as a non-member (§4.4: no
+ * slot, no spacing), and the same answer drives the navigation bar's
+ * "no subtitle" check.
+ */
+internal fun View.rendersNothing(): Boolean {
+    if (this is WuiEmptyView) {
+        return true
+    }
+    if (this is RustLayoutViewGroup) {
+        return false
+    }
+    val group = this as? ViewGroup ?: return false
+    if (group.isEmpty()) {
+        return false
+    }
+    for (index in 0 until group.childCount) {
+        if (!group.getChildAt(index).rendersNothing()) {
+            return false
+        }
+    }
+    return true
+}

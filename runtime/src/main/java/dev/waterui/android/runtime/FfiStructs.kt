@@ -99,8 +99,28 @@ data class ViewDimensionsStruct(
 data class RectStruct(var x: Float, var y: Float, var width: Float, var height: Float)
 
 /**
+ * A child's resolved frame plus the proposal the Rust layout selected for it.
+ * Returned by waterui_layout_place_subviews.
+ *
+ * The proposal axes carry the shared contract's encoding: [Float.NaN] for an
+ * axis the layout left unspecified, [Float.POSITIVE_INFINITY] for an
+ * unbounded probe, and a finite value for the offer the layout negotiated
+ * under. The frame is the allocation; the proposal is the negotiation — they
+ * are not interchangeable, and the proposal must never be re-derived from the
+ * frame.
+ */
+data class SubviewPlacementStruct(
+    var x: Float,
+    var y: Float,
+    var width: Float,
+    var height: Float,
+    var proposalWidth: Float,
+    var proposalHeight: Float
+)
+
+/**
  * SubView metadata for the new 2-phase layout system.
- * Used with waterui_layout_size_that_fits and waterui_layout_place.
+ * Used with waterui_layout_size_that_fits and waterui_layout_place_subviews.
  *
  * The view reference is used by the native layer to call back into Java
  * for measuring the child view during layout negotiation.
@@ -112,7 +132,9 @@ data class SubViewStruct(
     val view: android.view.View,
     val stretchAxis: StretchAxis,
     val priority: Int = 0,
-    val density: Float = 1f
+    val density: Float = 1f,
+    val memos: ProbeMemos,
+    val isEmpty: Boolean = false
 ) {
     /**
      * Called by native code to measure this view for a given proposal.
@@ -123,29 +145,200 @@ data class SubViewStruct(
      * @return Measured dimensions in dp for the Rust layout engine
      */
     @Suppress("unused") // Called from native code
-    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct {
-        // Convert dp proposal to pixel MeasureSpec
-        val widthSpec = proposalToMeasureSpec(proposalWidth * density)
-        val heightSpec = proposalToMeasureSpec(proposalHeight * density)
-        view.measure(widthSpec, heightSpec)
-        // Convert pixel result back to dp for Rust
-        return ViewDimensionsStruct(
-            size = SizeStruct(
-                view.measuredWidth.toFloat() / density,
-                view.measuredHeight.toFloat() / density
-            ),
-            horizontalGuides = emptyArray(),
-            verticalGuides = emptyArray()
-        )
-    }
+    fun measureForLayout(proposalWidth: Float, proposalHeight: Float): ViewDimensionsStruct =
+        memos.answer(view, ProposalStruct(proposalWidth, proposalHeight), density)
+}
 
-    private fun proposalToMeasureSpec(proposalPx: Float): Int {
-        return when {
-            proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-            else -> android.view.View.MeasureSpec.makeMeasureSpec(proposalPx.toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+/**
+ * The probe answers memoized for one layout negotiation.
+ *
+ * Rust layout containers probe their children freely — ideal, minimum, and
+ * allocated offers — and a probe repeated under the same proposal must
+ * return the remembered answer instead of measuring the child again (the
+ * Apple backend's `SubViewProxy` memoizes the same way, and the framework's
+ * `with_memoized_children` defines the same scope: one layout pass). A probe
+ * of a nested container re-enters `waterui_layout_*` for that subtree, so a
+ * memo tied to a single JNI call only dedupes within it: each probe of the
+ * nested group re-runs its subtree's probes, multiplying one pass's work
+ * exponentially in the nesting depth. The memo therefore lives here, shared
+ * by every bridge built while the outermost call runs — a nested container
+ * receives this object through [WuiMeasurableLayout.measureForLayout] and
+ * hands it to its own children — so a descendant's answer survives every
+ * nested call of the pass but can never outlive it. No invalidation
+ * propagation is needed or relied upon: content cannot change during a
+ * synchronous negotiation, and the next negotiation builds a new store.
+ */
+class ProbeMemos internal constructor() {
+    /**
+     * One probe: the view and the proposal's raw bits. Raw bits, not float
+     * equality: NaN (unspecified) never equals itself, and -0.0, +0.0, and
+     * the infinities are distinct proposals.
+     */
+    private data class Probe(val view: android.view.View, val widthBits: Int, val heightBits: Int)
+
+    private val measurements = HashMap<Probe, ViewDimensionsStruct>()
+
+    /**
+     * Probes currently being answered. A repeat before the first answer
+     * returns means a container is recursively measuring this child under
+     * the same proposal — a broken layout contract that must not resolve
+     * quietly.
+     */
+    private val activeMeasurements = HashSet<Probe>()
+
+    fun answer(view: android.view.View, proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
+        val key = Probe(view, proposal.width.toRawBits(), proposal.height.toRawBits())
+        measurements[key]?.let { return it }
+        check(activeMeasurements.add(key)) {
+            "WaterUI: recursive layout measurement for proposal (${proposal.width}, ${proposal.height})"
+        }
+        try {
+            val dimensions = view.answerProposal(proposal, density, this)
+            measurements[key] = dimensions
+            return dimensions
+        } finally {
+            activeMeasurements.remove(key)
         }
     }
+}
+
+/**
+ * The probe answer the WaterUI leaf contract requires of this view, in dp.
+ *
+ * A view that implements the contract itself — a view hosting WaterUI
+ * content, or a leaf whose answer MeasureSpec cannot express (text, which a
+ * height proposal must never cap, or a labelled control whose content
+ * negotiates the offer minus its platform chrome) — answers through
+ * [WuiMeasurableLayout]. Any other view is squeezed through
+ * [measureForProposal].
+ */
+internal fun android.view.View.answerProposal(
+    proposal: ProposalStruct,
+    density: Float,
+    memos: ProbeMemos
+): ViewDimensionsStruct {
+    if (this is WuiMeasurableLayout) {
+        return measureForLayout(proposal, memos)
+    }
+    return measureForProposal(proposal, density)
+}
+
+/**
+ * The proposal one axis of a control's WaterUI content hears: the control's
+ * own offer minus the room its platform chrome takes on that axis, floored at
+ * zero. An unspecified (NaN) or unbounded (infinity) offer has no extent to
+ * subtract from, so it passes through untouched.
+ */
+internal fun ProposalStruct.minusChrome(horizontalDp: Float, verticalDp: Float): ProposalStruct =
+    ProposalStruct(
+        width = if (width.isFinite()) (width - horizontalDp).coerceAtLeast(0f) else width,
+        height = if (height.isFinite()) (height - verticalDp).coerceAtLeast(0f) else height
+    )
+
+/**
+ * The answer one axis of a leaf gives a Rust layout probe, in dp.
+ *
+ * On an axis the leaf does not stretch, the answer is the intrinsic extent —
+ * measured under the proposal, so a wrapped label's height reflects the wrap
+ * — never the offer itself: a leaf echoing the proposal on an axis it does
+ * not fill claims room it will not draw, and clamping the intrinsic to the
+ * offer is what made text report zero height to a stack's minimum query. On
+ * an axis the leaf fills, a finite offer is the negotiated extent and is
+ * answered whole — floored at the intrinsic extent, since content cannot
+ * compress below itself — while an unspecified probe reports the intrinsic
+ * and an unbounded one reports the axis as able to absorb any size.
+ */
+internal fun leafAxisAnswer(proposalDp: Float, intrinsicDp: Float, fillsAxis: Boolean): Float =
+    when {
+        !fillsAxis -> intrinsicDp
+        proposalDp.isInfinite() -> Float.POSITIVE_INFINITY
+        proposalDp.isNaN() -> intrinsicDp
+        else -> maxOf(proposalDp, intrinsicDp)
+    }
+
+/**
+ * The probe answer for a view that is all platform chrome — a picker group,
+ * a dropdown field: it measures at its platform intrinsic size and answers
+ * that on each axis it does not fill. See [leafAxisAnswer].
+ */
+internal fun android.view.View.platformIntrinsicAnswer(proposal: ProposalStruct): ViewDimensionsStruct {
+    val density = resources.displayMetrics.density
+    measure(
+        android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+        android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+    )
+    val axis = getTag(TAG_STRETCH_AXIS) as? StretchAxis ?: StretchAxis.NONE
+    return ViewDimensionsStruct(
+        size = SizeStruct(
+            width = leafAxisAnswer(proposal.width, measuredWidth.toFloat() / density, axis.mayFillHorizontal()),
+            height = leafAxisAnswer(proposal.height, measuredHeight.toFloat() / density, axis.mayFillVertical())
+        ),
+        horizontalGuides = emptyArray(),
+        verticalGuides = emptyArray()
+    )
+}
+
+/**
+ * Whether a proposal or placement frame on the horizontal axis can be an
+ * extent this view stretched to fill. `MAIN_AXIS` and `CROSS_AXIS` are
+ * resolved against the parent stack's orientation, which is not visible at
+ * this boundary, so both count: on the axis the parent did not stretch, the
+ * frame is the child's own measured extent and treating it as filled changes
+ * nothing.
+ */
+internal fun StretchAxis.mayFillHorizontal(): Boolean =
+    this != StretchAxis.NONE && this != StretchAxis.VERTICAL
+
+/** See [mayFillHorizontal]. */
+internal fun StretchAxis.mayFillVertical(): Boolean =
+    this != StretchAxis.NONE && this != StretchAxis.HORIZONTAL
+
+/**
+ * Answers a Rust layout probe on behalf of a plain Android view, in dp.
+ *
+ * Only a view implementing the contract itself ([WuiMeasurableLayout])
+ * answers a probe losslessly; anything else is squeezed through MeasureSpec,
+ * which cannot tell an unbounded probe (infinity) from an unspecified one
+ * (NaN) and carries no alignment guides.
+ */
+internal fun android.view.View.measureForProposal(proposal: ProposalStruct, density: Float): ViewDimensionsStruct {
+    // Convert dp proposal to pixel MeasureSpec
+    measure(
+        proposalToMeasureSpec(proposal.width * density),
+        proposalToMeasureSpec(proposal.height * density)
+    )
+    // Convert pixel result back to dp for Rust
+    return ViewDimensionsStruct(
+        size = SizeStruct(
+            measuredWidth.toFloat() / density,
+            measuredHeight.toFloat() / density
+        ),
+        horizontalGuides = emptyArray(),
+        verticalGuides = emptyArray()
+    )
+}
+
+/**
+ * The MeasureSpec a Rust proposal axis spells for a plain Android child, in
+ * pixels: an unspecified (NaN) or unbounded (infinity) axis leaves the child
+ * free, while a finite offer caps it at the offered size.
+ */
+internal fun proposalToMeasureSpec(proposalPx: Float): Int {
+    return when {
+        proposalPx.isNaN() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        proposalPx.isInfinite() -> android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        else -> android.view.View.MeasureSpec.makeMeasureSpec(kotlin.math.ceil(proposalPx).toInt().coerceAtLeast(0), android.view.View.MeasureSpec.AT_MOST)
+    }
+}
+
+/**
+ * The proposal axis a MeasureSpec spells for a Rust layout, in pixels: only a
+ * spec that names a bound is an offer; UNSPECIFIED leaves the axis
+ * unspecified.
+ */
+internal fun measureSpecToProposalPx(spec: Int): Float = when (android.view.View.MeasureSpec.getMode(spec)) {
+    android.view.View.MeasureSpec.UNSPECIFIED -> Float.NaN
+    else -> android.view.View.MeasureSpec.getSize(spec).toFloat()
 }
 
 // ========== Watcher Structs ==========
@@ -189,7 +382,13 @@ data class TextFieldStruct(
      * Maximum number of lines the field accepts: `1` is single-line, a larger
      * value caps a multi-line field, and `0` means no limit.
      */
-    val lineLimit: Int
+    val lineLimit: Int,
+    /**
+     * `WuiSharedAction` run when the user submits a single-line field with
+     * Return, or `0` when the field has none. Owned by the backend: drop it
+     * with `waterui_drop_shared_action` when the view dies.
+     */
+    val onSubmitPtr: Long,
 )
 
 enum class MenuItemTag(val value: Int) {
@@ -203,12 +402,23 @@ enum class MenuItemTag(val value: Int) {
     }
 }
 
+enum class CommandRole(val value: Int) {
+    STANDARD(0),
+    DESTRUCTIVE(1);
+
+    companion object {
+        fun fromInt(value: Int): CommandRole = entries.firstOrNull { it.value == value }
+            ?: error("unsupported command role: $value")
+    }
+}
+
 /**
  * Android intentionally omits `SystemIcon` from semantic menu nodes.
  *
  * `SystemIcon` is not a reliable cross-platform contract here, and icon-pack based icons currently live in the
  * regular view layer rather than the semantic menu payload.
  */
+@Suppress("LongParameterList") // JNI constructor signature mirrors WuiMenuItem exactly.
 data class MenuItemStruct(
     val tag: Int,
     val labelPtr: Long,
@@ -220,6 +430,8 @@ data class MenuItemStruct(
     val shift: Boolean,
     val option: Boolean,
     val control: Boolean,
+    val role: Int,
+    val subtitle: String?,
     val itemsPtr: Long
 )
 
@@ -229,9 +441,45 @@ data class MenuStruct(
     val accessibilityLabelPtr: Long
 )
 
+/**
+ * A zero preview or accessory pointer means the context menu has none; a zero
+ * dismiss-requests pointer means it carries no `Computed<i32>` channel.
+ */
 data class MetadataContextMenuStruct(
     val contentPtr: Long,
-    val itemsPtr: Long
+    val itemsPtr: Long,
+    val previewPtr: Long,
+    val accessoryPtr: Long,
+    val dismissRequestsPtr: Long
+)
+
+/**
+ * `edge`/`alignment`/`clampTag`/`dismissal` carry the Rust enum ordinals from
+ * `WuiAnchorEdge`/`WuiEdgeAlignment`/`WuiClampTag`/`WuiDismissal`;
+ * `clampMargin` only applies when `clampTag` is the `Window` variant (1).
+ */
+data class MetadataAnchoredOverlayStruct(
+    val contentPtr: Long,
+    val overlayContentPtr: Long,
+    val isPresentedPtr: Long,
+    val edge: Int,
+    val alignment: Int,
+    val gap: Float,
+    val flip: Boolean,
+    val clampTag: Int,
+    val clampMargin: Float,
+    val dismissal: Int,
+    val placedEdgePtr: Long
+)
+
+/** The overlay's placed frame plus the physical edge (WuiPhysicalEdge: 0 Top, 1 Bottom, 2 Left, 3 Right — Leading/Trailing already resolved under the layout direction) it ended up against. */
+data class AnchoredOverlayPlacementStruct(
+    val x: Float,
+    val y: Float,
+    val width: Float,
+    val height: Float,
+    val edge: Int,
+    val logicalEdge: Int
 )
 
 data class SecureFieldStruct(
@@ -254,7 +502,9 @@ data class SliderStruct(
     val maxLabelPtr: Long,
     val rangeStart: Double,
     val rangeEnd: Double,
-    val bindingPtr: Long
+    val bindingPtr: Long,
+    val size: Int,
+    val valueFormatterPtr: Long
 )
 
 data class StepperStruct(
@@ -275,12 +525,22 @@ data class ProgressStruct(
     val fourColor: Boolean
 )
 
+data class BadgeStruct(
+    val valuePtr: Long,
+    val contentPtr: Long,
+    val colorPtr: Long
+)
+
 data class ScrollStruct(
     val axis: Int,
     val contentPtr: Long,
     val targetXPtr: Long,
     val targetYPtr: Long,
-    val scrollGenerationPtr: Long
+    val scrollGenerationPtr: Long,
+    // `report_offset` bindings (0 if none connected). The Android backend
+    // is frozen for features: the offset is left unreported until then.
+    val offsetXPtr: Long,
+    val offsetYPtr: Long
 )
 
 data class DynamicStruct(val dynamicPtr: Long)
@@ -355,6 +615,13 @@ data class ColorPickerStruct(
  */
 data class MetadataEnvStruct(val contentPtr: Long, val envPtr: Long)
 
+/**
+ * Metadata<LayoutPriority> struct.
+ * Carries the explicit layout priority a `layoutPriority` modifier assigns
+ * to its content.
+ */
+data class MetadataLayoutPriorityStruct(val contentPtr: Long, val value: Int)
+
 data class MetadataNavigationTransitionStruct(val contentPtr: Long, val id: Int)
 
 // ========== Metadata Structs ==========
@@ -402,7 +669,7 @@ data class MetadataGestureStruct(
 
 /**
  * Gesture-specific data union.
- * Note: No default values - JNI requires explicit constructor signature (IIFFFFJJ)V
+ * Note: No default values - JNI requires explicit constructor signature (IIFFFIJJ)V
  */
 data class GestureDataStruct(
     val tapCount: Int,
@@ -410,6 +677,7 @@ data class GestureDataStruct(
     val dragMinDistance: Float,
     val magnificationInitialScale: Float,
     val rotationInitialAngle: Float,
+    val buttons: Int,
     val thenFirstPtr: Long,
     val thenSecondPtr: Long
 )
@@ -457,14 +725,43 @@ data class MetadataLifecycleHookStruct(
 
 /**
  * Metadata<Shadow> struct for shadow effects.
+ *
+ * The silhouette rides the same (kind, commands) pair a clip shape does: the
+ * kind says what the caster is, the unit-space commands are the fallback for
+ * `ShapeKind::CustomPath`.
  */
 data class MetadataShadowStruct(
     val contentPtr: Long,
     val colorPtr: Long,
     val offsetX: Float,
     val offsetY: Float,
-    val radius: Float
-)
+    val radius: Float,
+    val silhouetteKind: ShapeKindStruct,
+    val silhouetteCommands: Array<PathCommandStruct>
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is MetadataShadowStruct) return false
+        return contentPtr == other.contentPtr &&
+            colorPtr == other.colorPtr &&
+            offsetX == other.offsetX &&
+            offsetY == other.offsetY &&
+            radius == other.radius &&
+            silhouetteKind == other.silhouetteKind &&
+            silhouetteCommands.contentEquals(other.silhouetteCommands)
+    }
+
+    override fun hashCode(): Int {
+        var result = contentPtr.hashCode()
+        result = 31 * result + colorPtr.hashCode()
+        result = 31 * result + offsetX.hashCode()
+        result = 31 * result + offsetY.hashCode()
+        result = 31 * result + radius.hashCode()
+        result = 31 * result + silhouetteKind.hashCode()
+        result = 31 * result + silhouetteCommands.contentHashCode()
+        return result
+    }
+}
 
 data class MetadataBorderStruct(
     val contentPtr: Long,
@@ -567,6 +864,26 @@ data class MetadataIgnoreSafeAreaStruct(
 data class MetadataRetainStruct(
     val contentPtr: Long,
     val retainPtr: Long
+)
+
+/**
+ * Metadata<Draggable> struct for drag sources.
+ * draggablePtr is an opaque handle released via WatcherJni.dropDraggable.
+ */
+data class MetadataDraggableStruct(
+    val contentPtr: Long,
+    val draggablePtr: Long
+)
+
+/**
+ * Metadata<DropDestination> struct for drop targets.
+ * destinationPtr is an opaque handle released via WatcherJni.dropDropDestination.
+ * acceptedKind is the WuiTransferKind ordinal the destination accepts.
+ */
+data class MetadataDropDestinationStruct(
+    val contentPtr: Long,
+    val destinationPtr: Long,
+    val acceptedKind: Int
 )
 
 // ========== Text Styling Structs ==========
@@ -773,7 +1090,11 @@ data class ResolvedFontStruct(
     val weight: Int,
     val family: String?,
     /** Ordinal of `WuiFontDesign`: which platform face to use when [family] is null. */
-    val design: Int
+    val design: Int,
+    /** Absolute line height in sp; `0f` keeps the face's natural metrics. */
+    val lineHeight: Float = 0f,
+    /** Additional spacing between adjacent glyphs in sp. */
+    val letterSpacing: Float = 0f
 ) {
     val isMonospaced: Boolean
         get() = when (design) {
@@ -928,29 +1249,41 @@ data class TabsStruct(
 /**
  * List component data.
  * - contentsPtr: WuiAnyViews pointer containing ListItem views
+ * - selectionMode: WuiListSelectionMode (0 = none, 1 = single, 2 = multiple)
+ * - selectionSinglePtr: Binding<i32> erased-id pointer, 0 standing for
+ *   "nothing selected" (non-null only in single mode)
+ * - selectionMultiplePtr: Binding<Vec<Id>> pointer (non-null only in multiple
+ *   mode)
  * - editingPtr: Computed<Boolean> pointer for edit mode
  * - onDeletePtr: IndexAction pointer (0 if unsupported)
  * - onMovePtr: MoveAction pointer (0 if unsupported)
  * - targetIndexPtr: Computed<Int> requested row (0 if uncontrolled)
  * - scrollGenerationPtr: Computed<Int> request generation (0 if uncontrolled)
+ * - hasMinRowHeight: whether minRowHeight holds a value; false keeps the
+ *   theme's one-line row height
+ * - minRowHeight: the row height floor in points when hasMinRowHeight is
+ *   true; 0 sizes each row to its content plus its insets
  */
 data class ListStruct(
     val contentsPtr: Long,
+    val selectionMode: Int,
+    val selectionSinglePtr: Long,
+    val selectionMultiplePtr: Long,
     val editingPtr: Long,
     val onDeletePtr: Long,
     val onMovePtr: Long,
     val targetIndexPtr: Long,
     val scrollGenerationPtr: Long,
-    val usesSections: Boolean
+    val usesSections: Boolean,
+    val hasMinRowHeight: Boolean,
+    val minRowHeight: Float
 )
 
 /**
  * ListItem component data.
  * - contentPtr: AnyView pointer for item content
  * - deletablePtr: Computed<Boolean> pointer controlling item delete ability
- * - selectedPtr: Computed<Boolean> pointer marking the row as the current selection
- */
-/**
+ *
  * A list row, plus the section break it may open.
  *
  * `hasSection` distinguishes "this row starts a new section" from "this row
@@ -958,27 +1291,64 @@ data class ListStruct(
  * pure divider, so both text pointers are then `0`. The two pointers are
  * reactive styled-text signals, not resolved strings: a section title
  * localizes and can be driven by app state.
+ *
+ * Selected state no longer rides the row: the list-level selection on
+ * `ListStruct` owns it.
+ *
+ * `hasInsets` selects between the theme's row insets and the
+ * `insetTop`/`insetLeading`/`insetBottom`/`insetTrailing` edges, in points —
+ * the space between the row's edges and its content. The JNI conversion
+ * frees the owning `WuiEdgeInsets` while flattening it into these fields.
  */
 data class ListItemStruct(
     val contentPtr: Long,
     val deletablePtr: Long,
-    val selectedPtr: Long,
     val hasSection: Boolean,
     val sectionLabelPtr: Long,
-    val sectionFooterPtr: Long
+    val sectionFooterPtr: Long,
+    val hasInsets: Boolean,
+    val insetTop: Float,
+    val insetLeading: Float,
+    val insetBottom: Float,
+    val insetTrailing: Float
+)
+
+/**
+ * The four edges of a `WuiEdgeInsets`, in points, carried by
+ * `ListItemStruct`'s `hasInsets`/`inset*` fields.
+ *
+ * `leading`/`trailing` follow text direction — they map to the start and end
+ * edges on Android, so the pair swaps sides under RTL.
+ */
+data class EdgeInsetsStruct(
+    val top: Float,
+    val leading: Float,
+    val bottom: Float,
+    val trailing: Float
 )
 
 // ========== App Struct ==========
 
-/** Move-only Android projection of the app's main content and environment. */
-class AppStruct(contentPtr: Long, envPtr: Long) {
+/**
+ * Move-only Android projection of the app's main content, environment and the
+ * window's resolved background colour signal.
+ */
+class AppStruct(contentPtr: Long, envPtr: Long, backgroundPtr: Long) {
     private var ownedContentPtr = contentPtr
     private var ownedEnvironmentPtr = envPtr
+    private var ownedBackgroundPtr = backgroundPtr
 
     init {
         require(contentPtr != 0L) { "AppStruct.contentPtr is null" }
         require(envPtr != 0L) { "AppStruct.envPtr is null" }
+        require(backgroundPtr != 0L) { "AppStruct.backgroundPtr is null" }
     }
+
+    /** A `WuiComputed<ResolvedColor>`: the window background to paint. */
+    fun takeBackground(): Long = takeOwnedPointer(
+        pointer = ownedBackgroundPtr,
+        name = "AppStruct.backgroundPtr"
+    ).also { ownedBackgroundPtr = 0L }
 
     fun takeContent(): Long = takeOwnedPointer(
         pointer = ownedContentPtr,

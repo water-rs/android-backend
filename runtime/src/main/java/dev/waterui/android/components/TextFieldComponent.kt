@@ -2,7 +2,9 @@ package dev.waterui.android.components
 
 import android.text.InputType
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
 import androidx.core.widget.addTextChangedListener
 import dev.waterui.android.layout.AxisExpandingLinearLayout
@@ -31,9 +33,9 @@ private const val KEYBOARD_PHONE = 4
 
 private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_text_field(node.rawPtr)
-    val binding = WuiBinding.styledPlain(struct.valuePtr)
-    val promptComputed = WuiComputed.styledString(struct.promptPtr)
-    val promptAlignment = WuiComputed.horizontalAlignment(struct.promptAlignmentPtr)
+    val binding = WuiBinding.styledPlain(struct.valuePtr, env)
+    val promptComputed = WuiComputed.styledString(struct.promptPtr, env)
+    val promptAlignment = WuiComputed.horizontalAlignment(struct.promptAlignmentPtr, env)
 
     val container = AxisExpandingLinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
@@ -53,6 +55,22 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
     }
     editText.installWuiFocusTarget(WuiTextInputFocusTarget(editText))
     installTextSelectionMenu(editText, struct.selectionMenuPtr, env)
+
+    // `on_submit` fires on Return in a single-line field. A multi-line field
+    // keeps Return for newlines and never submits; the IME action only exists
+    // when `isSingleLine` is set anyway. Backend frozen: this diverges from
+    // the #1265 contract, under which any line-limited field submits.
+    if (singleLine && struct.onSubmitPtr != 0L) {
+        editText.imeOptions = EditorInfo.IME_ACTION_DONE
+        editText.setOnEditorActionListener { _, actionId, event ->
+            val isSubmit = actionId == EditorInfo.IME_ACTION_DONE ||
+                (actionId == EditorInfo.IME_ACTION_UNSPECIFIED && event?.keyCode == KeyEvent.KEYCODE_ENTER)
+            if (isSubmit) {
+                NativeBindings.waterui_call_shared_action(struct.onSubmitPtr, env.raw())
+            }
+            isSubmit
+        }
+    }
     container.addView(input.layout)
 
     val bindingSynchronizer = TextInputBindingSynchronizer(
@@ -113,6 +131,9 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
 
     container.disposeWith {
         editText.removeTextChangedListener(textWatcher)
+        if (struct.onSubmitPtr != 0L) {
+            NativeBindings.waterui_drop_shared_action(struct.onSubmitPtr)
+        }
         binding.close()
         promptBinding?.close()
         promptComputed.close()

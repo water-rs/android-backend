@@ -20,7 +20,7 @@ private val metadataFocusedRenderer = WuiRenderer { context, node, env, registry
     val container = PassThroughFrameLayout(context)
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
 
-    val focusBinding = WuiBinding.bool(metadata.bindingPtr)
+    val focusBinding = WuiBinding.bool(metadata.bindingPtr, env)
     val focusTarget = container.requireSingleWuiFocusTarget()
     container.disposeWith(WuiFocusedBindingController(container, focusTarget, focusBinding.asFocusStateBinding()))
     container

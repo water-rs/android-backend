@@ -20,6 +20,6 @@ object InteractionBridge {
     fun disabled(env: WuiEnvironment): WuiComputed<Boolean> {
         val ptr = NativeBindings.waterui_env_disabled(env.raw())
         check(ptr != 0L) { "WaterUI environment has no disabled signal" }
-        return WuiComputed.bool(ptr)
+        return WuiComputed.bool(ptr, env)
     }
 }

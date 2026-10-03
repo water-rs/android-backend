@@ -28,7 +28,13 @@ private class ClipShapeLayout(
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
-        clipPath = buildShapePath(kind, commands, width.toFloat(), height.toFloat())
+        clipPath = buildShapePath(
+            kind,
+            commands,
+            width.toFloat(),
+            height.toFloat(),
+            resources.displayMetrics.density
+        )
     }
 
     override fun dispatchDraw(canvas: Canvas) {

@@ -7,6 +7,7 @@ import dev.waterui.android.runtime.DateStruct
 import dev.waterui.android.runtime.DateTimeStruct
 import dev.waterui.android.runtime.WatcherStruct
 import dev.waterui.android.runtime.WuiAnimation
+import dev.waterui.android.runtime.WuiEnvironment
 
 /**
  * Generic binding wrapper translated from the Swift implementation. Exposes
@@ -55,6 +56,9 @@ class WuiBinding<T>(
         subscription.clearObserver()
     }
 
+    /** The value the Rust side currently holds. */
+    fun get(): T = reader(raw())
+
     fun set(value: T) {
         check(!isReleased) { "cannot update a released WaterUI binding" }
         if (subscription.isWatching && subscription.currentMatches(value)) return
@@ -76,82 +80,107 @@ class WuiBinding<T>(
     }
 
     companion object {
-        fun bool(bindingPtr: Long): WuiBinding<Boolean> =
+        fun bool(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Boolean> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingBool(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingBool(ptr, value) },
-                watcherFactory = WatcherJni::createBoolWatcher,
+                watcherFactory = { cb -> WatcherJni.createBoolWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingBool(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingBool(ptr) }
             )
 
-        fun int(bindingPtr: Long): WuiBinding<Int> =
+        fun int(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingInt(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingInt(ptr, value) },
-                watcherFactory = WatcherJni::createIntWatcher,
+                watcherFactory = { cb -> WatcherJni.createIntWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingInt(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingInt(ptr) }
             )
 
-        fun id(bindingPtr: Long): WuiBinding<Int> =
+        /// `Binding<AnchorEdge>` crosses as the `WuiAnchorEdge` ordinal: an
+        /// `Int` on the Kotlin side with the int watcher shape.
+        fun anchorEdge(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = { ptr -> WatcherJni.readBindingAnchorEdge(ptr) },
+                writer = { ptr, value -> WatcherJni.setBindingAnchorEdge(ptr, value) },
+                watcherFactory = { cb -> WatcherJni.createIntWatcher(env.watcherContextPtr, cb) },
+                watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingAnchorEdge(ptr, watcher) },
+                dropper = { ptr -> WatcherJni.dropBindingAnchorEdge(ptr) }
+            )
+
+        fun id(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Int> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = WatcherJni::readBindingId,
                 writer = WatcherJni::setBindingId,
-                watcherFactory = WatcherJni::createIdWatcher,
+                watcherFactory = { cb -> WatcherJni.createIdWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = WatcherJni::watchBindingId,
                 dropper = WatcherJni::dropBindingId
             )
 
-        fun double(bindingPtr: Long): WuiBinding<Double> =
+        /// `Binding<Set<Id>>` crosses as an erased-id vector, so the Kotlin
+        /// side sees a plain `IntArray` of `WuiId`s.
+        fun idVec(bindingPtr: Long, env: WuiEnvironment): WuiBinding<IntArray> =
+            WuiBinding(
+                bindingPtr = bindingPtr,
+                reader = WatcherJni::readBindingIdVec,
+                writer = WatcherJni::setBindingIdVec,
+                watcherFactory = { cb -> WatcherJni.createIdVecWatcher(env.watcherContextPtr, cb) },
+                watcherRegistrar = WatcherJni::watchBindingIdVec,
+                dropper = WatcherJni::dropBindingIdVec,
+                valuesEqual = IntArray::contentEquals
+            )
+
+        fun double(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Double> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingDouble(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingDouble(ptr, value) },
-                watcherFactory = WatcherJni::createDoubleWatcher,
+                watcherFactory = { cb -> WatcherJni.createDoubleWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDouble(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingDouble(ptr) }
             )
 
-        fun str(bindingPtr: Long): WuiBinding<String> =
+        fun str(bindingPtr: Long, env: WuiEnvironment): WuiBinding<String> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingStr(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingStr(ptr, value) },
-                watcherFactory = WatcherJni::createStringWatcher,
+                watcherFactory = { cb -> WatcherJni.createStringWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingStr(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingStr(ptr) }
             )
 
-        fun styledPlain(bindingPtr: Long): WuiBinding<String> =
+        fun styledPlain(bindingPtr: Long, env: WuiEnvironment): WuiBinding<String> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = WatcherJni::readBindingStyledStrPlain,
                 writer = WatcherJni::setBindingStyledStrPlain,
-                watcherFactory = WatcherJni::createStyledStrPlainWatcher,
+                watcherFactory = { cb -> WatcherJni.createStyledStrPlainWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = WatcherJni::watchBindingStyledStr,
                 dropper = WatcherJni::dropBindingStyledStr
             )
 
-        fun secure(bindingPtr: Long): WuiBinding<String> =
+        fun secure(bindingPtr: Long, env: WuiEnvironment): WuiBinding<String> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = WatcherJni::readBindingSecure,
                 writer = WatcherJni::setBindingSecure,
-                watcherFactory = WatcherJni::createSecureWatcher,
+                watcherFactory = { cb -> WatcherJni.createSecureWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = WatcherJni::watchBindingSecure,
                 dropper = WatcherJni::dropBindingSecure
             )
 
-        fun color(bindingPtr: Long): WuiBinding<Long> =
+        fun color(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Long> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingColor(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingColor(ptr, value) },
-                watcherFactory = WatcherJni::createColorWatcher,
+                watcherFactory = { cb -> WatcherJni.createColorWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingColor(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingColor(ptr) },
                 valueReleaser = WatcherJni::dropColor,
@@ -159,7 +188,7 @@ class WuiBinding<T>(
                 writerConsumesValue = true
             )
 
-        fun dateTime(bindingPtr: Long): WuiBinding<DateTimeStruct> =
+        fun dateTime(bindingPtr: Long, env: WuiEnvironment): WuiBinding<DateTimeStruct> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingDateTime(ptr) },
@@ -174,17 +203,17 @@ class WuiBinding<T>(
                         value.second
                     )
                 },
-                watcherFactory = WatcherJni::createDateTimeWatcher,
+                watcherFactory = { cb -> WatcherJni.createDateTimeWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDateTime(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingDateTime(ptr) }
             )
 
-        fun dateVec(bindingPtr: Long): WuiBinding<Array<DateStruct>> =
+        fun dateVec(bindingPtr: Long, env: WuiEnvironment): WuiBinding<Array<DateStruct>> =
             WuiBinding(
                 bindingPtr = bindingPtr,
                 reader = { ptr -> WatcherJni.readBindingDateVec(ptr) },
                 writer = { ptr, value -> WatcherJni.setBindingDateVec(ptr, value) },
-                watcherFactory = WatcherJni::createDateVecWatcher,
+                watcherFactory = { cb -> WatcherJni.createDateVecWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { ptr, watcher -> WatcherJni.watchBindingDateVec(ptr, watcher) },
                 dropper = { ptr -> WatcherJni.dropBindingDateVec(ptr) },
                 valuesEqual = { left, right -> left.contentEquals(right) }

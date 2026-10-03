@@ -5,6 +5,7 @@ import android.widget.CompoundButton
 import android.widget.LinearLayout
 import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.materialswitch.MaterialSwitch
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.runtime.InteractionBridge
 import dev.waterui.android.runtime.NativeBindings
@@ -27,14 +28,14 @@ private const val TOGGLE_STYLE_CHECKBOX = 2
 // read as visibly out of date next to any Compose screen.
 private val toggleRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_toggle(node.rawPtr)
-    val binding = WuiBinding.bool(struct.bindingPtr)
+    val binding = WuiBinding.bool(struct.bindingPtr, env)
     val control: CompoundButton = when (struct.style) {
         TOGGLE_STYLE_AUTOMATIC,
         TOGGLE_STYLE_SWITCH -> MaterialSwitch(context)
         TOGGLE_STYLE_CHECKBOX -> MaterialCheckBox(context)
         else -> error("unknown toggle style: ${struct.style}")
     }
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }

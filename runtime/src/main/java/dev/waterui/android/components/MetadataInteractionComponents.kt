@@ -61,7 +61,7 @@ private val metadataCursorRenderer = WuiRenderer { context, node, env, registry 
     AccessibilityMetadataLayout(context)
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
         .apply {
-            val style = WuiComputed.cursorStyle(metadata.stylePtr)
+            val style = WuiComputed.cursorStyle(metadata.stylePtr, env)
             style.observe { value ->
                 pointerIcon = PointerIcon.getSystemIcon(context, pointerIconType(value))
             }
@@ -74,7 +74,7 @@ private val metadataHittableRenderer = WuiRenderer { context, node, env, registr
     HittableLayout(context)
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
         .apply {
-            val enabled = WuiComputed.bool(metadata.enabledPtr)
+            val enabled = WuiComputed.bool(metadata.enabledPtr, env)
             enabled.observe { value -> hitTestingEnabled = value }
             disposeWith(enabled)
         }
@@ -110,6 +110,7 @@ private fun accessibilityRoleClassName(role: Int): String = when (role) {
     1, 3, 4, 5 -> "android.widget.TextView"
     2 -> "android.widget.ImageView"
     11, 17, 19, 21, 22, 23, 27, 28 -> "android.view.ViewGroup"
+    29 -> "android.app.Dialog"
     13, 24 -> "android.widget.CheckBox"
     14, 25 -> "android.widget.RadioButton"
     15 -> "android.widget.Switch"
@@ -212,12 +213,12 @@ private fun accessibilityStateRenderer(signal: Boolean) = WuiRenderer { context,
         .attachMetadataContent(context, metadata.contentPtr, env, registry)
         .apply {
             val target = semanticAccessibilityTarget(this)
-            val disabled = WuiComputed.bool(metadata.disabledPtr)
-            val selected = WuiComputed.bool(metadata.selectedPtr)
-            val checked = WuiComputed.int(metadata.checkedPtr)
-            val expanded = WuiComputed.int(metadata.expandedPtr)
-            val busy = WuiComputed.bool(metadata.busyPtr)
-            val hidden = WuiComputed.bool(metadata.hiddenPtr)
+            val disabled = WuiComputed.bool(metadata.disabledPtr, env)
+            val selected = WuiComputed.bool(metadata.selectedPtr, env)
+            val checked = WuiComputed.int(metadata.checkedPtr, env)
+            val expanded = WuiComputed.int(metadata.expandedPtr, env)
+            val busy = WuiComputed.bool(metadata.busyPtr, env)
+            val hidden = WuiComputed.bool(metadata.hiddenPtr, env)
             var isDisabled = false
             var isSelected = false
             var checkedState = -1

@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.util.AttributeSet
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -17,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.Insets
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -30,8 +32,10 @@ import com.google.android.material.motion.MotionUtils
 import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.ShapeAppearanceModel
 import dev.waterui.android.runtime.R
+import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.reactive.WatcherGuard
+import dev.waterui.android.runtime.EdgeInsetsStruct
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.ReactivePlainText
 import dev.waterui.android.runtime.NativeAnyViews
@@ -40,6 +44,7 @@ import dev.waterui.android.runtime.RenderRegistry
 import dev.waterui.android.runtime.ThemeBridge
 import dev.waterui.android.runtime.WuiEnvironment
 import dev.waterui.android.runtime.WuiRenderer
+import dev.waterui.android.runtime.WuiSafeAreaManaging
 import dev.waterui.android.runtime.WuiTypeId
 import dev.waterui.android.runtime.disposeWuiTree
 import dev.waterui.android.runtime.disposeWith
@@ -55,6 +60,7 @@ private val listTypeId: WuiTypeId by lazy { NativeBindings.waterui_list_id().toT
 private val listItemTypeId: WuiTypeId by lazy { NativeBindings.waterui_list_item_id().toTypeId() }
 private const val THEME_PAYLOAD = "waterui.list.theme"
 private const val EDITING_PAYLOAD = "waterui.list.editing"
+private const val SELECTION_PAYLOAD = "waterui.list.selection"
 
 private const val VIEW_TYPE_ROW = 0
 private const val VIEW_TYPE_HEADER = 1
@@ -93,7 +99,15 @@ class ListRecyclerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
-) : RecyclerView(context, attrs, defStyleAttr) {
+) : RecyclerView(context, attrs, defStyleAttr), WuiSafeAreaManaging {
+    override fun applySafeArea(insets: Insets) {
+        // The list surface owns the window edges: rows may draw under the bars
+        // once they scroll there, while the padding keeps resting content
+        // clear — RecyclerView's clipToPadding=false is UIKit's contentInset.
+        clipToPadding = false
+        setPadding(insets.left, insets.top, insets.right, insets.bottom)
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(
             viewportMeasureSpec(widthMeasureSpec),
@@ -152,13 +166,18 @@ private class MaterialListMotion(context: Context) {
     }
 }
 
-private class ListItemModel(
+internal class ListItemModel(
     contentPtr: Long,
     deletablePtr: Long,
-    selectedPtr: Long,
     hasSection: Boolean,
     sectionLabelPtr: Long,
     sectionFooterPtr: Long,
+    /**
+     * The insets between the row's edges and its content, flattened out of
+     * the item struct's `hasInsets`/`inset*` fields. `null` keeps the
+     * theme's row insets.
+     */
+    val insets: EdgeInsetsStruct?,
     private val context: Context,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
@@ -166,8 +185,7 @@ private class ListItemModel(
     private var contentPtr = contentPtr
     private var contentView: View? = null
     private var contentDisposed = false
-    private val deletable = WuiComputed.bool(deletablePtr)
-    private val selected = WuiComputed.bool(selectedPtr)
+    private val deletable = WuiComputed.bool(deletablePtr, env)
 
     /** Whether this row opens a section, even one that draws no chrome. */
     val opensSection = hasSection
@@ -177,23 +195,14 @@ private class ListItemModel(
      * model for its lifetime; the holder that draws a given piece of chrome
      * subscribes to it while bound and lets go on recycle.
      */
-    val sectionLabel = sectionLabelPtr.takeIf { it != 0L }?.let(::ReactivePlainText)
-    val sectionFooter = sectionFooterPtr.takeIf { it != 0L }?.let(::ReactivePlainText)
+    val sectionLabel = sectionLabelPtr.takeIf { it != 0L }?.let { ReactivePlainText(it, env) }
+    val sectionFooter = sectionFooterPtr.takeIf { it != 0L }?.let { ReactivePlainText(it, env) }
     var isDeletable = false
         private set
-    var isSelected = false
-        private set
-
-    // The bound holder's hook; selection can change while the row is on screen.
-    var onSelectedChanged: ((Boolean) -> Unit)? = null
 
     init {
         deletable.observe { value ->
             isDeletable = value
-        }
-        selected.observe { value ->
-            isSelected = value
-            onSelectedChanged?.invoke(value)
         }
     }
 
@@ -208,9 +217,7 @@ private class ListItemModel(
     }
 
     override fun close() {
-        onSelectedChanged = null
         deletable.close()
-        selected.close()
         sectionLabel?.close()
         sectionFooter?.close()
         val view = contentView
@@ -227,7 +234,7 @@ private class ListItemModel(
     }
 }
 
-private class ListItemHolder(
+internal class ListItemHolder(
     val card: MaterialCardView,
     val content: FrameLayout,
     val actions: LinearLayout,
@@ -250,10 +257,19 @@ private class ListChromeHolder(val label: TextView) : RecyclerView.ViewHolder(la
 private class WuiListAdapter(
     private val context: Context,
     contentsPtr: Long,
+    selectionMode: Int,
+    selectionSinglePtr: Long,
+    selectionMultiplePtr: Long,
     editingPtr: Long,
     private val usesSections: Boolean,
     private val onDeletePtr: Long,
     private val onMovePtr: Long,
+    /**
+     * The row height floor in points the list's environment resolves, in
+     * place of the theme's one-line height. `null` keeps the theme's floor;
+     * `0` sizes each row to its content plus its insets.
+     */
+    private val minRowHeight: Float?,
     private val env: WuiEnvironment,
     private val registry: RenderRegistry
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>(), Closeable, PopupTextProvider {
@@ -262,8 +278,9 @@ private class WuiListAdapter(
         val originalRow: Int
     )
 
-    private val editing = WuiComputed.bool(editingPtr)
+    private val editing = WuiComputed.bool(editingPtr, env)
     private val mutedForeground = ThemeBridge.mutedForeground(env)
+    private val minRowHeightPx = minRowHeight?.dp(context)?.toInt()
     private val selectionContainer = ThemeBridge.selectionContainer(env)
     private val motion = MaterialListMotion(context)
     private val source = NativeAnyViews(contentsPtr)
@@ -298,10 +315,19 @@ private class WuiListAdapter(
         return ListItemModel(
             contentPtr = item.contentPtr,
             deletablePtr = item.deletablePtr,
-            selectedPtr = item.selectedPtr,
             hasSection = item.hasSection,
             sectionLabelPtr = item.sectionLabelPtr,
             sectionFooterPtr = item.sectionFooterPtr,
+            insets = if (item.hasInsets) {
+                EdgeInsetsStruct(
+                    top = item.insetTop,
+                    leading = item.insetLeading,
+                    bottom = item.insetBottom,
+                    trailing = item.insetTrailing
+                )
+            } else {
+                null
+            },
             context = context,
             env = env,
             registry = registry
@@ -311,10 +337,27 @@ private class WuiListAdapter(
     private var sectionTextColor = 0
     private var selectedContainerColor = 0
 
+    /**
+     * The list-level selection the authoring API bound, if any. Native input
+     * writes it and its echo repaints the touched rows — the row models no
+     * longer carry a per-row selected signal.
+     */
+    private val selection = ListSelection(
+        mode = selectionMode,
+        rowIds = { itemIds },
+        singleBinding = selectionSinglePtr.takeIf { it != 0L }?.let { WuiBinding.int(it, env) },
+        multipleBinding = selectionMultiplePtr.takeIf { it != 0L }?.let { WuiBinding.idVec(it, env) }
+    )
+
+    /// The meta state of the tap currently in flight, captured on ACTION_DOWN
+    /// because a click callback carries no modifiers.
+    private var tapMetaState = 0
+
     init {
         setHasStableIds(true)
         sourceWatcher = source.watch(::updateIds)
         updateIds(source.ids())
+        selection.onChanged = ::repaintRows
         editing.observe { value ->
             if (isEditing == value) return@observe
             isEditing = value
@@ -375,102 +418,16 @@ private class WuiListAdapter(
     }
 
     private fun createRowHolder(): ListItemHolder {
-        val verticalMargin = 4f.dp(context).toInt()
-        val card = MaterialCardView(
-            context,
-            null,
-            com.google.android.material.R.attr.materialCardViewOutlinedStyle
-        ).apply {
-            layoutParams = RecyclerView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(
-                    cardHorizontalMargin,
-                    verticalMargin,
-                    cardHorizontalMargin,
-                    verticalMargin
-                )
-            }
-            // A selected row shows Material's checked-card container tint, not
-            // a check icon: selection chrome, not a checkbox.
-            isCheckable = true
-            checkedIcon = null
-        }
-        val row = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        }
-        val deleteButton = materialIconButton(
-            iconResource = R.drawable.wui_delete,
-            descriptionResource = R.string.wui_list_delete_item,
-            iconColorAttribute = android.R.attr.colorError
-        )
-        val moveButton = materialIconButton(
-            iconResource = R.drawable.wui_drag_handle,
-            descriptionResource = R.string.wui_list_move_item,
-            iconColorAttribute = MaterialR.attr.colorOnSurfaceVariant
-        )
-        val actions = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            isVisible = false
-            alpha = 0f
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                marginEnd = 8f.dp(context).toInt()
-            }
-            addView(deleteButton)
-            addView(moveButton)
-        }
-        val content = FrameLayout(context).apply {
-            minimumHeight = 48f.dp(context).toInt()
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                weight = 1f
+        val holder = createListRowViews(context, cardHorizontalMargin)
+        bindListRowAccessibility(holder.card, selection) {
+            val position = holder.bindingAdapterPosition
+            if (position in entries.indices && entries[position] is RowEntry) {
+                itemIds[rowAt(position)]
+            } else {
+                null
             }
         }
-        row.addView(content)
-        row.addView(actions)
-        card.addView(row)
-        return ListItemHolder(card, content, actions, deleteButton, moveButton)
-    }
-
-    private fun materialIconButton(
-        iconResource: Int,
-        descriptionResource: Int,
-        iconColorAttribute: Int
-    ): MaterialButton = MaterialButton(
-        context,
-        null,
-        MaterialR.attr.materialIconButtonStyle
-    ).apply {
-        icon = checkNotNull(AppCompatResources.getDrawable(context, iconResource)) {
-            "WaterUI List icon resource $iconResource is missing"
-        }
-        iconTint = ColorStateList.valueOf(
-            MaterialColors.getColor(
-                context,
-                iconColorAttribute,
-                "WaterUI List requires Material 3 color attribute $iconColorAttribute"
-            )
-        )
-        contentDescription = context.getString(descriptionResource)
-        iconPadding = 0
-        insetTop = 0
-        insetBottom = 0
-        minWidth = 48f.dp(context).toInt()
-        minimumWidth = minWidth
-        minHeight = 48f.dp(context).toInt()
-        minimumHeight = minHeight
-        layoutParams = LinearLayout.LayoutParams(minWidth, minHeight)
+        return holder
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
@@ -494,6 +451,12 @@ private class WuiListAdapter(
         if (payloads.contains(EDITING_PAYLOAD) && holder is ListItemHolder) {
             bindEditing(holder, animate = true)
         }
+        if (payloads.contains(SELECTION_PAYLOAD) && holder is ListItemHolder) {
+            val entry = entries.getOrNull(position)
+            if (entry is RowEntry) {
+                applySelection(holder, selection.isSelected(entry.rowId))
+            }
+        }
     }
 
     private fun bindRow(holder: ListItemHolder, entry: RowEntry, position: Int) {
@@ -507,8 +470,9 @@ private class WuiListAdapter(
         }
         holder.model = model
         holder.ownsModel = !usesSections
-        applySelection(holder, model.isSelected)
-        model.onSelectedChanged = { value -> applySelection(holder, value) }
+        bindListRowMetrics(holder, model.insets, minRowHeightPx, context)
+        applySelection(holder, selection.isSelected(entry.rowId))
+        bindRowActivation(holder)
         bindTheme(holder)
         bindEditing(holder, animate = false)
         holder.content.removeAllViews()
@@ -519,6 +483,63 @@ private class WuiListAdapter(
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
+    }
+
+    /// Repaints exactly the rows whose selected state the binding flipped.
+    private fun repaintRows(changed: Set<Int>) {
+        changed.forEach { id ->
+            val row = itemIds.indexOf(id)
+            if (row >= 0) {
+                notifyItemChanged(rowPositions[row], SELECTION_PAYLOAD)
+            }
+        }
+    }
+
+    /**
+     * Pointer and keyboard activation of a bound row.
+     *
+     * A selectable row is clickable and focusable: touch taps click it,
+     * DPAD/arrow keys move focus between rows for free, and Enter or
+     * DPAD-center activates — the same reach the platform gives
+     * `CHOICE_MODE_*` rows. Hardware-modifier taps (Shift, Ctrl) keep their
+     * meta state, captured on ACTION_DOWN since a click callback carries none.
+     */
+    @Suppress("ClickableViewAccessibility")
+    private fun bindRowActivation(holder: ListItemHolder) {
+        if (selection.isEnabled) {
+            holder.card.setOnClickListener {
+                val metaState = tapMetaState
+                tapMetaState = 0
+                selection.activate(itemIds[rowAt(holder.bindingAdapterPosition)], metaState)
+            }
+            holder.card.setOnKeyListener { _, keyCode, event ->
+                if (
+                    event.action == KeyEvent.ACTION_UP &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)
+                ) {
+                    selection.activate(
+                        itemIds[rowAt(holder.bindingAdapterPosition)],
+                        event.metaState
+                    )
+                    true
+                } else {
+                    false
+                }
+            }
+            holder.card.setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    tapMetaState = event.metaState
+                }
+                false
+            }
+            holder.card.isFocusable = true
+        } else {
+            holder.card.setOnClickListener(null)
+            holder.card.setOnKeyListener(null)
+            holder.card.setOnTouchListener(null)
+            holder.card.isClickable = false
+            holder.card.isFocusable = false
+        }
     }
 
     private fun bindChrome(holder: ListChromeHolder, text: ReactivePlainText) {
@@ -695,6 +716,7 @@ private class WuiListAdapter(
         entries = emptyList()
         rowPositions = IntArray(0)
         editing.close()
+        selection.close()
         mutedForeground.close()
         selectionContainer.close()
         if (onDeletePtr != 0L) NativeBindings.waterui_drop_index_action(onDeletePtr)
@@ -706,7 +728,13 @@ private class WuiListAdapter(
             // Card container/stroke stay on the M3 outlined-card style defaults;
             // repainting them with Surface/Border flattened the elevation tint
             // and darkened the outline versus a Compose Card.
-            is ListItemHolder -> holder.model?.let { applySelection(holder, it.isSelected) }
+            is ListItemHolder -> {
+                val position = holder.bindingAdapterPosition
+                val entry = entries.getOrNull(position)
+                if (entry is RowEntry) {
+                    applySelection(holder, selection.isSelected(entry.rowId))
+                }
+            }
             is ListChromeHolder -> holder.label.setTextColor(sectionTextColor)
             else -> error("WaterUI List cannot theme an unknown holder $holder")
         }
@@ -720,7 +748,7 @@ private class WuiListAdapter(
     /// `colorSecondaryContainer` — so the row is the canonical M3 selected pair
     /// rather than accent-on-accent.
     private fun applySelection(holder: ListItemHolder, selected: Boolean) {
-        holder.card.isChecked = selected
+        applyListRowSelectedState(holder.card, selected)
         if (holder.defaultContainerColor == null) {
             holder.defaultContainerColor = holder.card.cardBackgroundColor
         }
@@ -817,7 +845,6 @@ private class WuiListAdapter(
 
     private fun releaseHolderModel(holder: ListItemHolder) {
         val model = holder.model ?: return
-        model.onSelectedChanged = null
         if (holder.ownsModel) {
             visibleFlatModels.remove(model)
             model.close()
@@ -1158,10 +1185,14 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
     val adapter = WuiListAdapter(
         context = context,
         contentsPtr = struct.contentsPtr,
+        selectionMode = struct.selectionMode,
+        selectionSinglePtr = struct.selectionSinglePtr,
+        selectionMultiplePtr = struct.selectionMultiplePtr,
         editingPtr = struct.editingPtr,
         usesSections = struct.usesSections,
         onDeletePtr = struct.onDeletePtr,
         onMovePtr = struct.onMovePtr,
+        minRowHeight = struct.minRowHeight.takeIf { struct.hasMinRowHeight },
         env = env,
         registry = registry
     )
@@ -1211,8 +1242,8 @@ private val listRenderer = WuiRenderer { context, node, env, registry ->
     }
     if (controlled) {
         val motion = MaterialListMotion(context)
-        val targetIndex = WuiComputed.int(struct.targetIndexPtr)
-        val generation = WuiComputed.int(struct.scrollGenerationPtr)
+        val targetIndex = WuiComputed.int(struct.targetIndexPtr, env)
+        val generation = WuiComputed.int(struct.scrollGenerationPtr, env)
         var target = 0
         targetIndex.observe { target = it }
         generation.observe { request ->

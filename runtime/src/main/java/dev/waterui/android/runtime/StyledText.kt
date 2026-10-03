@@ -1,5 +1,6 @@
 package dev.waterui.android.runtime
 
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Build
 import android.text.SpannableStringBuilder
@@ -8,11 +9,13 @@ import android.text.TextPaint
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
+import android.text.style.LineHeightSpan
 import android.text.style.MetricAffectingSpan
 import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
 import android.util.TypedValue
 import android.widget.TextView
+import androidx.core.widget.TextViewCompat
 import dev.waterui.android.reactive.WuiComputed
 import java.io.Closeable
 import kotlin.math.roundToInt
@@ -46,9 +49,10 @@ class WuiStyledStr internal constructor(
  * which would override the header style.
  */
 internal class ReactivePlainText(
-    computedPtr: Long
+    computedPtr: Long,
+    env: WuiEnvironment
 ) : Closeable {
-    private val computed = WuiComputed.styledString(computedPtr)
+    private val computed = WuiComputed.styledString(computedPtr, env)
     private var value: CharSequence = ""
     private var updateNative: (CharSequence) -> Unit = {}
 
@@ -78,7 +82,7 @@ internal class ReactiveStyledText(
     computedPtr: Long,
     env: WuiEnvironment
 ) : Closeable {
-    private val computed = WuiComputed.styledString(computedPtr)
+    private val computed = WuiComputed.styledString(computedPtr, env)
     private var resolvedBinding: Closeable? = null
     private var value: CharSequence = ""
     private var updateNative: (CharSequence) -> Unit = {}
@@ -145,6 +149,7 @@ internal class StyledTextStyle(
                 else -> background.resolve(env)
             },
             sharedForegroundAndBackground = foreground != null && foreground === background,
+            fontTable = env.fontTable,
             onChange = onChange
         )
 
@@ -217,6 +222,7 @@ internal class ResolvedStyledTextStyle(
     foreground: WuiComputed<ResolvedColorStruct>?,
     background: WuiComputed<ResolvedColorStruct>?,
     private val sharedForegroundAndBackground: Boolean,
+    private val fontTable: WaterUiFontTable,
     private val onChange: () -> Unit
 ) : Closeable {
     private val fontSignal = font
@@ -247,7 +253,7 @@ internal class ResolvedStyledTextStyle(
     fun applySpans(builder: SpannableStringBuilder, start: Int, end: Int) {
         val font = requireNotNull(resolvedFont) { "styled-text font did not resolve synchronously" }
         builder.setSpan(
-            ResolvedTypefaceSpan(font, italic),
+            ResolvedTypefaceSpan(font, italic, fontTable),
             start,
             end,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -261,6 +267,14 @@ internal class ResolvedStyledTextStyle(
             end,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
+        if (font.lineHeight > 0f) {
+            builder.setSpan(
+                ExactLineHeightSpan((font.lineHeight * pxPerSp).roundToInt()),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
         resolvedForeground?.let { color ->
             builder.setSpan(
                 ForegroundColorSpan(color.toColorInt()),
@@ -292,16 +306,50 @@ internal class ResolvedStyledTextStyle(
     }
 }
 
+/**
+ * Puts the spanned lines into the resolved font's absolute line box.
+ *
+ * The glyph run stays centred inside the box the way Compose's default
+ * `LineHeightStyle` centres it, and top/bottom are pinned to ascent/descent
+ * so `includeFontPadding=false` cannot trim the box back off the measured
+ * height.
+ */
+internal class ExactLineHeightSpan(
+    private val lineHeightPx: Int
+) : LineHeightSpan {
+    override fun chooseHeight(
+        text: CharSequence,
+        start: Int,
+        end: Int,
+        spanstartv: Int,
+        lineHeight: Int,
+        fm: Paint.FontMetricsInt
+    ) {
+        val natural = fm.descent - fm.ascent
+        if (natural <= 0) return
+        // The pin only ever loosens the box: shrinking it below the run's
+        // natural ascent-to-descent lets the view clip the ink the glyphs
+        // draw outside their line box (ascenders first).
+        val extra = (lineHeightPx - natural).coerceAtLeast(0)
+        val half = extra / 2
+        fm.ascent -= half
+        fm.descent += extra - half
+        fm.top = fm.ascent
+        fm.bottom = fm.descent
+    }
+}
+
 private class ResolvedTypefaceSpan(
     private val font: ResolvedFontStruct,
-    private val italic: Boolean
+    private val italic: Boolean,
+    private val fontTable: WaterUiFontTable
 ) : MetricAffectingSpan() {
     override fun updateMeasureState(textPaint: TextPaint) {
-        textPaint.typeface = font.toTypeface(italic)
+        textPaint.typeface = font.toTypeface(italic, fontTable)
     }
 
     override fun updateDrawState(textPaint: TextPaint) {
-        textPaint.typeface = font.toTypeface(italic)
+        textPaint.typeface = font.toTypeface(italic, fontTable)
     }
 }
 
@@ -309,7 +357,7 @@ internal class WuiFont(handle: Long) : NativePointer(handle) {
     fun resolve(env: WuiEnvironment): WuiComputed<ResolvedFontStruct> {
         val ptr = NativeBindings.waterui_resolve_font(raw(), env.raw())
         check(ptr != 0L) { "waterui_resolve_font returned a null computed" }
-        return WuiComputed.fontFromComputed(ptr)
+        return WuiComputed.fontFromComputed(ptr, env)
     }
 
     override fun release(ptr: Long) {
@@ -321,7 +369,7 @@ internal class WuiColor(handle: Long) : NativePointer(handle) {
     fun resolve(env: WuiEnvironment): WuiComputed<ResolvedColorStruct> {
         val ptr = NativeBindings.waterui_resolve_color(raw(), env.raw())
         check(ptr != 0L) { "waterui_resolve_color returned a null computed" }
-        return WuiComputed.colorFromComputed(ptr)
+        return WuiComputed.colorFromComputed(ptr, env)
     }
 
     override fun release(ptr: Long) {
@@ -347,12 +395,39 @@ private fun TextStyleStruct.toModel(): StyledTextStyle {
     )
 }
 
-internal fun TextView.applyResolvedFont(font: ResolvedFontStruct) {
+internal fun TextView.applyResolvedFont(
+    font: ResolvedFontStruct,
+    fonts: WaterUiFontTable,
+    applyLineHeight: Boolean = true
+) {
     setTextSize(TypedValue.COMPLEX_UNIT_SP, font.size)
-    typeface = font.toTypeface()
+    typeface = font.toTypeface(fonts = fonts)
+    // Compose Material `Text` trims font padding; a plain `TextView` keeps it
+    // and measures every line ~15% taller than the twin.
+    includeFontPadding = false
+    if (applyLineHeight && font.lineHeight > 0f) {
+        // `setLineHeight` alone cannot express the Compose line box: with font
+        // padding trimmed, `getDesiredHeight` subtracts the face's natural
+        // top/bottom padding again and a single line measures ~15% short.
+        // Pin the first/last baselines around the centred glyph run and pass
+        // the remainder as inter-line spacing so a single line measures
+        // exactly `lineHeight` and wrapped lines keep that pitch.
+        val lineHeightPx = (font.lineHeight * context.pxPerSp()).roundToInt()
+        val metrics = paint.fontMetricsInt
+        // Same rule as `ExactLineHeightSpan`: a pin below the natural box
+        // keeps natural metrics rather than clipping the glyph run.
+        val extra = (lineHeightPx - (metrics.descent - metrics.ascent)).coerceAtLeast(0)
+        val half = extra / 2
+        TextViewCompat.setFirstBaselineToTopHeight(this, -metrics.ascent + half)
+        TextViewCompat.setLastBaselineToBottomHeight(this, metrics.descent + extra - half)
+        setLineSpacing(extra.toFloat(), 1f)
+    }
+    // `letter_spacing` crosses the FFI as absolute points; the platform
+    // setter wants an em fraction of the text size.
+    letterSpacing = if (font.size > 0f) font.letterSpacing / font.size else 0f
 }
 
-fun ResolvedFontStruct.toTypeface(italic: Boolean = false): Typeface {
+fun ResolvedFontStruct.toTypeface(italic: Boolean = false, fonts: WaterUiFontTable): Typeface {
     val weightValue = when (weight) {
         0 -> 100
         1 -> 200
@@ -366,9 +441,11 @@ fun ResolvedFontStruct.toTypeface(italic: Boolean = false): Typeface {
         else -> error("unknown font weight: $weight")
     }
     // A named family is exact; the design picks between the platform's own
-    // faces in its absence.
+    // faces in its absence. Declared bundled fonts resolve through the table
+    // the runtime owner stamped on the environment before the platform
+    // family-name lookup runs.
     val base = family?.let { familyName ->
-        Typeface.create(familyName, Typeface.NORMAL)
+        fonts.typefaceFor(familyName) ?: Typeface.create(familyName, Typeface.NORMAL)
     } ?: if (isMonospaced) Typeface.MONOSPACE else Typeface.DEFAULT
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         Typeface.create(base, weightValue, italic)

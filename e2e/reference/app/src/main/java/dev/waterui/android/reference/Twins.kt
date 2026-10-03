@@ -52,6 +52,8 @@ fun twinFor(example: String): (@Composable () -> Unit)? =
         "gesture" -> ({ GestureTwin() })
         "hover" -> ({ HoverTwin() })
         "list" -> ({ ListTwin() })
+        "menu" -> ({ MenuTwin() })
+        "picker" -> ({ PickerTwin() })
         "typography-rtl" -> ({ TypographyRtlTwin() })
         else -> null
     }

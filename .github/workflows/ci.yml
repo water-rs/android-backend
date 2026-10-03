@@ -32,6 +32,46 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Static analysis and unit tests
         run: ./gradlew --no-daemon :runtime:detekt :runtime:detektDebug :runtime:lintDebug :runtime:testDebugUnitTest
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+      - name: E2E harness unit tests
+        run: uv run --with pytest --with tomlkit==0.13.3 pytest scripts/ci/test_e2e.py
+      # The runtime declares its own `minSdk` — it builds standalone and
+      # cannot read the framework manifest — but the two must agree, or a
+      # scaffolded app's floor is one the runtime does not support. The
+      # framework's floor is `package.metadata.waterui.android-min-api-level`
+      # in its root manifest, read with a TOML parser; the runtime's is read
+      # from Gradle's own evaluation of the build script, never by scraping it.
+      - name: Check out the framework manifest
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: dev
+          path: waterui
+          sparse-checkout: Cargo.toml
+          sparse-checkout-cone-mode: false
+      - name: Verify the runtime's minSdk agrees with the framework floor
+        run: |
+          set -euo pipefail
+          floor="$(python3 -c '
+          import tomllib
+          with open("waterui/Cargo.toml", "rb") as f:
+              print(tomllib.load(f)["package"]["metadata"]["waterui"]["android-min-api-level"])
+          ')"
+          if ! [[ "$floor" =~ ^[0-9]+$ ]]; then
+            echo "::error::package.metadata.waterui.android-min-api-level in the framework manifest must be an integer API level (got '$floor')"
+            exit 1
+          fi
+          min_sdk="$(./gradlew -q --no-daemon --init-script .github/scripts/android-min-sdk.init.gradle :runtime:waterUiMinSdk | sed -n 's/^WATERUI_MIN_SDK=//p')"
+          if [ -z "$min_sdk" ]; then
+            echo "::error::could not evaluate the runtime's minSdk from Gradle"
+            exit 1
+          fi
+          if [ "$min_sdk" != "$floor" ]; then
+            echo "::error::runtime minSdk ($min_sdk) does not match the framework's android-min-api-level ($floor)"
+            exit 1
+          fi
+          echo "runtime minSdk $min_sdk matches the framework floor"
 
   android-build:
     name: android-build
@@ -46,5 +86,64 @@ jobs:
           java-version: "21"
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+      # The runtime compiles against the framework's C ABI. The committed
+      # `runtime/src/main/cpp/waterui.h` is a snapshot for standalone builds;
+      # CI builds against the header the framework's `dev` branch generates,
+      # the same way the Apple backend's CI syncs its copy, so an ABI change
+      # on the framework side is a red build here rather than a runtime
+      # mismatch later. The framework tree carries no `backends/android`
+      # gitlink any more (water-rs/waterui#940), so nothing propagates the
+      # header into this repository from that side.
+      - name: Check out the framework's FFI header
+        uses: actions/checkout@v4
+        with:
+          repository: water-rs/waterui
+          ref: dev
+          path: waterui
+          sparse-checkout: ffi/waterui.h
+          sparse-checkout-cone-mode: false
+      - name: Sync the WaterUI header
+        run: |
+          set -euo pipefail
+          if ! cmp -s waterui/ffi/waterui.h runtime/src/main/cpp/waterui.h; then
+            echo "::warning file=runtime/src/main/cpp/waterui.h::the committed header differs from waterui dev's ffi/waterui.h; this build uses the framework's copy"
+          fi
+          cp waterui/ffi/waterui.h runtime/src/main/cpp/waterui.h
       - name: Build debug and release artifacts
         run: ./gradlew --no-daemon :runtime:assembleDebug :runtime:assembleRelease
+
+  # A release is a merge into `main`, and `main` only accepts `dev`. The
+  # nightly is the only run of the example e2e suite, so a `dev` it has not
+  # passed must not be released: this check requires the newest completed
+  # nightly run at the pull request's head commit — scheduled or dispatched,
+  # the inputs are the same — to have succeeded. A red or cancelled run, or
+  # no run at all because `dev` moved since the last one, fails the check
+  # with the run to look at or the dispatch to make. Only `main` is gated;
+  # fixes land on `dev` through pull requests this check never sees.
+  nightly-healthy:
+    name: Nightly healthy
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Require a green nightly at the head commit
+        run: |
+          set -euo pipefail
+          run="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/nightly.yml/runs?head_sha=${HEAD_SHA}&status=completed&per_page=1" \
+            --jq 'if (.workflow_runs | length) == 0 then "" else .workflow_runs[0] | .conclusion + " " + .html_url end')"
+          if [ -z "${run}" ]; then
+            echo "::error::no completed nightly run exists at ${HEAD_SHA}; dispatch the Nightly workflow on dev at this commit and re-run this check once it is green"
+            exit 1
+          fi
+          if [ "${run%% *}" != "success" ]; then
+            echo "::error::the newest nightly run at ${HEAD_SHA} concluded '${run%% *}' (${run#* }); a release needs a green nightly at the commit being released"
+            exit 1
+          fi
+          echo "nightly at ${HEAD_SHA} is green: ${run#* }"

@@ -4,6 +4,7 @@ import android.content.res.ColorStateList
 import android.view.Gravity
 import android.widget.LinearLayout
 import dev.waterui.android.layout.AxisExpandingLinearLayout
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.InteractionBridge
@@ -21,7 +22,14 @@ private val sliderTypeId: WuiTypeId by lazy { NativeBindings.waterui_slider_id()
 
 private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_slider(node.rawPtr)
-    val binding = WuiBinding.double(struct.bindingPtr)
+    // Android sliders have no platform size classes; `struct.size` applies
+    // where the platform has them (macOS controlSize).
+    // The drag-time value indicator is a backend-drawn chrome Android does not
+    // implement here; release the formatter handle so it does not leak.
+    if (struct.valueFormatterPtr != 0L) {
+        NativeBindings.waterui_drop_value_formatter(struct.valueFormatterPtr)
+    }
+    val binding = WuiBinding.double(struct.bindingPtr, env)
     val rangeStart = struct.rangeStart.toFloat()
     val rangeEnd = struct.rangeEnd.toFloat()
     require(rangeStart.isFinite() && rangeEnd.isFinite() && rangeStart < rangeEnd) {
@@ -45,7 +53,7 @@ private val sliderRenderer = WuiRenderer { context, node, env, registry ->
     container.addView(slider)
 
     if (struct.minLabelPtr != 0L || struct.maxLabelPtr != 0L) {
-        val minMaxRow = LinearLayout(context).apply {
+        val minMaxRow = WuiMeasurableLinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_HORIZONTAL
         }

@@ -68,41 +68,41 @@ class WuiComputed<T>(
     }
 
     companion object {
-        fun bool(ptr: Long): WuiComputed<Boolean> =
+        fun bool(ptr: Long, env: WuiEnvironment): WuiComputed<Boolean> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedBool(p) },
-                watcherFactory = WatcherJni::createBoolWatcher,
+                watcherFactory = { cb -> WatcherJni.createBoolWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedBool(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedBool(p) }
             )
 
-        fun double(ptr: Long): WuiComputed<Double> =
+        fun double(ptr: Long, env: WuiEnvironment): WuiComputed<Double> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedF64(p) },
-                watcherFactory = WatcherJni::createDoubleWatcher,
+                watcherFactory = { cb -> WatcherJni.createDoubleWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedF64(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedF64(p) }
             )
 
-        fun float(ptr: Long): WuiComputed<Float> =
+        fun float(ptr: Long, env: WuiEnvironment): WuiComputed<Float> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedF32(p) },
-                watcherFactory = WatcherJni::createFloatWatcher,
+                watcherFactory = { cb -> WatcherJni.createFloatWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedF32(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedF32(p) }
             )
 
-        fun styledString(ptr: Long): WuiComputed<WuiStyledStr> =
+        fun styledString(ptr: Long, env: WuiEnvironment): WuiComputed<WuiStyledStr> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p ->
                     WatcherJni.readComputedStyledStr(p).toModel()
                 },
                 watcherFactory = { callback ->
-                    WatcherJni.createStyledStrWatcher { struct, metadata ->
+                    WatcherJni.createStyledStrWatcher(env.watcherContextPtr) { struct, metadata ->
                         callback.onChanged(struct.toModel(), metadata)
                     }
                 },
@@ -116,18 +116,18 @@ class WuiComputed<T>(
             return WuiComputed(
                 computedPtr = computedPtr,
                 reader = { p -> WatcherJni.readComputedResolvedColor(p) },
-                watcherFactory = WatcherJni::createResolvedColorWatcher,
+                watcherFactory = { cb -> WatcherJni.createResolvedColorWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedColor(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedResolvedColor(p) }
             )
         }
 
-        fun dateVec(ptr: Long): WuiComputed<Array<DateStruct>> =
+        fun dateVec(ptr: Long, env: WuiEnvironment): WuiComputed<Array<DateStruct>> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = WatcherJni::readComputedDateVec,
                 watcherFactory = { callback ->
-                    WatcherJni.createDateVecWatcher { array, metadata ->
+                    WatcherJni.createDateVecWatcher(env.watcherContextPtr) { array, metadata ->
                         callback.onChanged(array, metadata)
                     }
                 },
@@ -135,66 +135,66 @@ class WuiComputed<T>(
                 dropper = { p -> WatcherJni.dropComputedDateVec(p) }
             )
 
-        fun int(ptr: Long): WuiComputed<Int> =
+        fun int(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedI32(p) },
-                watcherFactory = WatcherJni::createIntWatcher,
+                watcherFactory = { cb -> WatcherJni.createIntWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedI32(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedI32(p) }
             )
 
-        fun colorScheme(ptr: Long): WuiComputed<Int> =
+        fun colorScheme(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = WatcherJni::readComputedColorScheme,
-                watcherFactory = WatcherJni::createColorSchemeWatcher,
+                watcherFactory = { cb -> WatcherJni.createColorSchemeWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = WatcherJni::watchComputedColorScheme,
                 dropper = WatcherJni::dropComputedColorScheme
             )
 
-        fun cursorStyle(ptr: Long): WuiComputed<Int> =
+        fun cursorStyle(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = WatcherJni::readComputedCursorStyle,
-                watcherFactory = WatcherJni::createCursorStyleWatcher,
+                watcherFactory = { cb -> WatcherJni.createCursorStyleWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = WatcherJni::watchComputedCursorStyle,
                 dropper = WatcherJni::dropComputedCursorStyle
             )
 
-        fun horizontalAlignment(ptr: Long): WuiComputed<Int> =
+        fun horizontalAlignment(ptr: Long, env: WuiEnvironment): WuiComputed<Int> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedHorizontalAlignment(p) },
-                watcherFactory = WatcherJni::createHorizontalAlignmentWatcher,
+                watcherFactory = { cb -> WatcherJni.createHorizontalAlignmentWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedHorizontalAlignment(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedHorizontalAlignment(p) }
             )
 
-        fun colorFromComputed(ptr: Long): WuiComputed<ResolvedColorStruct> =
+        fun colorFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedColorStruct> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedResolvedColor(p) },
-                watcherFactory = WatcherJni::createResolvedColorWatcher,
+                watcherFactory = { cb -> WatcherJni.createResolvedColorWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedColor(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedResolvedColor(p) }
             )
 
-        fun bitmapFromComputed(ptr: Long): WuiComputed<BitmapStruct> =
+        fun bitmapFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<BitmapStruct> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedBitmap(p) },
-                watcherFactory = WatcherJni::createBitmapWatcher,
+                watcherFactory = { cb -> WatcherJni.createBitmapWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedBitmap(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedBitmap(p) },
                 valueReleaser = { bitmap -> WatcherJni.dropBitmap(bitmap.handlePtr) }
             )
 
-        fun fontFromComputed(ptr: Long): WuiComputed<ResolvedFontStruct> =
+        fun fontFromComputed(ptr: Long, env: WuiEnvironment): WuiComputed<ResolvedFontStruct> =
             WuiComputed(
                 computedPtr = ptr,
                 reader = { p -> WatcherJni.readComputedResolvedFont(p) },
-                watcherFactory = WatcherJni::createResolvedFontWatcher,
+                watcherFactory = { cb -> WatcherJni.createResolvedFontWatcher(env.watcherContextPtr, cb) },
                 watcherRegistrar = { p, watcher -> WatcherJni.watchComputedResolvedFont(p, watcher) },
                 dropper = { p -> WatcherJni.dropComputedResolvedFont(p) }
             )

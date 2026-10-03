@@ -8,6 +8,7 @@ import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import dev.waterui.android.layout.WuiMeasurableLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
 import dev.waterui.android.runtime.DateStruct
@@ -38,16 +39,16 @@ private val multiDatePickerTypeId: WuiTypeId by lazy {
 // pre-Material framework CalendarView in a hand-built dialog.
 private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry ->
     val struct = NativeBindings.waterui_force_as_multi_date_picker(node.rawPtr)
-    val binding = WuiBinding.dateVec(struct.valuePtr)
-    val decorated = WuiComputed.dateVec(struct.decoratedPtr)
+    val binding = WuiBinding.dateVec(struct.valuePtr, env)
+    val decorated = WuiComputed.dateVec(struct.decoratedPtr, env)
     val rangeStart = struct.rangeStart.toLocalDate()
     val rangeEnd = struct.rangeEnd.toLocalDate()
     require(rangeStart <= rangeEnd) { "multi-date picker range must not be empty" }
 
-    val container = LinearLayout(context).apply {
+    val container = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
-    val headerRow = LinearLayout(context).apply {
+    val headerRow = WuiMeasurableLinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
     }
@@ -70,7 +71,7 @@ private val multiDatePickerRenderer = WuiRenderer { context, node, env, registry
 
     val helperText = TextView(context)
     val helperFont = ThemeBridge.bodyFont(env)
-    helperFont.observe(helperText::applyResolvedFont)
+    helperFont.observe { helperText.applyResolvedFont(it, env.fontTable) }
     helperFont.attachTo(helperText)
     val helperColor = ThemeBridge.mutedForeground(env)
     helperColor.observe { color -> helperText.setTextColor(color.toColorInt()) }

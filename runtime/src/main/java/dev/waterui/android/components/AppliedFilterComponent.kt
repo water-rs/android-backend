@@ -172,5 +172,13 @@ private fun <T : PassThroughFrameLayout> T.attachFilteredContent(
 }
 
 internal fun RegistryBuilder.registerWuiAppliedFilter() {
-    registerMetadata({ metadataAppliedFilterTypeId }, appliedFilterRenderer)
+    // The applied-filter surface exists only when the package links
+    // `waterui-ffi/gpu`: without it the export is absent and no such metadata
+    // can reach the registry, so registration is skipped.
+    val typeId = try {
+        metadataAppliedFilterTypeId
+    } catch (_: UnsatisfiedLinkError) {
+        return
+    }
+    registerMetadata({ typeId }, appliedFilterRenderer)
 }

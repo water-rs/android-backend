@@ -98,6 +98,7 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiMultiDatePicker()
         registerWuiWithEnv()
         registerWuiGpuSurface()
+        registerWuiBadge()
         registerWuiAndroidVideoSurfaceHost()
         registerWuiAppliedFilter()
         registerWuiViewEffect()
@@ -127,8 +128,16 @@ private val registryData: Pair<Map<WuiTypeId, WuiRenderer>, Set<WuiTypeId>> by l
         registerWuiFocused()
         registerWuiIgnoreSafeArea()
         registerWuiRetain()
+        registerWuiLayoutPriority()
         registerWuiDynamicRange()
         registerWuiContextMenu()
+        registerWuiAnchoredOverlay()
+        registerWuiDragDropMetadata()
+        // `Metadata<OnKeyPress>` (key bubbling) is intentionally not
+        // implemented: this backend is frozen for new features. The
+        // `waterui_metadata_on_key_press_id`/`_force_as`/`_call_on_key_press`
+        // JNI entry points exist but nothing registers the type id, so a view
+        // carrying the metadata fails loudly instead of silently dropping keys.
     }
     builder.components to builder.metadataTypes
 }

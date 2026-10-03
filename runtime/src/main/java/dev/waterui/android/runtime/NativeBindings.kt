@@ -10,6 +10,7 @@ import dev.waterui.android.ffi.WatcherJni
  *
  * This module provides a thin wrapper over WatcherJni JNI exports.
  */
+@Suppress("LargeClass") // One wrapper per JNI export; splitting it would scatter the ABI surface.
 internal object NativeBindings {
 
     /**
@@ -49,6 +50,7 @@ internal object NativeBindings {
     fun waterui_menu_item_id(): TypeIdStruct = WatcherJni.menuItemId()
     fun waterui_stepper_id(): TypeIdStruct = WatcherJni.stepperId()
     fun waterui_progress_id(): TypeIdStruct = WatcherJni.progressId()
+    fun waterui_badge_id(): TypeIdStruct = WatcherJni.badgeId()
     fun waterui_dynamic_id(): TypeIdStruct = WatcherJni.dynamicId()
     fun waterui_scroll_view_id(): TypeIdStruct = WatcherJni.scrollViewId()
     fun waterui_spacer_id(): TypeIdStruct = WatcherJni.spacerId()
@@ -74,6 +76,33 @@ internal object NativeBindings {
     fun waterui_metadata_navigation_transition_destination_id(): TypeIdStruct =
         WatcherJni.metadataNavigationTransitionDestinationId()
     fun waterui_metadata_context_menu_id(): TypeIdStruct = WatcherJni.metadataContextMenuId()
+    fun waterui_metadata_anchored_overlay_id(): TypeIdStruct = WatcherJni.metadataAnchoredOverlayId()
+
+    /**
+     * Positions an anchored overlay in window space through the shared
+     * placement contract exported by `waterui-ffi`.
+     */
+    @Suppress("LongParameterList") // The placement geometry crosses the ABI flattened.
+    fun waterui_anchored_overlay_place(
+        envPtr: Long,
+        anchorX: Float,
+        anchorY: Float,
+        anchorW: Float,
+        anchorH: Float,
+        windowW: Float,
+        windowH: Float,
+        overlayW: Float,
+        overlayH: Float,
+        edge: Int,
+        alignment: Int,
+        gap: Float,
+        flip: Boolean,
+        clampTag: Int,
+        clampMargin: Float
+    ): AnchoredOverlayPlacementStruct = WatcherJni.anchoredOverlayPlace(
+        envPtr, anchorX, anchorY, anchorW, anchorH, windowW, windowH,
+        overlayW, overlayH, edge, alignment, gap, flip, clampTag, clampMargin
+    )
 
     // ========== Theme: Color Scheme ==========
 
@@ -91,12 +120,23 @@ internal object NativeBindings {
 
     fun waterui_theme_install_font(envPtr: Long, slot: Int, signalPtr: Long) = WatcherJni.themeInstallFont(envPtr, slot, signalPtr)
     fun waterui_theme_font(envPtr: Long, slot: Int): Long = WatcherJni.themeFont(envPtr, slot)
-    fun waterui_create_reactive_font_state(size: Float, weight: Int): Long =
-        WatcherJni.createReactiveFontState(size, weight)
+    fun waterui_create_reactive_font_state(
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    ): Long =
+        WatcherJni.createReactiveFontState(size, weight, lineHeight, letterSpacing)
     fun waterui_reactive_font_state_to_computed(statePtr: Long): Long =
         WatcherJni.reactiveFontStateToComputed(statePtr)
-    fun waterui_reactive_font_state_set(statePtr: Long, size: Float, weight: Int) =
-        WatcherJni.reactiveFontStateSet(statePtr, size, weight)
+    fun waterui_reactive_font_state_set(
+        statePtr: Long,
+        size: Float,
+        weight: Int,
+        lineHeight: Float,
+        letterSpacing: Float
+    ) =
+        WatcherJni.reactiveFontStateSet(statePtr, size, weight, lineHeight, letterSpacing)
     fun waterui_drop_reactive_font_state(statePtr: Long) =
         WatcherJni.dropReactiveFontState(statePtr)
 
@@ -104,6 +144,7 @@ internal object NativeBindings {
 
     fun waterui_clone_env(envPtr: Long): Long = WatcherJni.cloneEnv(envPtr)
     fun waterui_env_drop(envPtr: Long) = WatcherJni.dropEnv(envPtr)
+    fun waterui_drop_value_formatter(formatterPtr: Long) = WatcherJni.dropValueFormatter(formatterPtr)
     fun waterui_env_install_locale_tag(envPtr: Long, localeTag: String) =
         WatcherJni.envInstallLocaleTag(envPtr, localeTag)
 
@@ -115,8 +156,9 @@ internal object NativeBindings {
         WatcherJni.layoutMeasure(layoutPtr, proposal, subviews)
     fun waterui_layout_size_that_fits(layoutPtr: Long, proposal: ProposalStruct, subviews: Array<SubViewStruct>): SizeStruct =
         WatcherJni.layoutSizeThatFits(layoutPtr, proposal, subviews)
-    fun waterui_layout_place(layoutPtr: Long, bounds: RectStruct, subviews: Array<SubViewStruct>): Array<RectStruct> =
-        WatcherJni.layoutPlace(layoutPtr, bounds, subviews)
+    fun waterui_layout_place_subviews(layoutPtr: Long, bounds: RectStruct, proposal: ProposalStruct, subviews: Array<SubViewStruct>): Array<SubviewPlacementStruct> =
+        WatcherJni.layoutPlaceSubviews(layoutPtr, bounds, proposal, subviews)
+    fun waterui_layout_stretch_axis(layoutPtr: Long, children: IntArray): Int = WatcherJni.layoutStretchAxis(layoutPtr, children)
     fun waterui_layout_lazy_stack_axis(layoutPtr: Long): Int = WatcherJni.layoutLazyStackAxis(layoutPtr)
     fun waterui_layout_lazy_stack_spacing(layoutPtr: Long): Float = WatcherJni.layoutLazyStackSpacing(layoutPtr)
     fun waterui_layout_lazy_stack_horizontal_alignment(layoutPtr: Long): Int =
@@ -149,6 +191,8 @@ internal object NativeBindings {
         headroom: Float
     ): Long = WatcherJni.colorFromLinearRgbaHeadroom(red, green, blue, alpha, headroom)
     fun waterui_resolve_color(colorPtr: Long, envPtr: Long): Long = WatcherJni.resolveColor(colorPtr, envPtr)
+    fun waterui_resolve_computed_color(computedColorPtr: Long, envPtr: Long): Long =
+        WatcherJni.resolveComputedColor(computedColorPtr, envPtr)
     fun waterui_drop_color(colorPtr: Long) = WatcherJni.dropColor(colorPtr)
 
     // ========== Font resolution ==========
@@ -189,6 +233,7 @@ internal object NativeBindings {
     fun waterui_force_as_slider(viewPtr: Long): SliderStruct = WatcherJni.forceAsSlider(viewPtr)
     fun waterui_force_as_stepper(viewPtr: Long): StepperStruct = WatcherJni.forceAsStepper(viewPtr)
     fun waterui_force_as_progress(viewPtr: Long): ProgressStruct = WatcherJni.forceAsProgress(viewPtr)
+    fun waterui_force_as_badge(viewPtr: Long): BadgeStruct = WatcherJni.forceAsBadge(viewPtr)
     fun waterui_force_as_scroll(viewPtr: Long): ScrollStruct = WatcherJni.forceAsScrollView(viewPtr)
     fun waterui_force_as_color_picker(viewPtr: Long): ColorPickerStruct = WatcherJni.forceAsColorPicker(viewPtr)
     fun waterui_force_as_picker(viewPtr: Long): PickerStruct = WatcherJni.forceAsPicker(viewPtr)
@@ -202,6 +247,8 @@ internal object NativeBindings {
     fun waterui_force_as_resolved_gradient(viewPtr: Long): ResolvedGradientStruct = WatcherJni.forceAsResolvedGradient(viewPtr)
     fun waterui_force_as_resolved_shape(viewPtr: Long): ResolvedShapeStruct = WatcherJni.forceAsResolvedShape(viewPtr)
     fun waterui_force_as_metadata_env(viewPtr: Long): MetadataEnvStruct = WatcherJni.forceAsMetadataEnv(viewPtr)
+    fun waterui_force_as_metadata_layout_priority(viewPtr: Long): MetadataLayoutPriorityStruct =
+        WatcherJni.forceAsMetadataLayoutPriority(viewPtr)
     fun waterui_force_as_metadata_navigation_transition_source(
         viewPtr: Long
     ): MetadataNavigationTransitionStruct =
@@ -211,6 +258,8 @@ internal object NativeBindings {
     ): MetadataNavigationTransitionStruct =
         WatcherJni.forceAsMetadataNavigationTransitionDestination(viewPtr)
     fun waterui_force_as_metadata_context_menu(viewPtr: Long): MetadataContextMenuStruct = WatcherJni.forceAsMetadataContextMenu(viewPtr)
+    fun waterui_force_as_metadata_anchored_overlay(viewPtr: Long): MetadataAnchoredOverlayStruct =
+        WatcherJni.forceAsMetadataAnchoredOverlay(viewPtr)
     fun waterui_force_as_metadata_secure(viewPtr: Long): MetadataSecureStruct = WatcherJni.forceAsMetadataSecure(viewPtr)
     fun waterui_force_as_metadata_gesture(viewPtr: Long): MetadataGestureStruct = WatcherJni.forceAsMetadataGesture(viewPtr)
     fun waterui_gesture_from_ptr(gesturePtr: Long): GestureStruct = WatcherJni.gestureFromPtr(gesturePtr)
@@ -353,6 +402,7 @@ internal object NativeBindings {
     fun waterui_metadata_focused_id(): TypeIdStruct = WatcherJni.metadataFocusedId()
     fun waterui_metadata_ignore_safe_area_id(): TypeIdStruct = WatcherJni.metadataIgnoreSafeAreaId()
     fun waterui_metadata_retain_id(): TypeIdStruct = WatcherJni.metadataRetainId()
+    fun waterui_metadata_layout_priority_id(): TypeIdStruct = WatcherJni.metadataLayoutPriorityId()
     fun waterui_metadata_standard_dynamic_range_id(): TypeIdStruct =
         WatcherJni.metadataStandardDynamicRangeId()
     fun waterui_metadata_high_dynamic_range_id(): TypeIdStruct =
@@ -544,25 +594,6 @@ internal object NativeBindings {
         WatcherJni.reactiveColorSchemeStateSet(statePtr, scheme)
     fun waterui_drop_reactive_color_scheme_state(statePtr: Long) =
         WatcherJni.dropReactiveColorSchemeState(statePtr)
-    fun waterui_create_reactive_edge_insets_state(
-        top: Float,
-        bottom: Float,
-        leading: Float,
-        trailing: Float
-    ): Long = WatcherJni.createReactiveEdgeInsetsState(top, bottom, leading, trailing)
-    fun waterui_reactive_edge_insets_state_to_computed(statePtr: Long): Long =
-        WatcherJni.reactiveEdgeInsetsStateToComputed(statePtr)
-    fun waterui_reactive_edge_insets_state_set(
-        statePtr: Long,
-        top: Float,
-        bottom: Float,
-        leading: Float,
-        trailing: Float
-    ) = WatcherJni.reactiveEdgeInsetsStateSet(statePtr, top, bottom, leading, trailing)
-    fun waterui_drop_reactive_edge_insets_state(statePtr: Long) =
-        WatcherJni.dropReactiveEdgeInsetsState(statePtr)
-    fun waterui_env_install_safe_area(envPtr: Long, signalPtr: Long) =
-        WatcherJni.envInstallSafeArea(envPtr, signalPtr)
 
     // ========== View capture (AppliedFilter / ViewEffect) ==========
 

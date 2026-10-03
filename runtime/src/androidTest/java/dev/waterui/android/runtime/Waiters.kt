@@ -21,6 +21,9 @@ object Waiters {
     // Strip the marks before asserting on text content.
     private val BIDI_MARKS = Regex("[\u2066-\u2069\u202A-\u202E]")
 
+    /** Strips WaterUI's bidi isolate marks from rendered text. */
+    fun stripBidi(text: CharSequence): String = BIDI_MARKS.replace(text, "")
+
     /**
      * Matches a [TextView]'s rendered text against [expected] after stripping
      * bidi control characters, for use with
