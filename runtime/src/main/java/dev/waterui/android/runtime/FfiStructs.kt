@@ -377,6 +377,11 @@ data class TextFieldStruct(
     val promptPtr: Long,
     val promptAlignmentPtr: Long,
     val keyboardType: Int,
+    /**
+     * `WuiContentType` discriminant: the semantic content type the field
+     * declares for autofill, or `ContentType.NONE` when it declares none.
+     */
+    val contentType: Int,
     val selectionMenuPtr: Long,
     /**
      * Maximum number of lines the field accepts: `1` is single-line, a larger
@@ -390,6 +395,31 @@ data class TextFieldStruct(
      */
     val onSubmitPtr: Long,
 )
+
+/**
+ * Mirror of `WuiContentType` — the semantic content type a text field declares
+ * for autofill. `value`s are the `#[repr(C)]` discriminants; an unrecognized
+ * one means the runtime and the FFI library disagree, so it throws rather
+ * than dropping the hint.
+ */
+enum class ContentType(val value: Int) {
+    NONE(0),
+    USERNAME(1),
+    PASSWORD(2),
+    NEW_PASSWORD(3),
+    EMAIL_ADDRESS(4),
+    PHONE_NUMBER(5),
+    ONE_TIME_CODE(6),
+    PERSON_NAME(7),
+    POSTAL_ADDRESS(8),
+    POSTAL_CODE(9),
+    CREDIT_CARD_NUMBER(10);
+
+    companion object {
+        fun fromInt(value: Int): ContentType = entries.firstOrNull { it.value == value }
+            ?: error("unknown content type: $value")
+    }
+}
 
 enum class MenuItemTag(val value: Int) {
     COMMAND(0),
