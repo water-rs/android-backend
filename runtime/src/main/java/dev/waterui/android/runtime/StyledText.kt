@@ -2,7 +2,6 @@ package dev.waterui.android.runtime
 
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.os.Build
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextPaint
@@ -447,15 +446,5 @@ fun ResolvedFontStruct.toTypeface(italic: Boolean = false, fonts: WaterUiFontTab
     val base = family?.let { familyName ->
         fonts.typefaceFor(familyName) ?: Typeface.create(familyName, Typeface.NORMAL)
     } ?: if (isMonospaced) Typeface.MONOSPACE else Typeface.DEFAULT
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        Typeface.create(base, weightValue, italic)
-    } else {
-        val style = when {
-            weightValue >= 600 && italic -> Typeface.BOLD_ITALIC
-            weightValue >= 600 -> Typeface.BOLD
-            italic -> Typeface.ITALIC
-            else -> Typeface.NORMAL
-        }
-        Typeface.create(base, style)
-    }
+    return Typeface.create(base, weightValue, italic)
 }
