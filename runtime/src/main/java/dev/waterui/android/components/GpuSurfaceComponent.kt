@@ -23,7 +23,6 @@ import android.view.WindowInsets
 import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputMethodManager
 import androidx.annotation.Keep
 import androidx.core.view.isVisible
 import dev.waterui.android.runtime.GpuSurfaceStruct
@@ -687,12 +686,7 @@ internal class GpuSurfaceView(
 
     /** Raises the software keyboard for a GPU view that composes its own text. */
     private fun showSoftKeyboard() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            windowInsetsController?.show(WindowInsets.Type.ime())
-            return
-        }
-        val manager = context.getSystemService(InputMethodManager::class.java) ?: return
-        manager.showSoftInput(this, 0)
+        windowInsetsController?.show(WindowInsets.Type.ime())
     }
 
     private fun pushInput() {
@@ -871,9 +865,6 @@ internal class GpuSurfaceView(
     }
 
     private fun requestMaximumFrameRate(surface: Surface) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            return
-        }
         val attachedDisplay = checkNotNull(display) {
             "GpuSurface cannot select a frame rate before it is attached to a display"
         }
@@ -885,21 +876,15 @@ internal class GpuSurfaceView(
                     mode.physicalHeight == currentMode.physicalHeight
             }
             .maxOf { mode -> mode.refreshRate }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            surface.setFrameRate(
-                maximumRefreshRate,
-                Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
-                Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS
-            )
-        } else {
-            surface.setFrameRate(maximumRefreshRate, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
-        }
+        surface.setFrameRate(
+            maximumRefreshRate,
+            Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+            Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS
+        )
     }
 
     private fun clearFrameRate(surface: Surface) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            surface.setFrameRate(0f, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
-        }
+        surface.setFrameRate(0f, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
     }
 
     // An HDR-capable *screen* is not evidence the *content* is HDR: a renderer
