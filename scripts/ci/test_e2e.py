@@ -193,110 +193,148 @@ def test_verify_parity_fails_on_foreign_focus_without_comparing(
     assert not (tmp_path / "shape.twin.png").exists()
 
 
-def test_pin_android_backend_points_manifest_at_the_checkout(tmp_path):
-    example = tmp_path / "gesture"
-    example.mkdir()
-    manifest = example / "Water.toml"
-    manifest.write_text(
+# The pin rewrites `android-backend-url` / `android-backend-revision` in the
+# `[package.metadata.waterui]` table of the framework checkout's root
+# Cargo.toml — the JitPack coordinate `water package` resolves the Kotlin
+# runtime from. The fixture layout mirrors the real one: an example two
+# directories deep selecting the checkout through `waterui_path = "../.."`.
+def make_framework_example(tmp_path):
+    framework_manifest = tmp_path / "Cargo.toml"
+    framework_manifest.write_text(
+        "[package]\n"
+        'name = "waterui"\n'
+        "\n"
+        "# coordinates the framework certifies\n"
+        "[package.metadata.waterui]\n"
+        'android-backend-url = "https://github.com/water-rs/android-backend.git"\n'
+        f'android-backend-revision = "{"0" * 40}"\n'
+    )
+    example = tmp_path / "examples" / "gesture"
+    example.mkdir(parents=True)
+    (example / "Water.toml").write_text(
         'waterui_path = "../.."\n'
         "\n"
         "[package]\n"
-        'type = "playground"\n'
         'name = "Gesture Example"\n'
         'bundle_identifier = "com.waterui.gesture_example"\n'
     )
-    backend = tmp_path / "backend"
-    backend.mkdir()
+    return example, framework_manifest
 
-    assert e2e.pin_android_backend(example, backend) == str(backend)
+
+def test_pin_android_backend_rewrites_the_framework_manifest(
+    tmp_path, monkeypatch
+):
+    example, manifest = make_framework_example(tmp_path)
+    revision = "f" * 40
+    monkeypatch.setattr(
+        e2e, "backend_coordinates",
+        lambda _dir: ("https://github.com/water-rs/android-backend.git", revision),
+    )
+
+    assert e2e.pin_android_backend(example, tmp_path / "backend") == revision
 
     parsed = tomllib.loads(manifest.read_text())
-    assert parsed["backends"]["android"]["backend_path"] == str(backend)
-    # The examples' framework checkout selection is untouched.
-    assert parsed["waterui_path"] == "../.."
-    assert parsed["package"]["type"] == "playground"
+    metadata = parsed["package"]["metadata"]["waterui"]
+    assert metadata["android-backend-url"] == (
+        "https://github.com/water-rs/android-backend.git"
+    )
+    assert metadata["android-backend-revision"] == revision
+    # The example's own manifest and the file's comments are untouched.
+    assert "# coordinates the framework certifies" in manifest.read_text()
+    assert "backends" not in tomllib.loads(
+        (example / "Water.toml").read_text()
+    )
 
-    # A second run returns the same path and leaves the file byte-identical.
+    # A second run returns the same revision and leaves the file
+    # byte-identical.
     written = manifest.read_text()
-    assert e2e.pin_android_backend(example, backend) == str(backend)
+    assert e2e.pin_android_backend(example, tmp_path / "backend") == revision
     assert manifest.read_text() == written
 
 
-def test_pin_android_backend_preserves_existing_configuration(tmp_path):
-    example = tmp_path / "demo"
-    example.mkdir()
-    manifest = example / "Water.toml"
-    manifest.write_text(
-        'waterui_path = "../.."\n'
-        "\n"
-        "[package]\n"
-        'type = "playground"\n'
-        'name = "Demo"\n'
-        'bundle_identifier = "dev.waterui.demo"\n'
-        "\n"
-        "# already pinned by the example author\n"
-        "[backends.android]\n"
-        'backend_path = "/elsewhere/android-backend"\n'
-        'version = "1.2.3"\n'
+def test_pin_android_backend_uses_the_checkouts_git_coordinates(
+    tmp_path, monkeypatch
+):
+    example, manifest = make_framework_example(tmp_path)
+    monkeypatch.setattr(
+        e2e, "backend_coordinates",
+        lambda _dir: ("git@github.com:lexoliu/android-backend.git", "a" * 40),
     )
 
-    # An existing backend_path is a deliberate override, not rewritten.
-    assert (
-        e2e.pin_android_backend(example, tmp_path / "backend")
-        == "/elsewhere/android-backend"
+    e2e.pin_android_backend(example, tmp_path / "backend")
+
+    metadata = tomllib.loads(manifest.read_text())["package"]["metadata"][
+        "waterui"
+    ]
+    assert metadata["android-backend-url"] == (
+        "git@github.com:lexoliu/android-backend.git"
     )
-    parsed = tomllib.loads(manifest.read_text())
-    assert (
-        parsed["backends"]["android"]["backend_path"]
-        == "/elsewhere/android-backend"
-    )
-    assert parsed["backends"]["android"]["version"] == "1.2.3"
-    assert "# already pinned by the example author" in manifest.read_text()
+    assert metadata["android-backend-revision"] == "a" * 40
 
 
-def test_pin_android_backend_extends_a_pathless_android_table(tmp_path):
-    example = tmp_path / "demo"
-    example.mkdir()
-    manifest = example / "Water.toml"
-    manifest.write_text(
-        "[package]\n"
-        'type = "playground"\n'
-        'name = "Demo"\n'
-        'bundle_identifier = "dev.waterui.demo"\n'
-        "\n"
-        "[backends.android]\n"
-        'version = "1.2.3"\n'
-    )
-    backend = tmp_path / "backend"
-    backend.mkdir()
-
-    assert e2e.pin_android_backend(example, backend) == str(backend)
-    parsed = tomllib.loads(manifest.read_text())
-    assert parsed["backends"]["android"]["backend_path"] == str(backend)
-    assert parsed["backends"]["android"]["version"] == "1.2.3"
-
-
-def test_pin_backend_subcommand_points_at_this_checkout(tmp_path, capsys):
+def test_pin_android_backend_rejects_a_channel_selected_example(
+    tmp_path, monkeypatch
+):
     example = tmp_path / "gesture"
     example.mkdir()
-    manifest = example / "Water.toml"
-    manifest.write_text(
-        'waterui_path = "../.."\n'
-        "\n"
+    (example / "Water.toml").write_text(
         "[package]\n"
-        'type = "playground"\n'
         'name = "Gesture Example"\n'
         'bundle_identifier = "com.waterui.gesture_example"\n'
     )
+    monkeypatch.setattr(
+        e2e, "backend_coordinates",
+        lambda _dir: ("u", "r"),
+    )
 
-    # The subcommand derives the backend root from e2e.py's own location,
-    # exactly the way run-shard does.
-    backend_root = Path(e2e.__file__).resolve().parents[2]
+    try:
+        e2e.pin_android_backend(example, tmp_path / "backend")
+    except ValueError as error:
+        assert "waterui_path" in str(error)
+    else:
+        raise AssertionError("a channel selection has no checkout to pin")
+
+
+def test_pin_android_backend_rejects_a_manifest_without_waterui_metadata(
+    tmp_path, monkeypatch
+):
+    tmp_path.joinpath("Cargo.toml").write_text(
+        "[package]\n"
+        'name = "waterui"\n'
+    )
+    example = tmp_path / "examples" / "gesture"
+    example.mkdir(parents=True)
+    (example / "Water.toml").write_text('waterui_path = "../.."\n')
+    monkeypatch.setattr(
+        e2e, "backend_coordinates",
+        lambda _dir: ("u", "r"),
+    )
+
+    try:
+        e2e.pin_android_backend(example, tmp_path / "backend")
+    except ValueError as error:
+        assert "package.metadata.waterui" in str(error)
+    else:
+        raise AssertionError("a manifest without the metadata table must fail")
+
+
+def test_pin_backend_subcommand_points_at_this_checkout(
+    tmp_path, capsys, monkeypatch
+):
+    example, manifest = make_framework_example(tmp_path)
+    revision = "e" * 40
+    monkeypatch.setattr(
+        e2e, "backend_coordinates",
+        lambda _dir: ("https://github.com/water-rs/android-backend.git", revision),
+    )
+
     assert e2e.main(["pin-backend", str(example)]) == 0
 
-    parsed = tomllib.loads(manifest.read_text())
-    assert parsed["backends"]["android"]["backend_path"] == str(backend_root)
-    assert capsys.readouterr().out.strip() == str(backend_root)
+    metadata = tomllib.loads(manifest.read_text())["package"]["metadata"][
+        "waterui"
+    ]
+    assert metadata["android-backend-revision"] == revision
+    assert capsys.readouterr().out.strip() == revision
 
 
 def test_package_release_fetches_remote_fonts_before_packaging(

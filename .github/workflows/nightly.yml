@@ -160,14 +160,15 @@ jobs:
             --git https://github.com/water-rs/cli --branch dev \
             waterui-cli
 
-      # e2e.py pin-backend rewrites the example's Water.toml through tomlkit.
+      # e2e.py pin-backend rewrites the framework manifest's backend
+      # coordinate through tomlkit.
       - name: Install tomlkit for manifest edits
         run: python3 -m pip install tomlkit==0.13.3
 
-      # `water package` resolves the runtime from the JitPack coordinate the
-      # pinned framework revision declares unless the manifest names a local
-      # checkout — the instrumentation leg builds the fixture outside
-      # run-shard, so the pin has to be written here explicitly.
+      # `water package` resolves the runtime from the `android-backend-url` /
+      # `android-backend-revision` JitPack coordinate the waterui checkout's
+      # root Cargo.toml declares — the instrumentation leg builds the fixture
+      # outside run-shard, so the pin has to be written here explicitly.
       - name: Point the gesture fixture at this checkout
         run: python3 scripts/ci/e2e.py pin-backend waterui/examples/gesture
 

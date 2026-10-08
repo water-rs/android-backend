@@ -267,42 +267,55 @@ def bundle_id(example_path: Path) -> str | None:
     return match.group(1) if match else None
 
 
-def pin_android_backend(example_path: Path, backend_dir: Path) -> str:
-    """Point the example at the android-backend checkout under test.
+def backend_coordinates(backend_dir: Path) -> tuple[str, str]:
+    """The `(url, revision)` JitPack coordinate of the checkout under test —
+    its `origin` remote and HEAD commit."""
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(backend_dir), *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
 
-    `water package` resolves the runtime from the JitPack coordinate the
-    pinned framework revision declares unless the manifest names a local
-    checkout, so the shard writes `[backends.android] backend_path` into each
-    example's Water.toml before packaging — a manifest that already sets one
-    is a deliberate override and is kept. Returns the effective backend path.
+    return git("remote", "get-url", "origin"), git("rev-parse", "HEAD")
+
+
+def pin_android_backend(example_path: Path, backend_dir: Path) -> str:
+    """Point the framework the example selects at this android-backend commit.
+
+    `water package` resolves the Kotlin runtime from the JitPack coordinate
+    the framework checkout's own root manifest declares — the
+    `android-backend-url` / `android-backend-revision` keys of its
+    `[package.metadata.waterui]` table — so the shard rewrites both in the
+    Cargo.toml the example's `waterui_path` names before packaging. Returns
+    the revision pinned.
     """
-    manifest_path = example_path / "Water.toml"
-    text = manifest_path.read_text()
-    existing = (
-        tomllib.loads(text)
-        .get("backends", {})
-        .get("android", {})
-        .get("backend_path")
-    )
-    if existing:
-        return str(existing)
+    selection = tomllib.loads(
+        (example_path / "Water.toml").read_text()
+    ).get("waterui_path")
+    if not isinstance(selection, str):
+        raise ValueError(
+            f"{example_path}/Water.toml selects no local framework checkout "
+            "(no waterui_path) — nothing to pin"
+        )
+    manifest_path = example_path / selection / "Cargo.toml"
+    url, revision = backend_coordinates(backend_dir)
 
     # tomlkit rewrites in place so comments and sibling keys survive; the
-    # import stays local because only run-shard needs it.
+    # import stays local because only this pin needs it.
     import tomlkit
 
-    document = tomlkit.parse(text)
-    backends = document.get("backends")
-    if backends is None:
-        backends = tomlkit.table()
-        document["backends"] = backends
-    android = backends.get("android")
-    if android is None:
-        android = tomlkit.table()
-        backends["android"] = android
-    android["backend_path"] = str(backend_dir)
+    document = tomlkit.parse(manifest_path.read_text())
+    metadata = (
+        document.get("package", {}).get("metadata", {}).get("waterui")
+    )
+    if not isinstance(metadata, tomlkit.items.AbstractTable):
+        raise ValueError(
+            f"{manifest_path} declares no [package.metadata.waterui] table"
+        )
+    metadata["android-backend-url"] = url
+    metadata["android-backend-revision"] = revision
     manifest_path.write_text(tomlkit.dumps(document))
-    return str(backend_dir)
+    return revision
 
 
 def parse_meminfo(data: bytes) -> dict:
@@ -1176,8 +1189,8 @@ def _run_packaged_example(
 
     try:
         pin_android_backend(example_path, backend_dir)
-    except OSError as error:
-        return fail(f"cannot update {example}'s Water.toml: {error}")
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        return fail(f"cannot pin {example}'s framework at this checkout: {error}")
 
     package = bundle_id(example_path)
     if not package:
@@ -1422,7 +1435,7 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
         sys.exit(f"Example manifest not found: {manifest_path}")
     if not examples_root.is_dir():
         sys.exit(f"Examples directory not found: {examples_root}")
-    for tool in ("water", "adb", "keytool"):
+    for tool in ("water", "adb", "keytool", "git"):
         if subprocess.run(["which", tool], capture_output=True).returncode != 0:
             sys.exit(f"{tool} not found in PATH.")
 
@@ -1455,8 +1468,9 @@ def cmd_run_shard(args: argparse.Namespace) -> int:
         f"examples on {serial} (golden-mode={args.golden_mode})"
     )
     print(f"Assigned examples: {' '.join(assigned)}")
-    # The shard certifies this checkout: each packaged example's manifest is
-    # pointed at it instead of the JitPack coordinate the framework pins.
+    # The shard certifies this checkout: each packaged example's framework
+    # manifest is repinned to its HEAD instead of the revision the framework
+    # declares.
     print(f"Android backend under test: {backend_dir}")
 
     manifest = load_manifest(manifest_path)
@@ -1671,10 +1685,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     pin = sub.add_parser(
         "pin-backend",
-        help="point an example's Water.toml at this android-backend checkout",
+        help="point an example's framework checkout at this android-backend commit",
     )
     pin.add_argument("example_path",
-                     help="path to the example whose Water.toml gains backend_path")
+                     help="path to the example whose framework manifest gains the pin")
     pin.set_defaults(func=cmd_pin_backend)
 
     return parser
