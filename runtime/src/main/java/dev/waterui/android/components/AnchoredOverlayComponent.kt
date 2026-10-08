@@ -1,7 +1,6 @@
 package dev.waterui.android.components
 
 import android.graphics.Rect
-import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -68,11 +67,7 @@ internal class AnchoredOverlayPresentation(
         ).apply {
             // Not touch-modal: presses outside the popup's bounds dispatch to
             // the application window and reach their real target.
-            // API 29+; below that the decor-view interceptor already forwards
-            // outside presses to their real target.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                setTouchModal(false)
-            }
+            setTouchModal(false)
             elevation = 24f * anchor.resources.displayMetrics.density
         }
         this.popup = popup

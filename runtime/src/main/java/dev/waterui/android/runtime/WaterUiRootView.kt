@@ -8,7 +8,6 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import dev.waterui.android.ffi.InspectorJni
 import android.graphics.Typeface
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -617,12 +616,8 @@ private data class MaterialTypographyPalette(
     }
 }
 
-private fun Typeface.toWaterUiFontWeight(): Int {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-        return if (isBold) 6 else 3
-    }
-    return ((weight + 50) / 100).coerceIn(1, 9) - 1
-}
+private fun Typeface.toWaterUiFontWeight(): Int =
+    ((weight + 50) / 100).coerceIn(1, 9) - 1
 
 private class MaterialThemeSignals private constructor(
     private val colors: Map<ColorSlot, ReactiveColorSignal>,
