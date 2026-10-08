@@ -6,10 +6,12 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.LinearLayout
+import androidx.autofill.HintConstants
 import androidx.core.widget.addTextChangedListener
 import dev.waterui.android.layout.AxisExpandingLinearLayout
 import dev.waterui.android.reactive.WuiBinding
 import dev.waterui.android.reactive.WuiComputed
+import dev.waterui.android.runtime.ContentType
 import dev.waterui.android.runtime.NativeBindings
 import dev.waterui.android.runtime.RegistryBuilder
 import dev.waterui.android.runtime.ThemeBridge
@@ -51,6 +53,16 @@ private val textFieldRenderer = WuiRenderer { context, node, env, registry ->
         isSingleLine = singleLine
         if (struct.lineLimit > 0) {
             maxLines = struct.lineLimit
+        }
+        // A declared content type becomes the field's autofill hint; a field
+        // that declares none opts out rather than letting the autofill
+        // service guess from the label text.
+        when (val contentType = ContentType.fromInt(struct.contentType)) {
+            ContentType.NONE -> importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            else -> {
+                setAutofillHints(autofillHint(contentType))
+                importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
+            }
         }
     }
     editText.installWuiFocusTarget(WuiTextInputFocusTarget(editText))
@@ -160,6 +172,26 @@ private fun resolveKeyboardInputType(keyboardType: Int): Int =
         KEYBOARD_NUMBER -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         KEYBOARD_PHONE -> InputType.TYPE_CLASS_PHONE
         else -> error("unknown keyboard type: $keyboardType")
+    }
+
+/**
+ * Maps a declared `ContentType` onto its `androidx.autofill` hint. `NONE`
+ * never reaches here — the caller marks such a field unimportant for
+ * autofill instead.
+ */
+private fun autofillHint(contentType: ContentType): String =
+    when (contentType) {
+        ContentType.NONE -> error("content type NONE carries no autofill hint")
+        ContentType.USERNAME -> HintConstants.AUTOFILL_HINT_USERNAME
+        ContentType.PASSWORD -> HintConstants.AUTOFILL_HINT_PASSWORD
+        ContentType.NEW_PASSWORD -> HintConstants.AUTOFILL_HINT_NEW_PASSWORD
+        ContentType.EMAIL_ADDRESS -> HintConstants.AUTOFILL_HINT_EMAIL_ADDRESS
+        ContentType.PHONE_NUMBER -> HintConstants.AUTOFILL_HINT_PHONE_NUMBER
+        ContentType.ONE_TIME_CODE -> HintConstants.AUTOFILL_HINT_SMS_OTP
+        ContentType.PERSON_NAME -> HintConstants.AUTOFILL_HINT_PERSON_NAME
+        ContentType.POSTAL_ADDRESS -> HintConstants.AUTOFILL_HINT_POSTAL_ADDRESS
+        ContentType.POSTAL_CODE -> HintConstants.AUTOFILL_HINT_POSTAL_CODE
+        ContentType.CREDIT_CARD_NUMBER -> HintConstants.AUTOFILL_HINT_CREDIT_CARD_NUMBER
     }
 
 internal fun RegistryBuilder.registerWuiTextField() {

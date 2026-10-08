@@ -122,6 +122,9 @@ tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation("androidx.core:core-ktx:1.19.1")
+    // `HintConstants`: the OTP/password hints beyond `View.AUTOFILL_HINT_*`
+    // (`AUTOFILL_HINT_SMS_OTP`, `AUTOFILL_HINT_NEW_PASSWORD`).
+    implementation("androidx.autofill:autofill:1.3.0")
     implementation("androidx.dynamicanimation:dynamicanimation:1.1.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.3.0")
